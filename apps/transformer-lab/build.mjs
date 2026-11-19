@@ -115,8 +115,10 @@ if (web) {
 }
 // Archivos públicos (imagen para redes, el video de muestra en public/video/, etc.): public/ se copia tal cual
 // a dist/, con sus subcarpetas. Más robots.txt y sitemap.xml.
-const SITE_URL = 'https://laboratorio-transformer.vercel.app';
+const SITE_URL = 'https://transformer.trueml.app';
 if (existsSync(join(ROOT, 'public'))) cpSync(join(ROOT, 'public'), DIST, { recursive: true });
+// La mudanza a trueml.app: la página que lleva el avance de la dirección *.vercel.app vieja a la nueva (ver vendor/trueml/mudanza.js).
+for (const f of ['mudanza.html', 'mudanza.js']) cpSync(join(ROOT, 'vendor', 'trueml', f), join(DIST, f));
 writeFileSync(join(DIST, 'robots.txt'), `User-agent: *\nAllow: /\n\nSitemap: ${SITE_URL}/sitemap.xml\n`);
 writeFileSync(join(DIST, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url><loc>${SITE_URL}/</loc><lastmod>${new Date().toISOString().slice(0, 10)}</lastmod></url>\n</urlset>\n`);
 

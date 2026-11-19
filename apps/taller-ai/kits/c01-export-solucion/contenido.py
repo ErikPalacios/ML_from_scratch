@@ -112,7 +112,7 @@ e["mapa"] = {
         {"que": "La latencia", "c01": "<code>perf_analyzer</code> contra Triton a 250 y 500 peticiones/s; holgura 10 %", "taller": "carga abierta dentro del proceso a 600 y 1,200 peticiones/s; holgura 15 %"},
         {"que": "Dónde corre", "c01": "un runner de CI con una T4 (g4dn.xlarge), ≈ 20–30 min", "taller": f"la CPU de tu Mac: ≈ 15 s todo menos la latencia (≈ {LAT_S} s)"},
     ],
-    "hoja": "https://cheat-sheets-ml.vercel.app/recorrido/#est-export",
+    "hoja": "https://hojas.trueml.app/recorrido/#est-export",
 }
 
 e["precalculos"] = {

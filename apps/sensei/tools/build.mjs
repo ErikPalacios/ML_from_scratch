@@ -581,6 +581,8 @@ for (const f of ['app.js', 'repaso.js', 'icon.svg', 'manifest.webmanifest', 'og.
 if (!SOLO && existsSync(join(ROOT, 'site', 'video'))) { mkdirSync(join(OUT, 'video'), { recursive: true }); for (const f of readdirSync(join(ROOT, 'site', 'video'))) if (!f.startsWith('.')) copyFileSync(join(ROOT, 'site', 'video', f), join(OUT, 'video', f)); }
 copyFileSync(join(ROOT, 'vendor', 'ronda', 'diagram.js'), join(OUT, 'diagram.js'));
 for (const f of ['codigo.js', 'piezas.js']) copyFileSync(join(ROOT, 'vendor', 'trueml', f), join(OUT, f));
+// La mudanza a trueml.app: la página que lleva el avance de la dirección *.vercel.app vieja a la nueva (ver vendor/trueml/mudanza.js).
+for (const f of ['mudanza.html', 'mudanza.js']) copyFileSync(join(ROOT, 'vendor', 'trueml', f), join(OUT, f));
 const CSS = [join(ROOT, 'vendor', 'trueml', 'tokens.css'), join(ROOT, 'vendor', 'trueml', 'piezas.css'), join(ROOT, 'vendor', 'ronda', 'components.css'), join(ROOT, 'site', 'sensei.css')].map(leer).join('\n');
 writeFileSync(join(OUT, 'sensei.css'), CSS);
 // el índice del buscador: lecciones (publicadas) y conceptos

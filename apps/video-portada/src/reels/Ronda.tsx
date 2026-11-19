@@ -5,7 +5,7 @@ import { C, MONO, SANS } from '../tema';
 import { Fondo, Punto, useEntrada, Ventana } from '../piezas';
 import { App, Aurora, Cierre, clamp, Gancho, Reel, useSalida, VIVOS } from './kit';
 
-const URL = 'ronda-diseno-ml.vercel.app';
+const URL = 'ronda.trueml.app';
 const AZUL = '#7C93FF';
 // el framework de 7 pasos de la Ronda (apps/ml-system-design/js/core/registry.js), con sus minutos
 const PASOS = [

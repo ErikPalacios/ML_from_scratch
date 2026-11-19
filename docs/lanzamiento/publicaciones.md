@@ -18,7 +18,7 @@ Textos listos para adaptar con tu voz. **No he publicado nada.** Antes de cada u
 >
 > Cómo se hizo: con Claude Code, verificando comandos y cifras contra la documentación oficial; los revisores (Dockerfile, YAML, workflows) corren en tu navegador. El código es abierto.
 >
-> Si estás preparando una entrevista, pruébalo y cuéntame qué falla o qué te falta: https://ml-desde-cero.vercel.app
+> Si estás preparando una entrevista, pruébalo y cuéntame qué falla o qué te falta: https://trueml.app
 >
 > #MachineLearning #MLOps #MLEngineering #Entrevistas
 
@@ -26,11 +26,11 @@ Textos listos para adaptar con tu voz. **No he publicado nada.** Antes de cada u
 
 ## 2. X (hilo, español)
 
-1. Armé herramientas gratis para prepararte como ML Engineer: curso de system design, hojas de Docker/K8s/vLLM, un atlas de arquitecturas y un transformer que se entrena paso a paso. Sin cuenta y casi todo sin conexión. 🧵 https://ml-desde-cero.vercel.app
-2. 📘 Ronda de Diseño ML: lo que rodea al modelo en producción (serving, datos, evaluación, monitoreo, costo), con práctica cronometrada de 45 min y rúbrica. https://ronda-diseno-ml.vercel.app
-3. 📄 Cheat sheets: 9 hojas con PDF. Docker trae un laboratorio completo, un generador de Dockerfile y un revisor que corre en tu navegador. https://cheat-sheets-ml.vercel.app
-4. 🧭 Atlas de Arquitecturas: ViT, CLIP, DETR, SAM, LLMs… con diagrama, matemáticas, dimensiones y la cuenta de parámetros y FLOPs a la vista. https://atlas-arquitecturas.vercel.app
-5. 🧪 Laboratorio Transformer: forward, pérdida, backward y actualización, operación por operación, con cada matriz y su fórmula. Todo se calcula en tu navegador. https://laboratorio-transformer.vercel.app
+1. Armé herramientas gratis para prepararte como ML Engineer: curso de system design, hojas de Docker/K8s/vLLM, un atlas de arquitecturas y un transformer que se entrena paso a paso. Sin cuenta y casi todo sin conexión. 🧵 https://trueml.app
+2. 📘 Ronda de Diseño ML: lo que rodea al modelo en producción (serving, datos, evaluación, monitoreo, costo), con práctica cronometrada de 45 min y rúbrica. https://ronda.trueml.app
+3. 📄 Cheat sheets: 9 hojas con PDF. Docker trae un laboratorio completo, un generador de Dockerfile y un revisor que corre en tu navegador. https://hojas.trueml.app
+4. 🧭 Atlas de Arquitecturas: ViT, CLIP, DETR, SAM, LLMs… con diagrama, matemáticas, dimensiones y la cuenta de parámetros y FLOPs a la vista. https://atlas.trueml.app
+5. 🧪 Laboratorio Transformer: forward, pérdida, backward y actualización, operación por operación, con cada matriz y su fórmula. Todo se calcula en tu navegador. https://transformer.trueml.app
 6. Es código abierto y está hecho con Claude Code. Si encuentras un error o te falta algo, abre un comentario: https://github.com/ErikPalacios/ML_from_scratch/issues/new/choose
 
 ## 3. Reddit (inglés) — r/learnmachinelearning o r/mlops
@@ -41,10 +41,10 @@ Textos listos para adaptar con tu voz. **No he publicado nada.** Antes de cada u
 
 > Hi all. I'm preparing for ML Engineer interviews and ended up building my own study tools. I'm sharing them in case they help someone else. They're in Spanish (technical terms in English), free, no signup, and most of it works offline:
 >
-> - **ML System Design course + simulator** (timed 45-minute practice, rubric): https://ronda-diseno-ml.vercel.app
-> - **Cheat sheets** (Docker with a full lab, Kubernetes, Git/Actions, Triton, FastAPI, Prometheus, vLLM) with in-browser linters: https://cheat-sheets-ml.vercel.app
-> - **Architecture atlas** (ViT, CLIP, DETR, SAM, LLMs…, with shapes and param/FLOP counts shown): https://atlas-arquitecturas.vercel.app
-> - **Transformer lab**: a small GPT-style model trained one operation at a time, forward and backward written by hand in JS: https://laboratorio-transformer.vercel.app
+> - **ML System Design course + simulator** (timed 45-minute practice, rubric): https://ronda.trueml.app
+> - **Cheat sheets** (Docker with a full lab, Kubernetes, Git/Actions, Triton, FastAPI, Prometheus, vLLM) with in-browser linters: https://hojas.trueml.app
+> - **Architecture atlas** (ViT, CLIP, DETR, SAM, LLMs…, with shapes and param/FLOP counts shown): https://atlas.trueml.app
+> - **Transformer lab**: a small GPT-style model trained one operation at a time, forward and backward written by hand in JS: https://transformer.trueml.app
 >
 > Everything is static, MIT for code and CC BY-NC-ND for the content. Built with Claude Code, with figures checked against official docs. Repo: https://github.com/ErikPalacios/ML_from_scratch
 >
@@ -56,7 +56,7 @@ Textos listos para adaptar con tu voz. **No he publicado nada.** Antes de cada u
 
 > I wrote a small GPT-style transformer in plain JavaScript (forward, loss, backward, optimizer update) and built a UI that walks through one training iteration operation by operation: every matrix, its formula and its shape, with a cell inspector that shows the exact arithmetic. No libraries, everything runs client-side, works offline.
 >
-> It's part of a set of free study tools for ML engineer interviews (in Spanish): https://ml-desde-cero.vercel.app. The lab is at https://laboratorio-transformer.vercel.app.
+> It's part of a set of free study tools for ML engineer interviews (in Spanish): https://trueml.app. The lab is at https://transformer.trueml.app.
 >
 > Content is Spanish; the math and diagrams are readable regardless. Feedback welcome on the explanations and on anything that's wrong.
 
@@ -64,10 +64,10 @@ Show HN pide que se pueda probar sin registro (cumple) y que quien lo publica es
 
 ## 5. Mensajes cortos por app (WhatsApp, Discord, Telegram)
 
-- **Curso:** «Armé un curso gratis con simulador para la ronda de ML System Design. Práctica de 45 min con rúbrica: https://ronda-diseno-ml.vercel.app»
-- **Hojas:** «Cheat sheets de Docker, Kubernetes, vLLM y más, con PDF y revisores en el navegador: https://cheat-sheets-ml.vercel.app»
-- **Atlas:** «Atlas de arquitecturas de ML (ViT, CLIP, DETR, SAM, LLMs) con dimensiones y FLOPs: https://atlas-arquitecturas.vercel.app»
-- **Laboratorio:** «Un transformer entrenándose paso a paso en tu navegador, con cada matriz y fórmula: https://laboratorio-transformer.vercel.app»
+- **Curso:** «Armé un curso gratis con simulador para la ronda de ML System Design. Práctica de 45 min con rúbrica: https://ronda.trueml.app»
+- **Hojas:** «Cheat sheets de Docker, Kubernetes, vLLM y más, con PDF y revisores en el navegador: https://hojas.trueml.app»
+- **Atlas:** «Atlas de arquitecturas de ML (ViT, CLIP, DETR, SAM, LLMs) con dimensiones y FLOPs: https://atlas.trueml.app»
+- **Laboratorio:** «Un transformer entrenándose paso a paso en tu navegador, con cada matriz y fórmula: https://transformer.trueml.app»
 
 ## 6. Contenido corto semanal (después del lanzamiento)
 

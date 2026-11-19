@@ -9,7 +9,7 @@ Lo marcado con «verifica» son datos de precios, límites o reglas que cambian;
 | App | Qué es | Estado | Datos del usuario | Lista para público |
 |---|---|---|---|---|
 | Ronda de Diseño ML (`apps/ml-system-design`) | Curso + simulador de ML System Design, ~15 MB, español | Estática, con Vercel | `localStorage` (`msd.v1`), exporta e importa JSON | Casi: falta portada pública, SEO y revisar contenido |
-| Cheat sheets (`apps/cheat-sheets`) | 9 hojas con PDF, generadores y revisores, sin conexión | En producción (`cheat-sheets-ml.vercel.app`) | Tema en el navegador | Sí, es la más madura |
+| Cheat sheets (`apps/cheat-sheets`) | 9 hojas con PDF, generadores y revisores, sin conexión | En producción (`hojas.trueml.app`) | Tema en el navegador | Sí, es la más madura |
 | Laboratorio Transformer (`apps/transformer-lab`) | Entrenamiento de un GPT pequeño paso a paso, calculado en el navegador | Sin `vercel.json`; se abre por `file://` | `localStorage` (`tl.*`) | Falta publicarla |
 | Atlas de Arquitecturas | Atlas nivel 2 de arquitecturas, 15 fases completas | **Solo en su rama** (`claude/atlas-arquitecturas-vision-ab9d96`), no está en `main` | No revisado | Falta integrarla a `main` |
 | Tablero de proyectos ML (`apps/tablero-ml`) | Tablero tipo mapa de metro con API para Claude Code | En producción, **de un solo usuario** (una `APP_PASSWORD`, Upstash) y precargado con tu proyecto C01 | Redis | **No** como producto abierto (ver 4.4) |
@@ -179,10 +179,10 @@ Las cuatro apps abren en producción, en direcciones `*.vercel.app` (los subdomi
 
 | App | Dirección | Notas |
 |---|---|---|
-| Ronda de Diseño ML | https://ronda-diseno-ml.vercel.app | ya estaba publicada; responde 200 |
-| Cheat sheets | https://cheat-sheets-ml.vercel.app | `npm run check` pasa (celular, tablet, oscuro, sin conexión) |
-| Laboratorio Transformer | https://laboratorio-transformer.vercel.app | `apps/transformer-lab/vercel.json` nuevo; cabeceras de seguridad básicas |
-| Atlas de Arquitecturas | https://atlas-arquitecturas.vercel.app | proyecto nuevo en Vercel; sirve `dist/web` con `/lab/` y service worker |
+| Ronda de Diseño ML | https://ronda.trueml.app | ya estaba publicada; responde 200 |
+| Cheat sheets | https://hojas.trueml.app | `npm run check` pasa (celular, tablet, oscuro, sin conexión) |
+| Laboratorio Transformer | https://transformer.trueml.app | `apps/transformer-lab/vercel.json` nuevo; cabeceras de seguridad básicas |
+| Atlas de Arquitecturas | https://atlas.trueml.app | proyecto nuevo en Vercel; sirve `dist/web` con `/lab/` y service worker |
 
 Detalles a recordar:
 - El proyecto `laboratorio-transformer` de Vercel tiene como *Root Directory* `apps/transformer-lab`: se despliega **desde la raíz del repositorio** (`npx vercel deploy --prod`), no desde la carpeta. El Atlas y las cheat sheets se despliegan desde su carpeta.
@@ -194,7 +194,7 @@ Pendiente de la Fase 1: chequeos de celular y modo oscuro del Atlas y del labora
 ## 12. Resultado de la Fase 2 (2026-11-02)
 
 **Hecho y en producción**
-- **Portada común** (`apps/portada`, proyecto de Vercel `ml-desde-cero`): https://ml-desde-cero.vercel.app. Tarjetas de las cuatro apps y el tablero («Próximamente»), tres rutas de «por dónde empezar», enlace para reportar errores (issues de GitHub), pie con licencia y **aviso de privacidad** (`/privacidad/`). Datos en `apps/portada/site.json`; el nombre «ML desde cero» es de trabajo y se cambia ahí.
+- **Portada común** (`apps/portada`, proyecto de Vercel `ml-desde-cero`): https://trueml.app. Tarjetas de las cuatro apps y el tablero («Próximamente»), tres rutas de «por dónde empezar», enlace para reportar errores (issues de GitHub), pie con licencia y **aviso de privacidad** (`/privacidad/`). Datos en `apps/portada/site.json`; el nombre «ML desde cero» es de trabajo y se cambia ahí.
 - **SEO en todas las apps:** dirección canónica, Open Graph y Twitter Card, `robots.txt` y `sitemap.xml` (curso, hojas con una URL por hoja, atlas, laboratorio y portada). Imagen para redes de 1200×630 por app, generada con `npm run og` (en `apps/portada`).
 - **Atribución visible:** pie con nombre, licencia y enlace en la portada y en cada hoja. Los PDF ya generados no cambian.
 - Chequeos del navegador de cheat sheets, Atlas, curso y laboratorio: sin errores.
@@ -211,7 +211,7 @@ Pendiente de la Fase 1: chequeos de celular y modo oscuro del Atlas y del labora
 
 ## 13. Resultado de la Fase 3 (2026-11-02)
 
-**Demo del tablero en producción:** https://tablero-ml-demo.vercel.app (`apps/tablero-demo`, proyecto de Vercel `tablero-ml-demo`). Enlazada desde la portada.
+**Demo del tablero en producción:** https://tablero.trueml.app (`apps/tablero-demo`, proyecto de Vercel `tablero-ml-demo`). Enlazada desde la portada.
 
 Cambio respecto al plan: en vez de «solo lectura», la demo es **editable pero privada para cada visitante**. Corre el mismo tablero contra un «servidor» dentro del navegador (localStorage), con un proyecto de ejemplo inventado; lo que se edita no sale del navegador y hay un botón «Reset demo». Es más convincente para quien la prueba y no necesita backend ni base de datos (costo cero).
 

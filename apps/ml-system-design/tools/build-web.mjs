@@ -19,7 +19,7 @@ if (!existsSync(SRC)) { console.error('[build-web] ERROR: falta dist/ml-system-d
 
 let html = readFileSync(SRC, 'utf8');
 // SEO y vista previa en redes (Open Graph / Twitter Card). SITE_URL: dirección pública; cámbiala cuando haya dominio propio.
-const SITE_URL = 'https://ronda-diseno-ml.vercel.app';
+const SITE_URL = 'https://ronda.trueml.app';
 const SITE_NAME = 'Ronda de Diseño ML';
 const metaTitle = (/<title>([^<]*)<\/title>/i.exec(html) || [])[1] || SITE_NAME;
 const metaDesc = (/<meta name="description" content="([^"]*)"/i.exec(html) || [])[1] || '';
@@ -84,6 +84,8 @@ for (const f of ['como-se-usa.mp4', 'como-se-usa.jpg']) {
   if (!existsSync(join(WEB, 'video', f))) { console.error('[build-web] ERROR: falta web/video/' + f); process.exit(1); }
   copyFileSync(join(WEB, 'video', f), join(OUT, 'video', f));
 }
+// La mudanza a trueml.app: la página que lleva el avance de la dirección *.vercel.app vieja a la nueva (ver vendor/trueml/mudanza.js).
+for (const f of ['mudanza.html', 'mudanza.js']) copyFileSync(join(ROOT, 'vendor', 'trueml', f), join(OUT, f));
 writeFileSync(join(OUT, 'robots.txt'), `User-agent: *\nAllow: /\n\nSitemap: ${SITE_URL}/sitemap.xml\n`);
 writeFileSync(join(OUT, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url><loc>${SITE_URL}/</loc><lastmod>${new Date().toISOString().slice(0, 10)}</lastmod></url>\n</urlset>\n`);
 console.log('[build-web] dist/web/ listo (build ' + build + ', index.html ' + (Buffer.byteLength(html) / 1024).toFixed(1) + ' KB)');

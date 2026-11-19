@@ -8,6 +8,6 @@ Esto es TrueML: herramientas gratis y en español para aprender y practicar ML e
 🟣 Atlas de Arquitecturas, Laboratorio Transformer, 9 cheat sheets y un tablero para tus proyectos.
 
 Gratis · sin cuenta · en español.
-👉 Link en la bio: ml-desde-cero.vercel.app
+👉 Link en la bio: trueml.app
 
 #MachineLearning #MLOps #MLEngineering #InteligenciaArtificial #IAenEspañol #AprendeIA #DeepLearning #Programación

@@ -3,13 +3,13 @@
 // descripción, canonical, imagen para redes y los enlaces (internos y externos). Sin dependencias (Node 20+).
 // Uso: node tools/qa.mjs            (todos los sitios)   ·   node tools/qa.mjs https://otro.sitio   (solo ese)
 const SITES = process.argv.slice(2).length ? process.argv.slice(2) : [
-  'https://ml-desde-cero.vercel.app',
-  'https://ronda-diseno-ml.vercel.app',
-  'https://cheat-sheets-ml.vercel.app',
-  'https://atlas-arquitecturas.vercel.app',
-  'https://laboratorio-transformer.vercel.app',
-  'https://tablero-ml-demo.vercel.app',
-  'https://taller-ai-engineer.vercel.app',
+  'https://trueml.app',
+  'https://ronda.trueml.app',
+  'https://hojas.trueml.app',
+  'https://atlas.trueml.app',
+  'https://transformer.trueml.app',
+  'https://tablero.trueml.app',
+  'https://dojo.trueml.app',
 ];
 const UA = { 'user-agent': 'ml-desde-cero-qa/1.0' };
 const problems = [];

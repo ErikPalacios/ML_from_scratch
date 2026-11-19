@@ -5,7 +5,7 @@ import { C } from '../tema';
 import { Fondo, Ventana } from '../piezas';
 import { App, Aurora, Chip, Cierre, clamp, Gancho, Linea, Reel, useSalida } from './kit';
 
-const URL = 'laboratorio-transformer.vercel.app';
+const URL = 'transformer.trueml.app';
 
 const GanchoEscena: React.FC = () => {
   const sale = useSalida();

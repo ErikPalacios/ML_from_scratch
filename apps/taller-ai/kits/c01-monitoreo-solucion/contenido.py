@@ -486,7 +486,7 @@ e["mapa"] = {
         {"que": "Los labels", "c01": "≈ 2.5 M publicaciones al día (≈ 17 M a la semana) y un holdout de ≈ 1 % de vendedores (≈ 25 mil al día)", "taller": f"≈ {f_(N_AYER)} publicaciones con la sugerencia mostrada al día; holdout, {f_(HOLD_N)} ayer"},
         {"que": "La cola de etiquetado", "c01": "≈ 5,000 fotos al mes, y ≈ 500 por cada tanda extra que pide un ticket", "taller": "500 al mes (300 por incertidumbre y 200 al azar) y 100 por cada tanda extra"},
     ],
-    "hoja": "https://cheat-sheets-ml.vercel.app/recorrido/#est-monitoreo",
+    "hoja": "https://hojas.trueml.app/recorrido/#est-monitoreo",
 }
 
 # ---------------------------------------------------------------- precálculos

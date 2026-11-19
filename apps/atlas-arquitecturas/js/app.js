@@ -1034,7 +1034,7 @@
     // Una muestra de 30 s, justo después del encabezado. En la web el video está junto a la página
     // (web/video/ → dist/web/video/); con doble clic o en el artefacto se usa el del sitio publicado.
     const env = root.ATLAS_ENV || 'dev';
-    const vbase = env === 'web' ? 'video/' : env === 'dev' ? 'web/video/' : 'https://atlas-arquitecturas.vercel.app/video/';
+    const vbase = env === 'web' ? 'video/' : env === 'dev' ? 'web/video/' : 'https://atlas.trueml.app/video/';
     c.appendChild(h('section', { class: 'drow home-video', id: 'home-video', 'aria-labelledby': 'home-video-title' },
       h('p', { class: 'drow__label' }, 'Una muestra', h('small', null, 'en 30 segundos')),
       h('div', { class: 'drow__body' },

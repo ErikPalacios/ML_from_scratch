@@ -930,7 +930,7 @@ function linkChip(anchor) {
   const page = COURSE && COURSE.getPage ? COURSE.getPage(m) : null;
   const sec = page && (page.sections || []).find((x) => x.id === id);
   if (!sec) aviso(`enlace del curso que no existe: ${anchor}`);
-  return `<a class="chip" href="https://ronda-diseno-ml.vercel.app/#${esc(anchor.replace(/^#/, ''))}" target="_blank" rel="noopener">${esc(MODLAB(m))} · ${esc(sec ? sec.title : id)}</a>`;
+  return `<a class="chip" href="https://ronda.trueml.app/#${esc(anchor.replace(/^#/, ''))}" target="_blank" rel="noopener">${esc(MODLAB(m))} · ${esc(sec ? sec.title : id)}</a>`;
 }
 // Las hojas hermanas que siguen el mismo tema (el brief pide no contradecirlas: mejor enlazarlas), con la sección exacta.
 // Cada ancla se revisa contra la página de esa hoja.
@@ -957,7 +957,7 @@ const SHEET_LINKS = {
     if (!pages[id].includes(`id="${anchor}"`)) aviso(`hoja hermana: ${id} no tiene la sección #${anchor}`);
   }
 }
-const sheetChip = ([id, t, anchor, sub]) => `<a class="chip chip--sheet" href="https://cheat-sheets-ml.vercel.app/${id}/${anchor ? '#' + anchor : ''}">Hoja · ${esc(t)}${sub ? ` · ${esc(sub)}` : ''}</a>`;
+const sheetChip = ([id, t, anchor, sub]) => `<a class="chip chip--sheet" href="https://hojas.trueml.app/${id}/${anchor ? '#' + anchor : ''}">Hoja · ${esc(t)}${sub ? ` · ${esc(sub)}` : ''}</a>`;
 
 const ORDER = ['bolsillo', 'cadena', 'que-es', 'tokens', 'memoria', 'arrancar', 'api', 'batching', 'metricas', 'paralelismo', 'cuantizacion', 'optimizar', 'gateway-llm', 'diagnostico', 'errores'];
 const EXPECT = [0, null, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];

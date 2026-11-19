@@ -724,7 +724,7 @@ function linkChip(anchor) {
   const [m, id] = anchor.replace(/^#/, '').split('.');
   const sec = (reg[m]?.sections || []).find((x) => x.id === id);
   if (!sec) missingLinks.push(anchor);
-  return `<a class="chip" href="https://ronda-diseno-ml.vercel.app/#${esc(anchor.replace(/^#/, ""))}" target="_blank" rel="noopener">${esc(MODLAB(m))} · ${esc(sec ? sec.title : id)}</a>`;
+  return `<a class="chip" href="https://ronda.trueml.app/#${esc(anchor.replace(/^#/, ""))}" target="_blank" rel="noopener">${esc(MODLAB(m))} · ${esc(sec ? sec.title : id)}</a>`;
 }
 
 const ALL = [...W1.sections, ...W2.sections, ...W3.sections];

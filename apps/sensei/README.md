@@ -50,6 +50,6 @@ npm run check   # build + Chrome headless: 375/768/1024 px, oscuro, tema, globos
 
 ## Despliegue
 
-Es un proyecto de Vercel propio, sin Git conectado, como las otras apps. Se despliega desde esta carpeta con `vercel deploy --prod`, y `vercel.json` hace el build sin instalar nada y publica `dist/`. La dirección prevista es https://sensei-ml.vercel.app. Si cambia, cámbiala en `content/sitio.json`, en `apps/portada/site.json` y en `apps/portada/tools/og.mjs`.
+Es un proyecto de Vercel propio, sin Git conectado, como las otras apps. Se despliega desde esta carpeta con `vercel deploy --prod`, y `vercel.json` hace el build sin instalar nada y publica `dist/`. La dirección prevista es https://sensei.trueml.app. Si cambia, cámbiala en `content/sitio.json`, en `apps/portada/site.json` y en `apps/portada/tools/og.mjs`.
 
 La imagen para redes sale de `node tools/og.mjs sensei` (desde `apps/portada`), y el ícono de `node apps/trueml/iconos.mjs sensei`.

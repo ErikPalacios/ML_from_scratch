@@ -59,7 +59,7 @@ const Hojas: React.FC = () => {
           <Gancho texto="9 cheat sheets para repasar rápido." marcas={{ 9: C.yt, cheat: C.yt, sheets: C.yt }} desde={4} paso={3} tam={92} />
           <Linea desde={40} style={{ marginTop: 20 }}>Números, comandos y fórmulas, al grano. <b style={{ color: C.ink }}>En la web y en PDF.</b></Linea>
         </div>
-        <Ventana url="cheat-sheets-ml.vercel.app/docker/" ancho={1000} x={40} y={760} desde={2} giro={[6, 1]} proporcion={0.78} color={C.y}
+        <Ventana url="hojas.trueml.app/docker/" ancho={1000} x={40} y={760} desde={2} giro={[6, 1]} proporcion={0.78} color={C.y}
           clips={[{ src: 'hojas', desde: 0.2, vel: 1.0, dur: 195, cam: [{ f: 0, z: 1.45, x: 0.3, y: 0.35 }, { f: 195, z: 1.5, x: 0.45, y: 0.4 }] }]} />
       </AbsoluteFill>
     </AbsoluteFill>
@@ -77,7 +77,7 @@ const Tablero: React.FC = () => {
           <App texto="Tablero de proyectos" color={VIVOS[4]} desde={0} />
           <Gancho texto="Y tu proyecto, como un mapa de metro." marcas={{ metro: VIVOS[4], 'metro.': VIVOS[4] }} desde={6} paso={3} tam={92} style={{ marginTop: 24 }} />
         </div>
-        <Ventana url="tablero-ml-demo.vercel.app" ancho={1000} x={40} y={680} desde={2} giro={[-6, -1]} proporcion={0.62} color={C.p}
+        <Ventana url="tablero.trueml.app" ancho={1000} x={40} y={680} desde={2} giro={[-6, -1]} proporcion={0.62} color={C.p}
           clips={[{ src: 'tablero', desde: 0.6, vel: 0.95, dur: 195, cam: [{ f: 0, z: 1.4, x: 0.5, y: 0.55 }, { f: 195, z: 1.55, x: 0.5, y: 0.62 }] }]} />
         <div style={{ position: 'absolute', left: 70, width: 860, top: 1395, display: 'flex', flexWrap: 'wrap', gap: 14 }}>
           {ETAPAS.map((et, i) => <Chip key={et.id} texto={et.nombre} color={VIVOS[i]} desde={25 + i * 12} activo={interpolate(f, [30 + i * 12, 32 + i * 12], [0, 1], clamp)} tam={28} />)}

@@ -13,7 +13,7 @@ body:
     id: donde
     attributes:
       label: Dirección o nombre de la página/hoja/sección
-      placeholder: https://cheat-sheets-ml.vercel.app/docker/ · sección «Healthcheck»
+      placeholder: https://hojas.trueml.app/docker/ · sección «Healthcheck»
     validations: { required: true }
   - type: textarea
     id: que

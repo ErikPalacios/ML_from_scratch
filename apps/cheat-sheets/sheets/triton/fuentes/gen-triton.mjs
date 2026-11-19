@@ -836,11 +836,11 @@ function linkChip(anchor) {
   const page = COURSE && COURSE.getPage ? COURSE.getPage(m) : null;
   const sec = page && (page.sections || []).find((x) => x.id === id);
   if (!sec) aviso(`enlace del curso que no existe: ${anchor}`);
-  return `<a class="chip" href="https://ronda-diseno-ml.vercel.app/#${esc(anchor.replace(/^#/, ''))}" target="_blank" rel="noopener">${esc(MODLAB(m))} · ${esc(sec ? sec.title : id)}</a>`;
+  return `<a class="chip" href="https://ronda.trueml.app/#${esc(anchor.replace(/^#/, ''))}" target="_blank" rel="noopener">${esc(MODLAB(m))} · ${esc(sec ? sec.title : id)}</a>`;
 }
 // La hoja hermana de las cuentas (VRAM, GPUs, presupuesto de latencia): el brief pide enlazarla en vez de repetirla.
 const SHEET_LINKS = { bolsillo: [['estimaciones', 'Formulario de estimaciones']], medir: [['estimaciones', 'Formulario de estimaciones']] };
-const sheetChip = ([id, t]) => `<a class="chip chip--sheet" href="https://cheat-sheets-ml.vercel.app/${id}/">Hoja · ${esc(t)}</a>`;
+const sheetChip = ([id, t]) => `<a class="chip chip--sheet" href="https://hojas.trueml.app/${id}/">Hoja · ${esc(t)}</a>`;
 
 const ORDER = ['bolsillo', 'cadena', 'serving', 'pytorch', 'onnx', 'paridad', 'tensorrt', 'repositorio', 'batching', 'clientes', 'medir', 'prepost', 'optimizar', 'diagnostico', 'errores'];
 const EXPECT = [0, null, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];

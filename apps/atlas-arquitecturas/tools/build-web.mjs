@@ -28,7 +28,7 @@ const ENV_SINGLE = 'window.ATLAS_ENV = "single";';
 if (html.split(ENV_SINGLE).length !== 2) { console.error('[build-web] ERROR: dist/atlas-arquitecturas.html debe tener exactamente un ' + ENV_SINGLE); process.exit(1); }
 html = html.replace(ENV_SINGLE, 'window.ATLAS_ENV = "web";');
 // SEO y vista previa en redes (Open Graph / Twitter Card). SITE_URL: dirección pública; cámbiala cuando haya dominio propio.
-const SITE_URL = 'https://atlas-arquitecturas.vercel.app';
+const SITE_URL = 'https://atlas.trueml.app';
 const SITE_NAME = 'Atlas de Arquitecturas';
 const metaTitle = (/<title>([^<]*)<\/title>/i.exec(html) || [])[1] || SITE_NAME;
 const metaDesc = (/<meta name="description" content="([^"]*)"/i.exec(html) || [])[1] || '';
@@ -108,6 +108,8 @@ if (hasLab) {
 } else {
   console.warn('[build-web] AVISO: no existe vendor/lab/index.html (npm run vendor:lab): los enlaces al Laboratorio no abrirán en la web.');
 }
+// La mudanza a trueml.app: la página que lleva el avance de la dirección *.vercel.app vieja a la nueva (ver vendor/trueml/mudanza.js).
+for (const f of ['mudanza.html', 'mudanza.js']) copyFileSync(join(ROOT, 'vendor', 'trueml', f), join(OUT, f));
 writeFileSync(join(OUT, 'robots.txt'), `User-agent: *\nAllow: /\n\nSitemap: ${SITE_URL}/sitemap.xml\n`);
 writeFileSync(join(OUT, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url><loc>${SITE_URL}/</loc><lastmod>${new Date().toISOString().slice(0, 10)}</lastmod></url>\n</urlset>\n`);
 console.log('[build-web] dist/web/ listo (build ' + build + ', index.html ' + (Buffer.byteLength(html) / 1024).toFixed(1) + ' KB' + (hasLab ? ', con lab/' : ', sin lab/') + ')');

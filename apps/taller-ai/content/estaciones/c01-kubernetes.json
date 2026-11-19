@@ -58,7 +58,7 @@
         "taller": "engine de ≈ 20 s; startup de 5 s × 12 = 60 s; <code>progressDeadlineSeconds</code> de 300"
       }
     ],
-    "hoja": "https://cheat-sheets-ml.vercel.app/recorrido/#est-kubernetes"
+    "hoja": "https://hojas.trueml.app/recorrido/#est-kubernetes"
   },
   "precalculos": {
     "intro": "Antes de escribir un solo manifiesto, las cuentas de servilleta: cuántos gateways caben en un nodo, cuánto tiempo le das a Triton para arrancar y para apagarse, cuántas T4 pide un cambio de versión, cuántos gateways va a pedir el HPA en un pico y cuánta CPU cuesta una foto. Cada cuenta va en las dos escalas: C01 y el dojo.",

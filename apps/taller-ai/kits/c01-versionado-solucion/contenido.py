@@ -74,7 +74,7 @@ e["mapa"] = {
         {"que": "Quién lo arma cada mes", "c01": "el pipeline mensual en el orquestador (por ejemplo Kubeflow Pipelines), con caché por paso", "taller": "<code>dvc repro</code> sobre <code>dvc.yaml</code>, con la caché de DVC"},
         {"que": "Dónde quedan los punteros", "c01": "MLflow: parámetros y tags de la corrida, y el digest de la imagen de entrenamiento", "taller": "<code>corridas/*.json</code> y la huella de los paquetes instalados"},
     ],
-    "hoja": "https://cheat-sheets-ml.vercel.app/recorrido/#est-versionado",
+    "hoja": "https://hojas.trueml.app/recorrido/#est-versionado",
 }
 
 e["precalculos"] = {

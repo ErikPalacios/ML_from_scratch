@@ -64,7 +64,7 @@
         "taller": "500 al mes (300 por incertidumbre y 200 al azar) y 100 por cada tanda extra"
       }
     ],
-    "hoja": "https://cheat-sheets-ml.vercel.app/recorrido/#est-monitoreo"
+    "hoja": "https://hojas.trueml.app/recorrido/#est-monitoreo"
   },
   "precalculos": {
     "intro": "Antes de escribir, las cuentas de servilleta: cuánto presupuesto de errores tiene el mes, qué fracción de errores hace sonar el page y el ticket, cuántas muestras tiene una regla en 7 días (y por qué las pruebas evalúan cada 2 min), dónde queda el umbral de la baja confianza, cuánto tarda en sonar un incidente, cuántos días de historia necesita el job, cuánto ruido tiene la aceptación de un slice y cuántas fotos salen a etiquetar. Cada cuenta va en las dos escalas: C01 y el dojo.",

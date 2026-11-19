@@ -47,7 +47,7 @@
         "taller": "tu Mac construye Linux arm64: la misma imagen no corre tal cual en un nodo amd64"
       }
     ],
-    "hoja": "https://cheat-sheets-ml.vercel.app/recorrido/#est-empaquetado"
+    "hoja": "https://hojas.trueml.app/recorrido/#est-empaquetado"
   },
   "precalculos": {
     "intro": "Antes de escribir el primer Dockerfile, las cuentas de servilleta del empaquetado: cuánto pesa lo que construyes, cuánto viaja, cuánto te ahorra la caché y si te cabe en el disco. Cada cuenta va en las dos escalas, C01 y el dojo. Haz la cuenta tú primero y luego ábrela.",

@@ -5,17 +5,91 @@
   "buildCommand": "node tools/build.mjs",
   "outputDirectory": "dist",
   "trailingSlash": true,
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "taller-ai-engineer.vercel.app"
+        },
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(bot|Bot|BOT|crawler|Crawler|spider|Spider|facebookexternalhit|WhatsApp|Slurp|Google-InspectionTool|embedly|Embedly|Iframely|vkShare).*"
+        }
+      ],
+      "destination": "https://dojo.trueml.app/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/((?!mudanza\\.html$|mudanza\\.js$|sw\\.js$).*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "taller-ai-engineer.vercel.app"
+        }
+      ],
+      "destination": "/mudanza.html?a=/$1",
+      "permanent": false
+    }
+  ],
   "headers": [
-    { "source": "/sw.js", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
-    { "source": "/manifest.webmanifest", "headers": [{ "key": "Content-Type", "value": "application/manifest+json" }] },
-    { "source": "/tablero/(.*).mjs", "headers": [{ "key": "Content-Type", "value": "text/javascript; charset=utf-8" }] },
-    { "source": "/kits/(.*)", "headers": [{ "key": "Content-Type", "value": "application/zip" }, { "key": "Content-Disposition", "value": "attachment" }] },
+    {
+      "source": "/sw.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
+    },
+    {
+      "source": "/manifest.webmanifest",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/manifest+json"
+        }
+      ]
+    },
+    {
+      "source": "/tablero/(.*).mjs",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "text/javascript; charset=utf-8"
+        }
+      ]
+    },
+    {
+      "source": "/kits/(.*)",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/zip"
+        },
+        {
+          "key": "Content-Disposition",
+          "value": "attachment"
+        }
+      ]
+    },
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-        { "key": "X-Frame-Options", "value": "DENY" }
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        }
       ]
     }
   ]

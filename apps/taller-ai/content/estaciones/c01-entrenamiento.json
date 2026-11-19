@@ -58,7 +58,7 @@
         "taller": "<code>mundo/orquestador.py</code>, cuando tú lo corres"
       }
     ],
-    "hoja": "https://cheat-sheets-ml.vercel.app/recorrido/#est-entrenamiento"
+    "hoja": "https://hojas.trueml.app/recorrido/#est-entrenamiento"
   },
   "precalculos": {
     "intro": "Antes de escribir el job, las cuentas de servilleta del entrenamiento: cuántos pasos tiene una corrida, cuánto tarda, cuánto cuesta, qué pérdida esperas al empezar, cuánto pesa un checkpoint, cada cuánto guardarlo y cuánto se puede mover una métrica por puro azar. Cada cuenta va en las dos escalas: C01 y el dojo.",

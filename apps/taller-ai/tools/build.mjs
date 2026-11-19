@@ -20,7 +20,7 @@ import { plantillaTablero, cuerpoTablero } from './tablero.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = join(ROOT, 'dist');
-const SITE_URL = 'https://taller-ai-engineer.vercel.app'; // cámbiala cuando exista el proyecto o haya dominio propio
+const SITE_URL = 'https://dojo.trueml.app'; // cámbiala cuando exista el proyecto o haya dominio propio
 const SITE_NAME = "Dojo de entrenamiento ML engineer's";
 const fail = (msg) => { console.error('[build] ERROR: ' + msg); process.exit(1); };
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -32,7 +32,7 @@ const kb = (n) => (n / 1024).toFixed(0) + ' KB';
 { const errs = revisarRamas(); if (errs.length) fail(`content/ramas.json:\n  ${errs.join('\n  ')}`); }
 // El mapa del C01, copiado de la cheat sheet «Del dato a producción» con tools/importar-mapa.mjs.
 const MAPA = JSON.parse(readFileSync(join(ROOT, 'content', 'mapa-c01.json'), 'utf8'));
-const HOJA_RECORRIDO = 'https://cheat-sheets-ml.vercel.app/recorrido/';
+const HOJA_RECORRIDO = 'https://hojas.trueml.app/recorrido/';
 // La teoría de cada estación en Sensei (lección y requisitos), generada por apps/trueml/sync.mjs.
 const SENSEI = JSON.parse(readFileSync(join(ROOT, 'content', 'sensei.json'), 'utf8'));
 // por línea y número («c01:7»): hoy Sensei enlaza solo las del tronco
@@ -72,7 +72,7 @@ const ESTACIONES = readdirSync(join(ROOT, 'content', 'estaciones')).filter((f) =
 function pagina({ path, title, desc, body, lectura = false }) {
   const url = SITE_URL + path;
   return `<!doctype html>
-<html lang="es" data-tm-herramienta="Dojo" data-tm-inicio="/" data-tm-clave="dojo" data-tm-portada="https://ml-desde-cero.vercel.app/"${lectura ? ' data-tm-avance=".d-main .d-sec[id]" data-tm-notas=".d-main" data-tm-tanque-en=".d-hero"' : ''}>
+<html lang="es" data-tm-herramienta="Dojo" data-tm-inicio="/" data-tm-clave="dojo" data-tm-portada="https://trueml.app/"${lectura ? ' data-tm-avance=".d-main .d-sec[id]" data-tm-notas=".d-main" data-tm-tanque-en=".d-hero"' : ''}>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -223,6 +223,8 @@ mkdirSync(join(OUT, 'video'), { recursive: true });
 for (const f of ['como-se-usa.mp4', 'como-se-usa.jpg']) copyFileSync(join(ROOT, 'site', 'video', f), join(OUT, 'video', f));
 // codigo.js (bloques de código y su botón de copiar) y piezas.js (volver a TrueML, tanque de avance, notas): del sistema compartido
 for (const f of ['codigo.js', 'piezas.js']) copyFileSync(join(ROOT, 'vendor', 'trueml', f), join(OUT, f));
+// La mudanza a trueml.app: la página que lleva el avance de la dirección *.vercel.app vieja a la nueva (ver vendor/trueml/mudanza.js).
+for (const f of ['mudanza.html', 'mudanza.js']) copyFileSync(join(ROOT, 'vendor', 'trueml', f), join(OUT, f));
 // dojo.css = los tokens y las piezas de TrueML (vendor/trueml/tokens.css y piezas.css, del sistema compartido) + los componentes del Dojo
 const DOJO_CSS = ['tokens.css', 'piezas.css'].map((f) => readFileSync(join(ROOT, 'vendor', 'trueml', f), 'utf8')).join('\n') + '\n' + readFileSync(join(ROOT, 'site', 'dojo.css'), 'utf8');
 writeFileSync(join(OUT, 'dojo.css'), DOJO_CSS);

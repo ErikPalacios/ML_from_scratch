@@ -188,7 +188,7 @@
     const spLinks = $$('#page .sensei-pre a');
     const spWant = ((MSD.sensei || {}).modulos || {}).m01 || [];
     ok('m01: bloque «Antes de este módulo» de Sensei', visible(sp) && spWant.length > 0 && spLinks.length === spWant.length, spLinks.length + '/' + spWant.length);
-    ok('m01: enlaces a Sensei en otra pestaña', spLinks.length > 0 && spLinks.every((a) => a.target === '_blank' && /^https:\/\/sensei-ml\.vercel\.app\/[a-z0-9-]+\/$/.test(a.href)));
+    ok('m01: enlaces a Sensei en otra pestaña', spLinks.length > 0 && spLinks.every((a) => a.target === '_blank' && /^https:\/\/sensei\.trueml\.app\/[a-z0-9-]+\/$/.test(a.href)));
     const sec1 = $('#page .sec');
     ok('m01: el bloque de Sensei va antes de la primera sección', !!sp && !!sec1 && !!(sp.compareDocumentPosition(sec1) & Node.DOCUMENT_POSITION_FOLLOWING));
 

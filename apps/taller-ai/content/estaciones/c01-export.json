@@ -53,7 +53,7 @@
         "taller": "la CPU de tu Mac: ≈ 15 s todo menos la latencia (≈ 53 s)"
       }
     ],
-    "hoja": "https://cheat-sheets-ml.vercel.app/recorrido/#est-export"
+    "hoja": "https://hojas.trueml.app/recorrido/#est-export"
   },
   "precalculos": {
     "intro": "Antes de exportar, las cuentas de servilleta: cuánto pesa el modelo en cada formato, cuánto se mueve un número al pasarlo a FP16, de qué tamaño tiene que ser el examen para separar un engine sano de uno roto, qué tanto de la máquina usa la prueba de latencia y por qué la holgura del dojo es 15 % y no 10 %. Cada cuenta va en las dos escalas: C01 y el dojo.",

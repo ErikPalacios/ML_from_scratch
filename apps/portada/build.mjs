@@ -111,6 +111,8 @@ writeFileSync(join(OUT, 'index.html'), fill(readFileSync(join(SRC, 'index.html')
 writeFileSync(join(OUT, 'privacidad', 'index.html'), fill(readFileSync(join(SRC, 'privacidad.html'), 'utf8')));
 writeFileSync(join(OUT, 'style.css'), readFileSync(join(ROOT, 'vendor', 'trueml', 'tokens.css'), 'utf8') + '\n' + readFileSync(join(SRC, 'style.css'), 'utf8'));
 copyFileSync(join(ROOT, 'vendor', 'trueml', 'cliente.js'), join(OUT, 'trueml.js'));
+// La mudanza a trueml.app: la página que lleva el avance de la dirección *.vercel.app vieja a la nueva (ver vendor/trueml/mudanza.js).
+for (const f of ['mudanza.html', 'mudanza.js']) copyFileSync(join(ROOT, 'vendor', 'trueml', f), join(OUT, f));
 copyFileSync(join(SRC, 'video.js'), join(OUT, 'video.js'));
 if (V) {
   mkdirSync(join(OUT, 'video'), { recursive: true });
@@ -124,7 +126,10 @@ for (const f of ['icon.svg', 'og.png']) {
   if (!existsSync(join(SRC, f))) fail('falta src/' + f + (f === 'og.png' ? ' (corre npm run og)' : ''));
   copyFileSync(join(SRC, f), join(OUT, f));
 }
-writeFileSync(join(OUT, 'robots.txt'), `User-agent: *\nAllow: /\n\nSitemap: ${site.url}/sitemap.xml\n`);
+// robots.txt también lista el sitemap de cada herramienta (sus subdominios de trueml.app): Google los acepta aquí
+// aunque sean de otro host, y así encuentra todas las páginas desde la portada.
+const sitemaps = [site.url, ...new Set([...site.destacadas, ...site.apps].map((a) => a.url.replace(/\/$/, '')))].map((u) => `Sitemap: ${u}/sitemap.xml`);
+writeFileSync(join(OUT, 'robots.txt'), `User-agent: *\nAllow: /\n\n${sitemaps.join('\n')}\n`);
 const urls = [site.url + '/', site.url + '/privacidad/', ...[...DEST, ...site.apps].filter((a) => a.url).map((a) => a.url + '/')];
 writeFileSync(join(OUT, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${u}</loc><lastmod>${today}</lastmod></url>`).join('\n')}\n</urlset>\n`);
 console.log(`[build] dist/ listo · ${DEST.map((d) => d.title).join(' + ')} + ${site.apps.length} herramientas · ${site.rutas.length} rutas · Dojo ${listas.length}/${dojo.total} · ${urls.length} URLs en el sitemap`);

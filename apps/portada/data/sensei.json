@@ -1,6 +1,6 @@
 {
   "nota": "Generado por apps/trueml/sync.mjs desde apps/sensei/content. No se edita a mano.",
-  "url": "https://sensei-ml.vercel.app",
+  "url": "https://sensei.trueml.app",
   "total": 59,
   "lecciones": [
     {
@@ -10,7 +10,7 @@
       "fase": 1,
       "etapa": "todas",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/camino-completo/"
+      "url": "https://sensei.trueml.app/camino-completo/"
     },
     {
       "id": "modelo",
@@ -19,7 +19,7 @@
       "fase": 2,
       "etapa": "modelo",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/modelo/"
+      "url": "https://sensei.trueml.app/modelo/"
     },
     {
       "id": "imagenes",
@@ -28,7 +28,7 @@
       "fase": 2,
       "etapa": "datos",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/imagenes/"
+      "url": "https://sensei.trueml.app/imagenes/"
     },
     {
       "id": "ejemplos",
@@ -37,7 +37,7 @@
       "fase": 2,
       "etapa": "datos",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/ejemplos/"
+      "url": "https://sensei.trueml.app/ejemplos/"
     },
     {
       "id": "aprender",
@@ -46,7 +46,7 @@
       "fase": 2,
       "etapa": "modelo",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/aprender/"
+      "url": "https://sensei.trueml.app/aprender/"
     },
     {
       "id": "aprendio",
@@ -55,7 +55,7 @@
       "fase": 2,
       "etapa": "modelo",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/aprendio/"
+      "url": "https://sensei.trueml.app/aprendio/"
     },
     {
       "id": "redes",
@@ -64,7 +64,7 @@
       "fase": 2,
       "etapa": "modelo",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/redes/"
+      "url": "https://sensei.trueml.app/redes/"
     },
     {
       "id": "embeddings",
@@ -73,7 +73,7 @@
       "fase": 2,
       "etapa": "modelo",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/embeddings/"
+      "url": "https://sensei.trueml.app/embeddings/"
     },
     {
       "id": "llms",
@@ -82,7 +82,7 @@
       "fase": 2,
       "etapa": "modelo",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/llms/"
+      "url": "https://sensei.trueml.app/llms/"
     },
     {
       "id": "unidades",
@@ -91,7 +91,7 @@
       "fase": 3,
       "etapa": "todas",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/unidades/"
+      "url": "https://sensei.trueml.app/unidades/"
     },
     {
       "id": "percentiles",
@@ -100,7 +100,7 @@
       "fase": 3,
       "etapa": "api",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/percentiles/"
+      "url": "https://sensei.trueml.app/percentiles/"
     },
     {
       "id": "probabilidad",
@@ -109,7 +109,7 @@
       "fase": 3,
       "etapa": "orquestacion",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/probabilidad/"
+      "url": "https://sensei.trueml.app/probabilidad/"
     },
     {
       "id": "ruido",
@@ -118,7 +118,7 @@
       "fase": 3,
       "etapa": "modelo",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/ruido/"
+      "url": "https://sensei.trueml.app/ruido/"
     },
     {
       "id": "distribuciones",
@@ -127,7 +127,7 @@
       "fase": 3,
       "etapa": "monitoreo",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/distribuciones/"
+      "url": "https://sensei.trueml.app/distribuciones/"
     },
     {
       "id": "numeros-maquina",
@@ -136,7 +136,7 @@
       "fase": 3,
       "etapa": "modelo",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/numeros-maquina/"
+      "url": "https://sensei.trueml.app/numeros-maquina/"
     },
     {
       "id": "flops",
@@ -145,7 +145,7 @@
       "fase": 3,
       "etapa": "modelo",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/flops/"
+      "url": "https://sensei.trueml.app/flops/"
     },
     {
       "id": "programa-proceso",
@@ -154,7 +154,7 @@
       "fase": 4,
       "etapa": "api",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/programa-proceso/"
+      "url": "https://sensei.trueml.app/programa-proceso/"
     },
     {
       "id": "memoria",
@@ -163,7 +163,7 @@
       "fase": 4,
       "etapa": "modelo",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/memoria/"
+      "url": "https://sensei.trueml.app/memoria/"
     },
     {
       "id": "cpu-gpu",
@@ -172,7 +172,7 @@
       "fase": 4,
       "etapa": "modelo",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/cpu-gpu/"
+      "url": "https://sensei.trueml.app/cpu-gpu/"
     },
     {
       "id": "sistema-operativo",
@@ -181,7 +181,7 @@
       "fase": 4,
       "etapa": "contenedor",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/sistema-operativo/"
+      "url": "https://sensei.trueml.app/sistema-operativo/"
     },
     {
       "id": "async",
@@ -190,7 +190,7 @@
       "fase": 4,
       "etapa": "api",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/async/"
+      "url": "https://sensei.trueml.app/async/"
     },
     {
       "id": "red",
@@ -199,7 +199,7 @@
       "fase": 5,
       "etapa": "api",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/red/"
+      "url": "https://sensei.trueml.app/red/"
     },
     {
       "id": "http",
@@ -208,7 +208,7 @@
       "fase": 5,
       "etapa": "api",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/http/"
+      "url": "https://sensei.trueml.app/http/"
     },
     {
       "id": "apis",
@@ -217,7 +217,7 @@
       "fase": 5,
       "etapa": "api",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/apis/"
+      "url": "https://sensei.trueml.app/apis/"
     },
     {
       "id": "balanceo",
@@ -226,7 +226,7 @@
       "fase": 5,
       "etapa": "api",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/balanceo/"
+      "url": "https://sensei.trueml.app/balanceo/"
     },
     {
       "id": "fallas-red",
@@ -235,7 +235,7 @@
       "fase": 5,
       "etapa": "api",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/fallas-red/"
+      "url": "https://sensei.trueml.app/fallas-red/"
     },
     {
       "id": "latencia",
@@ -244,7 +244,7 @@
       "fase": 5,
       "etapa": "api",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/latencia/"
+      "url": "https://sensei.trueml.app/latencia/"
     },
     {
       "id": "formatos",
@@ -253,7 +253,7 @@
       "fase": 6,
       "etapa": "datos",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/formatos/"
+      "url": "https://sensei.trueml.app/formatos/"
     },
     {
       "id": "bases-de-datos",
@@ -262,7 +262,7 @@
       "fase": 6,
       "etapa": "datos",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/bases-de-datos/"
+      "url": "https://sensei.trueml.app/bases-de-datos/"
     },
     {
       "id": "almacenamiento",
@@ -271,7 +271,7 @@
       "fase": 6,
       "etapa": "datos",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/almacenamiento/"
+      "url": "https://sensei.trueml.app/almacenamiento/"
     },
     {
       "id": "colas",
@@ -280,7 +280,7 @@
       "fase": 6,
       "etapa": "datos",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/colas/"
+      "url": "https://sensei.trueml.app/colas/"
     },
     {
       "id": "tiempo-hash",
@@ -289,7 +289,7 @@
       "fase": 6,
       "etapa": "datos",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/tiempo-hash/"
+      "url": "https://sensei.trueml.app/tiempo-hash/"
     },
     {
       "id": "terminal",
@@ -298,7 +298,7 @@
       "fase": 7,
       "etapa": "contenedor",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/terminal/"
+      "url": "https://sensei.trueml.app/terminal/"
     },
     {
       "id": "python-ecosistema",
@@ -307,7 +307,7 @@
       "fase": 7,
       "etapa": "modelo",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/python-ecosistema/"
+      "url": "https://sensei.trueml.app/python-ecosistema/"
     },
     {
       "id": "pytorch",
@@ -316,7 +316,7 @@
       "fase": 7,
       "etapa": "modelo",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/pytorch/"
+      "url": "https://sensei.trueml.app/pytorch/"
     },
     {
       "id": "git",
@@ -325,7 +325,7 @@
       "fase": 7,
       "etapa": "contenedor",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/git/"
+      "url": "https://sensei.trueml.app/git/"
     },
     {
       "id": "pruebas-ci",
@@ -334,7 +334,7 @@
       "fase": 7,
       "etapa": "contenedor",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/pruebas-ci/"
+      "url": "https://sensei.trueml.app/pruebas-ci/"
     },
     {
       "id": "config",
@@ -343,7 +343,7 @@
       "fase": 7,
       "etapa": "contenedor",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/config/"
+      "url": "https://sensei.trueml.app/config/"
     },
     {
       "id": "nube",
@@ -352,7 +352,7 @@
       "fase": 8,
       "etapa": "orquestacion",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/nube/"
+      "url": "https://sensei.trueml.app/nube/"
     },
     {
       "id": "regiones",
@@ -361,7 +361,7 @@
       "fase": 8,
       "etapa": "orquestacion",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/regiones/"
+      "url": "https://sensei.trueml.app/regiones/"
     },
     {
       "id": "maquinas",
@@ -370,7 +370,7 @@
       "fase": 8,
       "etapa": "modelo",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/maquinas/"
+      "url": "https://sensei.trueml.app/maquinas/"
     },
     {
       "id": "redes-nube",
@@ -379,7 +379,7 @@
       "fase": 8,
       "etapa": "orquestacion",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/redes-nube/"
+      "url": "https://sensei.trueml.app/redes-nube/"
     },
     {
       "id": "gestionados",
@@ -388,7 +388,7 @@
       "fase": 8,
       "etapa": "orquestacion",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/gestionados/"
+      "url": "https://sensei.trueml.app/gestionados/"
     },
     {
       "id": "cifrado",
@@ -397,7 +397,7 @@
       "fase": 9,
       "etapa": "api",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/cifrado/"
+      "url": "https://sensei.trueml.app/cifrado/"
     },
     {
       "id": "identidad",
@@ -406,7 +406,7 @@
       "fase": 9,
       "etapa": "api",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/identidad/"
+      "url": "https://sensei.trueml.app/identidad/"
     },
     {
       "id": "privacidad",
@@ -415,7 +415,7 @@
       "fase": 9,
       "etapa": "datos",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/privacidad/"
+      "url": "https://sensei.trueml.app/privacidad/"
     },
     {
       "id": "ataques",
@@ -424,7 +424,7 @@
       "fase": 9,
       "etapa": "contenedor",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/ataques/"
+      "url": "https://sensei.trueml.app/ataques/"
     },
     {
       "id": "e01-datos",
@@ -433,7 +433,7 @@
       "fase": 10,
       "etapa": "datos",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/e01-datos/"
+      "url": "https://sensei.trueml.app/e01-datos/"
     },
     {
       "id": "e02-versionado",
@@ -442,7 +442,7 @@
       "fase": 10,
       "etapa": "datos",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/e02-versionado/"
+      "url": "https://sensei.trueml.app/e02-versionado/"
     },
     {
       "id": "e03-entrenamiento",
@@ -451,7 +451,7 @@
       "fase": 11,
       "etapa": "modelo",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/e03-entrenamiento/"
+      "url": "https://sensei.trueml.app/e03-entrenamiento/"
     },
     {
       "id": "e04-gate",
@@ -460,7 +460,7 @@
       "fase": 11,
       "etapa": "modelo",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/e04-gate/"
+      "url": "https://sensei.trueml.app/e04-gate/"
     },
     {
       "id": "e05-export",
@@ -469,7 +469,7 @@
       "fase": 11,
       "etapa": "modelo",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/e05-export/"
+      "url": "https://sensei.trueml.app/e05-export/"
     },
     {
       "id": "e06-serving",
@@ -478,7 +478,7 @@
       "fase": 12,
       "etapa": "api",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/e06-serving/"
+      "url": "https://sensei.trueml.app/e06-serving/"
     },
     {
       "id": "e07-empaquetado",
@@ -487,7 +487,7 @@
       "fase": 13,
       "etapa": "contenedor",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/e07-empaquetado/"
+      "url": "https://sensei.trueml.app/e07-empaquetado/"
     },
     {
       "id": "e08-cicd",
@@ -496,7 +496,7 @@
       "fase": 13,
       "etapa": "contenedor",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/e08-cicd/"
+      "url": "https://sensei.trueml.app/e08-cicd/"
     },
     {
       "id": "e09-kubernetes",
@@ -505,7 +505,7 @@
       "fase": 14,
       "etapa": "orquestacion",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/e09-kubernetes/"
+      "url": "https://sensei.trueml.app/e09-kubernetes/"
     },
     {
       "id": "e10-rollout",
@@ -514,7 +514,7 @@
       "fase": 14,
       "etapa": "orquestacion",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/e10-rollout/"
+      "url": "https://sensei.trueml.app/e10-rollout/"
     },
     {
       "id": "e11-request",
@@ -523,7 +523,7 @@
       "fase": 15,
       "etapa": "api",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/e11-request/"
+      "url": "https://sensei.trueml.app/e11-request/"
     },
     {
       "id": "e12-monitoreo",
@@ -532,7 +532,7 @@
       "fase": 15,
       "etapa": "monitoreo",
       "lista": true,
-      "url": "https://sensei-ml.vercel.app/e12-monitoreo/"
+      "url": "https://sensei.trueml.app/e12-monitoreo/"
     }
   ]
 }

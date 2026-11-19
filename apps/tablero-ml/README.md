@@ -2,7 +2,7 @@
 
 **En producción:** https://tablero-ml-hazel.vercel.app
 
-**Demo pública, sin cuenta:** https://tablero-ml-demo.vercel.app (ver [apps/tablero-demo](../tablero-demo)).
+**Demo pública, sin cuenta:** https://tablero.trueml.app (ver [apps/tablero-demo](../tablero-demo)).
 
 Un tablero en **modo producción**: en inglés y sin explicaciones didácticas, como el de un equipo de ML engineering. Lo didáctico vive en el curso y en las cheat sheets.
 

@@ -1,7 +1,7 @@
 /* GENERADO por tools/gen-templates.mjs: no lo edites a mano. Fuentes: el curso (Ronda de Diseño ML) y la hoja «Del dato a producción». */
 export const T = {
- "COURSE_URL": "https://ronda-diseno-ml.vercel.app/",
- "SHEETS_URL": "https://cheat-sheets-ml.vercel.app/",
+ "COURSE_URL": "https://ronda.trueml.app/",
+ "SHEETS_URL": "https://hojas.trueml.app/",
  "ORDER": [
   "sincrono",
   "batch",
@@ -25,15 +25,15 @@ export const T = {
    "links": [
     {
      "label": "Course · C01 · API de clasificación · Arquitectura",
-     "href": "https://ronda-diseno-ml.vercel.app/#c01.arquitectura"
+     "href": "https://ronda.trueml.app/#c01.arquitectura"
     },
     {
      "label": "Course · M02 · Patrones de inferencia · Online síncrona (request/response)",
-     "href": "https://ronda-diseno-ml.vercel.app/#m02.online-sincrona"
+     "href": "https://ronda.trueml.app/#m02.online-sincrona"
     },
     {
      "label": "Sheet · Del dato a producción · mapa del C01",
-     "href": "https://cheat-sheets-ml.vercel.app/recorrido/#mapa"
+     "href": "https://hojas.trueml.app/recorrido/#mapa"
     }
    ]
   },
@@ -58,23 +58,23 @@ export const T = {
    "links": [
     {
      "label": "Course · C14 · Pronóstico de demanda · Arquitectura",
-     "href": "https://ronda-diseno-ml.vercel.app/#c14.arquitectura"
+     "href": "https://ronda.trueml.app/#c14.arquitectura"
     },
     {
      "label": "Course · C14 · Pronóstico de demanda · Serving",
-     "href": "https://ronda-diseno-ml.vercel.app/#c14.serving"
+     "href": "https://ronda.trueml.app/#c14.serving"
     },
     {
      "label": "Course · C14 · Pronóstico de demanda · Monitoreo, alertas y reentrenamiento",
-     "href": "https://ronda-diseno-ml.vercel.app/#c14.monitoreo"
+     "href": "https://ronda.trueml.app/#c14.monitoreo"
     },
     {
      "label": "Course · M02 · Patrones de inferencia · Batch: precomputar en vez de servir",
-     "href": "https://ronda-diseno-ml.vercel.app/#m02.batch"
+     "href": "https://ronda.trueml.app/#m02.batch"
     },
     {
      "label": "Sheet · Del dato a producción · patrón batch",
-     "href": "https://cheat-sheets-ml.vercel.app/recorrido/#pat-batch"
+     "href": "https://hojas.trueml.app/recorrido/#pat-batch"
     }
    ]
   },
@@ -101,27 +101,27 @@ export const T = {
    "links": [
     {
      "label": "Course · C11 · RAG empresarial · Arquitectura",
-     "href": "https://ronda-diseno-ml.vercel.app/#c11.arquitectura"
+     "href": "https://ronda.trueml.app/#c11.arquitectura"
     },
     {
      "label": "Course · C11 · RAG empresarial · Pipeline de datos y entrenamiento",
-     "href": "https://ronda-diseno-ml.vercel.app/#c11.datos"
+     "href": "https://ronda.trueml.app/#c11.datos"
     },
     {
      "label": "Course · C11 · RAG empresarial · Serving",
-     "href": "https://ronda-diseno-ml.vercel.app/#c11.serving"
+     "href": "https://ronda.trueml.app/#c11.serving"
     },
     {
      "label": "Course · C10 · Servir un LLM propio · Arquitectura",
-     "href": "https://ronda-diseno-ml.vercel.app/#c10.arquitectura"
+     "href": "https://ronda.trueml.app/#c10.arquitectura"
     },
     {
      "label": "Course · M14 · Sistemas con LLMs · RAG: el modelo con tus documentos",
-     "href": "https://ronda-diseno-ml.vercel.app/#m14.rag"
+     "href": "https://ronda.trueml.app/#m14.rag"
     },
     {
      "label": "Sheet · Del dato a producción · patrón LLM",
-     "href": "https://cheat-sheets-ml.vercel.app/recorrido/#pat-llm"
+     "href": "https://hojas.trueml.app/recorrido/#pat-llm"
     }
    ]
   },
@@ -137,23 +137,23 @@ export const T = {
    "links": [
     {
      "label": "Course · C13 · Speech-to-text en vivo · Arquitectura",
-     "href": "https://ronda-diseno-ml.vercel.app/#c13.arquitectura"
+     "href": "https://ronda.trueml.app/#c13.arquitectura"
     },
     {
      "label": "Course · C13 · Speech-to-text en vivo · Serving",
-     "href": "https://ronda-diseno-ml.vercel.app/#c13.serving"
+     "href": "https://ronda.trueml.app/#c13.serving"
     },
     {
      "label": "Course · C13 · Speech-to-text en vivo · Monitoreo, alertas y reentrenamiento",
-     "href": "https://ronda-diseno-ml.vercel.app/#c13.monitoreo"
+     "href": "https://ronda.trueml.app/#c13.monitoreo"
     },
     {
      "label": "Course · M02 · Patrones de inferencia · Streaming: inferencia sobre eventos",
-     "href": "https://ronda-diseno-ml.vercel.app/#m02.streaming"
+     "href": "https://ronda.trueml.app/#m02.streaming"
     },
     {
      "label": "Sheet · Del dato a producción · patrón streaming",
-     "href": "https://cheat-sheets-ml.vercel.app/recorrido/#pat-streaming"
+     "href": "https://hojas.trueml.app/recorrido/#pat-streaming"
     }
    ]
   },
@@ -175,23 +175,23 @@ export const T = {
    "links": [
     {
      "label": "Course · C03 · Inspección visual en planta · Arquitectura",
-     "href": "https://ronda-diseno-ml.vercel.app/#c03.arquitectura"
+     "href": "https://ronda.trueml.app/#c03.arquitectura"
     },
     {
      "label": "Course · C03 · Inspección visual en planta · Serving",
-     "href": "https://ronda-diseno-ml.vercel.app/#c03.serving"
+     "href": "https://ronda.trueml.app/#c03.serving"
     },
     {
      "label": "Course · C03 · Inspección visual en planta · Monitoreo, alertas y reentrenamiento",
-     "href": "https://ronda-diseno-ml.vercel.app/#c03.monitoreo"
+     "href": "https://ronda.trueml.app/#c03.monitoreo"
     },
     {
      "label": "Course · M02 · Patrones de inferencia · Edge / on-device",
-     "href": "https://ronda-diseno-ml.vercel.app/#m02.edge"
+     "href": "https://ronda.trueml.app/#m02.edge"
     },
     {
      "label": "Sheet · Del dato a producción · patrón edge",
-     "href": "https://cheat-sheets-ml.vercel.app/recorrido/#pat-edge"
+     "href": "https://hojas.trueml.app/recorrido/#pat-edge"
     }
    ]
   },
@@ -212,11 +212,11 @@ export const T = {
    "links": [
     {
      "label": "Course · C04 · Segmentación de imágenes · Arquitectura",
-     "href": "https://ronda-diseno-ml.vercel.app/#c04.arquitectura"
+     "href": "https://ronda.trueml.app/#c04.arquitectura"
     },
     {
      "label": "Sheet · Del dato a producción · casos asíncronos",
-     "href": "https://cheat-sheets-ml.vercel.app/recorrido/#casos-asincrono"
+     "href": "https://hojas.trueml.app/recorrido/#casos-asincrono"
     }
    ]
   },
@@ -233,11 +233,11 @@ export const T = {
    "links": [
     {
      "label": "Course · C07 · Búsqueda con embeddings · Arquitectura",
-     "href": "https://ronda-diseno-ml.vercel.app/#c07.arquitectura"
+     "href": "https://ronda.trueml.app/#c07.arquitectura"
     },
     {
      "label": "Sheet · Del dato a producción · casos híbridos",
-     "href": "https://cheat-sheets-ml.vercel.app/recorrido/#casos-hibrido"
+     "href": "https://hojas.trueml.app/recorrido/#casos-hibrido"
     }
    ]
   }
@@ -267,19 +267,19 @@ export const T = {
    "links": [
     {
      "label": "Course · C01 · API de clasificación · Pipeline de datos y entrenamiento",
-     "href": "https://ronda-diseno-ml.vercel.app/#c01.datos"
+     "href": "https://ronda.trueml.app/#c01.datos"
     },
     {
      "label": "Course · M09 · Datos y features · Etiquetado: guías, calidad, costo y active learning",
-     "href": "https://ronda-diseno-ml.vercel.app/#m09.etiquetado"
+     "href": "https://ronda.trueml.app/#m09.etiquetado"
     },
     {
      "label": "Course · M01 · El mapa y la entrevista · El ciclo de vida de ML en producción",
-     "href": "https://ronda-diseno-ml.vercel.app/#m01.ciclo-de-vida"
+     "href": "https://ronda.trueml.app/#m01.ciclo-de-vida"
     },
     {
      "label": "Sheet · Del dato a producción · estación 1",
-     "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-datos"
+     "href": "https://hojas.trueml.app/recorrido/#est-datos"
     }
    ]
   },
@@ -315,19 +315,19 @@ export const T = {
    "links": [
     {
      "label": "Course · C01 · API de clasificación · Pipeline de datos y entrenamiento",
-     "href": "https://ronda-diseno-ml.vercel.app/#c01.datos"
+     "href": "https://ronda.trueml.app/#c01.datos"
     },
     {
      "label": "Course · M09 · Datos y features · Versionado de datos y snapshots inmutables",
-     "href": "https://ronda-diseno-ml.vercel.app/#m09.versionado"
+     "href": "https://ronda.trueml.app/#m09.versionado"
     },
     {
      "label": "Course · M10 · MLOps · Reproducibilidad: los cinco ingredientes",
-     "href": "https://ronda-diseno-ml.vercel.app/#m10.reproducibilidad"
+     "href": "https://ronda.trueml.app/#m10.reproducibilidad"
     },
     {
      "label": "Sheet · Del dato a producción · estación 2",
-     "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-versionado"
+     "href": "https://hojas.trueml.app/recorrido/#est-versionado"
     }
    ]
   },
@@ -355,23 +355,23 @@ export const T = {
    "links": [
     {
      "label": "Course · C01 · API de clasificación · Pipeline de datos y entrenamiento",
-     "href": "https://ronda-diseno-ml.vercel.app/#c01.datos"
+     "href": "https://ronda.trueml.app/#c01.datos"
     },
     {
      "label": "Course · M10 · MLOps · Pipelines de entrenamiento orquestados",
-     "href": "https://ronda-diseno-ml.vercel.app/#m10.pipelines-entrenamiento"
+     "href": "https://ronda.trueml.app/#m10.pipelines-entrenamiento"
     },
     {
      "label": "Course · M10 · MLOps · Reproducibilidad: los cinco ingredientes",
-     "href": "https://ronda-diseno-ml.vercel.app/#m10.reproducibilidad"
+     "href": "https://ronda.trueml.app/#m10.reproducibilidad"
     },
     {
      "label": "Course · M09 · Datos y features · Training-serving skew: causas, detección y prevención",
-     "href": "https://ronda-diseno-ml.vercel.app/#m09.skew"
+     "href": "https://ronda.trueml.app/#m09.skew"
     },
     {
      "label": "Sheet · Del dato a producción · estación 3",
-     "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-entrenamiento"
+     "href": "https://hojas.trueml.app/recorrido/#est-entrenamiento"
     }
    ]
   },
@@ -399,23 +399,23 @@ export const T = {
    "links": [
     {
      "label": "Course · C01 · API de clasificación · Pipeline de datos y entrenamiento",
-     "href": "https://ronda-diseno-ml.vercel.app/#c01.datos"
+     "href": "https://ronda.trueml.app/#c01.datos"
     },
     {
      "label": "Course · C01 · API de clasificación · Evaluación offline y online",
-     "href": "https://ronda-diseno-ml.vercel.app/#c01.evaluacion"
+     "href": "https://ronda.trueml.app/#c01.evaluacion"
     },
     {
      "label": "Course · M10 · MLOps · El validation gate: cuándo un modelo puede reemplazar al actual",
-     "href": "https://ronda-diseno-ml.vercel.app/#m10.gate"
+     "href": "https://ronda.trueml.app/#m10.gate"
     },
     {
      "label": "Course · M10 · MLOps · Model registry: versiones, aliases y linaje",
-     "href": "https://ronda-diseno-ml.vercel.app/#m10.model-registry"
+     "href": "https://ronda.trueml.app/#m10.model-registry"
     },
     {
      "label": "Sheet · Del dato a producción · estación 4",
-     "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-gate"
+     "href": "https://hojas.trueml.app/recorrido/#est-gate"
     }
    ]
   },
@@ -460,35 +460,35 @@ export const T = {
    "links": [
     {
      "label": "Course · C01 · API de clasificación · Archivos de referencia",
-     "href": "https://ronda-diseno-ml.vercel.app/#c01.archivos"
+     "href": "https://ronda.trueml.app/#c01.archivos"
     },
     {
      "label": "Course · C01 · API de clasificación · Evaluación offline y online",
-     "href": "https://ronda-diseno-ml.vercel.app/#c01.evaluacion"
+     "href": "https://ronda.trueml.app/#c01.evaluacion"
     },
     {
      "label": "Course · M08 · Optimización de modelos · ONNX y ONNX Runtime",
-     "href": "https://ronda-diseno-ml.vercel.app/#m08.onnx"
+     "href": "https://ronda.trueml.app/#m08.onnx"
     },
     {
      "label": "Course · M08 · Optimización de modelos · TensorRT",
-     "href": "https://ronda-diseno-ml.vercel.app/#m08.tensorrt"
+     "href": "https://ronda.trueml.app/#m08.tensorrt"
     },
     {
      "label": "Sheet · Del dato a producción · estación 5",
-     "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-export"
+     "href": "https://hojas.trueml.app/recorrido/#est-export"
     },
     {
      "label": "Sheet · De PyTorch a Triton · ONNX",
-     "href": "https://cheat-sheets-ml.vercel.app/triton/#onnx"
+     "href": "https://hojas.trueml.app/triton/#onnx"
     },
     {
      "label": "Sheet · De PyTorch a Triton · paridad",
-     "href": "https://cheat-sheets-ml.vercel.app/triton/#paridad"
+     "href": "https://hojas.trueml.app/triton/#paridad"
     },
     {
      "label": "Sheet · De PyTorch a Triton · TensorRT",
-     "href": "https://cheat-sheets-ml.vercel.app/triton/#tensorrt"
+     "href": "https://hojas.trueml.app/triton/#tensorrt"
     }
    ]
   },
@@ -529,35 +529,35 @@ export const T = {
    "links": [
     {
      "label": "Course · C01 · API de clasificación · Serving",
-     "href": "https://ronda-diseno-ml.vercel.app/#c01.serving"
+     "href": "https://ronda.trueml.app/#c01.serving"
     },
     {
      "label": "Course · C01 · API de clasificación · Archivos de referencia",
-     "href": "https://ronda-diseno-ml.vercel.app/#c01.archivos"
+     "href": "https://ronda.trueml.app/#c01.archivos"
     },
     {
      "label": "Course · M07 · Servidores de modelos · Qué hace un model server (y qué no)",
-     "href": "https://ronda-diseno-ml.vercel.app/#m07.que-hace"
+     "href": "https://ronda.trueml.app/#m07.que-hace"
     },
     {
      "label": "Course · M07 · Servidores de modelos · NVIDIA Triton Inference Server",
-     "href": "https://ronda-diseno-ml.vercel.app/#m07.triton"
+     "href": "https://ronda.trueml.app/#m07.triton"
     },
     {
      "label": "Sheet · Del dato a producción · estación 6",
-     "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-serving"
+     "href": "https://hojas.trueml.app/recorrido/#est-serving"
     },
     {
      "label": "Sheet · El gateway · contrato",
-     "href": "https://cheat-sheets-ml.vercel.app/gateway/#contrato"
+     "href": "https://hojas.trueml.app/gateway/#contrato"
     },
     {
      "label": "Sheet · De PyTorch a Triton · model repository",
-     "href": "https://cheat-sheets-ml.vercel.app/triton/#repositorio"
+     "href": "https://hojas.trueml.app/triton/#repositorio"
     },
     {
      "label": "Sheet · El gateway · tests",
-     "href": "https://cheat-sheets-ml.vercel.app/gateway/#tests"
+     "href": "https://hojas.trueml.app/gateway/#tests"
     }
    ]
   },
@@ -606,31 +606,31 @@ export const T = {
    "links": [
     {
      "label": "Course · M05 · Contenedores · Un Dockerfile de ML, decisión por decisión",
-     "href": "https://ronda-diseno-ml.vercel.app/#m05.dockerfile-ml"
+     "href": "https://ronda.trueml.app/#m05.dockerfile-ml"
     },
     {
      "label": "Course · M05 · Contenedores · docker compose para desarrollo local",
-     "href": "https://ronda-diseno-ml.vercel.app/#m05.compose-local"
+     "href": "https://ronda.trueml.app/#m05.compose-local"
     },
     {
      "label": "Course · M05 · Contenedores · Reducir tamaño (y por qué importa para el cold start)",
-     "href": "https://ronda-diseno-ml.vercel.app/#m05.tamano"
+     "href": "https://ronda.trueml.app/#m05.tamano"
     },
     {
      "label": "Course · C01 · API de clasificación · Archivos de referencia",
-     "href": "https://ronda-diseno-ml.vercel.app/#c01.archivos"
+     "href": "https://ronda.trueml.app/#c01.archivos"
     },
     {
      "label": "Sheet · Del dato a producción · estación 7",
-     "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-empaquetado"
+     "href": "https://hojas.trueml.app/recorrido/#est-empaquetado"
     },
     {
      "label": "Sheet · Docker · anatomía de un Dockerfile",
-     "href": "https://cheat-sheets-ml.vercel.app/docker/#anatomia"
+     "href": "https://hojas.trueml.app/docker/#anatomia"
     },
     {
      "label": "Sheet · Docker · compose",
-     "href": "https://cheat-sheets-ml.vercel.app/docker/#compose"
+     "href": "https://hojas.trueml.app/docker/#compose"
     }
    ]
   },
@@ -679,35 +679,35 @@ export const T = {
    "links": [
     {
      "label": "Course · M10 · MLOps · CI/CD para modelos: la pirámide de tests",
-     "href": "https://ronda-diseno-ml.vercel.app/#m10.ci-cd"
+     "href": "https://ronda.trueml.app/#m10.ci-cd"
     },
     {
      "label": "Course · M05 · Contenedores · Registries y tags inmutables",
-     "href": "https://ronda-diseno-ml.vercel.app/#m05.registries"
+     "href": "https://ronda.trueml.app/#m05.registries"
     },
     {
      "label": "Course · Herramientas · Infraestructura como código, CI y seguridad",
-     "href": "https://ronda-diseno-ml.vercel.app/#ref-herramientas.infra-ci-seguridad"
+     "href": "https://ronda.trueml.app/#ref-herramientas.infra-ci-seguridad"
     },
     {
      "label": "Course · M15 · Seguridad y confiabilidad · Supply chain: imágenes, dependencias y pesos verificados",
-     "href": "https://ronda-diseno-ml.vercel.app/#m15.supply-chain"
+     "href": "https://ronda.trueml.app/#m15.supply-chain"
     },
     {
      "label": "Sheet · Del dato a producción · estación 8",
-     "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-cicd"
+     "href": "https://hojas.trueml.app/recorrido/#est-cicd"
     },
     {
      "label": "Sheet · Git y GitHub Actions · workflows",
-     "href": "https://cheat-sheets-ml.vercel.app/git/#workflow"
+     "href": "https://hojas.trueml.app/git/#workflow"
     },
     {
      "label": "Sheet · Git y GitHub Actions · tests en CI",
-     "href": "https://cheat-sheets-ml.vercel.app/git/#tests-ci"
+     "href": "https://hojas.trueml.app/git/#tests-ci"
     },
     {
      "label": "Sheet · Docker · registries",
-     "href": "https://cheat-sheets-ml.vercel.app/docker/#registries"
+     "href": "https://hojas.trueml.app/docker/#registries"
     }
    ]
   },
@@ -760,43 +760,43 @@ export const T = {
    "links": [
     {
      "label": "Course · M06 · Orquestación y escalado · Los objetos que sí debes conocer",
-     "href": "https://ronda-diseno-ml.vercel.app/#m06.objetos-basicos"
+     "href": "https://ronda.trueml.app/#m06.objetos-basicos"
     },
     {
      "label": "Course · M06 · Orquestación y escalado · GPUs en Kubernetes",
-     "href": "https://ronda-diseno-ml.vercel.app/#m06.gpus-k8s"
+     "href": "https://ronda.trueml.app/#m06.gpus-k8s"
     },
     {
      "label": "Course · M06 · Orquestación y escalado · HPA: por qué escalar por CPU no sirve para un servicio de GPU",
-     "href": "https://ronda-diseno-ml.vercel.app/#m06.hpa"
+     "href": "https://ronda.trueml.app/#m06.hpa"
     },
     {
      "label": "Course · M06 · Orquestación y escalado · KEDA: escalar por eventos y hasta cero",
-     "href": "https://ronda-diseno-ml.vercel.app/#m06.keda"
+     "href": "https://ronda.trueml.app/#m06.keda"
     },
     {
      "label": "Course · M06 · Orquestación y escalado · Alta disponibilidad: multi-AZ, PDB y N+1",
-     "href": "https://ronda-diseno-ml.vercel.app/#m06.alta-disponibilidad"
+     "href": "https://ronda.trueml.app/#m06.alta-disponibilidad"
     },
     {
      "label": "Course · Comandos · Depurar pods: síntoma → comandos → causa típica",
-     "href": "https://ronda-diseno-ml.vercel.app/#ref-comandos.depurar"
+     "href": "https://ronda.trueml.app/#ref-comandos.depurar"
     },
     {
      "label": "Sheet · Del dato a producción · estación 9",
-     "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-kubernetes"
+     "href": "https://hojas.trueml.app/recorrido/#est-kubernetes"
     },
     {
      "label": "Sheet · Kubernetes · Deployments",
-     "href": "https://cheat-sheets-ml.vercel.app/kubernetes/#deployments"
+     "href": "https://hojas.trueml.app/kubernetes/#deployments"
     },
     {
      "label": "Sheet · Kubernetes · probes",
-     "href": "https://cheat-sheets-ml.vercel.app/kubernetes/#probes"
+     "href": "https://hojas.trueml.app/kubernetes/#probes"
     },
     {
      "label": "Sheet · Kubernetes · autoscaling",
-     "href": "https://cheat-sheets-ml.vercel.app/kubernetes/#autoscaling"
+     "href": "https://hojas.trueml.app/kubernetes/#autoscaling"
     }
    ]
   },
@@ -845,35 +845,35 @@ export const T = {
    "links": [
     {
      "label": "Course · M11 · Despliegue seguro · Shadow deployment: comparar sin afectar a nadie",
-     "href": "https://ronda-diseno-ml.vercel.app/#m11.shadow"
+     "href": "https://ronda.trueml.app/#m11.shadow"
     },
     {
      "label": "Course · M11 · Despliegue seguro · Canary: porcentajes, tiempos y criterios para avanzar",
-     "href": "https://ronda-diseno-ml.vercel.app/#m11.canary"
+     "href": "https://ronda.trueml.app/#m11.canary"
     },
     {
      "label": "Course · M11 · Despliegue seguro · Blue/green y rollback instantáneo",
-     "href": "https://ronda-diseno-ml.vercel.app/#m11.blue-green"
+     "href": "https://ronda.trueml.app/#m11.blue-green"
     },
     {
      "label": "Course · M11 · Despliegue seguro · Rollback: criterios automáticos y qué guardar para volver",
-     "href": "https://ronda-diseno-ml.vercel.app/#m11.rollback"
+     "href": "https://ronda.trueml.app/#m11.rollback"
     },
     {
      "label": "Course · C01 · API de clasificación · Evaluación offline y online",
-     "href": "https://ronda-diseno-ml.vercel.app/#c01.evaluacion"
+     "href": "https://ronda.trueml.app/#c01.evaluacion"
     },
     {
      "label": "Sheet · Del dato a producción · estación 10",
-     "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-rollout"
+     "href": "https://hojas.trueml.app/recorrido/#est-rollout"
     },
     {
      "label": "Sheet · Kubernetes · rollouts",
-     "href": "https://cheat-sheets-ml.vercel.app/kubernetes/#rollouts"
+     "href": "https://hojas.trueml.app/kubernetes/#rollouts"
     },
     {
      "label": "Sheet · Git y GitHub Actions · CD",
-     "href": "https://cheat-sheets-ml.vercel.app/git/#cd"
+     "href": "https://hojas.trueml.app/git/#cd"
     }
    ]
   },
@@ -918,39 +918,39 @@ export const T = {
    "links": [
     {
      "label": "Course · C01 · API de clasificación · Arquitectura",
-     "href": "https://ronda-diseno-ml.vercel.app/#c01.arquitectura"
+     "href": "https://ronda.trueml.app/#c01.arquitectura"
     },
     {
      "label": "Course · C01 · API de clasificación · Estimaciones back-of-the-envelope",
-     "href": "https://ronda-diseno-ml.vercel.app/#c01.estimaciones"
+     "href": "https://ronda.trueml.app/#c01.estimaciones"
     },
     {
      "label": "Course · M03 · Latencia y capacidad · Presupuesto de latencia end-to-end",
-     "href": "https://ronda-diseno-ml.vercel.app/#m03.presupuesto"
+     "href": "https://ronda.trueml.app/#m03.presupuesto"
     },
     {
      "label": "Course · C01 · API de clasificación · Serving",
-     "href": "https://ronda-diseno-ml.vercel.app/#c01.serving"
+     "href": "https://ronda.trueml.app/#c01.serving"
     },
     {
      "label": "Course · M07 · Servidores de modelos · Protocolos: REST, gRPC, KServe v2 y OpenAI-compatible",
-     "href": "https://ronda-diseno-ml.vercel.app/#m07.protocolos"
+     "href": "https://ronda.trueml.app/#m07.protocolos"
     },
     {
      "label": "Sheet · Del dato a producción · estación 11",
-     "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-request"
+     "href": "https://hojas.trueml.app/recorrido/#est-request"
     },
     {
      "label": "Sheet · El gateway · timeouts y reintentos",
-     "href": "https://cheat-sheets-ml.vercel.app/gateway/#upstream"
+     "href": "https://hojas.trueml.app/gateway/#upstream"
     },
     {
      "label": "Sheet · El gateway · admisión",
-     "href": "https://cheat-sheets-ml.vercel.app/gateway/#backpressure"
+     "href": "https://hojas.trueml.app/gateway/#backpressure"
     },
     {
      "label": "Sheet · Formulario de estimaciones · latencia",
-     "href": "https://cheat-sheets-ml.vercel.app/estimaciones/#latencia"
+     "href": "https://hojas.trueml.app/estimaciones/#latencia"
     }
    ]
   },
@@ -995,43 +995,43 @@ export const T = {
    "links": [
     {
      "label": "Course · C01 · API de clasificación · Monitoreo, alertas y reentrenamiento",
-     "href": "https://ronda-diseno-ml.vercel.app/#c01.monitoreo"
+     "href": "https://ronda.trueml.app/#c01.monitoreo"
     },
     {
      "label": "Course · M12 · Monitoreo · Métricas de sistema: golden signals con detalles de ML",
-     "href": "https://ronda-diseno-ml.vercel.app/#m12.sistema"
+     "href": "https://ronda.trueml.app/#m12.sistema"
     },
     {
      "label": "Course · M12 · Monitoreo · Métricas de modelo: con y sin labels",
-     "href": "https://ronda-diseno-ml.vercel.app/#m12.modelo"
+     "href": "https://ronda.trueml.app/#m12.modelo"
     },
     {
      "label": "Course · M12 · Monitoreo · Prometheus, Grafana y alertas por SLO",
-     "href": "https://ronda-diseno-ml.vercel.app/#m12.prometheus-grafana"
+     "href": "https://ronda.trueml.app/#m12.prometheus-grafana"
     },
     {
      "label": "Course · M12 · Monitoreo · Cuándo reentrenar (y cuándo no)",
-     "href": "https://ronda-diseno-ml.vercel.app/#m12.reentrenar"
+     "href": "https://ronda.trueml.app/#m12.reentrenar"
     },
     {
      "label": "Course · M10 · MLOps · Reentrenamiento: programado, disparado o continuo",
-     "href": "https://ronda-diseno-ml.vercel.app/#m10.reentrenamiento"
+     "href": "https://ronda.trueml.app/#m10.reentrenamiento"
     },
     {
      "label": "Sheet · Del dato a producción · estación 12",
-     "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-monitoreo"
+     "href": "https://hojas.trueml.app/recorrido/#est-monitoreo"
     },
     {
      "label": "Sheet · Prometheus y Grafana · tipos de métrica",
-     "href": "https://cheat-sheets-ml.vercel.app/prometheus/#metricas"
+     "href": "https://hojas.trueml.app/prometheus/#metricas"
     },
     {
      "label": "Sheet · Prometheus y Grafana · histogramas",
-     "href": "https://cheat-sheets-ml.vercel.app/prometheus/#histogramas"
+     "href": "https://hojas.trueml.app/prometheus/#histogramas"
     },
     {
      "label": "Sheet · Prometheus y Grafana · SLOs",
-     "href": "https://cheat-sheets-ml.vercel.app/prometheus/#slos"
+     "href": "https://hojas.trueml.app/prometheus/#slos"
     }
    ]
   }
@@ -1060,15 +1060,15 @@ export const T = {
     "links": [
      {
       "label": "Course · C01 · API de clasificación · Requisitos",
-      "href": "https://ronda-diseno-ml.vercel.app/#c01.requisitos"
+      "href": "https://ronda.trueml.app/#c01.requisitos"
      },
      {
       "label": "Course · C01 · API de clasificación · Estimaciones back-of-the-envelope",
-      "href": "https://ronda-diseno-ml.vercel.app/#c01.estimaciones"
+      "href": "https://ronda.trueml.app/#c01.estimaciones"
      },
      {
       "label": "Sheet · Formulario de estimaciones · C01 sizing chain",
-      "href": "https://cheat-sheets-ml.vercel.app/estimaciones/"
+      "href": "https://hojas.trueml.app/estimaciones/"
      }
     ],
     "calcs": [
@@ -1262,19 +1262,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C01 · API de clasificación · Pipeline de datos y entrenamiento",
-      "href": "https://ronda-diseno-ml.vercel.app/#c01.datos"
+      "href": "https://ronda.trueml.app/#c01.datos"
      },
      {
       "label": "Course · M09 · Datos y features · Etiquetado: guías, calidad, costo y active learning",
-      "href": "https://ronda-diseno-ml.vercel.app/#m09.etiquetado"
+      "href": "https://ronda.trueml.app/#m09.etiquetado"
      },
      {
       "label": "Course · M01 · El mapa y la entrevista · El ciclo de vida de ML en producción",
-      "href": "https://ronda-diseno-ml.vercel.app/#m01.ciclo-de-vida"
+      "href": "https://ronda.trueml.app/#m01.ciclo-de-vida"
      },
      {
       "label": "Sheet · Del dato a producción · estación 1",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-datos"
+      "href": "https://hojas.trueml.app/recorrido/#est-datos"
      }
     ],
     "inputs": [
@@ -1370,19 +1370,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C01 · API de clasificación · Pipeline de datos y entrenamiento",
-      "href": "https://ronda-diseno-ml.vercel.app/#c01.datos"
+      "href": "https://ronda.trueml.app/#c01.datos"
      },
      {
       "label": "Course · M09 · Datos y features · Versionado de datos y snapshots inmutables",
-      "href": "https://ronda-diseno-ml.vercel.app/#m09.versionado"
+      "href": "https://ronda.trueml.app/#m09.versionado"
      },
      {
       "label": "Course · M10 · MLOps · Reproducibilidad: los cinco ingredientes",
-      "href": "https://ronda-diseno-ml.vercel.app/#m10.reproducibilidad"
+      "href": "https://ronda.trueml.app/#m10.reproducibilidad"
      },
      {
       "label": "Sheet · Del dato a producción · estación 2",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-versionado"
+      "href": "https://hojas.trueml.app/recorrido/#est-versionado"
      }
     ],
     "inputs": [
@@ -1454,23 +1454,23 @@ export const T = {
     "links": [
      {
       "label": "Course · C01 · API de clasificación · Pipeline de datos y entrenamiento",
-      "href": "https://ronda-diseno-ml.vercel.app/#c01.datos"
+      "href": "https://ronda.trueml.app/#c01.datos"
      },
      {
       "label": "Course · M10 · MLOps · Pipelines de entrenamiento orquestados",
-      "href": "https://ronda-diseno-ml.vercel.app/#m10.pipelines-entrenamiento"
+      "href": "https://ronda.trueml.app/#m10.pipelines-entrenamiento"
      },
      {
       "label": "Course · M10 · MLOps · Reproducibilidad: los cinco ingredientes",
-      "href": "https://ronda-diseno-ml.vercel.app/#m10.reproducibilidad"
+      "href": "https://ronda.trueml.app/#m10.reproducibilidad"
      },
      {
       "label": "Course · M09 · Datos y features · Training-serving skew: causas, detección y prevención",
-      "href": "https://ronda-diseno-ml.vercel.app/#m09.skew"
+      "href": "https://ronda.trueml.app/#m09.skew"
      },
      {
       "label": "Sheet · Del dato a producción · estación 3",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-entrenamiento"
+      "href": "https://hojas.trueml.app/recorrido/#est-entrenamiento"
      }
     ],
     "inputs": [
@@ -1547,23 +1547,23 @@ export const T = {
     "links": [
      {
       "label": "Course · C01 · API de clasificación · Pipeline de datos y entrenamiento",
-      "href": "https://ronda-diseno-ml.vercel.app/#c01.datos"
+      "href": "https://ronda.trueml.app/#c01.datos"
      },
      {
       "label": "Course · C01 · API de clasificación · Evaluación offline y online",
-      "href": "https://ronda-diseno-ml.vercel.app/#c01.evaluacion"
+      "href": "https://ronda.trueml.app/#c01.evaluacion"
      },
      {
       "label": "Course · M10 · MLOps · El validation gate: cuándo un modelo puede reemplazar al actual",
-      "href": "https://ronda-diseno-ml.vercel.app/#m10.gate"
+      "href": "https://ronda.trueml.app/#m10.gate"
      },
      {
       "label": "Course · M10 · MLOps · Model registry: versiones, aliases y linaje",
-      "href": "https://ronda-diseno-ml.vercel.app/#m10.model-registry"
+      "href": "https://ronda.trueml.app/#m10.model-registry"
      },
      {
       "label": "Sheet · Del dato a producción · estación 4",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-gate"
+      "href": "https://hojas.trueml.app/recorrido/#est-gate"
      }
     ],
     "inputs": [
@@ -1654,35 +1654,35 @@ export const T = {
     "links": [
      {
       "label": "Course · C01 · API de clasificación · Archivos de referencia",
-      "href": "https://ronda-diseno-ml.vercel.app/#c01.archivos"
+      "href": "https://ronda.trueml.app/#c01.archivos"
      },
      {
       "label": "Course · C01 · API de clasificación · Evaluación offline y online",
-      "href": "https://ronda-diseno-ml.vercel.app/#c01.evaluacion"
+      "href": "https://ronda.trueml.app/#c01.evaluacion"
      },
      {
       "label": "Course · M08 · Optimización de modelos · ONNX y ONNX Runtime",
-      "href": "https://ronda-diseno-ml.vercel.app/#m08.onnx"
+      "href": "https://ronda.trueml.app/#m08.onnx"
      },
      {
       "label": "Course · M08 · Optimización de modelos · TensorRT",
-      "href": "https://ronda-diseno-ml.vercel.app/#m08.tensorrt"
+      "href": "https://ronda.trueml.app/#m08.tensorrt"
      },
      {
       "label": "Sheet · Del dato a producción · estación 5",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-export"
+      "href": "https://hojas.trueml.app/recorrido/#est-export"
      },
      {
       "label": "Sheet · De PyTorch a Triton · ONNX",
-      "href": "https://cheat-sheets-ml.vercel.app/triton/#onnx"
+      "href": "https://hojas.trueml.app/triton/#onnx"
      },
      {
       "label": "Sheet · De PyTorch a Triton · paridad",
-      "href": "https://cheat-sheets-ml.vercel.app/triton/#paridad"
+      "href": "https://hojas.trueml.app/triton/#paridad"
      },
      {
       "label": "Sheet · De PyTorch a Triton · TensorRT",
-      "href": "https://cheat-sheets-ml.vercel.app/triton/#tensorrt"
+      "href": "https://hojas.trueml.app/triton/#tensorrt"
      }
     ],
     "inputs": [
@@ -1782,35 +1782,35 @@ export const T = {
     "links": [
      {
       "label": "Course · C01 · API de clasificación · Serving",
-      "href": "https://ronda-diseno-ml.vercel.app/#c01.serving"
+      "href": "https://ronda.trueml.app/#c01.serving"
      },
      {
       "label": "Course · C01 · API de clasificación · Archivos de referencia",
-      "href": "https://ronda-diseno-ml.vercel.app/#c01.archivos"
+      "href": "https://ronda.trueml.app/#c01.archivos"
      },
      {
       "label": "Course · M07 · Servidores de modelos · Qué hace un model server (y qué no)",
-      "href": "https://ronda-diseno-ml.vercel.app/#m07.que-hace"
+      "href": "https://ronda.trueml.app/#m07.que-hace"
      },
      {
       "label": "Course · M07 · Servidores de modelos · NVIDIA Triton Inference Server",
-      "href": "https://ronda-diseno-ml.vercel.app/#m07.triton"
+      "href": "https://ronda.trueml.app/#m07.triton"
      },
      {
       "label": "Sheet · Del dato a producción · estación 6",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-serving"
+      "href": "https://hojas.trueml.app/recorrido/#est-serving"
      },
      {
       "label": "Sheet · El gateway · contrato",
-      "href": "https://cheat-sheets-ml.vercel.app/gateway/#contrato"
+      "href": "https://hojas.trueml.app/gateway/#contrato"
      },
      {
       "label": "Sheet · De PyTorch a Triton · model repository",
-      "href": "https://cheat-sheets-ml.vercel.app/triton/#repositorio"
+      "href": "https://hojas.trueml.app/triton/#repositorio"
      },
      {
       "label": "Sheet · El gateway · tests",
-      "href": "https://cheat-sheets-ml.vercel.app/gateway/#tests"
+      "href": "https://hojas.trueml.app/gateway/#tests"
      }
     ],
     "inputs": [
@@ -1922,31 +1922,31 @@ export const T = {
     "links": [
      {
       "label": "Course · M05 · Contenedores · Un Dockerfile de ML, decisión por decisión",
-      "href": "https://ronda-diseno-ml.vercel.app/#m05.dockerfile-ml"
+      "href": "https://ronda.trueml.app/#m05.dockerfile-ml"
      },
      {
       "label": "Course · M05 · Contenedores · docker compose para desarrollo local",
-      "href": "https://ronda-diseno-ml.vercel.app/#m05.compose-local"
+      "href": "https://ronda.trueml.app/#m05.compose-local"
      },
      {
       "label": "Course · M05 · Contenedores · Reducir tamaño (y por qué importa para el cold start)",
-      "href": "https://ronda-diseno-ml.vercel.app/#m05.tamano"
+      "href": "https://ronda.trueml.app/#m05.tamano"
      },
      {
       "label": "Course · C01 · API de clasificación · Archivos de referencia",
-      "href": "https://ronda-diseno-ml.vercel.app/#c01.archivos"
+      "href": "https://ronda.trueml.app/#c01.archivos"
      },
      {
       "label": "Sheet · Del dato a producción · estación 7",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-empaquetado"
+      "href": "https://hojas.trueml.app/recorrido/#est-empaquetado"
      },
      {
       "label": "Sheet · Docker · anatomía de un Dockerfile",
-      "href": "https://cheat-sheets-ml.vercel.app/docker/#anatomia"
+      "href": "https://hojas.trueml.app/docker/#anatomia"
      },
      {
       "label": "Sheet · Docker · compose",
-      "href": "https://cheat-sheets-ml.vercel.app/docker/#compose"
+      "href": "https://hojas.trueml.app/docker/#compose"
      }
     ],
     "inputs": [
@@ -2028,35 +2028,35 @@ export const T = {
     "links": [
      {
       "label": "Course · M10 · MLOps · CI/CD para modelos: la pirámide de tests",
-      "href": "https://ronda-diseno-ml.vercel.app/#m10.ci-cd"
+      "href": "https://ronda.trueml.app/#m10.ci-cd"
      },
      {
       "label": "Course · M05 · Contenedores · Registries y tags inmutables",
-      "href": "https://ronda-diseno-ml.vercel.app/#m05.registries"
+      "href": "https://ronda.trueml.app/#m05.registries"
      },
      {
       "label": "Course · Herramientas · Infraestructura como código, CI y seguridad",
-      "href": "https://ronda-diseno-ml.vercel.app/#ref-herramientas.infra-ci-seguridad"
+      "href": "https://ronda.trueml.app/#ref-herramientas.infra-ci-seguridad"
      },
      {
       "label": "Course · M15 · Seguridad y confiabilidad · Supply chain: imágenes, dependencias y pesos verificados",
-      "href": "https://ronda-diseno-ml.vercel.app/#m15.supply-chain"
+      "href": "https://ronda.trueml.app/#m15.supply-chain"
      },
      {
       "label": "Sheet · Del dato a producción · estación 8",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-cicd"
+      "href": "https://hojas.trueml.app/recorrido/#est-cicd"
      },
      {
       "label": "Sheet · Git y GitHub Actions · workflows",
-      "href": "https://cheat-sheets-ml.vercel.app/git/#workflow"
+      "href": "https://hojas.trueml.app/git/#workflow"
      },
      {
       "label": "Sheet · Git y GitHub Actions · tests en CI",
-      "href": "https://cheat-sheets-ml.vercel.app/git/#tests-ci"
+      "href": "https://hojas.trueml.app/git/#tests-ci"
      },
      {
       "label": "Sheet · Docker · registries",
-      "href": "https://cheat-sheets-ml.vercel.app/docker/#registries"
+      "href": "https://hojas.trueml.app/docker/#registries"
      }
     ],
     "inputs": [
@@ -2142,43 +2142,43 @@ export const T = {
     "links": [
      {
       "label": "Course · M06 · Orquestación y escalado · Los objetos que sí debes conocer",
-      "href": "https://ronda-diseno-ml.vercel.app/#m06.objetos-basicos"
+      "href": "https://ronda.trueml.app/#m06.objetos-basicos"
      },
      {
       "label": "Course · M06 · Orquestación y escalado · GPUs en Kubernetes",
-      "href": "https://ronda-diseno-ml.vercel.app/#m06.gpus-k8s"
+      "href": "https://ronda.trueml.app/#m06.gpus-k8s"
      },
      {
       "label": "Course · M06 · Orquestación y escalado · HPA: por qué escalar por CPU no sirve para un servicio de GPU",
-      "href": "https://ronda-diseno-ml.vercel.app/#m06.hpa"
+      "href": "https://ronda.trueml.app/#m06.hpa"
      },
      {
       "label": "Course · M06 · Orquestación y escalado · KEDA: escalar por eventos y hasta cero",
-      "href": "https://ronda-diseno-ml.vercel.app/#m06.keda"
+      "href": "https://ronda.trueml.app/#m06.keda"
      },
      {
       "label": "Course · M06 · Orquestación y escalado · Alta disponibilidad: multi-AZ, PDB y N+1",
-      "href": "https://ronda-diseno-ml.vercel.app/#m06.alta-disponibilidad"
+      "href": "https://ronda.trueml.app/#m06.alta-disponibilidad"
      },
      {
       "label": "Course · Comandos · Depurar pods: síntoma → comandos → causa típica",
-      "href": "https://ronda-diseno-ml.vercel.app/#ref-comandos.depurar"
+      "href": "https://ronda.trueml.app/#ref-comandos.depurar"
      },
      {
       "label": "Sheet · Del dato a producción · estación 9",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-kubernetes"
+      "href": "https://hojas.trueml.app/recorrido/#est-kubernetes"
      },
      {
       "label": "Sheet · Kubernetes · Deployments",
-      "href": "https://cheat-sheets-ml.vercel.app/kubernetes/#deployments"
+      "href": "https://hojas.trueml.app/kubernetes/#deployments"
      },
      {
       "label": "Sheet · Kubernetes · probes",
-      "href": "https://cheat-sheets-ml.vercel.app/kubernetes/#probes"
+      "href": "https://hojas.trueml.app/kubernetes/#probes"
      },
      {
       "label": "Sheet · Kubernetes · autoscaling",
-      "href": "https://cheat-sheets-ml.vercel.app/kubernetes/#autoscaling"
+      "href": "https://hojas.trueml.app/kubernetes/#autoscaling"
      }
     ],
     "inputs": [
@@ -2288,35 +2288,35 @@ export const T = {
     "links": [
      {
       "label": "Course · M11 · Despliegue seguro · Shadow deployment: comparar sin afectar a nadie",
-      "href": "https://ronda-diseno-ml.vercel.app/#m11.shadow"
+      "href": "https://ronda.trueml.app/#m11.shadow"
      },
      {
       "label": "Course · M11 · Despliegue seguro · Canary: porcentajes, tiempos y criterios para avanzar",
-      "href": "https://ronda-diseno-ml.vercel.app/#m11.canary"
+      "href": "https://ronda.trueml.app/#m11.canary"
      },
      {
       "label": "Course · M11 · Despliegue seguro · Blue/green y rollback instantáneo",
-      "href": "https://ronda-diseno-ml.vercel.app/#m11.blue-green"
+      "href": "https://ronda.trueml.app/#m11.blue-green"
      },
      {
       "label": "Course · M11 · Despliegue seguro · Rollback: criterios automáticos y qué guardar para volver",
-      "href": "https://ronda-diseno-ml.vercel.app/#m11.rollback"
+      "href": "https://ronda.trueml.app/#m11.rollback"
      },
      {
       "label": "Course · C01 · API de clasificación · Evaluación offline y online",
-      "href": "https://ronda-diseno-ml.vercel.app/#c01.evaluacion"
+      "href": "https://ronda.trueml.app/#c01.evaluacion"
      },
      {
       "label": "Sheet · Del dato a producción · estación 10",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-rollout"
+      "href": "https://hojas.trueml.app/recorrido/#est-rollout"
      },
      {
       "label": "Sheet · Kubernetes · rollouts",
-      "href": "https://cheat-sheets-ml.vercel.app/kubernetes/#rollouts"
+      "href": "https://hojas.trueml.app/kubernetes/#rollouts"
      },
      {
       "label": "Sheet · Git y GitHub Actions · CD",
-      "href": "https://cheat-sheets-ml.vercel.app/git/#cd"
+      "href": "https://hojas.trueml.app/git/#cd"
      }
     ],
     "inputs": [
@@ -2419,39 +2419,39 @@ export const T = {
     "links": [
      {
       "label": "Course · C01 · API de clasificación · Arquitectura",
-      "href": "https://ronda-diseno-ml.vercel.app/#c01.arquitectura"
+      "href": "https://ronda.trueml.app/#c01.arquitectura"
      },
      {
       "label": "Course · C01 · API de clasificación · Estimaciones back-of-the-envelope",
-      "href": "https://ronda-diseno-ml.vercel.app/#c01.estimaciones"
+      "href": "https://ronda.trueml.app/#c01.estimaciones"
      },
      {
       "label": "Course · M03 · Latencia y capacidad · Presupuesto de latencia end-to-end",
-      "href": "https://ronda-diseno-ml.vercel.app/#m03.presupuesto"
+      "href": "https://ronda.trueml.app/#m03.presupuesto"
      },
      {
       "label": "Course · C01 · API de clasificación · Serving",
-      "href": "https://ronda-diseno-ml.vercel.app/#c01.serving"
+      "href": "https://ronda.trueml.app/#c01.serving"
      },
      {
       "label": "Course · M07 · Servidores de modelos · Protocolos: REST, gRPC, KServe v2 y OpenAI-compatible",
-      "href": "https://ronda-diseno-ml.vercel.app/#m07.protocolos"
+      "href": "https://ronda.trueml.app/#m07.protocolos"
      },
      {
       "label": "Sheet · Del dato a producción · estación 11",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-request"
+      "href": "https://hojas.trueml.app/recorrido/#est-request"
      },
      {
       "label": "Sheet · El gateway · timeouts y reintentos",
-      "href": "https://cheat-sheets-ml.vercel.app/gateway/#upstream"
+      "href": "https://hojas.trueml.app/gateway/#upstream"
      },
      {
       "label": "Sheet · El gateway · admisión",
-      "href": "https://cheat-sheets-ml.vercel.app/gateway/#backpressure"
+      "href": "https://hojas.trueml.app/gateway/#backpressure"
      },
      {
       "label": "Sheet · Formulario de estimaciones · latencia",
-      "href": "https://cheat-sheets-ml.vercel.app/estimaciones/#latencia"
+      "href": "https://hojas.trueml.app/estimaciones/#latencia"
      }
     ],
     "inputs": [
@@ -2545,43 +2545,43 @@ export const T = {
     "links": [
      {
       "label": "Course · C01 · API de clasificación · Monitoreo, alertas y reentrenamiento",
-      "href": "https://ronda-diseno-ml.vercel.app/#c01.monitoreo"
+      "href": "https://ronda.trueml.app/#c01.monitoreo"
      },
      {
       "label": "Course · M12 · Monitoreo · Métricas de sistema: golden signals con detalles de ML",
-      "href": "https://ronda-diseno-ml.vercel.app/#m12.sistema"
+      "href": "https://ronda.trueml.app/#m12.sistema"
      },
      {
       "label": "Course · M12 · Monitoreo · Métricas de modelo: con y sin labels",
-      "href": "https://ronda-diseno-ml.vercel.app/#m12.modelo"
+      "href": "https://ronda.trueml.app/#m12.modelo"
      },
      {
       "label": "Course · M12 · Monitoreo · Prometheus, Grafana y alertas por SLO",
-      "href": "https://ronda-diseno-ml.vercel.app/#m12.prometheus-grafana"
+      "href": "https://ronda.trueml.app/#m12.prometheus-grafana"
      },
      {
       "label": "Course · M12 · Monitoreo · Cuándo reentrenar (y cuándo no)",
-      "href": "https://ronda-diseno-ml.vercel.app/#m12.reentrenar"
+      "href": "https://ronda.trueml.app/#m12.reentrenar"
      },
      {
       "label": "Course · M10 · MLOps · Reentrenamiento: programado, disparado o continuo",
-      "href": "https://ronda-diseno-ml.vercel.app/#m10.reentrenamiento"
+      "href": "https://ronda.trueml.app/#m10.reentrenamiento"
      },
      {
       "label": "Sheet · Del dato a producción · estación 12",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-monitoreo"
+      "href": "https://hojas.trueml.app/recorrido/#est-monitoreo"
      },
      {
       "label": "Sheet · Prometheus y Grafana · tipos de métrica",
-      "href": "https://cheat-sheets-ml.vercel.app/prometheus/#metricas"
+      "href": "https://hojas.trueml.app/prometheus/#metricas"
      },
      {
       "label": "Sheet · Prometheus y Grafana · histogramas",
-      "href": "https://cheat-sheets-ml.vercel.app/prometheus/#histogramas"
+      "href": "https://hojas.trueml.app/prometheus/#histogramas"
      },
      {
       "label": "Sheet · Prometheus y Grafana · SLOs",
-      "href": "https://cheat-sheets-ml.vercel.app/prometheus/#slos"
+      "href": "https://hojas.trueml.app/prometheus/#slos"
      }
     ],
     "inputs": [
@@ -2663,15 +2663,15 @@ export const T = {
     "links": [
      {
       "label": "Course · C14 · Pronóstico de demanda · Requisitos",
-      "href": "https://ronda-diseno-ml.vercel.app/#c14.requisitos"
+      "href": "https://ronda.trueml.app/#c14.requisitos"
      },
      {
       "label": "Course · C14 · Pronóstico de demanda · Estimaciones back-of-the-envelope",
-      "href": "https://ronda-diseno-ml.vercel.app/#c14.estimaciones"
+      "href": "https://ronda.trueml.app/#c14.estimaciones"
      },
      {
       "label": "Sheet · Formulario de estimaciones · C01 sizing chain",
-      "href": "https://cheat-sheets-ml.vercel.app/estimaciones/"
+      "href": "https://hojas.trueml.app/estimaciones/"
      }
     ],
     "calcs": [
@@ -2825,19 +2825,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C14 · Pronóstico de demanda · Pipeline de datos y entrenamiento",
-      "href": "https://ronda-diseno-ml.vercel.app/#c14.datos"
+      "href": "https://ronda.trueml.app/#c14.datos"
      },
      {
       "label": "Course · C14 · Pronóstico de demanda · Archivos de referencia",
-      "href": "https://ronda-diseno-ml.vercel.app/#c14.archivos"
+      "href": "https://ronda.trueml.app/#c14.archivos"
      },
      {
       "label": "Course · M09 · Datos y features · Data leakage: cuando el training conoce el futuro",
-      "href": "https://ronda-diseno-ml.vercel.app/#m09.leakage"
+      "href": "https://ronda.trueml.app/#m09.leakage"
      },
      {
       "label": "Sheet · Del dato a producción · estación 1 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-datos"
+      "href": "https://hojas.trueml.app/recorrido/#est-datos"
      }
     ],
     "inputs": [
@@ -2912,19 +2912,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C14 · Pronóstico de demanda · Serving",
-      "href": "https://ronda-diseno-ml.vercel.app/#c14.serving"
+      "href": "https://ronda.trueml.app/#c14.serving"
      },
      {
       "label": "Course · C14 · Pronóstico de demanda · Archivos de referencia",
-      "href": "https://ronda-diseno-ml.vercel.app/#c14.archivos"
+      "href": "https://ronda.trueml.app/#c14.archivos"
      },
      {
       "label": "Course · M09 · Datos y features · Pipelines batch y streaming",
-      "href": "https://ronda-diseno-ml.vercel.app/#m09.pipelines"
+      "href": "https://ronda.trueml.app/#m09.pipelines"
      },
      {
       "label": "Sheet · Del dato a producción · patrón batch",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#pat-batch"
+      "href": "https://hojas.trueml.app/recorrido/#pat-batch"
      }
     ],
     "inputs": [
@@ -2989,19 +2989,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C14 · Pronóstico de demanda · Pipeline de datos y entrenamiento",
-      "href": "https://ronda-diseno-ml.vercel.app/#c14.datos"
+      "href": "https://ronda.trueml.app/#c14.datos"
      },
      {
       "label": "Course · C14 · Pronóstico de demanda · Serving",
-      "href": "https://ronda-diseno-ml.vercel.app/#c14.serving"
+      "href": "https://ronda.trueml.app/#c14.serving"
      },
      {
       "label": "Course · M09 · Datos y features · Versionado de datos y snapshots inmutables",
-      "href": "https://ronda-diseno-ml.vercel.app/#m09.versionado"
+      "href": "https://ronda.trueml.app/#m09.versionado"
      },
      {
       "label": "Sheet · Del dato a producción · estación 2 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-versionado"
+      "href": "https://hojas.trueml.app/recorrido/#est-versionado"
      }
     ],
     "inputs": [],
@@ -3065,23 +3065,23 @@ export const T = {
     "links": [
      {
       "label": "Course · C14 · Pronóstico de demanda · Pipeline de datos y entrenamiento",
-      "href": "https://ronda-diseno-ml.vercel.app/#c14.datos"
+      "href": "https://ronda.trueml.app/#c14.datos"
      },
      {
       "label": "Course · C14 · Pronóstico de demanda · Archivos de referencia",
-      "href": "https://ronda-diseno-ml.vercel.app/#c14.archivos"
+      "href": "https://ronda.trueml.app/#c14.archivos"
      },
      {
       "label": "Course · M10 · MLOps · Pipelines de entrenamiento orquestados",
-      "href": "https://ronda-diseno-ml.vercel.app/#m10.pipelines-entrenamiento"
+      "href": "https://ronda.trueml.app/#m10.pipelines-entrenamiento"
      },
      {
       "label": "Course · M13 · Nube · Spot y preemptible: para qué sí y para qué no",
-      "href": "https://ronda-diseno-ml.vercel.app/#m13.spot"
+      "href": "https://ronda.trueml.app/#m13.spot"
      },
      {
       "label": "Sheet · Del dato a producción · estación 3 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-entrenamiento"
+      "href": "https://hojas.trueml.app/recorrido/#est-entrenamiento"
      }
     ],
     "inputs": [
@@ -3150,19 +3150,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C14 · Pronóstico de demanda · Evaluación offline y online",
-      "href": "https://ronda-diseno-ml.vercel.app/#c14.evaluacion"
+      "href": "https://ronda.trueml.app/#c14.evaluacion"
      },
      {
       "label": "Course · M10 · MLOps · El validation gate: cuándo un modelo puede reemplazar al actual",
-      "href": "https://ronda-diseno-ml.vercel.app/#m10.gate"
+      "href": "https://ronda.trueml.app/#m10.gate"
      },
      {
       "label": "Course · M10 · MLOps · Model registry: versiones, aliases y linaje",
-      "href": "https://ronda-diseno-ml.vercel.app/#m10.model-registry"
+      "href": "https://ronda.trueml.app/#m10.model-registry"
      },
      {
       "label": "Sheet · Del dato a producción · estación 4 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-gate"
+      "href": "https://hojas.trueml.app/recorrido/#est-gate"
      }
     ],
     "inputs": [],
@@ -3190,19 +3190,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C14 · Pronóstico de demanda · Serving",
-      "href": "https://ronda-diseno-ml.vercel.app/#c14.serving"
+      "href": "https://ronda.trueml.app/#c14.serving"
      },
      {
       "label": "Course · C14 · Pronóstico de demanda · Archivos de referencia",
-      "href": "https://ronda-diseno-ml.vercel.app/#c14.archivos"
+      "href": "https://ronda.trueml.app/#c14.archivos"
      },
      {
       "label": "Course · M02 · Patrones de inferencia · Batch: precomputar en vez de servir",
-      "href": "https://ronda-diseno-ml.vercel.app/#m02.batch"
+      "href": "https://ronda.trueml.app/#m02.batch"
      },
      {
       "label": "Sheet · Del dato a producción · estación 6 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-serving"
+      "href": "https://hojas.trueml.app/recorrido/#est-serving"
      }
     ],
     "inputs": [],
@@ -3244,23 +3244,23 @@ export const T = {
     "links": [
      {
       "label": "Course · C14 · Pronóstico de demanda · Serving",
-      "href": "https://ronda-diseno-ml.vercel.app/#c14.serving"
+      "href": "https://ronda.trueml.app/#c14.serving"
      },
      {
       "label": "Course · C14 · Pronóstico de demanda · Archivos de referencia",
-      "href": "https://ronda-diseno-ml.vercel.app/#c14.archivos"
+      "href": "https://ronda.trueml.app/#c14.archivos"
      },
      {
       "label": "Course · M09 · Datos y features · Validación de datos: schemas y expectativas",
-      "href": "https://ronda-diseno-ml.vercel.app/#m09.validacion-datos"
+      "href": "https://ronda.trueml.app/#m09.validacion-datos"
      },
      {
       "label": "Course · M02 · Patrones de inferencia · Batch: precomputar en vez de servir",
-      "href": "https://ronda-diseno-ml.vercel.app/#m02.batch"
+      "href": "https://ronda.trueml.app/#m02.batch"
      },
      {
       "label": "Sheet · Del dato a producción · patrón batch",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#pat-batch"
+      "href": "https://hojas.trueml.app/recorrido/#pat-batch"
      }
     ],
     "inputs": [
@@ -3314,19 +3314,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C14 · Pronóstico de demanda · Serving",
-      "href": "https://ronda-diseno-ml.vercel.app/#c14.serving"
+      "href": "https://ronda.trueml.app/#c14.serving"
      },
      {
       "label": "Course · C14 · Pronóstico de demanda · Modos de falla y degradación",
-      "href": "https://ronda-diseno-ml.vercel.app/#c14.fallas"
+      "href": "https://ronda.trueml.app/#c14.fallas"
      },
      {
       "label": "Course · M15 · Seguridad y confiabilidad · Degradación con gracia: contener la falla",
-      "href": "https://ronda-diseno-ml.vercel.app/#m15.degradacion"
+      "href": "https://ronda.trueml.app/#m15.degradacion"
      },
      {
       "label": "Sheet · Del dato a producción · patrón batch",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#pat-batch"
+      "href": "https://hojas.trueml.app/recorrido/#pat-batch"
      }
     ],
     "inputs": [
@@ -3383,19 +3383,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C14 · Pronóstico de demanda · Serving",
-      "href": "https://ronda-diseno-ml.vercel.app/#c14.serving"
+      "href": "https://ronda.trueml.app/#c14.serving"
      },
      {
       "label": "Course · C14 · Pronóstico de demanda · Archivos de referencia",
-      "href": "https://ronda-diseno-ml.vercel.app/#c14.archivos"
+      "href": "https://ronda.trueml.app/#c14.archivos"
      },
      {
       "label": "Course · M05 · Contenedores · Registries y tags inmutables",
-      "href": "https://ronda-diseno-ml.vercel.app/#m05.registries"
+      "href": "https://ronda.trueml.app/#m05.registries"
      },
      {
       "label": "Sheet · Del dato a producción · estación 7 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-empaquetado"
+      "href": "https://hojas.trueml.app/recorrido/#est-empaquetado"
      }
     ],
     "inputs": [],
@@ -3450,15 +3450,15 @@ export const T = {
     "links": [
      {
       "label": "Course · C14 · Pronóstico de demanda · Archivos de referencia",
-      "href": "https://ronda-diseno-ml.vercel.app/#c14.archivos"
+      "href": "https://ronda.trueml.app/#c14.archivos"
      },
      {
       "label": "Course · M10 · MLOps · CI/CD para modelos: la pirámide de tests",
-      "href": "https://ronda-diseno-ml.vercel.app/#m10.ci-cd"
+      "href": "https://ronda.trueml.app/#m10.ci-cd"
      },
      {
       "label": "Sheet · Del dato a producción · estación 8 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-cicd"
+      "href": "https://hojas.trueml.app/recorrido/#est-cicd"
      }
     ],
     "inputs": [],
@@ -3487,19 +3487,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C14 · Pronóstico de demanda · Archivos de referencia",
-      "href": "https://ronda-diseno-ml.vercel.app/#c14.archivos"
+      "href": "https://ronda.trueml.app/#c14.archivos"
      },
      {
       "label": "Course · M06 · Orquestación y escalado · Aprovisionar nodos GPU: Cluster Autoscaler y Karpenter",
-      "href": "https://ronda-diseno-ml.vercel.app/#m06.nodos"
+      "href": "https://ronda.trueml.app/#m06.nodos"
      },
      {
       "label": "Course · M13 · Nube · Spot y preemptible: para qué sí y para qué no",
-      "href": "https://ronda-diseno-ml.vercel.app/#m13.spot"
+      "href": "https://ronda.trueml.app/#m13.spot"
      },
      {
       "label": "Sheet · Del dato a producción · estación 9 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-kubernetes"
+      "href": "https://hojas.trueml.app/recorrido/#est-kubernetes"
      }
     ],
     "inputs": [],
@@ -3538,19 +3538,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C14 · Pronóstico de demanda · Serving",
-      "href": "https://ronda-diseno-ml.vercel.app/#c14.serving"
+      "href": "https://ronda.trueml.app/#c14.serving"
      },
      {
       "label": "Course · C14 · Pronóstico de demanda · Archivos de referencia",
-      "href": "https://ronda-diseno-ml.vercel.app/#c14.archivos"
+      "href": "https://ronda.trueml.app/#c14.archivos"
      },
      {
       "label": "Course · M10 · MLOps · Pipelines de entrenamiento orquestados",
-      "href": "https://ronda-diseno-ml.vercel.app/#m10.pipelines-entrenamiento"
+      "href": "https://ronda.trueml.app/#m10.pipelines-entrenamiento"
      },
      {
       "label": "Sheet · Del dato a producción · patrón batch",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#pat-batch"
+      "href": "https://hojas.trueml.app/recorrido/#pat-batch"
      }
     ],
     "inputs": [],
@@ -3601,27 +3601,27 @@ export const T = {
     "links": [
      {
       "label": "Course · C14 · Pronóstico de demanda · Evaluación offline y online",
-      "href": "https://ronda-diseno-ml.vercel.app/#c14.evaluacion"
+      "href": "https://ronda.trueml.app/#c14.evaluacion"
      },
      {
       "label": "Course · C14 · Pronóstico de demanda · Serving",
-      "href": "https://ronda-diseno-ml.vercel.app/#c14.serving"
+      "href": "https://ronda.trueml.app/#c14.serving"
      },
      {
       "label": "Course · M11 · Despliegue seguro · Shadow deployment: comparar sin afectar a nadie",
-      "href": "https://ronda-diseno-ml.vercel.app/#m11.shadow"
+      "href": "https://ronda.trueml.app/#m11.shadow"
      },
      {
       "label": "Course · M11 · Despliegue seguro · A/B testing: unidad, métricas y tamaño de muestra",
-      "href": "https://ronda-diseno-ml.vercel.app/#m11.ab-testing"
+      "href": "https://ronda.trueml.app/#m11.ab-testing"
      },
      {
       "label": "Course · M11 · Despliegue seguro · Rollback: criterios automáticos y qué guardar para volver",
-      "href": "https://ronda-diseno-ml.vercel.app/#m11.rollback"
+      "href": "https://ronda.trueml.app/#m11.rollback"
      },
      {
       "label": "Sheet · Del dato a producción · estación 10 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-rollout"
+      "href": "https://hojas.trueml.app/recorrido/#est-rollout"
      }
     ],
     "inputs": [],
@@ -3683,23 +3683,23 @@ export const T = {
     "links": [
      {
       "label": "Course · C14 · Pronóstico de demanda · Monitoreo, alertas y reentrenamiento",
-      "href": "https://ronda-diseno-ml.vercel.app/#c14.monitoreo"
+      "href": "https://ronda.trueml.app/#c14.monitoreo"
      },
      {
       "label": "Course · C14 · Pronóstico de demanda · Archivos de referencia",
-      "href": "https://ronda-diseno-ml.vercel.app/#c14.archivos"
+      "href": "https://ronda.trueml.app/#c14.archivos"
      },
      {
       "label": "Course · M12 · Monitoreo · Prometheus, Grafana y alertas por SLO",
-      "href": "https://ronda-diseno-ml.vercel.app/#m12.prometheus-grafana"
+      "href": "https://ronda.trueml.app/#m12.prometheus-grafana"
      },
      {
       "label": "Course · M12 · Monitoreo · Dashboards, runbooks y on-call",
-      "href": "https://ronda-diseno-ml.vercel.app/#m12.runbooks"
+      "href": "https://ronda.trueml.app/#m12.runbooks"
      },
      {
       "label": "Sheet · Del dato a producción · estación 12 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-monitoreo"
+      "href": "https://hojas.trueml.app/recorrido/#est-monitoreo"
      }
     ],
     "inputs": [],
@@ -3742,15 +3742,15 @@ export const T = {
     "links": [
      {
       "label": "Course · C04 · Segmentación de imágenes · Requisitos",
-      "href": "https://ronda-diseno-ml.vercel.app/#c04.requisitos"
+      "href": "https://ronda.trueml.app/#c04.requisitos"
      },
      {
       "label": "Course · C04 · Segmentación de imágenes · Estimaciones back-of-the-envelope",
-      "href": "https://ronda-diseno-ml.vercel.app/#c04.estimaciones"
+      "href": "https://ronda.trueml.app/#c04.estimaciones"
      },
      {
       "label": "Sheet · Formulario de estimaciones · C01 sizing chain",
-      "href": "https://cheat-sheets-ml.vercel.app/estimaciones/"
+      "href": "https://hojas.trueml.app/estimaciones/"
      }
     ],
     "calcs": [
@@ -3918,15 +3918,15 @@ export const T = {
     "links": [
      {
       "label": "Course · C04 · Segmentación de imágenes · Pipeline de datos y entrenamiento",
-      "href": "https://ronda-diseno-ml.vercel.app/#c04.datos"
+      "href": "https://ronda.trueml.app/#c04.datos"
      },
      {
       "label": "Course · M09 · Datos y features · Etiquetado: guías, calidad, costo y active learning",
-      "href": "https://ronda-diseno-ml.vercel.app/#m09.etiquetado"
+      "href": "https://ronda.trueml.app/#m09.etiquetado"
      },
      {
       "label": "Sheet · Del dato a producción · estación 1 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-datos"
+      "href": "https://hojas.trueml.app/recorrido/#est-datos"
      }
     ],
     "inputs": [],
@@ -3998,15 +3998,15 @@ export const T = {
     "links": [
      {
       "label": "Course · C04 · Segmentación de imágenes · Pipeline de datos y entrenamiento",
-      "href": "https://ronda-diseno-ml.vercel.app/#c04.datos"
+      "href": "https://ronda.trueml.app/#c04.datos"
      },
      {
       "label": "Course · M09 · Datos y features · Versionado de datos y snapshots inmutables",
-      "href": "https://ronda-diseno-ml.vercel.app/#m09.versionado"
+      "href": "https://ronda.trueml.app/#m09.versionado"
      },
      {
       "label": "Sheet · Del dato a producción · estación 2 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-versionado"
+      "href": "https://hojas.trueml.app/recorrido/#est-versionado"
      }
     ],
     "inputs": [],
@@ -4059,15 +4059,15 @@ export const T = {
     "links": [
      {
       "label": "Course · C04 · Segmentación de imágenes · Pipeline de datos y entrenamiento",
-      "href": "https://ronda-diseno-ml.vercel.app/#c04.datos"
+      "href": "https://ronda.trueml.app/#c04.datos"
      },
      {
       "label": "Course · M10 · MLOps · Reproducibilidad: los cinco ingredientes",
-      "href": "https://ronda-diseno-ml.vercel.app/#m10.reproducibilidad"
+      "href": "https://ronda.trueml.app/#m10.reproducibilidad"
      },
      {
       "label": "Sheet · Del dato a producción · estación 3 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-entrenamiento"
+      "href": "https://hojas.trueml.app/recorrido/#est-entrenamiento"
      }
     ],
     "inputs": [],
@@ -4094,15 +4094,15 @@ export const T = {
     "links": [
      {
       "label": "Course · C04 · Segmentación de imágenes · Evaluación offline y online",
-      "href": "https://ronda-diseno-ml.vercel.app/#c04.evaluacion"
+      "href": "https://ronda.trueml.app/#c04.evaluacion"
      },
      {
       "label": "Course · M10 · MLOps · El validation gate: cuándo un modelo puede reemplazar al actual",
-      "href": "https://ronda-diseno-ml.vercel.app/#m10.gate"
+      "href": "https://ronda.trueml.app/#m10.gate"
      },
      {
       "label": "Sheet · Del dato a producción · estación 4 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-gate"
+      "href": "https://hojas.trueml.app/recorrido/#est-gate"
      }
     ],
     "inputs": [],
@@ -4166,15 +4166,15 @@ export const T = {
     "links": [
      {
       "label": "Course · C04 · Segmentación de imágenes · Archivos de referencia",
-      "href": "https://ronda-diseno-ml.vercel.app/#c04.archivos"
+      "href": "https://ronda.trueml.app/#c04.archivos"
      },
      {
       "label": "Course · M08 · Optimización de modelos · TensorRT",
-      "href": "https://ronda-diseno-ml.vercel.app/#m08.tensorrt"
+      "href": "https://ronda.trueml.app/#m08.tensorrt"
      },
      {
       "label": "Sheet · Del dato a producción · estación 5 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-export"
+      "href": "https://hojas.trueml.app/recorrido/#est-export"
      }
     ],
     "inputs": [],
@@ -4230,15 +4230,15 @@ export const T = {
     "links": [
      {
       "label": "Course · C04 · Segmentación de imágenes · Serving",
-      "href": "https://ronda-diseno-ml.vercel.app/#c04.serving"
+      "href": "https://ronda.trueml.app/#c04.serving"
      },
      {
       "label": "Course · C04 · Segmentación de imágenes · Archivos de referencia",
-      "href": "https://ronda-diseno-ml.vercel.app/#c04.archivos"
+      "href": "https://ronda.trueml.app/#c04.archivos"
      },
      {
       "label": "Sheet · Del dato a producción · estación 6 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-serving"
+      "href": "https://hojas.trueml.app/recorrido/#est-serving"
      }
     ],
     "inputs": [],
@@ -4313,15 +4313,15 @@ export const T = {
     "links": [
      {
       "label": "Course · C04 · Segmentación de imágenes · Archivos de referencia",
-      "href": "https://ronda-diseno-ml.vercel.app/#c04.archivos"
+      "href": "https://ronda.trueml.app/#c04.archivos"
      },
      {
       "label": "Course · M05 · Contenedores · Reducir tamaño (y por qué importa para el cold start)",
-      "href": "https://ronda-diseno-ml.vercel.app/#m05.tamano"
+      "href": "https://ronda.trueml.app/#m05.tamano"
      },
      {
       "label": "Sheet · Del dato a producción · estación 7 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-empaquetado"
+      "href": "https://hojas.trueml.app/recorrido/#est-empaquetado"
      }
     ],
     "inputs": [],
@@ -4350,15 +4350,15 @@ export const T = {
     "links": [
      {
       "label": "Course · C04 · Segmentación de imágenes · Arquitectura",
-      "href": "https://ronda-diseno-ml.vercel.app/#c04.arquitectura"
+      "href": "https://ronda.trueml.app/#c04.arquitectura"
      },
      {
       "label": "Course · M10 · MLOps · CI/CD para modelos: la pirámide de tests",
-      "href": "https://ronda-diseno-ml.vercel.app/#m10.ci-cd"
+      "href": "https://ronda.trueml.app/#m10.ci-cd"
      },
      {
       "label": "Sheet · Del dato a producción · estación 8 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-cicd"
+      "href": "https://hojas.trueml.app/recorrido/#est-cicd"
      }
     ],
     "inputs": [],
@@ -4386,19 +4386,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C04 · Segmentación de imágenes · Serving",
-      "href": "https://ronda-diseno-ml.vercel.app/#c04.serving"
+      "href": "https://ronda.trueml.app/#c04.serving"
      },
      {
       "label": "Course · C04 · Segmentación de imágenes · Archivos de referencia",
-      "href": "https://ronda-diseno-ml.vercel.app/#c04.archivos"
+      "href": "https://ronda.trueml.app/#c04.archivos"
      },
      {
       "label": "Course · M06 · Orquestación y escalado · KEDA: escalar por eventos y hasta cero",
-      "href": "https://ronda-diseno-ml.vercel.app/#m06.keda"
+      "href": "https://ronda.trueml.app/#m06.keda"
      },
      {
       "label": "Sheet · Del dato a producción · estación 9 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-kubernetes"
+      "href": "https://hojas.trueml.app/recorrido/#est-kubernetes"
      }
     ],
     "inputs": [],
@@ -4474,19 +4474,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C04 · Segmentación de imágenes · Evaluación offline y online",
-      "href": "https://ronda-diseno-ml.vercel.app/#c04.evaluacion"
+      "href": "https://ronda.trueml.app/#c04.evaluacion"
      },
      {
       "label": "Course · C04 · Segmentación de imágenes · Modos de falla y degradación",
-      "href": "https://ronda-diseno-ml.vercel.app/#c04.fallas"
+      "href": "https://ronda.trueml.app/#c04.fallas"
      },
      {
       "label": "Course · M11 · Despliegue seguro · Shadow deployment: comparar sin afectar a nadie",
-      "href": "https://ronda-diseno-ml.vercel.app/#m11.shadow"
+      "href": "https://ronda.trueml.app/#m11.shadow"
      },
      {
       "label": "Sheet · Del dato a producción · estación 10 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-rollout"
+      "href": "https://hojas.trueml.app/recorrido/#est-rollout"
      }
     ],
     "inputs": [],
@@ -4514,23 +4514,23 @@ export const T = {
     "links": [
      {
       "label": "Course · C04 · Segmentación de imágenes · Arquitectura",
-      "href": "https://ronda-diseno-ml.vercel.app/#c04.arquitectura"
+      "href": "https://ronda.trueml.app/#c04.arquitectura"
      },
      {
       "label": "Course · C04 · Segmentación de imágenes · Serving",
-      "href": "https://ronda-diseno-ml.vercel.app/#c04.serving"
+      "href": "https://ronda.trueml.app/#c04.serving"
      },
      {
       "label": "Course · M02 · Patrones de inferencia · Asíncrona con colas",
-      "href": "https://ronda-diseno-ml.vercel.app/#m02.asincrona-colas"
+      "href": "https://ronda.trueml.app/#m02.asincrona-colas"
      },
      {
       "label": "Course · M02 · Patrones de inferencia · Entrega, reintentos e idempotencia",
-      "href": "https://ronda-diseno-ml.vercel.app/#m02.entrega-reintentos"
+      "href": "https://ronda.trueml.app/#m02.entrega-reintentos"
      },
      {
       "label": "Sheet · Del dato a producción · casos asíncronos",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#casos-asincrono"
+      "href": "https://hojas.trueml.app/recorrido/#casos-asincrono"
      }
     ],
     "inputs": [
@@ -4596,15 +4596,15 @@ export const T = {
     "links": [
      {
       "label": "Course · C04 · Segmentación de imágenes · Serving",
-      "href": "https://ronda-diseno-ml.vercel.app/#c04.serving"
+      "href": "https://ronda.trueml.app/#c04.serving"
      },
      {
       "label": "Course · C04 · Segmentación de imágenes · Arquitectura",
-      "href": "https://ronda-diseno-ml.vercel.app/#c04.arquitectura"
+      "href": "https://ronda.trueml.app/#c04.arquitectura"
      },
      {
       "label": "Sheet · Del dato a producción · casos asíncronos",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#casos-asincrono"
+      "href": "https://hojas.trueml.app/recorrido/#casos-asincrono"
      }
     ],
     "inputs": [],
@@ -4679,15 +4679,15 @@ export const T = {
     "links": [
      {
       "label": "Course · C04 · Segmentación de imágenes · Evaluación offline y online",
-      "href": "https://ronda-diseno-ml.vercel.app/#c04.evaluacion"
+      "href": "https://ronda.trueml.app/#c04.evaluacion"
      },
      {
       "label": "Course · C04 · Segmentación de imágenes · Pipeline de datos y entrenamiento",
-      "href": "https://ronda-diseno-ml.vercel.app/#c04.datos"
+      "href": "https://ronda.trueml.app/#c04.datos"
      },
      {
       "label": "Sheet · Del dato a producción · casos asíncronos",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#casos-asincrono"
+      "href": "https://hojas.trueml.app/recorrido/#casos-asincrono"
      }
     ],
     "inputs": [],
@@ -4763,19 +4763,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C04 · Segmentación de imágenes · Monitoreo, alertas y reentrenamiento",
-      "href": "https://ronda-diseno-ml.vercel.app/#c04.monitoreo"
+      "href": "https://ronda.trueml.app/#c04.monitoreo"
      },
      {
       "label": "Course · M02 · Patrones de inferencia · Asíncrona con colas",
-      "href": "https://ronda-diseno-ml.vercel.app/#m02.asincrona-colas"
+      "href": "https://ronda.trueml.app/#m02.asincrona-colas"
      },
      {
       "label": "Course · M12 · Monitoreo · Data drift, concept drift y label shift",
-      "href": "https://ronda-diseno-ml.vercel.app/#m12.drift"
+      "href": "https://ronda.trueml.app/#m12.drift"
      },
      {
       "label": "Sheet · Del dato a producción · estación 12 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-monitoreo"
+      "href": "https://hojas.trueml.app/recorrido/#est-monitoreo"
      }
     ],
     "inputs": [],
@@ -4857,15 +4857,15 @@ export const T = {
     "links": [
      {
       "label": "Course · C11 · RAG empresarial · Requisitos",
-      "href": "https://ronda-diseno-ml.vercel.app/#c11.requisitos"
+      "href": "https://ronda.trueml.app/#c11.requisitos"
      },
      {
       "label": "Course · C11 · RAG empresarial · Estimaciones back-of-the-envelope",
-      "href": "https://ronda-diseno-ml.vercel.app/#c11.estimaciones"
+      "href": "https://ronda.trueml.app/#c11.estimaciones"
      },
      {
       "label": "Sheet · Formulario de estimaciones · C01 sizing chain",
-      "href": "https://cheat-sheets-ml.vercel.app/estimaciones/"
+      "href": "https://hojas.trueml.app/estimaciones/"
      }
     ],
     "calcs": [
@@ -5030,19 +5030,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C11 · RAG empresarial · Pipeline de datos y entrenamiento",
-      "href": "https://ronda-diseno-ml.vercel.app/#c11.datos"
+      "href": "https://ronda.trueml.app/#c11.datos"
      },
      {
       "label": "Course · M14 · Sistemas con LLMs · Evaluación: golden sets, jueces y gates",
-      "href": "https://ronda-diseno-ml.vercel.app/#m14.evaluacion"
+      "href": "https://ronda.trueml.app/#m14.evaluacion"
      },
      {
       "label": "Course · M15 · Seguridad y confiabilidad · Datos personales: dónde están, cuánto duran y quién los ve",
-      "href": "https://ronda-diseno-ml.vercel.app/#m15.pii-privacidad"
+      "href": "https://ronda.trueml.app/#m15.pii-privacidad"
      },
      {
       "label": "Sheet · Del dato a producción · estación 1 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-datos"
+      "href": "https://hojas.trueml.app/recorrido/#est-datos"
      }
     ],
     "inputs": [],
@@ -5107,19 +5107,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C11 · RAG empresarial · Pipeline de datos y entrenamiento",
-      "href": "https://ronda-diseno-ml.vercel.app/#c11.datos"
+      "href": "https://ronda.trueml.app/#c11.datos"
      },
      {
       "label": "Course · C11 · RAG empresarial · Archivos de referencia",
-      "href": "https://ronda-diseno-ml.vercel.app/#c11.archivos"
+      "href": "https://ronda.trueml.app/#c11.archivos"
      },
      {
       "label": "Course · M02 · Patrones de inferencia · Entrega, reintentos e idempotencia",
-      "href": "https://ronda-diseno-ml.vercel.app/#m02.entrega-reintentos"
+      "href": "https://ronda.trueml.app/#m02.entrega-reintentos"
      },
      {
       "label": "Sheet · Del dato a producción · patrón LLM",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#pat-llm"
+      "href": "https://hojas.trueml.app/recorrido/#pat-llm"
      }
     ],
     "inputs": [],
@@ -5197,23 +5197,23 @@ export const T = {
     "links": [
      {
       "label": "Course · C11 · RAG empresarial · Pipeline de datos y entrenamiento",
-      "href": "https://ronda-diseno-ml.vercel.app/#c11.datos"
+      "href": "https://ronda.trueml.app/#c11.datos"
      },
      {
       "label": "Course · C11 · RAG empresarial · Arquitectura",
-      "href": "https://ronda-diseno-ml.vercel.app/#c11.arquitectura"
+      "href": "https://ronda.trueml.app/#c11.arquitectura"
      },
      {
       "label": "Course · C11 · RAG empresarial · Archivos de referencia",
-      "href": "https://ronda-diseno-ml.vercel.app/#c11.archivos"
+      "href": "https://ronda.trueml.app/#c11.archivos"
      },
      {
       "label": "Course · M15 · Seguridad y confiabilidad · Autenticación y autorización entre servicios",
-      "href": "https://ronda-diseno-ml.vercel.app/#m15.authn-authz"
+      "href": "https://ronda.trueml.app/#m15.authn-authz"
      },
      {
       "label": "Sheet · Del dato a producción · patrón LLM",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#pat-llm"
+      "href": "https://hojas.trueml.app/recorrido/#pat-llm"
      }
     ],
     "inputs": [],
@@ -5240,19 +5240,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C11 · RAG empresarial · Pipeline de datos y entrenamiento",
-      "href": "https://ronda-diseno-ml.vercel.app/#c11.datos"
+      "href": "https://ronda.trueml.app/#c11.datos"
      },
      {
       "label": "Course · C11 · RAG empresarial · Arquitectura",
-      "href": "https://ronda-diseno-ml.vercel.app/#c11.arquitectura"
+      "href": "https://ronda.trueml.app/#c11.arquitectura"
      },
      {
       "label": "Course · M09 · Datos y features · Versionado de datos y snapshots inmutables",
-      "href": "https://ronda-diseno-ml.vercel.app/#m09.versionado"
+      "href": "https://ronda.trueml.app/#m09.versionado"
      },
      {
       "label": "Sheet · Del dato a producción · estación 2 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-versionado"
+      "href": "https://hojas.trueml.app/recorrido/#est-versionado"
      }
     ],
     "inputs": [],
@@ -5280,19 +5280,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C11 · RAG empresarial · Arquitectura",
-      "href": "https://ronda-diseno-ml.vercel.app/#c11.arquitectura"
+      "href": "https://ronda.trueml.app/#c11.arquitectura"
      },
      {
       "label": "Course · C11 · RAG empresarial · Serving",
-      "href": "https://ronda-diseno-ml.vercel.app/#c11.serving"
+      "href": "https://ronda.trueml.app/#c11.serving"
      },
      {
       "label": "Course · C11 · RAG empresarial · Archivos de referencia",
-      "href": "https://ronda-diseno-ml.vercel.app/#c11.archivos"
+      "href": "https://ronda.trueml.app/#c11.archivos"
      },
      {
       "label": "Sheet · Del dato a producción · patrón LLM",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#pat-llm"
+      "href": "https://hojas.trueml.app/recorrido/#pat-llm"
      }
     ],
     "inputs": [],
@@ -5370,19 +5370,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C11 · RAG empresarial · Evaluación offline y online",
-      "href": "https://ronda-diseno-ml.vercel.app/#c11.evaluacion"
+      "href": "https://ronda.trueml.app/#c11.evaluacion"
      },
      {
       "label": "Course · M14 · Sistemas con LLMs · Evaluación: golden sets, jueces y gates",
-      "href": "https://ronda-diseno-ml.vercel.app/#m14.evaluacion"
+      "href": "https://ronda.trueml.app/#m14.evaluacion"
      },
      {
       "label": "Course · M10 · MLOps · El validation gate: cuándo un modelo puede reemplazar al actual",
-      "href": "https://ronda-diseno-ml.vercel.app/#m10.gate"
+      "href": "https://ronda.trueml.app/#m10.gate"
      },
      {
       "label": "Sheet · Del dato a producción · estación 4 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-gate"
+      "href": "https://hojas.trueml.app/recorrido/#est-gate"
      }
     ],
     "inputs": [],
@@ -5433,19 +5433,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C11 · RAG empresarial · Serving",
-      "href": "https://ronda-diseno-ml.vercel.app/#c11.serving"
+      "href": "https://ronda.trueml.app/#c11.serving"
      },
      {
       "label": "Course · C11 · RAG empresarial · Archivos de referencia",
-      "href": "https://ronda-diseno-ml.vercel.app/#c11.archivos"
+      "href": "https://ronda.trueml.app/#c11.archivos"
      },
      {
       "label": "Course · M14 · Sistemas con LLMs · RAG: el modelo con tus documentos",
-      "href": "https://ronda-diseno-ml.vercel.app/#m14.rag"
+      "href": "https://ronda.trueml.app/#m14.rag"
      },
      {
       "label": "Sheet · Del dato a producción · estación 6 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-serving"
+      "href": "https://hojas.trueml.app/recorrido/#est-serving"
      }
     ],
     "inputs": [],
@@ -5523,19 +5523,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C11 · RAG empresarial · Serving",
-      "href": "https://ronda-diseno-ml.vercel.app/#c11.serving"
+      "href": "https://ronda.trueml.app/#c11.serving"
      },
      {
       "label": "Course · C10 · Servir un LLM propio · Arquitectura",
-      "href": "https://ronda-diseno-ml.vercel.app/#c10.arquitectura"
+      "href": "https://ronda.trueml.app/#c10.arquitectura"
      },
      {
       "label": "Course · C10 · Servir un LLM propio · Serving",
-      "href": "https://ronda-diseno-ml.vercel.app/#c10.serving"
+      "href": "https://ronda.trueml.app/#c10.serving"
      },
      {
       "label": "Sheet · Del dato a producción · patrón LLM",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#pat-llm"
+      "href": "https://hojas.trueml.app/recorrido/#pat-llm"
      }
     ],
     "inputs": [],
@@ -5632,19 +5632,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C11 · RAG empresarial · Archivos de referencia",
-      "href": "https://ronda-diseno-ml.vercel.app/#c11.archivos"
+      "href": "https://ronda.trueml.app/#c11.archivos"
      },
      {
       "label": "Course · C11 · RAG empresarial · Arquitectura",
-      "href": "https://ronda-diseno-ml.vercel.app/#c11.arquitectura"
+      "href": "https://ronda.trueml.app/#c11.arquitectura"
      },
      {
       "label": "Course · C10 · Servir un LLM propio · Archivos de referencia",
-      "href": "https://ronda-diseno-ml.vercel.app/#c10.archivos"
+      "href": "https://ronda.trueml.app/#c10.archivos"
      },
      {
       "label": "Sheet · Del dato a producción · estación 7 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-empaquetado"
+      "href": "https://hojas.trueml.app/recorrido/#est-empaquetado"
      }
     ],
     "inputs": [],
@@ -5696,19 +5696,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C11 · RAG empresarial · Archivos de referencia",
-      "href": "https://ronda-diseno-ml.vercel.app/#c11.archivos"
+      "href": "https://ronda.trueml.app/#c11.archivos"
      },
      {
       "label": "Course · C11 · RAG empresarial · Evaluación offline y online",
-      "href": "https://ronda-diseno-ml.vercel.app/#c11.evaluacion"
+      "href": "https://ronda.trueml.app/#c11.evaluacion"
      },
      {
       "label": "Course · M10 · MLOps · CI/CD para modelos: la pirámide de tests",
-      "href": "https://ronda-diseno-ml.vercel.app/#m10.ci-cd"
+      "href": "https://ronda.trueml.app/#m10.ci-cd"
      },
      {
       "label": "Sheet · Del dato a producción · estación 8 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-cicd"
+      "href": "https://hojas.trueml.app/recorrido/#est-cicd"
      }
     ],
     "inputs": [],
@@ -5735,19 +5735,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C11 · RAG empresarial · Arquitectura",
-      "href": "https://ronda-diseno-ml.vercel.app/#c11.arquitectura"
+      "href": "https://ronda.trueml.app/#c11.arquitectura"
      },
      {
       "label": "Course · C10 · Servir un LLM propio · Arquitectura",
-      "href": "https://ronda-diseno-ml.vercel.app/#c10.arquitectura"
+      "href": "https://ronda.trueml.app/#c10.arquitectura"
      },
      {
       "label": "Course · M06 · Orquestación y escalado · GPUs en Kubernetes",
-      "href": "https://ronda-diseno-ml.vercel.app/#m06.gpus-k8s"
+      "href": "https://ronda.trueml.app/#m06.gpus-k8s"
      },
      {
       "label": "Sheet · Del dato a producción · estación 9 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-kubernetes"
+      "href": "https://hojas.trueml.app/recorrido/#est-kubernetes"
      }
     ],
     "inputs": [],
@@ -5823,23 +5823,23 @@ export const T = {
     "links": [
      {
       "label": "Course · C11 · RAG empresarial · Evaluación offline y online",
-      "href": "https://ronda-diseno-ml.vercel.app/#c11.evaluacion"
+      "href": "https://ronda.trueml.app/#c11.evaluacion"
      },
      {
       "label": "Course · C11 · RAG empresarial · Monitoreo, alertas y reentrenamiento",
-      "href": "https://ronda-diseno-ml.vercel.app/#c11.monitoreo"
+      "href": "https://ronda.trueml.app/#c11.monitoreo"
      },
      {
       "label": "Course · M11 · Despliegue seguro · Blue/green y rollback instantáneo",
-      "href": "https://ronda-diseno-ml.vercel.app/#m11.blue-green"
+      "href": "https://ronda.trueml.app/#m11.blue-green"
      },
      {
       "label": "Course · M11 · Despliegue seguro · Shadow deployment: comparar sin afectar a nadie",
-      "href": "https://ronda-diseno-ml.vercel.app/#m11.shadow"
+      "href": "https://ronda.trueml.app/#m11.shadow"
      },
      {
       "label": "Sheet · Del dato a producción · estación 10 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-rollout"
+      "href": "https://hojas.trueml.app/recorrido/#est-rollout"
      }
     ],
     "inputs": [],
@@ -5911,19 +5911,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C11 · RAG empresarial · Serving",
-      "href": "https://ronda-diseno-ml.vercel.app/#c11.serving"
+      "href": "https://ronda.trueml.app/#c11.serving"
      },
      {
       "label": "Course · C11 · RAG empresarial · Requisitos",
-      "href": "https://ronda-diseno-ml.vercel.app/#c11.requisitos"
+      "href": "https://ronda.trueml.app/#c11.requisitos"
      },
      {
       "label": "Course · C11 · RAG empresarial · Archivos de referencia",
-      "href": "https://ronda-diseno-ml.vercel.app/#c11.archivos"
+      "href": "https://ronda.trueml.app/#c11.archivos"
      },
      {
       "label": "Sheet · Del dato a producción · estación 11 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-request"
+      "href": "https://hojas.trueml.app/recorrido/#est-request"
      }
     ],
     "inputs": [],
@@ -5988,19 +5988,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C11 · RAG empresarial · Monitoreo, alertas y reentrenamiento",
-      "href": "https://ronda-diseno-ml.vercel.app/#c11.monitoreo"
+      "href": "https://ronda.trueml.app/#c11.monitoreo"
      },
      {
       "label": "Course · C11 · RAG empresarial · Archivos de referencia",
-      "href": "https://ronda-diseno-ml.vercel.app/#c11.archivos"
+      "href": "https://ronda.trueml.app/#c11.archivos"
      },
      {
       "label": "Course · M12 · Monitoreo · Prometheus, Grafana y alertas por SLO",
-      "href": "https://ronda-diseno-ml.vercel.app/#m12.prometheus-grafana"
+      "href": "https://ronda.trueml.app/#m12.prometheus-grafana"
      },
      {
       "label": "Sheet · Del dato a producción · estación 12 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-monitoreo"
+      "href": "https://hojas.trueml.app/recorrido/#est-monitoreo"
      }
     ],
     "inputs": [],
@@ -6050,19 +6050,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C11 · RAG empresarial · Arquitectura",
-      "href": "https://ronda-diseno-ml.vercel.app/#c11.arquitectura"
+      "href": "https://ronda.trueml.app/#c11.arquitectura"
      },
      {
       "label": "Course · C11 · RAG empresarial · Monitoreo, alertas y reentrenamiento",
-      "href": "https://ronda-diseno-ml.vercel.app/#c11.monitoreo"
+      "href": "https://ronda.trueml.app/#c11.monitoreo"
      },
      {
       "label": "Course · M15 · Seguridad y confiabilidad · Autenticación y autorización entre servicios",
-      "href": "https://ronda-diseno-ml.vercel.app/#m15.authn-authz"
+      "href": "https://ronda.trueml.app/#m15.authn-authz"
      },
      {
       "label": "Sheet · Del dato a producción · patrón LLM",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#pat-llm"
+      "href": "https://hojas.trueml.app/recorrido/#pat-llm"
      }
     ],
     "inputs": [],
@@ -6093,15 +6093,15 @@ export const T = {
     "links": [
      {
       "label": "Course · C07 · Búsqueda con embeddings · Requisitos",
-      "href": "https://ronda-diseno-ml.vercel.app/#c07.requisitos"
+      "href": "https://ronda.trueml.app/#c07.requisitos"
      },
      {
       "label": "Course · C07 · Búsqueda con embeddings · Estimaciones back-of-the-envelope",
-      "href": "https://ronda-diseno-ml.vercel.app/#c07.estimaciones"
+      "href": "https://ronda.trueml.app/#c07.estimaciones"
      },
      {
       "label": "Sheet · Formulario de estimaciones · C01 sizing chain",
-      "href": "https://cheat-sheets-ml.vercel.app/estimaciones/"
+      "href": "https://hojas.trueml.app/estimaciones/"
      }
     ],
     "calcs": [
@@ -6263,15 +6263,15 @@ export const T = {
     "links": [
      {
       "label": "Course · C07 · Búsqueda con embeddings · Pipeline de datos y entrenamiento",
-      "href": "https://ronda-diseno-ml.vercel.app/#c07.datos"
+      "href": "https://ronda.trueml.app/#c07.datos"
      },
      {
       "label": "Course · M09 · Datos y features · Etiquetado: guías, calidad, costo y active learning",
-      "href": "https://ronda-diseno-ml.vercel.app/#m09.etiquetado"
+      "href": "https://ronda.trueml.app/#m09.etiquetado"
      },
      {
       "label": "Sheet · Del dato a producción · estación 1 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-datos"
+      "href": "https://hojas.trueml.app/recorrido/#est-datos"
      }
     ],
     "inputs": [],
@@ -6332,19 +6332,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C07 · Búsqueda con embeddings · Pipeline de datos y entrenamiento",
-      "href": "https://ronda-diseno-ml.vercel.app/#c07.datos"
+      "href": "https://ronda.trueml.app/#c07.datos"
      },
      {
       "label": "Course · C07 · Búsqueda con embeddings · Arquitectura",
-      "href": "https://ronda-diseno-ml.vercel.app/#c07.arquitectura"
+      "href": "https://ronda.trueml.app/#c07.arquitectura"
      },
      {
       "label": "Course · M09 · Datos y features · Versionado de datos y snapshots inmutables",
-      "href": "https://ronda-diseno-ml.vercel.app/#m09.versionado"
+      "href": "https://ronda.trueml.app/#m09.versionado"
      },
      {
       "label": "Sheet · Del dato a producción · estación 2 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-versionado"
+      "href": "https://hojas.trueml.app/recorrido/#est-versionado"
      }
     ],
     "inputs": [],
@@ -6385,19 +6385,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C07 · Búsqueda con embeddings · Pipeline de datos y entrenamiento",
-      "href": "https://ronda-diseno-ml.vercel.app/#c07.datos"
+      "href": "https://ronda.trueml.app/#c07.datos"
      },
      {
       "label": "Course · C07 · Búsqueda con embeddings · Monitoreo, alertas y reentrenamiento",
-      "href": "https://ronda-diseno-ml.vercel.app/#c07.monitoreo"
+      "href": "https://ronda.trueml.app/#c07.monitoreo"
      },
      {
       "label": "Course · M10 · MLOps · Reentrenamiento: programado, disparado o continuo",
-      "href": "https://ronda-diseno-ml.vercel.app/#m10.reentrenamiento"
+      "href": "https://ronda.trueml.app/#m10.reentrenamiento"
      },
      {
       "label": "Sheet · Del dato a producción · estación 3 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-entrenamiento"
+      "href": "https://hojas.trueml.app/recorrido/#est-entrenamiento"
      }
     ],
     "inputs": [],
@@ -6424,15 +6424,15 @@ export const T = {
     "links": [
      {
       "label": "Course · C07 · Búsqueda con embeddings · Evaluación offline y online",
-      "href": "https://ronda-diseno-ml.vercel.app/#c07.evaluacion"
+      "href": "https://ronda.trueml.app/#c07.evaluacion"
      },
      {
       "label": "Course · M10 · MLOps · El validation gate: cuándo un modelo puede reemplazar al actual",
-      "href": "https://ronda-diseno-ml.vercel.app/#m10.gate"
+      "href": "https://ronda.trueml.app/#m10.gate"
      },
      {
       "label": "Sheet · Del dato a producción · estación 4 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-gate"
+      "href": "https://hojas.trueml.app/recorrido/#est-gate"
      }
     ],
     "inputs": [],
@@ -6459,19 +6459,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C07 · Búsqueda con embeddings · Estimaciones back-of-the-envelope",
-      "href": "https://ronda-diseno-ml.vercel.app/#c07.estimaciones"
+      "href": "https://ronda.trueml.app/#c07.estimaciones"
      },
      {
       "label": "Course · C07 · Búsqueda con embeddings · Arquitectura",
-      "href": "https://ronda-diseno-ml.vercel.app/#c07.arquitectura"
+      "href": "https://ronda.trueml.app/#c07.arquitectura"
      },
      {
       "label": "Course · M09 · Datos y features · Training-serving skew: causas, detección y prevención",
-      "href": "https://ronda-diseno-ml.vercel.app/#m09.skew"
+      "href": "https://ronda.trueml.app/#m09.skew"
      },
      {
       "label": "Sheet · Del dato a producción · estación 5 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-export"
+      "href": "https://hojas.trueml.app/recorrido/#est-export"
      }
     ],
     "inputs": [],
@@ -6498,15 +6498,15 @@ export const T = {
     "links": [
      {
       "label": "Course · C07 · Búsqueda con embeddings · Arquitectura",
-      "href": "https://ronda-diseno-ml.vercel.app/#c07.arquitectura"
+      "href": "https://ronda.trueml.app/#c07.arquitectura"
      },
      {
       "label": "Course · C07 · Búsqueda con embeddings · Estimaciones back-of-the-envelope",
-      "href": "https://ronda-diseno-ml.vercel.app/#c07.estimaciones"
+      "href": "https://ronda.trueml.app/#c07.estimaciones"
      },
      {
       "label": "Sheet · Del dato a producción · casos híbridos",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#casos-hibrido"
+      "href": "https://hojas.trueml.app/recorrido/#casos-hibrido"
      }
     ],
     "inputs": [
@@ -6583,19 +6583,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C07 · Búsqueda con embeddings · Serving",
-      "href": "https://ronda-diseno-ml.vercel.app/#c07.serving"
+      "href": "https://ronda.trueml.app/#c07.serving"
      },
      {
       "label": "Course · C07 · Búsqueda con embeddings · Estimaciones back-of-the-envelope",
-      "href": "https://ronda-diseno-ml.vercel.app/#c07.estimaciones"
+      "href": "https://ronda.trueml.app/#c07.estimaciones"
      },
      {
       "label": "Course · M11 · Despliegue seguro · Blue/green y rollback instantáneo",
-      "href": "https://ronda-diseno-ml.vercel.app/#m11.blue-green"
+      "href": "https://ronda.trueml.app/#m11.blue-green"
      },
      {
       "label": "Sheet · Del dato a producción · casos híbridos",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#casos-hibrido"
+      "href": "https://hojas.trueml.app/recorrido/#casos-hibrido"
      }
     ],
     "inputs": [],
@@ -6673,15 +6673,15 @@ export const T = {
     "links": [
      {
       "label": "Course · C07 · Búsqueda con embeddings · Serving",
-      "href": "https://ronda-diseno-ml.vercel.app/#c07.serving"
+      "href": "https://ronda.trueml.app/#c07.serving"
      },
      {
       "label": "Course · C07 · Búsqueda con embeddings · Archivos de referencia",
-      "href": "https://ronda-diseno-ml.vercel.app/#c07.archivos"
+      "href": "https://ronda.trueml.app/#c07.archivos"
      },
      {
       "label": "Sheet · Del dato a producción · estación 6 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-serving"
+      "href": "https://hojas.trueml.app/recorrido/#est-serving"
      }
     ],
     "inputs": [],
@@ -6770,15 +6770,15 @@ export const T = {
     "links": [
      {
       "label": "Course · C07 · Búsqueda con embeddings · Archivos de referencia",
-      "href": "https://ronda-diseno-ml.vercel.app/#c07.archivos"
+      "href": "https://ronda.trueml.app/#c07.archivos"
      },
      {
       "label": "Course · M05 · Contenedores · Un Dockerfile de ML, decisión por decisión",
-      "href": "https://ronda-diseno-ml.vercel.app/#m05.dockerfile-ml"
+      "href": "https://ronda.trueml.app/#m05.dockerfile-ml"
      },
      {
       "label": "Sheet · Del dato a producción · estación 7 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-empaquetado"
+      "href": "https://hojas.trueml.app/recorrido/#est-empaquetado"
      }
     ],
     "inputs": [],
@@ -6830,15 +6830,15 @@ export const T = {
     "links": [
      {
       "label": "Course · C07 · Búsqueda con embeddings · Archivos de referencia",
-      "href": "https://ronda-diseno-ml.vercel.app/#c07.archivos"
+      "href": "https://ronda.trueml.app/#c07.archivos"
      },
      {
       "label": "Course · M10 · MLOps · CI/CD para modelos: la pirámide de tests",
-      "href": "https://ronda-diseno-ml.vercel.app/#m10.ci-cd"
+      "href": "https://ronda.trueml.app/#m10.ci-cd"
      },
      {
       "label": "Sheet · Del dato a producción · estación 8 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-cicd"
+      "href": "https://hojas.trueml.app/recorrido/#est-cicd"
      }
     ],
     "inputs": [],
@@ -6865,19 +6865,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C07 · Búsqueda con embeddings · Estimaciones back-of-the-envelope",
-      "href": "https://ronda-diseno-ml.vercel.app/#c07.estimaciones"
+      "href": "https://ronda.trueml.app/#c07.estimaciones"
      },
      {
       "label": "Course · C07 · Búsqueda con embeddings · Arquitectura",
-      "href": "https://ronda-diseno-ml.vercel.app/#c07.arquitectura"
+      "href": "https://ronda.trueml.app/#c07.arquitectura"
      },
      {
       "label": "Course · M06 · Orquestación y escalado · KEDA: escalar por eventos y hasta cero",
-      "href": "https://ronda-diseno-ml.vercel.app/#m06.keda"
+      "href": "https://ronda.trueml.app/#m06.keda"
      },
      {
       "label": "Sheet · Del dato a producción · estación 9 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-kubernetes"
+      "href": "https://hojas.trueml.app/recorrido/#est-kubernetes"
      }
     ],
     "inputs": [],
@@ -6930,19 +6930,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C07 · Búsqueda con embeddings · Evaluación offline y online",
-      "href": "https://ronda-diseno-ml.vercel.app/#c07.evaluacion"
+      "href": "https://ronda.trueml.app/#c07.evaluacion"
      },
      {
       "label": "Course · C07 · Búsqueda con embeddings · Serving",
-      "href": "https://ronda-diseno-ml.vercel.app/#c07.serving"
+      "href": "https://ronda.trueml.app/#c07.serving"
      },
      {
       "label": "Course · M11 · Despliegue seguro · Blue/green y rollback instantáneo",
-      "href": "https://ronda-diseno-ml.vercel.app/#m11.blue-green"
+      "href": "https://ronda.trueml.app/#m11.blue-green"
      },
      {
       "label": "Sheet · Del dato a producción · estación 10 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-rollout"
+      "href": "https://hojas.trueml.app/recorrido/#est-rollout"
      }
     ],
     "inputs": [],
@@ -7015,19 +7015,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C07 · Búsqueda con embeddings · Arquitectura",
-      "href": "https://ronda-diseno-ml.vercel.app/#c07.arquitectura"
+      "href": "https://ronda.trueml.app/#c07.arquitectura"
      },
      {
       "label": "Course · C07 · Búsqueda con embeddings · Serving",
-      "href": "https://ronda-diseno-ml.vercel.app/#c07.serving"
+      "href": "https://ronda.trueml.app/#c07.serving"
      },
      {
       "label": "Course · M02 · Patrones de inferencia · Streaming: inferencia sobre eventos",
-      "href": "https://ronda-diseno-ml.vercel.app/#m02.streaming"
+      "href": "https://ronda.trueml.app/#m02.streaming"
      },
      {
       "label": "Sheet · Del dato a producción · casos híbridos",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#casos-hibrido"
+      "href": "https://hojas.trueml.app/recorrido/#casos-hibrido"
      }
     ],
     "inputs": [
@@ -7108,19 +7108,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C07 · Búsqueda con embeddings · Serving",
-      "href": "https://ronda-diseno-ml.vercel.app/#c07.serving"
+      "href": "https://ronda.trueml.app/#c07.serving"
      },
      {
       "label": "Course · C07 · Búsqueda con embeddings · Modos de falla y degradación",
-      "href": "https://ronda-diseno-ml.vercel.app/#c07.fallas"
+      "href": "https://ronda.trueml.app/#c07.fallas"
      },
      {
       "label": "Course · M03 · Latencia y capacidad · Presupuesto de latencia end-to-end",
-      "href": "https://ronda-diseno-ml.vercel.app/#m03.presupuesto"
+      "href": "https://ronda.trueml.app/#m03.presupuesto"
      },
      {
       "label": "Sheet · Del dato a producción · estación 11 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-request"
+      "href": "https://hojas.trueml.app/recorrido/#est-request"
      }
     ],
     "inputs": [],
@@ -7195,15 +7195,15 @@ export const T = {
     "links": [
      {
       "label": "Course · C07 · Búsqueda con embeddings · Monitoreo, alertas y reentrenamiento",
-      "href": "https://ronda-diseno-ml.vercel.app/#c07.monitoreo"
+      "href": "https://ronda.trueml.app/#c07.monitoreo"
      },
      {
       "label": "Course · M12 · Monitoreo · Data drift, concept drift y label shift",
-      "href": "https://ronda-diseno-ml.vercel.app/#m12.drift"
+      "href": "https://ronda.trueml.app/#m12.drift"
      },
      {
       "label": "Sheet · Del dato a producción · estación 12 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-monitoreo"
+      "href": "https://hojas.trueml.app/recorrido/#est-monitoreo"
      }
     ],
     "inputs": [],
@@ -7268,15 +7268,15 @@ export const T = {
     "links": [
      {
       "label": "Course · C13 · Speech-to-text en vivo · Requisitos",
-      "href": "https://ronda-diseno-ml.vercel.app/#c13.requisitos"
+      "href": "https://ronda.trueml.app/#c13.requisitos"
      },
      {
       "label": "Course · C13 · Speech-to-text en vivo · Estimaciones back-of-the-envelope",
-      "href": "https://ronda-diseno-ml.vercel.app/#c13.estimaciones"
+      "href": "https://ronda.trueml.app/#c13.estimaciones"
      },
      {
       "label": "Sheet · Formulario de estimaciones · C01 sizing chain",
-      "href": "https://cheat-sheets-ml.vercel.app/estimaciones/"
+      "href": "https://hojas.trueml.app/estimaciones/"
      }
     ],
     "calcs": [
@@ -7438,19 +7438,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C13 · Speech-to-text en vivo · Pipeline de datos y entrenamiento",
-      "href": "https://ronda-diseno-ml.vercel.app/#c13.datos"
+      "href": "https://ronda.trueml.app/#c13.datos"
      },
      {
       "label": "Course · M09 · Datos y features · Etiquetado: guías, calidad, costo y active learning",
-      "href": "https://ronda-diseno-ml.vercel.app/#m09.etiquetado"
+      "href": "https://ronda.trueml.app/#m09.etiquetado"
      },
      {
       "label": "Course · M15 · Seguridad y confiabilidad · Datos personales: dónde están, cuánto duran y quién los ve",
-      "href": "https://ronda-diseno-ml.vercel.app/#m15.pii-privacidad"
+      "href": "https://ronda.trueml.app/#m15.pii-privacidad"
      },
      {
       "label": "Sheet · Del dato a producción · estación 1 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-datos"
+      "href": "https://hojas.trueml.app/recorrido/#est-datos"
      }
     ],
     "inputs": [],
@@ -7524,23 +7524,23 @@ export const T = {
     "links": [
      {
       "label": "Course · C13 · Speech-to-text en vivo · Pipeline de datos y entrenamiento",
-      "href": "https://ronda-diseno-ml.vercel.app/#c13.datos"
+      "href": "https://ronda.trueml.app/#c13.datos"
      },
      {
       "label": "Course · C13 · Speech-to-text en vivo · Evaluación offline y online",
-      "href": "https://ronda-diseno-ml.vercel.app/#c13.evaluacion"
+      "href": "https://ronda.trueml.app/#c13.evaluacion"
      },
      {
       "label": "Course · M09 · Datos y features · Data leakage: cuando el training conoce el futuro",
-      "href": "https://ronda-diseno-ml.vercel.app/#m09.leakage"
+      "href": "https://ronda.trueml.app/#m09.leakage"
      },
      {
       "label": "Course · M09 · Datos y features · Versionado de datos y snapshots inmutables",
-      "href": "https://ronda-diseno-ml.vercel.app/#m09.versionado"
+      "href": "https://ronda.trueml.app/#m09.versionado"
      },
      {
       "label": "Sheet · Del dato a producción · estación 2 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-versionado"
+      "href": "https://hojas.trueml.app/recorrido/#est-versionado"
      }
     ],
     "inputs": [],
@@ -7578,15 +7578,15 @@ export const T = {
     "links": [
      {
       "label": "Course · C13 · Speech-to-text en vivo · Pipeline de datos y entrenamiento",
-      "href": "https://ronda-diseno-ml.vercel.app/#c13.datos"
+      "href": "https://ronda.trueml.app/#c13.datos"
      },
      {
       "label": "Course · M10 · MLOps · Pipelines de entrenamiento orquestados",
-      "href": "https://ronda-diseno-ml.vercel.app/#m10.pipelines-entrenamiento"
+      "href": "https://ronda.trueml.app/#m10.pipelines-entrenamiento"
      },
      {
       "label": "Sheet · Del dato a producción · estación 3 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-entrenamiento"
+      "href": "https://hojas.trueml.app/recorrido/#est-entrenamiento"
      }
     ],
     "inputs": [],
@@ -7613,19 +7613,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C13 · Speech-to-text en vivo · Evaluación offline y online",
-      "href": "https://ronda-diseno-ml.vercel.app/#c13.evaluacion"
+      "href": "https://ronda.trueml.app/#c13.evaluacion"
      },
      {
       "label": "Course · C13 · Speech-to-text en vivo · Pipeline de datos y entrenamiento",
-      "href": "https://ronda-diseno-ml.vercel.app/#c13.datos"
+      "href": "https://ronda.trueml.app/#c13.datos"
      },
      {
       "label": "Course · M10 · MLOps · El validation gate: cuándo un modelo puede reemplazar al actual",
-      "href": "https://ronda-diseno-ml.vercel.app/#m10.gate"
+      "href": "https://ronda.trueml.app/#m10.gate"
      },
      {
       "label": "Sheet · Del dato a producción · estación 4 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-gate"
+      "href": "https://hojas.trueml.app/recorrido/#est-gate"
      }
     ],
     "inputs": [],
@@ -7695,23 +7695,23 @@ export const T = {
     "links": [
      {
       "label": "Course · C13 · Speech-to-text en vivo · Pipeline de datos y entrenamiento",
-      "href": "https://ronda-diseno-ml.vercel.app/#c13.datos"
+      "href": "https://ronda.trueml.app/#c13.datos"
      },
      {
       "label": "Course · C13 · Speech-to-text en vivo · Serving",
-      "href": "https://ronda-diseno-ml.vercel.app/#c13.serving"
+      "href": "https://ronda.trueml.app/#c13.serving"
      },
      {
       "label": "Course · M08 · Optimización de modelos · TensorRT",
-      "href": "https://ronda-diseno-ml.vercel.app/#m08.tensorrt"
+      "href": "https://ronda.trueml.app/#m08.tensorrt"
      },
      {
       "label": "Course · M08 · Optimización de modelos · Cómo validar una optimización",
-      "href": "https://ronda-diseno-ml.vercel.app/#m08.validar"
+      "href": "https://ronda.trueml.app/#m08.validar"
      },
      {
       "label": "Sheet · Del dato a producción · estación 5 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-export"
+      "href": "https://hojas.trueml.app/recorrido/#est-export"
      }
     ],
     "inputs": [],
@@ -7768,19 +7768,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C13 · Speech-to-text en vivo · Serving",
-      "href": "https://ronda-diseno-ml.vercel.app/#c13.serving"
+      "href": "https://ronda.trueml.app/#c13.serving"
      },
      {
       "label": "Course · C13 · Speech-to-text en vivo · Archivos de referencia",
-      "href": "https://ronda-diseno-ml.vercel.app/#c13.archivos"
+      "href": "https://ronda.trueml.app/#c13.archivos"
      },
      {
       "label": "Course · M07 · Servidores de modelos · NVIDIA Triton Inference Server",
-      "href": "https://ronda-diseno-ml.vercel.app/#m07.triton"
+      "href": "https://ronda.trueml.app/#m07.triton"
      },
      {
       "label": "Sheet · Del dato a producción · estación 6 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-serving"
+      "href": "https://hojas.trueml.app/recorrido/#est-serving"
      }
     ],
     "inputs": [],
@@ -7853,23 +7853,23 @@ export const T = {
     "links": [
      {
       "label": "Course · C13 · Speech-to-text en vivo · Serving",
-      "href": "https://ronda-diseno-ml.vercel.app/#c13.serving"
+      "href": "https://ronda.trueml.app/#c13.serving"
      },
      {
       "label": "Course · C13 · Speech-to-text en vivo · Arquitectura",
-      "href": "https://ronda-diseno-ml.vercel.app/#c13.arquitectura"
+      "href": "https://ronda.trueml.app/#c13.arquitectura"
      },
      {
       "label": "Course · M07 · Servidores de modelos · Protocolos: REST, gRPC, KServe v2 y OpenAI-compatible",
-      "href": "https://ronda-diseno-ml.vercel.app/#m07.protocolos"
+      "href": "https://ronda.trueml.app/#m07.protocolos"
      },
      {
       "label": "Course · M02 · Patrones de inferencia · Streaming: inferencia sobre eventos",
-      "href": "https://ronda-diseno-ml.vercel.app/#m02.streaming"
+      "href": "https://ronda.trueml.app/#m02.streaming"
      },
      {
       "label": "Sheet · Del dato a producción · patrón streaming",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#pat-streaming"
+      "href": "https://hojas.trueml.app/recorrido/#pat-streaming"
      }
     ],
     "inputs": [],
@@ -7965,15 +7965,15 @@ export const T = {
     "links": [
      {
       "label": "Course · C13 · Speech-to-text en vivo · Archivos de referencia",
-      "href": "https://ronda-diseno-ml.vercel.app/#c13.archivos"
+      "href": "https://ronda.trueml.app/#c13.archivos"
      },
      {
       "label": "Course · M05 · Contenedores · Registries y tags inmutables",
-      "href": "https://ronda-diseno-ml.vercel.app/#m05.registries"
+      "href": "https://ronda.trueml.app/#m05.registries"
      },
      {
       "label": "Sheet · Del dato a producción · estación 7 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-empaquetado"
+      "href": "https://hojas.trueml.app/recorrido/#est-empaquetado"
      }
     ],
     "inputs": [],
@@ -8025,15 +8025,15 @@ export const T = {
     "links": [
      {
       "label": "Course · C13 · Speech-to-text en vivo · Archivos de referencia",
-      "href": "https://ronda-diseno-ml.vercel.app/#c13.archivos"
+      "href": "https://ronda.trueml.app/#c13.archivos"
      },
      {
       "label": "Course · M10 · MLOps · CI/CD para modelos: la pirámide de tests",
-      "href": "https://ronda-diseno-ml.vercel.app/#m10.ci-cd"
+      "href": "https://ronda.trueml.app/#m10.ci-cd"
      },
      {
       "label": "Sheet · Del dato a producción · estación 8 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-cicd"
+      "href": "https://hojas.trueml.app/recorrido/#est-cicd"
      }
     ],
     "inputs": [],
@@ -8060,23 +8060,23 @@ export const T = {
     "links": [
      {
       "label": "Course · C13 · Speech-to-text en vivo · Serving",
-      "href": "https://ronda-diseno-ml.vercel.app/#c13.serving"
+      "href": "https://ronda.trueml.app/#c13.serving"
      },
      {
       "label": "Course · C13 · Speech-to-text en vivo · Archivos de referencia",
-      "href": "https://ronda-diseno-ml.vercel.app/#c13.archivos"
+      "href": "https://ronda.trueml.app/#c13.archivos"
      },
      {
       "label": "Course · M06 · Orquestación y escalado · KEDA: escalar por eventos y hasta cero",
-      "href": "https://ronda-diseno-ml.vercel.app/#m06.keda"
+      "href": "https://ronda.trueml.app/#m06.keda"
      },
      {
       "label": "Course · M06 · Orquestación y escalado · Cold starts de punta a punta",
-      "href": "https://ronda-diseno-ml.vercel.app/#m06.cold-starts"
+      "href": "https://ronda.trueml.app/#m06.cold-starts"
      },
      {
       "label": "Sheet · Del dato a producción · estación 9 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-kubernetes"
+      "href": "https://hojas.trueml.app/recorrido/#est-kubernetes"
      }
     ],
     "inputs": [],
@@ -8151,19 +8151,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C13 · Speech-to-text en vivo · Serving",
-      "href": "https://ronda-diseno-ml.vercel.app/#c13.serving"
+      "href": "https://ronda.trueml.app/#c13.serving"
      },
      {
       "label": "Course · C13 · Speech-to-text en vivo · Archivos de referencia",
-      "href": "https://ronda-diseno-ml.vercel.app/#c13.archivos"
+      "href": "https://ronda.trueml.app/#c13.archivos"
      },
      {
       "label": "Course · C13 · Speech-to-text en vivo · Modos de falla y degradación",
-      "href": "https://ronda-diseno-ml.vercel.app/#c13.fallas"
+      "href": "https://ronda.trueml.app/#c13.fallas"
      },
      {
       "label": "Sheet · Del dato a producción · patrón streaming",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#pat-streaming"
+      "href": "https://hojas.trueml.app/recorrido/#pat-streaming"
      }
     ],
     "inputs": [],
@@ -8238,19 +8238,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C13 · Speech-to-text en vivo · Arquitectura",
-      "href": "https://ronda-diseno-ml.vercel.app/#c13.arquitectura"
+      "href": "https://ronda.trueml.app/#c13.arquitectura"
      },
      {
       "label": "Course · C13 · Speech-to-text en vivo · Evaluación offline y online",
-      "href": "https://ronda-diseno-ml.vercel.app/#c13.evaluacion"
+      "href": "https://ronda.trueml.app/#c13.evaluacion"
      },
      {
       "label": "Course · M11 · Despliegue seguro · Canary: porcentajes, tiempos y criterios para avanzar",
-      "href": "https://ronda-diseno-ml.vercel.app/#m11.canary"
+      "href": "https://ronda.trueml.app/#m11.canary"
      },
      {
       "label": "Sheet · Del dato a producción · estación 10 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-rollout"
+      "href": "https://hojas.trueml.app/recorrido/#est-rollout"
      }
     ],
     "inputs": [],
@@ -8289,19 +8289,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C13 · Speech-to-text en vivo · Serving",
-      "href": "https://ronda-diseno-ml.vercel.app/#c13.serving"
+      "href": "https://ronda.trueml.app/#c13.serving"
      },
      {
       "label": "Course · C13 · Speech-to-text en vivo · Requisitos",
-      "href": "https://ronda-diseno-ml.vercel.app/#c13.requisitos"
+      "href": "https://ronda.trueml.app/#c13.requisitos"
      },
      {
       "label": "Course · M03 · Latencia y capacidad · Presupuesto de latencia end-to-end",
-      "href": "https://ronda-diseno-ml.vercel.app/#m03.presupuesto"
+      "href": "https://ronda.trueml.app/#m03.presupuesto"
      },
      {
       "label": "Sheet · Del dato a producción · estación 11 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-request"
+      "href": "https://hojas.trueml.app/recorrido/#est-request"
      }
     ],
     "inputs": [],
@@ -8366,19 +8366,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C13 · Speech-to-text en vivo · Arquitectura",
-      "href": "https://ronda-diseno-ml.vercel.app/#c13.arquitectura"
+      "href": "https://ronda.trueml.app/#c13.arquitectura"
      },
      {
       "label": "Course · C13 · Speech-to-text en vivo · Serving",
-      "href": "https://ronda-diseno-ml.vercel.app/#c13.serving"
+      "href": "https://ronda.trueml.app/#c13.serving"
      },
      {
       "label": "Course · C13 · Speech-to-text en vivo · Monitoreo, alertas y reentrenamiento",
-      "href": "https://ronda-diseno-ml.vercel.app/#c13.monitoreo"
+      "href": "https://ronda.trueml.app/#c13.monitoreo"
      },
      {
       "label": "Sheet · Del dato a producción · patrón streaming",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#pat-streaming"
+      "href": "https://hojas.trueml.app/recorrido/#pat-streaming"
      }
     ],
     "inputs": [],
@@ -8451,19 +8451,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C13 · Speech-to-text en vivo · Monitoreo, alertas y reentrenamiento",
-      "href": "https://ronda-diseno-ml.vercel.app/#c13.monitoreo"
+      "href": "https://ronda.trueml.app/#c13.monitoreo"
      },
      {
       "label": "Course · C13 · Speech-to-text en vivo · Archivos de referencia",
-      "href": "https://ronda-diseno-ml.vercel.app/#c13.archivos"
+      "href": "https://ronda.trueml.app/#c13.archivos"
      },
      {
       "label": "Course · M12 · Monitoreo · Prometheus, Grafana y alertas por SLO",
-      "href": "https://ronda-diseno-ml.vercel.app/#m12.prometheus-grafana"
+      "href": "https://ronda.trueml.app/#m12.prometheus-grafana"
      },
      {
       "label": "Sheet · Del dato a producción · estación 12 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-monitoreo"
+      "href": "https://hojas.trueml.app/recorrido/#est-monitoreo"
      }
     ],
     "inputs": [],
@@ -8523,19 +8523,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C13 · Speech-to-text en vivo · Evaluación offline y online",
-      "href": "https://ronda-diseno-ml.vercel.app/#c13.evaluacion"
+      "href": "https://ronda.trueml.app/#c13.evaluacion"
      },
      {
       "label": "Course · C13 · Speech-to-text en vivo · Monitoreo, alertas y reentrenamiento",
-      "href": "https://ronda-diseno-ml.vercel.app/#c13.monitoreo"
+      "href": "https://ronda.trueml.app/#c13.monitoreo"
      },
      {
       "label": "Course · M11 · Despliegue seguro · Canary: porcentajes, tiempos y criterios para avanzar",
-      "href": "https://ronda-diseno-ml.vercel.app/#m11.canary"
+      "href": "https://ronda.trueml.app/#m11.canary"
      },
      {
       "label": "Sheet · Del dato a producción · patrón streaming",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#pat-streaming"
+      "href": "https://hojas.trueml.app/recorrido/#pat-streaming"
      }
     ],
     "inputs": [],
@@ -8578,15 +8578,15 @@ export const T = {
     "links": [
      {
       "label": "Course · C03 · Inspección visual en planta · Requisitos",
-      "href": "https://ronda-diseno-ml.vercel.app/#c03.requisitos"
+      "href": "https://ronda.trueml.app/#c03.requisitos"
      },
      {
       "label": "Course · C03 · Inspección visual en planta · Estimaciones back-of-the-envelope",
-      "href": "https://ronda-diseno-ml.vercel.app/#c03.estimaciones"
+      "href": "https://ronda.trueml.app/#c03.estimaciones"
      },
      {
       "label": "Sheet · Formulario de estimaciones · C01 sizing chain",
-      "href": "https://cheat-sheets-ml.vercel.app/estimaciones/"
+      "href": "https://hojas.trueml.app/estimaciones/"
      }
     ],
     "calcs": [
@@ -8754,15 +8754,15 @@ export const T = {
     "links": [
      {
       "label": "Course · C03 · Inspección visual en planta · Pipeline de datos y entrenamiento",
-      "href": "https://ronda-diseno-ml.vercel.app/#c03.datos"
+      "href": "https://ronda.trueml.app/#c03.datos"
      },
      {
       "label": "Course · M09 · Datos y features · Etiquetado: guías, calidad, costo y active learning",
-      "href": "https://ronda-diseno-ml.vercel.app/#m09.etiquetado"
+      "href": "https://ronda.trueml.app/#m09.etiquetado"
      },
      {
       "label": "Sheet · Del dato a producción · estación 1 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-datos"
+      "href": "https://hojas.trueml.app/recorrido/#est-datos"
      }
     ],
     "inputs": [
@@ -8850,15 +8850,15 @@ export const T = {
     "links": [
      {
       "label": "Course · C03 · Inspección visual en planta · Pipeline de datos y entrenamiento",
-      "href": "https://ronda-diseno-ml.vercel.app/#c03.datos"
+      "href": "https://ronda.trueml.app/#c03.datos"
      },
      {
       "label": "Course · M09 · Datos y features · Versionado de datos y snapshots inmutables",
-      "href": "https://ronda-diseno-ml.vercel.app/#m09.versionado"
+      "href": "https://ronda.trueml.app/#m09.versionado"
      },
      {
       "label": "Sheet · Del dato a producción · estación 2 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-versionado"
+      "href": "https://hojas.trueml.app/recorrido/#est-versionado"
      }
     ],
     "inputs": [],
@@ -8897,19 +8897,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C03 · Inspección visual en planta · Pipeline de datos y entrenamiento",
-      "href": "https://ronda-diseno-ml.vercel.app/#c03.datos"
+      "href": "https://ronda.trueml.app/#c03.datos"
      },
      {
       "label": "Course · M10 · MLOps · Reproducibilidad: los cinco ingredientes",
-      "href": "https://ronda-diseno-ml.vercel.app/#m10.reproducibilidad"
+      "href": "https://ronda.trueml.app/#m10.reproducibilidad"
      },
      {
       "label": "Course · M09 · Datos y features · Training-serving skew: causas, detección y prevención",
-      "href": "https://ronda-diseno-ml.vercel.app/#m09.skew"
+      "href": "https://ronda.trueml.app/#m09.skew"
      },
      {
       "label": "Sheet · Del dato a producción · estación 3 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-entrenamiento"
+      "href": "https://hojas.trueml.app/recorrido/#est-entrenamiento"
      }
     ],
     "inputs": [],
@@ -8937,19 +8937,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C03 · Inspección visual en planta · Evaluación offline y online",
-      "href": "https://ronda-diseno-ml.vercel.app/#c03.evaluacion"
+      "href": "https://ronda.trueml.app/#c03.evaluacion"
      },
      {
       "label": "Course · C03 · Inspección visual en planta · Pipeline de datos y entrenamiento",
-      "href": "https://ronda-diseno-ml.vercel.app/#c03.datos"
+      "href": "https://ronda.trueml.app/#c03.datos"
      },
      {
       "label": "Course · M10 · MLOps · El validation gate: cuándo un modelo puede reemplazar al actual",
-      "href": "https://ronda-diseno-ml.vercel.app/#m10.gate"
+      "href": "https://ronda.trueml.app/#m10.gate"
      },
      {
       "label": "Sheet · Del dato a producción · estación 4 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-gate"
+      "href": "https://hojas.trueml.app/recorrido/#est-gate"
      }
     ],
     "inputs": [],
@@ -9022,19 +9022,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C03 · Inspección visual en planta · Pipeline de datos y entrenamiento",
-      "href": "https://ronda-diseno-ml.vercel.app/#c03.datos"
+      "href": "https://ronda.trueml.app/#c03.datos"
      },
      {
       "label": "Course · C03 · Inspección visual en planta · Archivos de referencia",
-      "href": "https://ronda-diseno-ml.vercel.app/#c03.archivos"
+      "href": "https://ronda.trueml.app/#c03.archivos"
      },
      {
       "label": "Course · M08 · Optimización de modelos · TensorRT",
-      "href": "https://ronda-diseno-ml.vercel.app/#m08.tensorrt"
+      "href": "https://ronda.trueml.app/#m08.tensorrt"
      },
      {
       "label": "Sheet · Del dato a producción · estación 5 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-export"
+      "href": "https://hojas.trueml.app/recorrido/#est-export"
      }
     ],
     "inputs": [],
@@ -9096,19 +9096,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C03 · Inspección visual en planta · Serving",
-      "href": "https://ronda-diseno-ml.vercel.app/#c03.serving"
+      "href": "https://ronda.trueml.app/#c03.serving"
      },
      {
       "label": "Course · C03 · Inspección visual en planta · Archivos de referencia",
-      "href": "https://ronda-diseno-ml.vercel.app/#c03.archivos"
+      "href": "https://ronda.trueml.app/#c03.archivos"
      },
      {
       "label": "Course · M03 · Latencia y capacidad · Presupuesto de latencia end-to-end",
-      "href": "https://ronda-diseno-ml.vercel.app/#m03.presupuesto"
+      "href": "https://ronda.trueml.app/#m03.presupuesto"
      },
      {
       "label": "Sheet · Del dato a producción · estación 6 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-serving"
+      "href": "https://hojas.trueml.app/recorrido/#est-serving"
      }
     ],
     "inputs": [],
@@ -9185,19 +9185,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C03 · Inspección visual en planta · Archivos de referencia",
-      "href": "https://ronda-diseno-ml.vercel.app/#c03.archivos"
+      "href": "https://ronda.trueml.app/#c03.archivos"
      },
      {
       "label": "Course · C03 · Inspección visual en planta · Serving",
-      "href": "https://ronda-diseno-ml.vercel.app/#c03.serving"
+      "href": "https://ronda.trueml.app/#c03.serving"
      },
      {
       "label": "Course · M05 · Contenedores · GPUs dentro del contenedor: NVIDIA Container Toolkit",
-      "href": "https://ronda-diseno-ml.vercel.app/#m05.gpu-en-contenedor"
+      "href": "https://ronda.trueml.app/#m05.gpu-en-contenedor"
      },
      {
       "label": "Sheet · Del dato a producción · estación 7 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-empaquetado"
+      "href": "https://hojas.trueml.app/recorrido/#est-empaquetado"
      }
     ],
     "inputs": [],
@@ -9224,19 +9224,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C03 · Inspección visual en planta · Arquitectura",
-      "href": "https://ronda-diseno-ml.vercel.app/#c03.arquitectura"
+      "href": "https://ronda.trueml.app/#c03.arquitectura"
      },
      {
       "label": "Course · C03 · Inspección visual en planta · Evaluación offline y online",
-      "href": "https://ronda-diseno-ml.vercel.app/#c03.evaluacion"
+      "href": "https://ronda.trueml.app/#c03.evaluacion"
      },
      {
       "label": "Course · M15 · Seguridad y confiabilidad · Supply chain: imágenes, dependencias y pesos verificados",
-      "href": "https://ronda-diseno-ml.vercel.app/#m15.supply-chain"
+      "href": "https://ronda.trueml.app/#m15.supply-chain"
      },
      {
       "label": "Sheet · Del dato a producción · estación 8 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-cicd"
+      "href": "https://hojas.trueml.app/recorrido/#est-cicd"
      }
     ],
     "inputs": [],
@@ -9264,19 +9264,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C03 · Inspección visual en planta · Arquitectura",
-      "href": "https://ronda-diseno-ml.vercel.app/#c03.arquitectura"
+      "href": "https://ronda.trueml.app/#c03.arquitectura"
      },
      {
       "label": "Course · C03 · Inspección visual en planta · Serving",
-      "href": "https://ronda-diseno-ml.vercel.app/#c03.serving"
+      "href": "https://ronda.trueml.app/#c03.serving"
      },
      {
       "label": "Course · M02 · Patrones de inferencia · Edge / on-device",
-      "href": "https://ronda-diseno-ml.vercel.app/#m02.edge"
+      "href": "https://ronda.trueml.app/#m02.edge"
      },
      {
       "label": "Sheet · Del dato a producción · patrón edge",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#pat-edge"
+      "href": "https://hojas.trueml.app/recorrido/#pat-edge"
      }
     ],
     "inputs": [
@@ -9308,23 +9308,23 @@ export const T = {
     "links": [
      {
       "label": "Course · C03 · Inspección visual en planta · Serving",
-      "href": "https://ronda-diseno-ml.vercel.app/#c03.serving"
+      "href": "https://ronda.trueml.app/#c03.serving"
      },
      {
       "label": "Course · C03 · Inspección visual en planta · Evaluación offline y online",
-      "href": "https://ronda-diseno-ml.vercel.app/#c03.evaluacion"
+      "href": "https://ronda.trueml.app/#c03.evaluacion"
      },
      {
       "label": "Course · M11 · Despliegue seguro · Shadow deployment: comparar sin afectar a nadie",
-      "href": "https://ronda-diseno-ml.vercel.app/#m11.shadow"
+      "href": "https://ronda.trueml.app/#m11.shadow"
      },
      {
       "label": "Course · M11 · Despliegue seguro · Rollback: criterios automáticos y qué guardar para volver",
-      "href": "https://ronda-diseno-ml.vercel.app/#m11.rollback"
+      "href": "https://ronda.trueml.app/#m11.rollback"
      },
      {
       "label": "Sheet · Del dato a producción · estación 10 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-rollout"
+      "href": "https://hojas.trueml.app/recorrido/#est-rollout"
      }
     ],
     "inputs": [],
@@ -9375,19 +9375,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C03 · Inspección visual en planta · Serving",
-      "href": "https://ronda-diseno-ml.vercel.app/#c03.serving"
+      "href": "https://ronda.trueml.app/#c03.serving"
      },
      {
       "label": "Course · C03 · Inspección visual en planta · Estimaciones back-of-the-envelope",
-      "href": "https://ronda-diseno-ml.vercel.app/#c03.estimaciones"
+      "href": "https://ronda.trueml.app/#c03.estimaciones"
      },
      {
       "label": "Course · M03 · Latencia y capacidad · Presupuesto de latencia end-to-end",
-      "href": "https://ronda-diseno-ml.vercel.app/#m03.presupuesto"
+      "href": "https://ronda.trueml.app/#m03.presupuesto"
      },
      {
       "label": "Sheet · Del dato a producción · estación 11 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-request"
+      "href": "https://hojas.trueml.app/recorrido/#est-request"
      }
     ],
     "inputs": [],
@@ -9437,19 +9437,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C03 · Inspección visual en planta · Serving",
-      "href": "https://ronda-diseno-ml.vercel.app/#c03.serving"
+      "href": "https://ronda.trueml.app/#c03.serving"
      },
      {
       "label": "Course · C03 · Inspección visual en planta · Modos de falla y degradación",
-      "href": "https://ronda-diseno-ml.vercel.app/#c03.fallas"
+      "href": "https://ronda.trueml.app/#c03.fallas"
      },
      {
       "label": "Course · M15 · Seguridad y confiabilidad · Degradación con gracia: contener la falla",
-      "href": "https://ronda-diseno-ml.vercel.app/#m15.degradacion"
+      "href": "https://ronda.trueml.app/#m15.degradacion"
      },
      {
       "label": "Sheet · Del dato a producción · patrón edge",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#pat-edge"
+      "href": "https://hojas.trueml.app/recorrido/#pat-edge"
      }
     ],
     "inputs": [],
@@ -9511,15 +9511,15 @@ export const T = {
     "links": [
      {
       "label": "Course · C03 · Inspección visual en planta · Monitoreo, alertas y reentrenamiento",
-      "href": "https://ronda-diseno-ml.vercel.app/#c03.monitoreo"
+      "href": "https://ronda.trueml.app/#c03.monitoreo"
      },
      {
       "label": "Course · M12 · Monitoreo · Prometheus, Grafana y alertas por SLO",
-      "href": "https://ronda-diseno-ml.vercel.app/#m12.prometheus-grafana"
+      "href": "https://ronda.trueml.app/#m12.prometheus-grafana"
      },
      {
       "label": "Sheet · Del dato a producción · estación 12 del C01",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#est-monitoreo"
+      "href": "https://hojas.trueml.app/recorrido/#est-monitoreo"
      }
     ],
     "inputs": [],
@@ -9592,19 +9592,19 @@ export const T = {
     "links": [
      {
       "label": "Course · C03 · Inspección visual en planta · Pipeline de datos y entrenamiento",
-      "href": "https://ronda-diseno-ml.vercel.app/#c03.datos"
+      "href": "https://ronda.trueml.app/#c03.datos"
      },
      {
       "label": "Course · C03 · Inspección visual en planta · Modos de falla y degradación",
-      "href": "https://ronda-diseno-ml.vercel.app/#c03.fallas"
+      "href": "https://ronda.trueml.app/#c03.fallas"
      },
      {
       "label": "Course · M02 · Patrones de inferencia · Edge / on-device",
-      "href": "https://ronda-diseno-ml.vercel.app/#m02.edge"
+      "href": "https://ronda.trueml.app/#m02.edge"
      },
      {
       "label": "Sheet · Del dato a producción · patrón edge",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#pat-edge"
+      "href": "https://hojas.trueml.app/recorrido/#pat-edge"
      }
     ],
     "inputs": [
@@ -9681,15 +9681,15 @@ export const T = {
     "links": [
      {
       "label": "Course · C03 · Inspección visual en planta · Monitoreo, alertas y reentrenamiento",
-      "href": "https://ronda-diseno-ml.vercel.app/#c03.monitoreo"
+      "href": "https://ronda.trueml.app/#c03.monitoreo"
      },
      {
       "label": "Course · C03 · Inspección visual en planta · Archivos de referencia",
-      "href": "https://ronda-diseno-ml.vercel.app/#c03.archivos"
+      "href": "https://ronda.trueml.app/#c03.archivos"
      },
      {
       "label": "Sheet · Del dato a producción · patrón edge",
-      "href": "https://cheat-sheets-ml.vercel.app/recorrido/#pat-edge"
+      "href": "https://hojas.trueml.app/recorrido/#pat-edge"
      }
     ],
     "inputs": [],

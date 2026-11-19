@@ -57,7 +57,7 @@
         "taller": "MLflow en Docker, con SQLite y un volumen"
       }
     ],
-    "hoja": "https://cheat-sheets-ml.vercel.app/recorrido/#est-gate"
+    "hoja": "https://hojas.trueml.app/recorrido/#est-gate"
   },
   "precalculos": {
     "intro": "Antes de escribir el gate, las cuentas de servilleta: cuánto ruido tiene el examen (de ahí sale el margen), qué tan fina es la comparación foto por foto, cuánto ruido tiene una sola categoría, por qué hay que corregir cuando se hacen 10 pruebas a la vez, cuánto pesa la tabla de pares y cuánta erosión se puede colar. Cada cuenta va en las dos escalas: C01 y el dojo.",

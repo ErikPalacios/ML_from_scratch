@@ -63,7 +63,7 @@
         "taller": "tú, con <code>kubectl apply -k k8s/</code>; Prometheus dentro del clúster (<code>localhost:9910</code>); 3 gateways fijos, sin HPA"
       }
     ],
-    "hoja": "https://cheat-sheets-ml.vercel.app/recorrido/#est-rollout"
+    "hoja": "https://hojas.trueml.app/recorrido/#est-rollout"
   },
   "precalculos": {
     "intro": "Antes de escribir el Rollout, las cuentas de servilleta: cuántos pares junta la sombra, cuánto tarda el canary en juntar el n mínimo de cada regla, cuántas falsas alarmas da una regla sin n mínimo, cuánto ruido tiene el PSI, a cuántas fotos les toca una versión mala en cada fase y cuánto cuesta la escalera. Cada cuenta va en las dos escalas: C01 y el dojo.",

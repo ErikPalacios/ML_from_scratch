@@ -20,8 +20,8 @@ const OUT = join(ROOT, 'web', 'js', 'shared', 'templates.mjs');
 const json = (p) => JSON.parse(readFileSync(p, 'utf8'));
 const warnings = [];
 
-export const COURSE_URL = 'https://ronda-diseno-ml.vercel.app/';
-export const SHEETS_URL = 'https://cheat-sheets-ml.vercel.app/';
+export const COURSE_URL = 'https://ronda.trueml.app/';
+export const SHEETS_URL = 'https://hojas.trueml.app/';
 
 // ---------------------------------------------------------------- curso: títulos de páginas y secciones
 const ctx = vm.createContext({ console });

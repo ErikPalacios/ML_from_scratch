@@ -5,7 +5,7 @@ import { C, ETAPAS } from '../tema';
 import { Fondo, Marca, Punto, Ventana } from '../piezas';
 import { App, Aurora, Chip, Cierre, clamp, Gancho, Reel, useSalida, VIVOS } from './kit';
 
-const URL = 'taller-ai-engineer.vercel.app';
+const URL = 'dojo.trueml.app';
 
 const GanchoEscena: React.FC = () => {
   const f = useCurrentFrame();

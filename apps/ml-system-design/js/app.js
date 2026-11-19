@@ -66,10 +66,10 @@
     { id: 'p4', label: 'Parte 4 — Referencias', ids: ['ref-numeros', 'ref-herramientas', 'ref-comandos', 'glosario'] },
   ];
   // Sitio aparte con las hojas de estudio (formulario de estimaciones, Docker…): enlace al final de la Parte 4.
-  const CHEAT_SHEETS_URL = 'https://cheat-sheets-ml.vercel.app/';
+  const CHEAT_SHEETS_URL = 'https://hojas.trueml.app/';
   // Sensei, el curso de teoría desde cero: cada módulo enlaza las lecciones que conviene repasar antes
   // (js/content/sensei.js, generado por apps/trueml/sync.mjs desde el contenido de Sensei).
-  const SENSEI_URL = 'https://sensei-ml.vercel.app/';
+  const SENSEI_URL = 'https://sensei.trueml.app/';
   const STATE_LABEL = { done: 'completado', progress: 'en curso', ready: 'disponible', soon: 'próximamente' };
   const FREQ_LABEL = { alta: 'alta', media: 'media', baja: 'baja' };
   const PRIO = { core: ['prio--core', 'Esencial'], extra: ['prio--extra', 'Extra'], skip: ['prio--skip', 'Sáltate esto'] };

@@ -15,7 +15,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const BOARD = join(ROOT, '..', 'tablero-ml', 'web');
 const DEMO = join(ROOT, 'web');
 const DIST = join(ROOT, 'dist');
-const SITE_URL = 'https://tablero-ml-demo.vercel.app';
+const SITE_URL = 'https://tablero.trueml.app';
 const fail = (m) => { console.error('[build] ERROR: ' + m); process.exit(1); };
 const walk = (d) => readdirSync(d).flatMap((f) => { const p = join(d, f); return statSync(p).isDirectory() ? walk(p) : [p]; });
 const copyTree = (from, skip = () => false) => {
@@ -112,9 +112,12 @@ sw = sw.replace(API_LINE, API_LINE + "  if (url.pathname.endsWith('.mp4')) retur
 writeFileSync(join(DIST, 'sw.js'), sw.replace("'__BUILD__'", JSON.stringify(build)).replace('__ASSETS__', JSON.stringify(assets)));
 
 // crawlers and headers
+// La mudanza a trueml.app: la página que lleva el avance de la dirección *.vercel.app vieja a la nueva (ver vendor/trueml/mudanza.js).
+for (const f of ['mudanza.html', 'mudanza.js']) copyFileSync(join(BOARD, 'vendor', 'trueml', f), join(DIST, f));
 writeFileSync(join(DIST, 'robots.txt'), `User-agent: *\nAllow: /\n\nSitemap: ${SITE_URL}/sitemap.xml\n`);
 writeFileSync(join(DIST, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url><loc>${SITE_URL}/</loc><lastmod>${new Date().toISOString().slice(0, 10)}</lastmod></url>\n</urlset>\n`);
 const prod = JSON.parse(readFileSync(join(ROOT, '..', 'tablero-ml', 'vercel.json'), 'utf8'));
-const config = { framework: null, trailingSlash: false, headers: prod.headers };
+// Las redirecciones (la mudanza a trueml.app) salen del vercel.json de esta carpeta, el mismo que usa el deploy desde GitHub.
+const config = { framework: null, trailingSlash: false, redirects: JSON.parse(readFileSync(join(ROOT, 'vercel.json'), 'utf8')).redirects, headers: prod.headers };
 writeFileSync(join(DIST, 'vercel.json'), JSON.stringify(config, null, 2) + '\n');
 console.log(`[build] dist/ · ${files.length + 1} files · BUILD ${build}`);

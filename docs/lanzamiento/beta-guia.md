@@ -31,7 +31,7 @@ Incluye al menos 3 personas que usen **celular o tablet** y 2 que usen **Safari*
 
 > Hola, [nombre]. Armé unas herramientas gratuitas para estudiar ML engineering (un curso de diseño de sistemas, hojas de Docker/Kubernetes/vLLM, un atlas de arquitecturas y un transformer que se entrena paso a paso). Antes de compartirlas quiero que alguien que [prepara entrevistas / trabaja con ML / es curioso del tema] las pruebe 15–20 minutos y me diga qué se entiende, qué falla y qué falta.
 >
-> Empieza aquí: https://ml-desde-cero.vercel.app
+> Empieza aquí: https://trueml.app
 > Tu tarea sugerida: [tarea de su perfil].
 > Cuando termines, cuéntame en 2 minutos aquí: https://github.com/ErikPalacios/ML_from_scratch/issues/new?template=beta.yml (si no tienes cuenta de GitHub, respóndeme por este chat con lo mismo).
 >
@@ -69,5 +69,5 @@ Lleva una tabla simple (hoja de cálculo o nota):
 - [ ] `node apps/portada/tools/qa.mjs` termina con «todo bien».
 - [ ] Abres cada sitio en tu celular y en modo oscuro.
 - [ ] Probaste compartir la portada por WhatsApp o LinkedIn y se ve la imagen.
-- [ ] Leíste el [aviso de privacidad](https://ml-desde-cero.vercel.app/privacidad/) y estás de acuerdo con lo que dice.
+- [ ] Leíste el [aviso de privacidad](https://trueml.app/privacidad/) y estás de acuerdo con lo que dice.
 - [ ] Activaste Web Analytics (opcional pero recomendado).

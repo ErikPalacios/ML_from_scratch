@@ -106,7 +106,7 @@ e["mapa"] = {
         {"que": "Registro", "c01": "MLflow con Postgres (metadatos) y S3 (archivos)", "taller": "MLflow en Docker, con SQLite y un volumen"},
         {"que": "Quién lo lanza", "c01": "El orquestador (Argo Workflows, Kubeflow o Airflow), cada mes", "taller": "<code>mundo/orquestador.py</code>, cuando tú lo corres"},
     ],
-    "hoja": "https://cheat-sheets-ml.vercel.app/recorrido/#est-entrenamiento",
+    "hoja": "https://hojas.trueml.app/recorrido/#est-entrenamiento",
 }
 
 e["precalculos"] = {

@@ -5,7 +5,7 @@ import { TrueMLMark as TM, RANGOS_C01, franja, miniT, IDS, bloqueCodigo } from '
 import { repartir, repartirPractica } from './schema.mjs';
 
 export const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-const PORTADA = 'https://ml-desde-cero.vercel.app';
+const PORTADA = 'https://trueml.app';
 
 // Las 12 estaciones del C01 en las 6 etapas de la T (la agrupación del diseño). Solo para el tronco: una estación
 // de rama trae su etapa escrita, y a las páginas llega ya resuelta en e.etapaIdx (tools/lineas.mjs).

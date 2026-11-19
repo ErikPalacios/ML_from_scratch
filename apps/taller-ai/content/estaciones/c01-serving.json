@@ -53,7 +53,7 @@
         "taller": "30 pruebas, ≈ 2 s"
       }
     ],
-    "hoja": "https://cheat-sheets-ml.vercel.app/recorrido/#est-serving"
+    "hoja": "https://hojas.trueml.app/recorrido/#est-serving"
   },
   "precalculos": {
     "intro": "Antes de escribir el gateway, las cuentas de servilleta: cuánta memoria pide una copia en el peor momento, cuántas requests caben adentro, cuánto plazo le queda a la llamada a Triton, cuántas fotos junta Triton en un lote, cuánto pesa lo que viaja por la red y cuánto log sale al día. Cada cuenta va en las dos escalas: C01 y el dojo.",

@@ -2,7 +2,7 @@
 import { C } from '../tema';
 import type { Guion } from './tiempo';
 
-const U = 'taller-ai-engineer.vercel.app';
+const U = 'dojo.trueml.app';
 const KIT = U + '/c01/datos/proyecto-con-kit/';
 
 export const DOJO: Guion = {

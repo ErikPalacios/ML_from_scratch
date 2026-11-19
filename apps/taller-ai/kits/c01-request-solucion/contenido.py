@@ -397,7 +397,7 @@ e["mapa"] = {
         {"que": "Trazas", "c01": "≈ 1 % con OpenTelemetry y Grafana Tempo; los exemplars llevan a la traza", "taller": "≈ 1 % como exemplar (el <code>request_id</code> como trace_id), sin trazas completas: del exemplar a la línea con <code>mundo/buscar.py</code>"},
         {"que": "El almacén", "c01": "Amazon S3, bucket <code>ml-datos</code>, con KMS y un rol que solo escribe en <code>logs/</code>", "taller": "RustFS 1.0.4 en <code>localhost:9950</code>: el mismo bucket y las mismas rutas"},
     ],
-    "hoja": "https://cheat-sheets-ml.vercel.app/recorrido/#est-request",
+    "hoja": "https://hojas.trueml.app/recorrido/#est-request",
 }
 
 # ---------------------------------------------------------------- precálculos

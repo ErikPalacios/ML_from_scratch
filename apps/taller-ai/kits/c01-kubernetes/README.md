@@ -31,7 +31,7 @@ python3 verificar.py mundo
 | `verificar.py` / `romper.py` | Los 12 checks de la estación y las 6 fallas. |
 | `GUION.md` / `OBJETIVOS.md` | El paso a paso de Construir con ayuda y solo los objetivos para Construir solo. |
 | `CLAUDE.md` | Las reglas para Claude Code en este proyecto. |
-| `BITACORA.md`, `taller/progreso.json` | Tu registro. `verificar.py` y `romper.py` anotan solos en `progreso.json`; impórtalo en «Tu tablero» del Dojo: https://taller-ai-engineer.vercel.app/tablero/ |
+| `BITACORA.md`, `taller/progreso.json` | Tu registro. `verificar.py` y `romper.py` anotan solos en `progreso.json`; impórtalo en «Tu tablero» del Dojo: https://dojo.trueml.app/tablero/ |
 
 ## Puertos y lugares
 

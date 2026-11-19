@@ -12,10 +12,10 @@ import { fileURLToPath } from 'node:url';
 
 const AQUI = dirname(fileURLToPath(import.meta.url));
 const APPS_DIR = join(AQUI, '..');
-const ARCHIVOS = ['trueml-mark.js', 'lib.mjs', 'etapas.json', 'tokens.css', 'cliente.js', 'codigo.js', 'piezas.js', 'piezas.css'];
+const ARCHIVOS = ['trueml-mark.js', 'lib.mjs', 'etapas.json', 'tokens.css', 'cliente.js', 'codigo.js', 'piezas.js', 'piezas.css', 'mudanza.js', 'mudanza.html'];
 // La carpeta de cada app que se despliega (el tablero copia su web/ entera, también al demo).
 const APPS = ['taller-ai', 'portada', 'sensei', 'ml-system-design', 'atlas-arquitecturas', 'transformer-lab', 'tablero-ml/web', 'cheat-sheets'];
-const DOJO = { carpeta: 'taller-ai', url: 'https://taller-ai-engineer.vercel.app' };
+const DOJO = { carpeta: 'taller-ai', url: 'https://dojo.trueml.app' };
 const check = process.argv.includes('--check');
 
 const salidas = [];   // [ruta, contenido]
@@ -46,7 +46,7 @@ const dojo = {
 };
 salidas.push([join(APPS_DIR, 'portada', 'data', 'dojo.json'), JSON.stringify(dojo, null, 2) + '\n']);
 // El avance de Sensei para la portada: qué lecciones del temario ya tienen su archivo (la portada lo pinta como el del Dojo).
-const SENSEI = { carpeta: 'sensei', url: 'https://sensei-ml.vercel.app' };
+const SENSEI = { carpeta: 'sensei', url: 'https://sensei.trueml.app' };
 {
   const c = join(APPS_DIR, SENSEI.carpeta, 'content');
   const temario = JSON.parse(readFileSync(join(c, 'temario.json'), 'utf8'));

@@ -53,7 +53,7 @@
         "taller": "≈ 26 s más la aprobación (sin paridad)"
       }
     ],
-    "hoja": "https://cheat-sheets-ml.vercel.app/recorrido/#est-cicd"
+    "hoja": "https://hojas.trueml.app/recorrido/#est-cicd"
   },
   "precalculos": {
     "intro": "Antes de escribir el workflow, las cuentas de servilleta: cuánto tarda el camino del merge a producción, cuántos días cubre la regla de retención, cuánto ocupa el repositorio cuando las imágenes comparten capas y cuánto dura cada credencial del pipeline. Cada cuenta va en las dos escalas: C01 y el dojo.",

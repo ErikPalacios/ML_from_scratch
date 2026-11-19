@@ -809,7 +809,7 @@ function linkChip(anchor) {
   const page = COURSE && COURSE.getPage ? COURSE.getPage(m) : null;
   const sec = page && (page.sections || []).find((x) => x.id === id);
   if (!sec) aviso(`enlace del curso que no existe: ${anchor}`);
-  return `<a class="chip" href="https://ronda-diseno-ml.vercel.app/#${esc(anchor.replace(/^#/, ''))}" target="_blank" rel="noopener">${esc(MODLAB(m))} · ${esc(sec ? sec.title : id)}</a>`;
+  return `<a class="chip" href="https://ronda.trueml.app/#${esc(anchor.replace(/^#/, ''))}" target="_blank" rel="noopener">${esc(MODLAB(m))} · ${esc(sec ? sec.title : id)}</a>`;
 }
 // Las hojas hermanas que siguen el mismo tema (el brief pide no contradecirlas: mejor enlazarlas).
 const SHEET_LINKS = {
@@ -819,7 +819,7 @@ const SHEET_LINKS = {
   salud: [['kubernetes', 'Kubernetes'], ['docker', 'Docker']],
   tests: [['git', 'Git y GitHub Actions']],
 };
-const sheetChip = ([id, t]) => `<a class="chip chip--sheet" href="https://cheat-sheets-ml.vercel.app/${id}/">Hoja · ${esc(t)}</a>`;
+const sheetChip = ([id, t]) => `<a class="chip chip--sheet" href="https://hojas.trueml.app/${id}/">Hoja · ${esc(t)}</a>`;
 
 const ORDER = ['bolsillo', 'cadena', 'gateway', 'fastapi', 'async', 'contrato', 'upstream', 'backpressure', 'degradacion', 'salud', 'observabilidad', 'tests', 'rendimiento', 'diagnostico', 'errores'];
 const EXPECT = [0, null, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];

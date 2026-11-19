@@ -63,7 +63,7 @@
         "taller": "RustFS (S3 local en Docker); un proveedor simulado y tú adjudicando en Label Studio"
       }
     ],
-    "hoja": "https://cheat-sheets-ml.vercel.app/recorrido/#est-datos"
+    "hoja": "https://hojas.trueml.app/recorrido/#est-datos"
   },
   "precalculos": {
     "intro": "Antes de escribir código, las cuentas de servilleta de la estación: cuánto entra, cuántos labels te quedan, cuánto cuesta etiquetar y qué tan fino puedes medir. Cada cuenta va en las dos escalas, C01 y el dojo, con lo que decides con ella. Haz la cuenta tú primero y luego ábrela. Las del dojo se comprueban con un comando sobre el mundo recién creado o con la salida de un paso del Guiado.",

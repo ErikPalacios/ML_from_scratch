@@ -10,6 +10,35 @@
       "destination": "/transformer-lab.html"
     }
   ],
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "laboratorio-transformer.vercel.app"
+        },
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(bot|Bot|BOT|crawler|Crawler|spider|Spider|facebookexternalhit|WhatsApp|Slurp|Google-InspectionTool|embedly|Embedly|Iframely|vkShare).*"
+        }
+      ],
+      "destination": "https://transformer.trueml.app/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/((?!mudanza\\.html$|mudanza\\.js$|sw\\.js$).*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "laboratorio-transformer.vercel.app"
+        }
+      ],
+      "destination": "/mudanza.html?a=/$1",
+      "permanent": false
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",

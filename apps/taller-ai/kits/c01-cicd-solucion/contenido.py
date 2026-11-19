@@ -94,7 +94,7 @@ e["mapa"] = {
         {"que": "El despliegue", "c01": "un PR al repositorio de despliegue; Argo CD lo aplica en EKS; la política de admisión exige la firma de cosign", "taller": "un push al repositorio de despliegue; un hook corre <code>mundo/gitops.py</code>, que exige digest; sin firma"},
         {"que": "Del merge a producción", "c01": "≈ 17.5 min más la aprobación (con la paridad en la T4)", "taller": f"≈ {round(float(SEG_TOTAL))} s más la aprobación (sin paridad)"},
     ],
-    "hoja": "https://cheat-sheets-ml.vercel.app/recorrido/#est-cicd",
+    "hoja": "https://hojas.trueml.app/recorrido/#est-cicd",
 }
 
 e["precalculos"] = {

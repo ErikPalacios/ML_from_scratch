@@ -335,7 +335,7 @@ e["mapa"] = {
         {"que": "Quién reparte", "c01": "el ALB de AWS, configurado por el AWS Load Balancer Controller desde la anotación del Ingress", "taller": "un pod (<code>dojo-alb/alb</code>) que lee la misma anotación cada segundo y reparte con esos pesos"},
         {"que": "Quién aplica", "c01": "Argo CD, desde el repositorio de despliegue; las métricas en Amazon Managed Prometheus", "taller": "tú, con <code>kubectl apply -k k8s/</code>; Prometheus dentro del clúster (<code>localhost:9910</code>); 3 gateways fijos, sin HPA"},
     ],
-    "hoja": "https://cheat-sheets-ml.vercel.app/recorrido/#est-rollout",
+    "hoja": "https://hojas.trueml.app/recorrido/#est-rollout",
 }
 
 # ---------------------------------------------------------------- precálculos

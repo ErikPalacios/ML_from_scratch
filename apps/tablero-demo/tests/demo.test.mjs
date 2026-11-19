@@ -111,10 +111,10 @@ test('create, duplicate (409), limit and delete work; unknown things 404', async
 test('index.html is indexable, has its SEO tags and loads the demo scripts before the app', () => {
   const html = readFileSync(join(DIST, 'index.html'), 'utf8');
   assert.equal(/noindex/.test(html), false);
-  assert.match(html, /rel="canonical" href="https:\/\/tablero-ml-demo\.vercel\.app\/"/);
+  assert.match(html, /rel="canonical" href="https:\/\/tablero\.trueml\.app\/"/);
   assert.match(html, /og:image/);
   assert.ok(html.indexOf('demo-boot.js') < html.indexOf('/js/app.js'));
-  assert.match(readFileSync(join(DIST, 'sitemap.xml'), 'utf8'), /<loc>https:\/\/tablero-ml-demo\.vercel\.app\/<\/loc>/);
+  assert.match(readFileSync(join(DIST, 'sitemap.xml'), 'utf8'), /<loc>https:\/\/tablero\.trueml\.app\/<\/loc>/);
 });
 
 // Vercel builds the demo from GitHub with apps/tablero-demo/vercel.json: same security headers as production, no API.

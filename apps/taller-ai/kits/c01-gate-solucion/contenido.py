@@ -103,7 +103,7 @@ e["mapa"] = {
         {"que": "Las reglas", "c01": "<code>gate.yaml</code> en el repositorio <code>ml-catalogo</code>; cambian solo en un PR revisado", "taller": "<code>gate.yaml</code> en tu carpeta; sus versiones revisadas, en <code>mundo/revisiones.json</code>"},
         {"que": "El registry", "c01": "MLflow con Postgres y S3", "taller": "MLflow en Docker, con SQLite y un volumen"},
     ],
-    "hoja": "https://cheat-sheets-ml.vercel.app/recorrido/#est-gate",
+    "hoja": "https://hojas.trueml.app/recorrido/#est-gate",
 }
 
 e["precalculos"] = {

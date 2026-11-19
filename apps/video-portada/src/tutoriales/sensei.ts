@@ -2,7 +2,7 @@
 import { C } from '../tema';
 import type { Guion } from './kit';
 
-const U = 'sensei-ml.vercel.app';
+const U = 'sensei.trueml.app';
 
 export const SENSEI: Guion = {
   id: 'sensei', app: 'Sensei', url: U, color: C.yt, color2: C.b,

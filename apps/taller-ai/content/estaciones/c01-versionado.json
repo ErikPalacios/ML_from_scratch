@@ -53,7 +53,7 @@
         "taller": "<code>corridas/*.json</code> y la huella de los paquetes instalados"
       }
     ],
-    "hoja": "https://cheat-sheets-ml.vercel.app/recorrido/#est-versionado"
+    "hoja": "https://hojas.trueml.app/recorrido/#est-versionado"
   },
   "precalculos": {
     "intro": "Antes de escribir el pipeline, las cuentas de servilleta del versionado: cuánto pesa un snapshot que cita en vez de copiar, cuánto cuesta guardar un año, cuánto cuesta comprobar cada huella al leer, qué pasa si el split se sortea cada mes y cuántas filas son normales. Cada cuenta va en las dos escalas: C01 y el dojo.",

@@ -5,7 +5,7 @@ import { C, ETAPAS, SANS } from '../tema';
 import { Fondo, useEntrada, Ventana } from '../piezas';
 import { App, Aurora, Chip, Cierre, clamp, Gancho, Linea, Reel, useSalida, VIVOS } from './kit';
 
-const URL = 'sensei-ml.vercel.app/llms/';
+const URL = 'sensei.trueml.app/llms/';
 
 const GanchoEscena: React.FC = () => {
   const sale = useSalida();

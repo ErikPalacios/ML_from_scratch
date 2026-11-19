@@ -3,6 +3,23 @@
    build-web.mjs reemplaza el marcador de BUILD por un hash del index.html: cada deploy nuevo instala un
    service worker nuevo, guarda la página nueva y borra la caché anterior. */
 'use strict';
+// Mudanza a trueml.app (noviembre de 2026): en la dirección *.vercel.app vieja este service worker no guarda nada,
+// borra su caché, se da de baja y recarga la página; la recarga va a la red y vercel.json la lleva a /mudanza.html,
+// que se lleva el avance (localStorage) al dominio nuevo. Va antes que todo para que ningún otro listener responda.
+if (['ml-desde-cero.vercel.app', 'sensei-ml.vercel.app', 'taller-ai-engineer.vercel.app', 'ronda-diseno-ml.vercel.app', 'cheat-sheets-ml.vercel.app',
+  'atlas-arquitecturas.vercel.app', 'laboratorio-transformer.vercel.app', 'tablero-ml-demo.vercel.app'].indexOf(self.location.hostname) !== -1) {
+  self.addEventListener('install', (e) => { e.stopImmediatePropagation(); self.skipWaiting(); });
+  self.addEventListener('activate', (e) => {
+    e.stopImmediatePropagation();
+    e.waitUntil((async () => {
+      for (const k of await caches.keys()) await caches.delete(k);
+      await self.registration.unregister();
+      for (const c of await self.clients.matchAll({ type: 'window' })) c.navigate(c.url);
+    })());
+  });
+  self.addEventListener('fetch', (e) => { e.stopImmediatePropagation(); });
+}
+
 const BUILD = '__BUILD__';
 const CACHE = 'ronda-app-' + BUILD;
 const FONTS = 'ronda-fonts'; // las fuentes no cambian entre deploys: caché aparte que sobrevive

@@ -1,6 +1,6 @@
 # ML Board — demo pública
 
-**En vivo:** https://tablero-ml-demo.vercel.app
+**En vivo:** https://tablero.trueml.app
 
 La misma aplicación del [tablero](../tablero-ml), sin servidor ni base de datos y con un proyecto de ejemplo inventado («Sample · Receipt Classifier API»). Cada visitante tiene su propia copia: lo que edita se guarda en **su navegador** y no se envía a ningún lado. El botón «Reset demo» la deja como al principio.
 

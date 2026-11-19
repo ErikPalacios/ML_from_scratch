@@ -94,7 +94,7 @@ e["mapa"] = {
         {"que": "Los límites y plazos", "c01": "10 MiB, 40 MP, 1:8, 2 decodes, 16 en vuelo · 300 > 250 > 150 > 100 ms", "taller": "los mismos, en <code>gateway.yaml</code>"},
         {"que": "Las pruebas", "c01": "26 pruebas con pytest y un Triton falso, ≈ 2 min en CI", "taller": f"{PRUEBAS} pruebas, ≈ {round(float(PYTEST_S))} s"},
     ],
-    "hoja": "https://cheat-sheets-ml.vercel.app/recorrido/#est-serving",
+    "hoja": "https://hojas.trueml.app/recorrido/#est-serving",
 }
 
 e["precalculos"] = {

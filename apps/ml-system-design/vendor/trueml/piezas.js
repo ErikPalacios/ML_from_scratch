@@ -31,7 +31,7 @@
     return e;
   }
   var SVG = function (d, w) { return '<svg viewBox="0 0 16 16" width="' + (w || 16) + '" height="' + (w || 16) + '" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>'; };
-  var PORTADA = 'https://ml-desde-cero.vercel.app/';
+  var PORTADA = 'https://trueml.app/';
 
   // ================================================================ 1 · volver a TrueML
   function volver() {

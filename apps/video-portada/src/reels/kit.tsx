@@ -151,7 +151,7 @@ export const Cierre: React.FC<{ id: string; frase: React.ReactNode; color: strin
           </div>
           <div style={{ marginTop: 50, opacity: el, transform: `scale(${0.85 + 0.15 * el})` }}>
             <div style={{ font: `800 46px/1 ${SANS}`, color: C.ink }}>Link en la bio</div>
-            <div style={{ marginTop: 16, font: `600 32px/1 ${MONO}`, color: C.acc }}>ml-desde-cero.vercel.app</div>
+            <div style={{ marginTop: 16, font: `600 32px/1 ${MONO}`, color: C.acc }}>trueml.app</div>
           </div>
         </div>
       </AbsoluteFill>

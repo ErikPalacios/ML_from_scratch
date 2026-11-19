@@ -253,7 +253,7 @@ e["mapa"] = {
         {"que": "Cuántos pods", "c01": "gateway: HPA de 3 a 12 al 60 % de CPU · Triton: KEDA de 2 a 4, por la espera en su fila", "taller": "gateway: el mismo HPA (aunque solo caben 6) · Triton: 2 fijos, sin KEDA"},
         {"que": "El arranque de Triton", "c01": "engine de ≈ 10 a 60 s; startup de 5 s × 60 = 300 s; <code>progressDeadlineSeconds</code> de 900", "taller": f"engine de ≈ {ENGINE_S} s; startup de 5 s × 12 = 60 s; <code>progressDeadlineSeconds</code> de 300"},
     ],
-    "hoja": "https://cheat-sheets-ml.vercel.app/recorrido/#est-kubernetes",
+    "hoja": "https://hojas.trueml.app/recorrido/#est-kubernetes",
 }
 
 e["precalculos"] = {

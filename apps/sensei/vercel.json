@@ -5,6 +5,45 @@
   "buildCommand": "node tools/build.mjs",
   "outputDirectory": "dist",
   "trailingSlash": true,
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "sensei-ml.vercel.app"
+        },
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(bot|Bot|BOT|crawler|Crawler|spider|Spider|facebookexternalhit|WhatsApp|Slurp|Google-InspectionTool|embedly|Embedly|Iframely|vkShare).*"
+        }
+      ],
+      "destination": "https://sensei.trueml.app/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/((?!mudanza\\.html$|mudanza\\.js$|sw\\.js$).*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "sensei-ml.vercel.app"
+        }
+      ],
+      "destination": "/mudanza.html?a=/$1",
+      "permanent": false
+    },
+    {
+      "source": "/ronda/",
+      "destination": "/que-sigue/",
+      "permanent": true
+    },
+    {
+      "source": "/ronda",
+      "destination": "/que-sigue/",
+      "permanent": true
+    }
+  ],
   "headers": [
     {
       "source": "/sw.js",
@@ -40,18 +79,6 @@
           "value": "DENY"
         }
       ]
-    }
-  ],
-  "redirects": [
-    {
-      "source": "/ronda/",
-      "destination": "/que-sigue/",
-      "permanent": true
-    },
-    {
-      "source": "/ronda",
-      "destination": "/que-sigue/",
-      "permanent": true
     }
   ]
 }

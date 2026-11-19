@@ -39,7 +39,7 @@ const conLenguaje = (html) => html.replace(/<div class="code( [^"]*)?">(<div cla
   return `<div class="code${cls || ''}"${l ? ` data-lang="${l[1]}"` : ''}>${bar}${lbl}`;
 });
 // El botón «Volver a TrueML» (+ «‹ Cheat sheets» en cada hoja) y el formato de código: atributos en <html> y los dos scripts.
-const ATTR_TM = ` data-tm-herramienta="Cheat sheets" data-tm-inicio="/" data-tm-portada="https://ml-desde-cero.vercel.app/"`;
+const ATTR_TM = ` data-tm-herramienta="Cheat sheets" data-tm-inicio="/" data-tm-portada="https://trueml.app/"`;
 const SCRIPTS_TM = '<script src="/codigo.js" defer></script><script src="/piezas.js" defer></script>';
 // El tono de cada hoja: el color de su etapa en el número de sección, el kicker y los títulos de las tarjetas.
 // --st es el relleno, --st-on el texto encima y --st-ink el color para texto sobre la tarjeta (contraste AA).
@@ -76,7 +76,7 @@ const HEAD = [
 ].join('\n');
 // SEO y vista previa en redes: dirección canónica, Open Graph y Twitter Card. SITE_URL es la dirección pública del sitio
 // (cámbiala cuando haya dominio propio). La descripción solo se agrega si la página no trae una.
-const SITE_URL = 'https://cheat-sheets-ml.vercel.app';
+const SITE_URL = 'https://hojas.trueml.app';
 const SITE_NAME = 'Cheat sheets ML';
 const seo = (path, title, desc, html) => {
   const url = SITE_URL + path;
@@ -100,7 +100,7 @@ const seo = (path, title, desc, html) => {
   return HEAD + '\n' + meta;
 };
 // Crédito y licencia al pie de cada página (la imagen de copia no se bloquea: se protege la atribución).
-const FOOT = `<footer class="hub-credit"><p>© ${new Date().getFullYear()} Erik Palacios · Contenido bajo <a href="https://creativecommons.org/licenses/by-nc-nd/4.0/deed.es">CC BY-NC-ND 4.0</a> · <a href="https://ml-desde-cero.vercel.app">ML desde cero</a> · <a href="https://github.com/ErikPalacios/ML_from_scratch/issues/new">Reportar un error</a></p></footer>`;
+const FOOT = `<footer class="hub-credit"><p>© ${new Date().getFullYear()} Erik Palacios · Contenido bajo <a href="https://creativecommons.org/licenses/by-nc-nd/4.0/deed.es">CC BY-NC-ND 4.0</a> · <a href="https://trueml.app">ML desde cero</a> · <a href="https://github.com/ErikPalacios/ML_from_scratch/issues/new">Reportar un error</a></p></footer>`;
 // el service worker solo se registra servido por http(s): abriendo el archivo con doble clic no aplica.
 const REGISTER = `<script>
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
@@ -294,5 +294,7 @@ console.log(`[build] dist/ listo · build ${build} · ${SHEETS.length} hojas: ${
 
 // 4 · robots.txt y sitemap.xml
 const hoy = new Date().toISOString().slice(0, 10);
+// La mudanza a trueml.app: la página que lleva el avance de la dirección *.vercel.app vieja a la nueva (ver vendor/trueml/mudanza.js).
+for (const f of ['mudanza.html', 'mudanza.js']) copyFileSync(join(ROOT, 'vendor', 'trueml', f), join(OUT, f));
 writeFileSync(join(OUT, 'robots.txt'), `User-agent: *\nAllow: /\n\nSitemap: ${SITE_URL}/sitemap.xml\n`);
 writeFileSync(join(OUT, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${order.map((p) => `  <url><loc>${SITE_URL}${p}</loc><lastmod>${p === '/' ? hoy : SHEETS.find((s) => `/${s.id}/` === p).updated}</lastmod></url>`).join('\n')}\n</urlset>\n`);

@@ -1,6 +1,6 @@
 {
   "nota": "Solo para la página final «¿Qué sigue después de Sensei?» (/que-sigue/): los 15 módulos de la Ronda de Diseño (apps/ml-system-design/js/content/catalog.js, campo short) y, en «lecciones», las de Sensei que conviene repasar antes de cada uno. Las lecciones nunca mencionan la Ronda.",
-  "url": "https://ronda-diseno-ml.vercel.app",
+  "url": "https://ronda.trueml.app",
   "modulos": [
     {
       "id": "m01",

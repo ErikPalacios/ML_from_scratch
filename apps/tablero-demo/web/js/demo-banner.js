@@ -1,6 +1,6 @@
 /* Banner of the demo: says what this is, links back and resets the demo's data. */
 const REPO = 'https://github.com/ErikPalacios/ML_from_scratch/tree/main/apps/tablero-ml';
-const HOME = 'https://ml-desde-cero.vercel.app';
+const HOME = 'https://trueml.app';
 
 function reset() {
   try {

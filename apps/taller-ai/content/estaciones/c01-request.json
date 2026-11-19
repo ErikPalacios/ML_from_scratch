@@ -63,7 +63,7 @@
         "taller": "RustFS 1.0.4 en <code>localhost:9950</code>: el mismo bucket y las mismas rutas"
       }
     ],
-    "hoja": "https://cheat-sheets-ml.vercel.app/recorrido/#est-request"
+    "hoja": "https://hojas.trueml.app/recorrido/#est-request"
   },
   "precalculos": {
     "intro": "Antes de escribir, las cuentas de servilleta: cuánto pesa el log y cuánto cuesta, cuánto mide la misma request en cada reloj, cuántas series deja el gateway (y cuántas con un id por request), cuántas muestras guarda Prometheus, qué tasa sale con un reinicio, cuántas lentas tienen exemplar, cuánto aguanta el buffer si S3 se cae, cuántas filas sobran sin quitar repetidos y qué pasa cuando contesta el ALB. Cada cuenta va en las dos escalas: C01 y el dojo.",

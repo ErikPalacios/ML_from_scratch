@@ -1,7 +1,7 @@
 {
   "nota": "Todo lo de la portada sale de aquí. Agregar una herramienta = una entrada en apps con sus etapas (ids de apps/trueml/etapas.json o \"todas\"). El avance del Dojo lo genera apps/trueml/sync.mjs en data/dojo.json.",
   "name": "TrueML",
-  "url": "https://ml-desde-cero.vercel.app",
+  "url": "https://trueml.app",
   "tagline": "Herramientas gratuitas para aprender y practicar ML engineering: un curso de teoría y un dojo de práctica, sin cuenta, sin conexión, en español.",
   "description": "Sensei, el curso de teoría de ML engineering desde cero, y el Dojo, para practicar cada etapa del dato a producción. Además, un curso de ML System Design, hojas de estudio, un atlas de arquitecturas y un transformer paso a paso. En español, gratis y sin cuenta.",
   "author": "Erik Palacios",
@@ -22,7 +22,7 @@
       "tag": "Empieza aquí · teoría",
       "title": "Sensei de entrenamiento ML engineer's",
       "text": "El curso de teoría de TrueML: ML engineering desde cero, para entenderlo de verdad. Diagramas, calculadoras para jugar con los números, ejercicios con solución y un glosario que se abre sin salir de la página.",
-      "url": "https://sensei-ml.vercel.app",
+      "url": "https://sensei.trueml.app",
       "cta": "Entrar con el Sensei",
       "etapas": "todas",
       "avance": "sensei"
@@ -32,7 +32,7 @@
       "tag": "Empieza aquí · práctica",
       "title": "Dojo de entrenamiento ML engineer's",
       "text": "Es un curso que se basa en entrenar cada paso del diseño de un sistema de ML, desde el dato hasta el monitoreo en producción. Cada estación es un mini-proyecto que construyes con Claude Code, rehaces solo y arreglas cuando se rompe.",
-      "url": "https://taller-ai-engineer.vercel.app",
+      "url": "https://dojo.trueml.app",
       "cta": "Entrar al dojo",
       "etapas": "todas",
       "avance": "dojo"
@@ -44,7 +44,7 @@
       "tag": "Entrevistas",
       "title": "Ronda de Diseño ML",
       "text": "Curso y simulador de ML System Design: lo que rodea al modelo en producción (serving, datos, evaluación, monitoreo, costo), con casos resueltos, práctica cronometrada de 45 minutos, rúbrica y flashcards.",
-      "url": "https://ronda-diseno-ml.vercel.app",
+      "url": "https://ronda.trueml.app",
       "cta": "Abrir el curso",
       "etapas": "todas",
       "num": "01"
@@ -54,7 +54,7 @@
       "tag": "Hojas de estudio",
       "title": "Cheat sheets ML",
       "text": "Nueve hojas con PDF y versión web: estimaciones, Docker (con laboratorio completo), Kubernetes, Git y Actions, Triton, FastAPI, Prometheus, vLLM y el recorrido «Del dato a producción». Con diagnosticadores y revisores que corren en tu navegador.",
-      "url": "https://cheat-sheets-ml.vercel.app",
+      "url": "https://hojas.trueml.app",
       "cta": "Ver las hojas",
       "etapas": [
         "api",
@@ -69,7 +69,7 @@
       "tag": "Arquitecturas",
       "title": "Atlas de Arquitecturas",
       "text": "Los modelos que preguntan en entrevistas, a nivel 2: diagrama de bloques, matemáticas, dimensiones, parámetros y FLOPs con la cuenta a la vista (ViT, CLIP, DETR, SAM, LLMs, difusión, VLA, PPO).",
-      "url": "https://atlas-arquitecturas.vercel.app",
+      "url": "https://atlas.trueml.app",
       "cta": "Explorar el atlas",
       "etapas": [
         "modelo"
@@ -81,7 +81,7 @@
       "tag": "Laboratorio",
       "title": "Laboratorio Transformer",
       "text": "El entrenamiento completo de un transformer pequeño, operación por operación: forward, pérdida, backward y actualización, con cada matriz, su fórmula y sus dimensiones. Se calcula en tu navegador.",
-      "url": "https://laboratorio-transformer.vercel.app",
+      "url": "https://transformer.trueml.app",
       "cta": "Abrir el laboratorio",
       "etapas": [
         "datos",
@@ -94,7 +94,7 @@
       "tag": "Demo en vivo",
       "title": "Tablero de proyectos ML",
       "text": "Un mapa de metro por proyecto, del dato al monitoreo, con criterios de entrada y cálculos que se verifican. Prueba la demo (en inglés) con un proyecto de ejemplo: lo que edites se queda en tu navegador.",
-      "url": "https://tablero-ml-demo.vercel.app",
+      "url": "https://tablero.trueml.app",
       "cta": "Probar la demo",
       "etapas": "todas",
       "num": "05"

@@ -5,7 +5,7 @@ import { C, MONO } from '../tema';
 import { Fondo, useEntrada, Ventana } from '../piezas';
 import { App, Aurora, Chip, Cierre, clamp, Gancho, Linea, Reel, useSalida, VIVOS } from './kit';
 
-const URL = 'atlas-arquitecturas.vercel.app/#vit';
+const URL = 'atlas.trueml.app/#vit';
 const LILA = '#A08FFF';
 
 // El gancho y el diagrama son una sola escena: la ventana sigue corriendo y solo cambia el título.

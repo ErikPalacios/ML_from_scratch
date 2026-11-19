@@ -26,7 +26,7 @@ No hace falta entorno virtual: `verificar.py` y `romper.py` solo usan Python y e
 | `mundo/` | El reinicio, el registro de modelos del mundo y el esqueleto. No se toca. |
 | `GUION.md` / `OBJETIVOS.md` | El paso a paso de la ronda Guiado y solo los objetivos para la ronda Solo. |
 | `CLAUDE.md` | Las reglas para Claude Code en este proyecto. |
-| `BITACORA.md`, `taller/progreso.json` | Tu registro. `verificar.py` y `romper.py` anotan solos en `progreso.json` (con `taller/registro.py`); impórtalo en «Tu tablero» del Dojo: https://taller-ai-engineer.vercel.app/tablero/ |
+| `BITACORA.md`, `taller/progreso.json` | Tu registro. `verificar.py` y `romper.py` anotan solos en `progreso.json` (con `taller/registro.py`); impórtalo en «Tu tablero» del Dojo: https://dojo.trueml.app/tablero/ |
 
 ## Puertos
 

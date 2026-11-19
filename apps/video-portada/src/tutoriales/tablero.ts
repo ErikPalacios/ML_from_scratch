@@ -2,7 +2,7 @@
 import { C } from '../tema';
 import type { Guion } from './tiempo';
 
-const U = 'tablero-ml-demo.vercel.app';
+const U = 'tablero.trueml.app';
 const P = U + '/#/p/sample';
 
 export const TABLERO: Guion = {

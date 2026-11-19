@@ -26,7 +26,7 @@ const argVal = (k) => { const i = ARGS.indexOf(k); return i >= 0 ? ARGS[i + 1] :
 const MODE = ARGS.find((a, i) => !a.startsWith('--') && ARGS[i - 1] !== '--content') || 'build';
 const CONTENT = resolve(argVal('--content') || HERE);
 const CHROME = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-const COURSE_URL = 'https://ronda-diseno-ml.vercel.app/';
+const COURSE_URL = 'https://ronda.trueml.app/';
 
 // ---------------------------------------------------------------- contenido
 const PROBLEMS = [];

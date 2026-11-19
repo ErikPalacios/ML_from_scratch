@@ -1435,7 +1435,7 @@
   // ───────────────────────────────────────────────────────────── video de muestra (30 s, <dialog> nativo)
   // El video vive junto a la página (video/ en dist). Donde no está (la copia del laboratorio dentro del
   // Atlas, el artefacto), se usa el del sitio publicado.
-  const VIDEO_URL = 'https://laboratorio-transformer.vercel.app/video/';
+  const VIDEO_URL = 'https://transformer.trueml.app/video/';
   function initVideo() {
     const dlg = $('video-dlg');
     const v = $('vdlg-video');

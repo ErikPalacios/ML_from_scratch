@@ -5,6 +5,35 @@
   "buildCommand": "node tools/build.mjs",
   "outputDirectory": "dist",
   "trailingSlash": false,
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "tablero-ml-demo.vercel.app"
+        },
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(bot|Bot|BOT|crawler|Crawler|spider|Spider|facebookexternalhit|WhatsApp|Slurp|Google-InspectionTool|embedly|Embedly|Iframely|vkShare).*"
+        }
+      ],
+      "destination": "https://tablero.trueml.app/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/((?!mudanza\\.html$|mudanza\\.js$|sw\\.js$).*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "tablero-ml-demo.vercel.app"
+        }
+      ],
+      "destination": "/mudanza.html?a=/$1",
+      "permanent": false
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",

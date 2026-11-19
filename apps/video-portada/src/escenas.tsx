@@ -47,7 +47,7 @@ export const Transformer: React.FC = () => {
     <AbsoluteFill>
       <Fondo tinte={C.o} tinte2={C.b} />
       <AbsoluteFill style={{ opacity: salida(f, d) }}>
-        <Ventana url="laboratorio-transformer.vercel.app" ancho={V ? 980 : 1140} x={V ? 50 : 650} y={V ? 860 : 180} desde={4} giro={V ? [-7, -2] : [-12, -4]} color={C.o}
+        <Ventana url="transformer.trueml.app" ancho={V ? 980 : 1140} x={V ? 50 : 650} y={V ? 860 : 180} desde={4} giro={V ? [-7, -2] : [-12, -4]} color={C.o}
           clips={[
             { src: 'transformer', desde: 1.6, vel: 1.15, dur: 220, cam: [{ f: 0, z: 1.0, x: 0.5, y: 0.5 }, { f: 70, z: 1.32, x: 0.42, y: 0.42 }, { f: 220, z: 1.42, x: 0.5, y: 0.5 }] },
             { src: 'transformer-entrena', desde: 1.0, vel: 1.4, dur: 170, cam: [{ f: 0, z: 1.5, x: 0.18, y: 0.52 }, { f: 170, z: 1.3, x: 0.3, y: 0.55 }] },
@@ -80,9 +80,9 @@ export const Atlas: React.FC = () => {
     <AbsoluteFill>
       <Fondo tinte={C.p} tinte2={C.o} />
       <AbsoluteFill style={{ opacity: salida(f, d) }}>
-        <Ventana url="atlas-arquitecturas.vercel.app/#vit" ancho={V ? 960 : 1080} x={V ? 30 : 70} y={V ? 800 : 110} desde={2} giro={V ? [7, 3] : [14, 6]} color={C.p}
+        <Ventana url="atlas.trueml.app/#vit" ancho={V ? 960 : 1080} x={V ? 30 : 70} y={V ? 800 : 110} desde={2} giro={V ? [7, 3] : [14, 6]} color={C.p}
           clips={[{ src: 'atlas-diagrama', desde: 0.5, vel: 1.25, dur: 330, cam: [{ f: 0, z: 1.15, x: 0.58, y: 0.3 }, { f: 150, z: 1.55, x: 0.6, y: 0.36 }, { f: 330, z: 1.35, x: 0.6, y: 0.55 }] }]} />
-        <Ventana url="atlas-arquitecturas.vercel.app/#vit" ancho={V ? 640 : 720} x={V ? 400 : 560} y={V ? 1230 : 600} desde={110} giro={V ? [6, 2] : [10, 3]} color={C.y} z={2}
+        <Ventana url="atlas.trueml.app/#vit" ancho={V ? 640 : 720} x={V ? 400 : 560} y={V ? 1230 : 600} desde={110} giro={V ? [6, 2] : [10, 3]} color={C.y} z={2}
           clips={[{ src: 'atlas-parches', desde: 0.4, vel: 1.3, dur: 230, cam: [{ f: 0, z: 1.75, x: 0.42, y: 0.3 }, { f: 230, z: 1.6, x: 0.45, y: 0.32 }] }]} />
         <Texto x={V ? 70 : 1280} y={V ? 230 : 170} ancho={V ? 940 : 560} kicker="Atlas de Arquitecturas" color={C.p} desde={12} tam={V ? 80 : 66}
           titulo="Los modelos que preguntan en entrevistas." resaltar={['entrevistas.']}
@@ -135,7 +135,7 @@ export const Sensei: React.FC = () => {
     <AbsoluteFill>
       <Fondo tinte={C.y} tinte2={C.b} />
       <AbsoluteFill style={{ opacity: salida(f, d) }}>
-        <Ventana url="sensei-ml.vercel.app/llms/" ancho={V ? 980 : 1140} x={V ? 50 : 720} y={V ? 1010 : 160} desde={4} giro={V ? [-7, -2] : [-15, -5]} color={C.yt}
+        <Ventana url="sensei.trueml.app/llms/" ancho={V ? 980 : 1140} x={V ? 50 : 720} y={V ? 1010 : 160} desde={4} giro={V ? [-7, -2] : [-15, -5]} color={C.yt}
           clips={[
             { src: 'sensei-tokens', desde: 0.2, vel: 1.0, dur: 130, cam: [{ f: 0, z: 1.25, x: 0.5, y: 0.4 }, { f: 130, z: 1.55, x: 0.5, y: 0.5 }] },
             { src: 'sensei-calc', desde: 1.0, vel: 1.5, dur: 170, cam: [{ f: 0, z: 1.3, x: 0.47, y: 0.42 }, { f: 170, z: 1.45, x: 0.47, y: 0.5 }] },
@@ -165,7 +165,7 @@ export const Dojo: React.FC = () => {
     <AbsoluteFill>
       <Fondo tinte={C.g} tinte2={C.p} />
       <AbsoluteFill style={{ opacity: salida(f, d) }}>
-        <Ventana url="taller-ai-engineer.vercel.app" ancho={V ? 980 : 1120} x={V ? 50 : 70} y={V ? 960 : 170} desde={4} giro={V ? [7, 2] : [15, 5]} color={C.g}
+        <Ventana url="dojo.trueml.app" ancho={V ? 980 : 1120} x={V ? 50 : 70} y={V ? 960 : 170} desde={4} giro={V ? [7, 2] : [15, 5]} color={C.g}
           clips={[
             { src: 'dojo-inicio', desde: 0.2, vel: 1.0, dur: 300, cam: [{ f: 0, z: 1.15, x: 0.35, y: 0.4 }, { f: 100, z: 1.2, x: 0.5, y: 0.5 }, { f: 300, z: 1.4, x: 0.5, y: 0.55 }] },
             // solo el principio de la estación (antes de que baje a las tablas)
@@ -198,9 +198,9 @@ export const Ademas: React.FC = () => {
   const { durationInFrames: d } = useVideoConfig();
   const V = useVertical();
   const items = [
-    { src: 'ronda', desde: 0.9, vel: 1.0, url: 'ronda-diseno-ml.vercel.app', titulo: 'Ronda de Diseño ML', texto: 'Simulador de entrevistas de ML System Design, con 45 minutos en el reloj', color: C.b, cam: [{ f: 0, z: 1.25, x: 0.75, y: 0.3 }, { f: 250, z: 1.45, x: 0.8, y: 0.25 }] },
-    { src: 'hojas', desde: 2.6, vel: 0.9, url: 'cheat-sheets-ml.vercel.app/docker/', titulo: 'Cheat sheets', texto: 'Nueve hojas de estudio, en la web y en PDF', color: C.y, cam: [{ f: 0, z: 1.2, x: 0.45, y: 0.4 }, { f: 250, z: 1.4, x: 0.45, y: 0.35 }] },
-    { src: 'tablero', desde: 1.2, vel: 1.0, url: 'tablero-ml-demo.vercel.app', titulo: 'Tablero de proyectos', texto: 'Tu proyecto como un mapa de metro, del dato al monitoreo', color: C.p, cam: [{ f: 0, z: 1.2, x: 0.5, y: 0.5 }, { f: 250, z: 1.35, x: 0.5, y: 0.6 }] },
+    { src: 'ronda', desde: 0.9, vel: 1.0, url: 'ronda.trueml.app', titulo: 'Ronda de Diseño ML', texto: 'Simulador de entrevistas de ML System Design, con 45 minutos en el reloj', color: C.b, cam: [{ f: 0, z: 1.25, x: 0.75, y: 0.3 }, { f: 250, z: 1.45, x: 0.8, y: 0.25 }] },
+    { src: 'hojas', desde: 2.6, vel: 0.9, url: 'hojas.trueml.app/docker/', titulo: 'Cheat sheets', texto: 'Nueve hojas de estudio, en la web y en PDF', color: C.y, cam: [{ f: 0, z: 1.2, x: 0.45, y: 0.4 }, { f: 250, z: 1.4, x: 0.45, y: 0.35 }] },
+    { src: 'tablero', desde: 1.2, vel: 1.0, url: 'tablero.trueml.app', titulo: 'Tablero de proyectos', texto: 'Tu proyecto como un mapa de metro, del dato al monitoreo', color: C.p, cam: [{ f: 0, z: 1.2, x: 0.5, y: 0.5 }, { f: 250, z: 1.35, x: 0.5, y: 0.6 }] },
   ];
   const empuje = interpolate(f, [0, d], [1, 1.05]);
   return (
@@ -269,7 +269,7 @@ export const Cierre: React.FC = () => {
           <div style={{ marginTop: 40, display: 'flex', gap: 18, justifyContent: V ? 'center' : 'flex-start' }}>
             {['Gratis', 'Sin cuenta', 'En español'].map((g, i) => <Garantia key={g} texto={g} i={i} />)}
           </div>
-          <div style={{ marginTop: 54, font: `600 ${V ? 34 : 30}px/1 ${MONO}`, color: C.acc, opacity: eu }}>ml-desde-cero.vercel.app</div>
+          <div style={{ marginTop: 54, font: `600 ${V ? 34 : 30}px/1 ${MONO}`, color: C.acc, opacity: eu }}>trueml.app</div>
         </div>
       </AbsoluteFill>
     </AbsoluteFill>
