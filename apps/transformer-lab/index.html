@@ -66,6 +66,10 @@
         <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="5.6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 2.4a5.6 5.6 0 0 1 0 11.2z" fill="currentColor"/></svg>
         <span id="btn-theme-label">Sistema</span>
       </button>
+      <button class="btn btn--sm btn--primary btn-video" type="button" id="btn-video" aria-haspopup="dialog" aria-controls="video-dlg">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="currentColor"><path d="M5 3.2v9.6L12.6 8z"/></svg>
+        <span>Míralo<span class="btn-video__long"> en 30&nbsp;s</span></span>
+      </button>
       <button class="btn btn--sm" type="button" id="btn-guide">
         <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M2.5 3.5h3.8A1.7 1.7 0 0 1 8 5.2v8a1.4 1.4 0 0 0-1.4-1.4H2.5zM13.5 3.5H9.7A1.7 1.7 0 0 0 8 5.2v8a1.4 1.4 0 0 1 1.4-1.4h4.1z"/></svg>
         Guía
@@ -82,6 +86,7 @@
     <p class="welcome__text"><b>Una iteración real de entrenamiento, operación por operación.</b>
       Recórrela con <span class="kbd">←</span> <span class="kbd">→</span> o con la línea de tiempo de abajo, o pulsa ▶ (<span class="kbd">Espacio</span>) para verla animada; pasa el cursor por las matrices para ver cada cuenta.</p>
     <div class="welcome__actions">
+      <button class="btn btn--sm btn--primary" type="button" id="welcome-video" aria-haspopup="dialog" aria-controls="video-dlg">▶ Míralo en 30 s</button>
       <button class="btn btn--sm" type="button" id="welcome-guide">Abrir la guía</button>
       <button class="btn btn--sm btn--ghost btn--icon" type="button" id="welcome-close" aria-label="Cerrar el aviso de bienvenida">
         <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>
@@ -491,6 +496,27 @@
     </div>
   </div>
 </footer>
+
+<!-- ============================ VIDEO DE MUESTRA (30 s) ============================ -->
+<dialog class="vdlg" id="video-dlg" aria-labelledby="vdlg-title" aria-describedby="vdlg-note">
+  <div class="vdlg__box">
+    <header class="vdlg__head">
+      <div class="vdlg__titles">
+        <div class="eyebrow vdlg__kicker">En 30 segundos</div>
+        <h2 class="vdlg__title" id="vdlg-title">Mira entrenar un transformer</h2>
+        <p class="vdlg__note" id="vdlg-note">Un recorrido corto por el laboratorio: un paso de entrenamiento operación por operación y luego cien pasos seguidos. Lleva subtítulos, así que no necesitas sonido.</p>
+      </div>
+      <button class="btn btn--icon btn--ghost" type="button" id="vdlg-close" aria-label="Cerrar el video">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+      </button>
+    </header>
+    <div class="vdlg__frame">
+      <video id="vdlg-video" controls preload="none" playsinline poster="public/video/como-se-usa.jpg" width="1920" height="1080">
+        <source src="public/video/como-se-usa.mp4" type="video/mp4">
+      </video>
+    </div>
+  </div>
+</dialog>
 
 <!-- ============================ DIÁLOGO (guía, derivaciones) ============================ -->
 <div class="modal" id="modal" hidden>

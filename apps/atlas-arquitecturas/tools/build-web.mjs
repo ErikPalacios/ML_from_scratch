@@ -6,10 +6,11 @@
 //   lab/index.html  = vendor/lab/index.html (copia commiteada del Laboratorio Transformer), si existe
 //   sw.js           = web/sw.js con el hash del build y la lista de archivos a precargar
 //   manifest, íconos = copiados de web/
+//   video/          = web/video/ (el video de muestra del inicio; fuera de la precarga del service worker)
 // Requiere haber corrido antes build.mjs (npm run build:web hace las dos cosas).
 // --require-lab (lo usa build:vercel): falla si falta vendor/lab/index.html en vez de solo avisar.
 // No depende de ningún archivo que empiece con punto (Vercel no los sube).
-import { readFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync, rmSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, copyFileSync, cpSync, existsSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
@@ -94,6 +95,10 @@ for (const f of ['manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.p
   if (!existsSync(join(WEB, f))) { console.error('[build-web] ERROR: falta web/' + f); process.exit(1); }
   copyFileSync(join(WEB, f), join(OUT, f));
 }
+// El video de muestra del inicio (web/video/): se copia tal cual. No entra en la precarga del service
+// worker, que además deja pasar las peticiones de video/*.mp4 directo a la red.
+if (existsSync(join(WEB, 'video'))) cpSync(join(WEB, 'video'), join(OUT, 'video'), { recursive: true });
+else console.warn('[build-web] AVISO: no existe web/video/: el video del inicio no se verá en la web.');
 if (hasLab) {
   mkdirSync(join(OUT, 'lab'), { recursive: true });
   copyFileSync(LAB, join(OUT, 'lab', 'index.html'));

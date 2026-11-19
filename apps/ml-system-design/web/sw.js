@@ -48,6 +48,8 @@ self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
+  // el video no se guarda ni se toca: el navegador lo pide por rangos (206) directo a la red
+  if (url.origin === self.location.origin && url.pathname.startsWith('/video/') && url.pathname.endsWith('.mp4')) return;
   if (req.mode === 'navigate' && url.origin === self.location.origin) { event.respondWith(navigate(req)); return; }
   if (url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com') { event.respondWith(font(req)); return; }
   if (url.origin === self.location.origin) {

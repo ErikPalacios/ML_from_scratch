@@ -1018,10 +1018,31 @@
         h('p', { class: 'eyebrow' }, 'Panel de estudio'),
         h('h1', { class: 'phead__title', id: 'page-title', tabindex: '-1' }, APP_NAME),
         h('p', { class: 'phead__summary', html: summary }),
-        h('p', { class: 'home-hero__note' }, 'De las seis etapas de la T de TrueML, el atlas cubre ', h('b', null, 'Modelo'), ': la arquitectura, sus fórmulas y la forma de cada tensor.')),
+        h('p', { class: 'home-hero__note' }, 'De las seis etapas de la T de TrueML, el atlas cubre ', h('b', null, 'Modelo'), ': la arquitectura, sus fórmulas y la forma de cada tensor.'),
+        h('div', { class: 'home-hero__actions' },
+          h('button', { class: 'btn btn--sm', type: 'button', 'aria-controls': 'home-video', on: { click: () => {
+            const sec = document.getElementById('home-video');
+            if (!sec) return;
+            sec.scrollIntoView({ block: 'start', behavior: reduced() ? 'auto' : 'smooth' });
+            const v = sec.querySelector('video');
+            if (v) v.focus({ preventScroll: true });
+          } } }, '▶ Míralo en 30 s'))),
       scene));
     const tEl = scene.querySelector('.home-t__mark');
     if (root.TrueMLMark) { root.TrueMLMark.sync(tEl, ['modelo']); if (root.TrueMLMark.play) root.TrueMLMark.play(tEl); }
+
+    // Una muestra de 30 s, justo después del encabezado. En la web el video está junto a la página
+    // (web/video/ → dist/web/video/); con doble clic o en el artefacto se usa el del sitio publicado.
+    const env = root.ATLAS_ENV || 'dev';
+    const vbase = env === 'web' ? 'video/' : env === 'dev' ? 'web/video/' : 'https://atlas-arquitecturas.vercel.app/video/';
+    c.appendChild(h('section', { class: 'drow home-video', id: 'home-video', 'aria-labelledby': 'home-video-title' },
+      h('p', { class: 'drow__label' }, 'Una muestra', h('small', null, 'en 30 segundos')),
+      h('div', { class: 'drow__body' },
+        h('h2', { class: 'home-video__title', id: 'home-video-title' }, 'Las arquitecturas, por dentro'),
+        h('p', { class: 'home-video__note' }, 'Recorres el diagrama del ViT bloque por bloque y mueves sus números para ver cómo cambian los tokens y el costo. Lleva subtítulos, así que no necesitas sonido.'),
+        h('div', { class: 'home-video__frame' },
+          h('video', { controls: true, preload: 'none', playsinline: true, poster: vbase + 'como-se-usa.jpg', width: '1920', height: '1080', 'aria-label': 'Video: Las arquitecturas, por dentro (34 segundos, con subtítulos)' },
+            h('source', { src: vbase + 'como-se-usa.mp4', type: 'video/mp4' }))))));
 
     const row = (k, small, ...body) => h('section', { class: 'drow', 'aria-label': k },
       h('h2', { class: 'drow__label' }, k, small ? h('small', null, small) : null), h('div', { class: 'drow__body' }, body));

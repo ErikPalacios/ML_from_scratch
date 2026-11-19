@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Arma el sitio en dist/ (lo que sube a Vercel). Sin dependencias: corre igual en tu Mac y en Vercel.
-//   index.html            inicio: el camino, tu avance, la ruta TrueML y el temario
+//   index.html            inicio: el video «Cómo se usa», tu avance, el camino y el temario
 //   <leccion>/index.html  una página por cada content/lecciones/<id>.md que exista
 //   glosario/index.html   todos los conceptos, con buscador
 //   repaso/index.html     tarjetas del glosario con repetición espaciada (Leitner, 5 cajas); sus datos en
@@ -320,6 +320,22 @@ function paginaLeccion(l) {
 }
 
 // ================================================================ inicio
+// El video «Cómo se usa»: los archivos viven en site/video/ y el texto en sitio.json (video). Los capítulos son botones;
+// app.js los conecta con el video. Sin JavaScript, el video se ve igual con sus controles.
+const VIDEO = SITIO.video && existsSync(join(ROOT, 'site', 'video', 'como-se-usa.mp4')) ? SITIO.video : null;
+const mmss = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+function seccionVideo() {
+  if (!VIDEO) return '';
+  const caps = (VIDEO.capitulos || []).map((c) => `<li><button type="button" class="vcap" data-vcap="${c.s}"><span class="vcap__t">${mmss(c.s)}</span><span>${esc(c.t)}</span></button></li>`).join('');
+  return `<section class="home-sec" id="como-se-usa" aria-labelledby="h-video">
+  <div class="eyebrow">${esc(VIDEO.kicker)}</div>
+  <h2 id="h-video">${esc(VIDEO.titulo)}</h2>
+  <p>${esc(VIDEO.texto)}</p>
+  <div class="vid"><video controls preload="none" playsinline poster="/video/como-se-usa.jpg" width="1920" height="1080" data-video><source src="/video/como-se-usa.mp4" type="video/mp4">Tu navegador no puede mostrar el video. <a href="/video/como-se-usa.mp4">Descárgalo aquí</a>.</video></div>
+  ${caps ? `<nav class="vcaps" aria-label="Partes del video"><ol>${caps}</ol></nav>` : ''}
+</section>`;
+}
+
 function portada() {
   const primera = LISTAS[0];
   const usados = new Set();   // las palabras del glosario que trae el diagrama del camino
@@ -340,10 +356,11 @@ function portada() {
     <h1>${esc(SITIO.nombre)}</h1>
     <p class="titular">${esc(SITIO.titular)}</p>
     <p class="lead">${esc(SITIO.lead)}</p>
-    <div class="btns"><a class="btn" href="${primera.url}" data-seguir>Empezar: ${esc(primera.titulo)}</a><a class="btn btn--2" href="#temario">Ver el temario</a></div>
+    <div class="btns"><a class="btn" href="${primera.url}" data-seguir>Empezar: ${esc(primera.titulo)}</a><a class="btn btn--2" href="#temario">Ver el temario</a>${VIDEO ? `<a class="btn-video" href="#como-se-usa">▶ ${esc(VIDEO.kicker)} · ${esc(VIDEO.duracion)}</a>` : ''}</div>
   </div>
   <div class="home-t">${marca({ etiquetas: true, maxAltura: '420px', clave: 'p' })}</div>
 </section>
+${seccionVideo()}
 <section class="home-sec" aria-labelledby="h-prog">
   <h2 id="h-prog">Tu avance</h2>
   <div class="prog"><span class="prog__big"><span data-prog-n>0</span> <small>de ${LISTAS.length} leídas</small></span>${strip(ORDEN)}
@@ -560,6 +577,8 @@ for (const [path, html] of Object.entries(pages)) {
   console.log(`[build] ${path}`);
 }
 for (const f of ['app.js', 'repaso.js', 'icon.svg', 'manifest.webmanifest', 'og.png']) if (existsSync(join(ROOT, 'site', f))) copyFileSync(join(ROOT, 'site', f), join(OUT, f));
+// el video de la portada: se copia tal cual y nunca entra a la caché del service worker (ver site/sw.js)
+if (!SOLO && existsSync(join(ROOT, 'site', 'video'))) { mkdirSync(join(OUT, 'video'), { recursive: true }); for (const f of readdirSync(join(ROOT, 'site', 'video'))) if (!f.startsWith('.')) copyFileSync(join(ROOT, 'site', 'video', f), join(OUT, 'video', f)); }
 copyFileSync(join(ROOT, 'vendor', 'ronda', 'diagram.js'), join(OUT, 'diagram.js'));
 for (const f of ['codigo.js', 'piezas.js']) copyFileSync(join(ROOT, 'vendor', 'trueml', f), join(OUT, f));
 const CSS = [join(ROOT, 'vendor', 'trueml', 'tokens.css'), join(ROOT, 'vendor', 'trueml', 'piezas.css'), join(ROOT, 'vendor', 'ronda', 'components.css'), join(ROOT, 'site', 'sensei.css')].map(leer).join('\n');

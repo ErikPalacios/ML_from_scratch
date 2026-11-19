@@ -56,6 +56,7 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
   if (url.hostname === 'cdnjs.cloudflare.com' && req.destination === 'script') { event.respondWith(swr(req, CDN)); return; }
   if (url.origin !== self.location.origin) return; // enlaces externos del contenido: directo a la red
+  if (url.pathname.startsWith('/video/') && url.pathname.endsWith('.mp4')) return; // el video no se guarda ni se toca: el navegador lo pide por rangos (206) a la red
   if (url.pathname.endsWith('.pdf')) { event.respondWith(networkFirst(req, 0)); return; } // sin tope: pesan MB
   if (req.mode === 'navigate') { event.respondWith(networkFirst(req, NAV_TIMEOUT_MS)); return; }
   // íconos y manifest: de la caché si están; si no, de la red

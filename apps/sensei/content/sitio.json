@@ -10,6 +10,47 @@
   "titular": "ML engineering desde cero, para entenderlo de verdad.",
   "lead": "Cada concepto que hace falta para llevar un modelo de AI o ML a producción, desde lo más básico: qué es, por qué existe y cómo se calcula. Con diagramas, figuras, calculadoras para jugar con los números, ejercicios con solución y una misma empresa de principio a fin: Alba, un marketplace que sugiere la categoría de cada foto.",
   "descripcion": "El curso de teoría de TrueML: ML engineering desde cero, del dato a producción, con diagramas, calculadoras interactivas y ejercicios con solución. En español, gratis y sin cuenta.",
+  "video": {
+    "nota": "El video «Cómo se usa» de la portada: vive en site/video/. «capitulos» son los segundos donde empieza cada parte.",
+    "kicker": "Cómo se usa",
+    "titulo": "Sensei en dos minutos y medio",
+    "texto": "Un recorrido por la portada, una lección, las palabras subrayadas, las calculadoras, los ejercicios, el buscador y las tarjetas de repaso. Tiene subtítulos, así que no hace falta el sonido.",
+    "duracion": "2 min",
+    "capitulos": [
+      {
+        "s": 5.0,
+        "t": "Empieza en la portada"
+      },
+      {
+        "s": 28.4,
+        "t": "Mira el camino de un modelo"
+      },
+      {
+        "s": 46.5,
+        "t": "Abre una lección"
+      },
+      {
+        "s": 66.0,
+        "t": "Toca las palabras subrayadas"
+      },
+      {
+        "s": 78.0,
+        "t": "Juega con la calculadora"
+      },
+      {
+        "s": 94.3,
+        "t": "Practica y marca tu avance"
+      },
+      {
+        "s": 113.3,
+        "t": "Busca cualquier concepto"
+      },
+      {
+        "s": 123.7,
+        "t": "Repasa con tarjetas"
+      }
+    ]
+  },
   "como": [
     {
       "t": "Lee lo esencial",

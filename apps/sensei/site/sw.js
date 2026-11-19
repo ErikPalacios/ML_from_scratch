@@ -1,6 +1,7 @@
 /* Service worker de Sensei: la portada, las lecciones y el glosario abren sin conexión después de la primera visita.
    tools/build.mjs reemplaza __BUILD__ por el hash del contenido y __PAGES__ por la lista de archivos: cada deploy
-   nuevo instala un service worker nuevo, guarda lo nuevo y borra la caché anterior. */
+   nuevo instala un service worker nuevo, guarda lo nuevo y borra la caché anterior.
+   El video de la portada (/video/) no pasa por aquí ni se guarda: el navegador lo pide siempre a la red. */
 'use strict';
 const BUILD = '__BUILD__';
 const CACHE = 'sensei-' + BUILD;
@@ -40,6 +41,8 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
+  // el video va siempre directo a la red: guardado en caché se rompen las peticiones por partes (Range) y pesa demasiado
+  if (url.pathname.startsWith('/video/') || url.pathname.endsWith('.mp4')) return;
   if (req.mode === 'navigate') { event.respondWith(networkFirst(req)); return; }
   // solo en la caché de Sensei: si el mismo origen tuvo otra app (localhost), sus archivos no se cuelan
   event.respondWith(caches.open(CACHE).then((c) => c.match(req, { ignoreSearch: true })).then((hit) => hit || fetch(req)));

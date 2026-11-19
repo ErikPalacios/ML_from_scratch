@@ -6,6 +6,7 @@
 //                                  caso del tronco (c01) o una rama de content/ramas.json (ia-privada): tools/lineas.mjs
 //   kits/<linea>-<estacion>.zip    el kit listo para usar: esqueleto en pipeline/, config.yaml, GUION.md y OBJETIVOS.md
 //   tablero/index.html            «Tu tablero»: tu avance por estación, en este navegador (tools/tablero.mjs, site/tablero/)
+//   video/como-se-usa.mp4 y .jpg  el video «Cómo se usa» de la portada y su póster (site/video/, fuera de la caché)
 //   sw.js, dojo.css, app.js…      modo sin conexión y estilos (todas las páginas usan el diseño Dojo de TrueML: tools/dojo.mjs)
 import { readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync, statSync, copyFileSync, existsSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
@@ -217,6 +218,9 @@ const MODULOS = ['modelo.mjs', 'almacen.mjs', 'tablero.mjs', 'motor/ops.mjs', 'm
 for (const m of MODULOS) copyFileSync(join(ROOT, 'site', 'tablero', m), join(OUT, 'tablero', m));
 console.log('[build] /tablero/');
 for (const f of ['app.js', 'icon.svg', 'manifest.webmanifest', 'og.png']) copyFileSync(join(ROOT, 'site', f), join(OUT, f));
+// el video «Cómo se usa» de la portada y su póster: van tal cual y nunca entran a la caché del service worker
+mkdirSync(join(OUT, 'video'), { recursive: true });
+for (const f of ['como-se-usa.mp4', 'como-se-usa.jpg']) copyFileSync(join(ROOT, 'site', 'video', f), join(OUT, 'video', f));
 // codigo.js (bloques de código y su botón de copiar) y piezas.js (volver a TrueML, tanque de avance, notas): del sistema compartido
 for (const f of ['codigo.js', 'piezas.js']) copyFileSync(join(ROOT, 'vendor', 'trueml', f), join(OUT, f));
 // dojo.css = los tokens y las piezas de TrueML (vendor/trueml/tokens.css y piezas.css, del sistema compartido) + los componentes del Dojo

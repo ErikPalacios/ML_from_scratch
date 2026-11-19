@@ -124,6 +124,26 @@
     metro.addEventListener('focusout', function () { resaltar(null); });
   }
 
+  // El video «Cómo se usa» de la portada: un capítulo lleva el video a su segundo y lo reproduce; el que se está
+  // viendo queda marcado (aria-current) mientras avanza.
+  [].forEach.call(document.querySelectorAll('[data-video]'), function (box) {
+    var v = box.querySelector('video'), caps = [].slice.call(box.querySelectorAll('[data-t]'));
+    if (!v || !caps.length) return;
+    function marcar() {
+      var actual = null;
+      caps.forEach(function (b) { if (v.currentTime + 0.05 >= parseFloat(b.getAttribute('data-t'))) actual = b; });
+      caps.forEach(function (b) { if (b === actual) b.setAttribute('aria-current', 'true'); else b.removeAttribute('aria-current'); });
+    }
+    function ir(t) {
+      if (v.readyState >= 1) v.currentTime = t;
+      else v.addEventListener('loadedmetadata', function uno() { v.removeEventListener('loadedmetadata', uno); v.currentTime = t; marcar(); });
+      var p = v.play(); if (p && p.catch) p.catch(function () {});
+    }
+    caps.forEach(function (b) { b.addEventListener('click', function () { ir(parseFloat(b.getAttribute('data-t'))); }); });
+    v.addEventListener('timeupdate', marcar);
+    v.addEventListener('seeked', marcar);
+  });
+
   if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
     window.addEventListener('load', function () { navigator.serviceWorker.register('/sw.js').catch(function () {}); });
   }

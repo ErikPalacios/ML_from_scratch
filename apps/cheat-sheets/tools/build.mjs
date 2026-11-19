@@ -5,6 +5,7 @@
 //   <id>/<pdf>          = el PDF de la hoja
 //   sw.js               = site/sw.js con el hash del build y la lista de páginas (abre sin conexión)
 //   manifest e íconos   = copiados de site/
+//   video/              = la muestra de 30 s de la portada (site/video/como-se-usa.mp4 y su póster); el service worker no la guarda
 // Las páginas de las hojas ya vienen con las fórmulas en MathML: se generan con sheets/<id>/fuentes/.
 // El diseño es el de TrueML: el build pega en cada hoja vendor/trueml/tokens.css y site/trueml-hojas.css (que pasa su
 // paleta a los colores de TrueML), la franja de 6 colores, la barra con la T y la T chica con las etapas de la hoja.
@@ -284,6 +285,11 @@ for (const f of ASSETS) {
   copyFileSync(join(SITE, f), join(OUT, f));
 }
 for (const f of ['piezas.js', 'codigo.js']) copyFileSync(join(ROOT, 'vendor', 'trueml', f), join(OUT, f));
+mkdirSync(join(OUT, 'video'), { recursive: true });
+for (const f of ['como-se-usa.mp4', 'como-se-usa.jpg']) {
+  if (!existsSync(join(SITE, 'video', f))) fail('falta site/video/' + f);
+  copyFileSync(join(SITE, 'video', f), join(OUT, 'video', f));
+}
 console.log(`[build] dist/ listo · build ${build} · ${SHEETS.length} hojas: ${SHEETS.map((s) => s.id).join(', ')}`);
 
 // 4 · robots.txt y sitemap.xml

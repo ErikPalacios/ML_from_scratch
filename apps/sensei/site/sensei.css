@@ -399,6 +399,18 @@ a.card:hover { box-shadow: inset 0 0 0 2px var(--accent); }
 .home-sec { margin-top: 44px; padding-top: 32px; box-shadow: inset 0 1px 0 var(--rule); display: flex; flex-direction: column; gap: 16px; }
 .home-sec > h2 { font: 800 26px/1.2 var(--sans); letter-spacing: -.022em; }
 .home-sec > p { font: 16.5px/1.65 var(--sans); color: var(--ink-2); max-width: 70ch; }
+/* el video «Cómo se usa»: marco 16:9 redondeado, con los capítulos como botones debajo */
+.home-hero .btns .btn-video { align-self: center; padding: 10px 4px; font: 700 15px/1.2 var(--sans); color: var(--accent-ink); text-decoration: none; border-radius: 10px; }
+.home-hero .btns .btn-video:hover { text-decoration: underline; text-underline-offset: 3px; }
+.home-sec > .eyebrow { margin-bottom: -10px; }
+.vid { width: 100%; aspect-ratio: 16 / 9; border-radius: 18px; overflow: hidden; background: #0A0F22; box-shadow: var(--card-sh), 0 24px 48px -32px rgba(14,21,48,.4); }
+.vid video { display: block; width: 100%; height: 100%; object-fit: contain; background: #0A0F22; }
+.vcaps ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); gap: 6px; }
+.vcap { width: 100%; display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 8px; align-items: center; padding: 10px 12px; border: 0; border-radius: 12px; background: var(--blk); color: var(--ink); font: 600 14px/1.35 var(--sans); text-align: left; cursor: pointer; }
+.vcap:hover { box-shadow: inset 0 0 0 1px var(--rule-strong); }
+.vcap__t { font: 700 12.5px/1 var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.vcap[aria-current="true"] { background: var(--accent-soft); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.vcap[aria-current="true"] .vcap__t { color: var(--accent-ink); }
 .prog { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 24px; align-items: center; padding: 18px 20px; border-radius: 18px; background: var(--blk); }
 .prog__big { font: 800 34px/1 var(--sans); letter-spacing: -.02em; }
 .prog__big small { font: 600 14px var(--sans); color: var(--muted); letter-spacing: 0; }

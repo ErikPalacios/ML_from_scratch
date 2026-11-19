@@ -1,6 +1,6 @@
 /* Lo que Sensei hace en el navegador: el tema, el cajón del índice en el celular, el buscador de la barra lateral,
    «En esta página», los diagramas (con el motor de la Ronda, /diagram.js), el globo de las palabras del glosario,
-   marcar lecciones como leídas, la cuenta del repaso y el modo sin conexión (el repaso mismo vive en /repaso.js). Todo se lee sin JavaScript: sin él, cada palabra subrayada
+   marcar lecciones como leídas, la cuenta del repaso, los capítulos del video de la portada y el modo sin conexión (el repaso mismo vive en /repaso.js). Todo se lee sin JavaScript: sin él, cada palabra subrayada
    lleva a su entrada del glosario y cada diagrama se ve como una lista de sus partes. */
 (function () {
   'use strict';
@@ -292,6 +292,28 @@
       var sin = document.querySelector('.c-sin');
       if (sin) sin.hidden = alguno;
     });
+  }
+
+  // ------------------------------------------------------------ el video «Cómo se usa» de la portada: los capítulos
+  // Un capítulo lleva el video a su segundo y lo reproduce; el capítulo que se está viendo queda marcado.
+  var video = document.querySelector('[data-video]');
+  var caps = $$('[data-vcap]');
+  if (video && caps.length) {
+    var marcar = function () {
+      var t = video.currentTime, actual = null;
+      caps.forEach(function (b) { if (t + 0.25 >= Number(b.getAttribute('data-vcap'))) actual = b; });
+      caps.forEach(function (b) { if (b === actual) b.setAttribute('aria-current', 'true'); else b.removeAttribute('aria-current'); });
+    };
+    caps.forEach(function (b) {
+      b.addEventListener('click', function () {
+        var s = Number(b.getAttribute('data-vcap'));
+        var ir = function () { video.currentTime = s; marcar(); var p = video.play(); if (p && p.catch) p.catch(function () {}); };
+        if (video.readyState >= 1) ir();
+        else { video.preload = 'metadata'; video.addEventListener('loadedmetadata', ir, { once: true }); video.load(); }
+      });
+    });
+    video.addEventListener('timeupdate', marcar);
+    video.addEventListener('seeked', marcar);
   }
 
   // ------------------------------------------------------------ sin conexión

@@ -2,8 +2,9 @@
 // Builds dist/: the production board's web/ (apps/tablero-ml/web) + the demo layer in web/ of this app.
 //   - js/demo-boot.js   in-browser «server» with the sample project (window.TABLERO_API, used by sync.js)
 //   - js/demo-banner.js banner + reset button
+//   - js/demo-video.js  «Cómo se usa» section on the home route: tutorial video (video/como-se-usa.mp4) + chapters
 //   - index.html        indexable, with canonical / Open Graph / Twitter tags; the demo scripts are added
-//   - sw.js, robots.txt, sitemap.xml, og.png, vercel.json (same security headers as production, no API)
+//   - sw.js (never touches the .mp4: range requests go straight to the network), robots.txt, sitemap.xml, og.png, vercel.json (same security headers as production, no API)
 // No dependencies. The result is a static site: deploy dist/ (see tools/deploy.mjs).
 import { readdirSync, readFileSync, writeFileSync, mkdirSync, rmSync, statSync, copyFileSync, existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -60,7 +61,7 @@ swap('<meta name="robots" content="noindex, nofollow">', [
   `<meta name="twitter:description" content="${DESC}">`,
   `<meta name="twitter:image" content="${SITE_URL}/og.png">`,
 ].join('\n'));
-swap('<script type="module" src="/js/app.js"></script>', '<script type="module" src="/js/demo-boot.js"></script>\n<script type="module" src="/js/demo-banner.js"></script>\n<script type="module" src="/js/app.js"></script>');
+swap('<script type="module" src="/js/app.js"></script>', '<script type="module" src="/js/demo-boot.js"></script>\n<script type="module" src="/js/demo-banner.js"></script>\n<script type="module" src="/js/demo-video.js"></script>\n<script type="module" src="/js/app.js"></script>');
 writeFileSync(join(DIST, 'index.html'), html);
 
 // banner styles + no logout in the demo
@@ -71,6 +72,27 @@ const css = readFileSync(join(DIST, 'app.css'), 'utf8') + `
 .demo-banner strong { color: var(--ink, #0E1530); }
 .demo-banner p { margin: 0; }
 .demo-banner__links { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; font-weight: 600; }
+/* demo: «Cómo se usa» (js/demo-video.js), outside #app, below the home view */
+.demo-video { margin-top: 28px; scroll-margin-top: 76px; }
+.demo-video__card { display: grid; gap: 14px; }
+.demo-video__head { display: grid; gap: 8px; justify-items: start; }
+.demo-video__head h2 { margin: 4px 0 0; font-size: clamp(22px, 3vw, 28px); letter-spacing: -0.02em; }
+.demo-video__head h2:focus { outline: none; }
+.demo-video__head h2:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.demo-video__head p { margin: 0; }
+.demo-video__lead { color: var(--ink2); max-width: 62ch; text-wrap: pretty; }
+.demo-video__frame { aspect-ratio: 16 / 9; width: 100%; border-radius: 14px; overflow: hidden; background: #0A0F22; box-shadow: 0 0 0 1px var(--rule); }
+.demo-video__frame video { display: block; width: 100%; height: 100%; object-fit: contain; background: #0A0F22; }
+.demo-video__k { margin: 4px 0 0; }
+@media (max-width: 520px) { .demo-video .demo-video__card { padding: 14px; } .demo-video__frame { border-radius: 10px; } }
+.demo-video__chapters { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); }
+.demo-video__chapters button { width: 100%; height: 100%; min-height: 40px; display: flex; align-items: baseline; gap: 6px; text-align: left; padding: 8px 12px; border-radius: 10px;
+  border: 1px solid var(--rule); background: var(--paper); color: var(--ink); font: 600 14.5px/1.3 var(--f-display); cursor: pointer; touch-action: manipulation; }
+.demo-video__chapters button:hover { border-color: var(--accent); }
+.demo-video__chapters button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.demo-video__chapters button[aria-current="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-ink); }
+.demo-video__t { font: 600 13px var(--f-mono); color: var(--muted); font-variant-numeric: tabular-nums; flex: none; }
+.demo-video__chapters button[aria-current="true"] .demo-video__t { color: inherit; }
 `;
 writeFileSync(join(DIST, 'app.css'), css);
 
@@ -79,9 +101,14 @@ const files = walk(DIST).filter((f) => !f.endsWith('sw.js')).map((f) => relative
 const hash = createHash('sha256');
 for (const rel of files) hash.update(rel).update(readFileSync(join(DIST, rel)));
 const build = hash.digest('hex').slice(0, 12);
-const assets = ['/', ...files.map((f) => '/' + f).filter((p) => !['/index.html', '/robots.txt', '/sitemap.xml', '/vercel.json'].includes(p))];
-const sw = readFileSync(join(BOARD, 'sw.js'), 'utf8');
+// the tutorial video is never precached (14 MB) and the fetch handler lets it through untouched: a cached copy would
+// break the range requests the browser uses to stream and seek it. The poster (a small jpg) is precached like any image.
+const assets = ['/', ...files.map((f) => '/' + f).filter((p) => !['/index.html', '/robots.txt', '/sitemap.xml', '/vercel.json'].includes(p) && !p.endsWith('.mp4'))];
+let sw = readFileSync(join(BOARD, 'sw.js'), 'utf8');
 if (!sw.includes("'__BUILD__'") || !sw.includes('__ASSETS__')) fail('tablero-ml/web/sw.js changed: markers not found');
+const API_LINE = "  if (url.pathname.startsWith('/api/')) return; // datos: siempre a la red\n";
+if (!sw.includes(API_LINE)) fail('tablero-ml/web/sw.js changed: the /api/ early return was not found');
+sw = sw.replace(API_LINE, API_LINE + "  if (url.pathname.endsWith('.mp4')) return; // demo: el video va directo a la red (peticiones por rangos)\n");
 writeFileSync(join(DIST, 'sw.js'), sw.replace("'__BUILD__'", JSON.stringify(build)).replace('__ASSETS__', JSON.stringify(assets)));
 
 // crawlers and headers

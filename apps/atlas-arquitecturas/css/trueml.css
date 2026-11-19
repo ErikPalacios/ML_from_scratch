@@ -330,3 +330,17 @@ a.chip:hover { background: var(--tm-chip); }
    en línea que no cabe en la columna de respuestas se desplaza dentro de su celda en vez de ensanchar la página. */
 .qa__v { min-width: 0; overflow-x: auto; overflow-y: hidden; padding-bottom: 2px; }
 .tm-code__ico { display: inline-flex; font-style: normal; }
+
+/* ------------------------------------------------------------------ inicio: la muestra en video (30 s) */
+.home-hero__actions { margin-top: 18px; display: flex; flex-wrap: wrap; gap: 8px; }
+.home-video { scroll-margin-top: 16px; }
+.home-video__title { margin: 0; font: 800 var(--fs-lg)/1.25 var(--font-display); letter-spacing: -.02em; }
+.drow__body > .home-video__note { margin-top: 6px; max-width: 64ch; font-size: 15px; line-height: 1.55; color: var(--muted); }
+.home-video__frame {
+  aspect-ratio: 16 / 9; width: 100%; max-width: 960px; border-radius: 20px; overflow: hidden;
+  background: var(--tm-code); box-shadow: var(--card-sh);
+}
+.home-video__frame video { display: block; width: 100%; height: 100%; object-fit: contain; }
+.home-video__frame video:focus-visible { outline: 3px solid var(--focus); outline-offset: -3px; }
+@media (max-width: 560px) { .home-video__frame { border-radius: 14px; } }
+@media (max-width: 767px) { .home-video { scroll-margin-top: 72px; } }

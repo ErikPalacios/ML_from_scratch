@@ -1034,6 +1034,7 @@
       // Esc cierra cualquier tooltip abierto (símbolos, línea de tiempo, gráficos): WCAG 1.4.13
       if (e.key === 'Escape') TL.Charts.tip.hide();
       if (S.modalOpen) return;
+      if (doc.querySelector('dialog[open]')) return; // el video de muestra: Espacio y las flechas son del reproductor
       if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return;
       if (S.tab !== 'paso' || !S.trace) return;
       const t = e.target;
@@ -1429,6 +1430,38 @@
     if (!store.get('welcomeDismissed', false)) w.hidden = false;
     $('welcome-close').addEventListener('click', () => { w.hidden = true; store.set('welcomeDismissed', true); measureChrome(); });
     $('welcome-guide').addEventListener('click', () => openGuide('tour', 0));
+  }
+
+  // ───────────────────────────────────────────────────────────── video de muestra (30 s, <dialog> nativo)
+  // El video vive junto a la página (video/ en dist). Donde no está (la copia del laboratorio dentro del
+  // Atlas, el artefacto), se usa el del sitio publicado.
+  const VIDEO_URL = 'https://laboratorio-transformer.vercel.app/video/';
+  function initVideo() {
+    const dlg = $('video-dlg');
+    const v = $('vdlg-video');
+    if (!dlg || !v || typeof dlg.showModal !== 'function') {
+      ['btn-video', 'welcome-video'].forEach((id) => { const b = $(id); if (b) b.hidden = true; });
+      return;
+    }
+    const src = v.querySelector('source');
+    const toSite = () => {
+      if (src.src.indexOf(VIDEO_URL) === 0) return;
+      src.src = VIDEO_URL + 'como-se-usa.mp4';
+      v.poster = VIDEO_URL + 'como-se-usa.jpg';
+      v.load();
+    };
+    src.addEventListener('error', toSite);
+    let probed = false;
+    const open = (e) => {
+      if (!probed) { probed = true; const img = new Image(); img.onerror = toSite; img.src = v.poster; }
+      dlg.showModal();
+      if (e && e.detail === 0) v.focus(); // abierto con el teclado: el foco va al video (Espacio lo reproduce)
+    };
+    $('btn-video').addEventListener('click', open);
+    $('welcome-video').addEventListener('click', open);
+    $('vdlg-close').addEventListener('click', () => dlg.close());
+    dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); }); // clic en el fondo
+    dlg.addEventListener('close', () => v.pause());
   }
 
   // ───────────────────────────────────────────────────────────── diálogo (guía, derivaciones)
@@ -2706,6 +2739,7 @@
     initSymstrip();
     initSideTabs();
     initWelcome();
+    initVideo();
     initModal();
     initTraining();
     initGeneration();

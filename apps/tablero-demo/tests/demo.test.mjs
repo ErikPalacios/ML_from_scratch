@@ -49,7 +49,7 @@ test('done steps have their entry gate met; the in-progress serving step still h
 test('the sample is fictional: no personal paths, names or the real C01 data anywhere in dist/', () => {
   const bad = /erikpalacios|Palacios|Caso1|ProyectosPortafolio|\/Users\/|APP_PASSWORD=|SESSION_SECRET=|API_TOKEN=|UPSTASH/;
   for (const f of walk(DIST)) {
-    if (/\.(png|ico)$/.test(f)) continue;
+    if (/\.(png|ico|jpg|mp4)$/.test(f)) continue;
     const txt = readFileSync(f, 'utf8');
     const m = bad.exec(txt);
     // the banner's links to the public repo are fine; the author's name only appears inside those URLs
@@ -61,6 +61,18 @@ test('the sample is fictional: no personal paths, names or the real C01 data any
   for (const real of ['f3133a3', '4bc61ef', '456–511', '2180', 'Image Classification API (Caso1)', 'DESIGN.md']) assert.equal(j.includes(real), false, real);
   assert.notEqual(seed.id, 'c01');
   assert.equal(readFileSync(join(DIST, 'js', 'shared', 'seed-c01.mjs'), 'utf8').includes('Caso1'), false);
+});
+
+test('the tutorial video ships but the service worker never caches or intercepts it', () => {
+  const sw = readFileSync(join(DIST, 'sw.js'), 'utf8');
+  const assets = JSON.parse(/const ASSETS = (\[.*\]);/.exec(sw)[1]);
+  assert.ok(statSync(join(DIST, 'video', 'como-se-usa.mp4')).size > 1e6);
+  assert.ok(assets.includes('/video/como-se-usa.jpg'));
+  assert.equal(assets.some((a) => a.endsWith('.mp4')), false);
+  const fetchHandler = sw.slice(sw.indexOf("addEventListener('fetch'"));
+  assert.ok(fetchHandler.indexOf("endsWith('.mp4')) return;") > 0);
+  assert.ok(fetchHandler.indexOf("endsWith('.mp4')) return;") < fetchHandler.indexOf('respondWith'));
+  assert.match(readFileSync(join(DIST, 'index.html'), 'utf8'), /src="\/js\/demo-video\.js"/);
 });
 
 test('the demo API lists the sample and serves it', async () => {

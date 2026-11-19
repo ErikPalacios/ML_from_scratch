@@ -627,6 +627,19 @@ function puerta(x) {
   </article>`;
 }
 
+// El video «Cómo se usa» de la portada (site/video/), con sus capítulos: un clic lleva el video a ese segundo
+// (app.js) y el capítulo que se está viendo queda marcado.
+const CAPITULOS = [[5.0, 'Elige un entrenamiento'], [22.7, 'Ubica la estación en el mapa'], [36.0, 'Lee la estación'],
+  [58.6, 'Baja el kit y levanta el mundo'], [71.7, 'Elige tu ronda'], [86.7, 'Constrúyelo: guiado y solo'],
+  [100.2, 'Rómpelo y arréglalo'], [112.4, 'Lleva tu registro']];
+const mmss = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+const videoComo = () => `<section class="d-sec d-video" id="video" data-video aria-labelledby="video-h">
+  <div class="d-video-h"><span class="d-tag">En video · 2 min</span><h2 id="video-h">Míralo antes de empezar</h2></div>
+  <p class="d-p">El camino completo, de elegir un entrenamiento a llevar tu registro, con subtítulos: no necesitas sonido.</p>
+  <div class="d-video-marco"><video controls preload="none" playsinline poster="/video/como-se-usa.jpg" width="1920" height="1080" aria-label="Cómo se usa el dojo, en video"><source src="/video/como-se-usa.mp4" type="video/mp4"></video></div>
+  <ol class="d-caps" aria-label="Capítulos del video">${CAPITULOS.map(([t, x]) => `<li><button type="button" data-t="${t}"><span>${mmss(t)}</span>${esc(x)}</button></li>`).join('')}</ol>
+</section>`;
+
 const FILAS_CMP = [['construyes', 'Qué construyes'], ['entrena', 'Qué se entrena'], ['dificil', 'Dónde está lo difícil'], ['request', 'Cuánto tarda una respuesta'],
   ['gate', 'Qué decide si un cambio sale'], ['corre', 'Dónde corre']];
 
@@ -652,8 +665,9 @@ export function cuerpoPortada({ tronco, lista, ramas = [] }) {
   <h1>Dojo de entrenamiento <span>ML engineer's</span></h1>
   <p class="d-lead">Elige un proyecto real y constrúyelo de punta a punta en tu Mac, estación por estación. Cada estación la haces cuatro veces: con ayuda, solo, rota con ayuda y rota solo, con la explicación de cada concepto justo cuando lo usas.</p>
   <div class="d-atajos" aria-label="Los entrenamientos">${ents.map(atajo).join('')}</div>
-  <div class="d-btns"><a class="d-btn" href="#entrenamientos">Elegir entrenamiento</a><a class="d-btn d-btn2" href="/tablero/">Tu tablero</a></div>
+  <div class="d-btns"><a class="d-btn" href="#entrenamientos">Elegir entrenamiento</a><a class="d-btn d-btn2" href="#video"><span aria-hidden="true">▶\uFE0E </span>Video · 2 min</a><a class="d-btn d-btn2" href="/tablero/">Tu tablero</a></div>
 </section>
+${videoComo()}
 ${bloqueT(LB, 'portada')}
 </div>
 

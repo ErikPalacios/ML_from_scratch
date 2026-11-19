@@ -86,6 +86,9 @@ self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
+  // El video de muestra (video/*.mp4) nunca pasa por el service worker ni se guarda en caché: el navegador
+  // lo pide por rangos (206) y una copia en caché rompería esas peticiones. Va directo a la red.
+  if (/\/video\/[^/]+\.mp4$/i.test(url.pathname)) return;
   if (req.mode === 'navigate' && url.origin === self.location.origin) { event.respondWith(navigate(req)); return; }
   if (url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com') { event.respondWith(staleWhileRevalidate(req)); return; }
   // MathJax 3 desde cdnjs (el script y los módulos que carga a pedido, p. ej. extensiones de TeX)

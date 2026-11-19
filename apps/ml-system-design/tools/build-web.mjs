@@ -3,6 +3,8 @@
 //   index.html      = dist/ml-system-design.html + manifest, íconos y registro del service worker
 //   sw.js           = web/sw.js con el hash del build (abre sin conexión después de la primera visita)
 //   manifest, íconos = copiados de web/
+//   video/           = la muestra de 30 s (web/video/como-se-usa.mp4 y su póster): solo la versión web la tiene;
+//                      el <meta name="ronda-video"> le dice a la app que pinte la sección del video en el inicio
 // Requiere haber corrido antes build.mjs (npm run build:web hace las dos cosas).
 import { readFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -46,6 +48,7 @@ const head = [
   '<meta name="mobile-web-app-capable" content="yes">',
   '<meta name="apple-mobile-web-app-capable" content="yes">',
   '<meta name="apple-mobile-web-app-title" content="Ronda ML">',
+  '<meta name="ronda-video" content="video/como-se-usa">',
   ...SEO,
 ].join('\n');
 // el service worker solo se registra servido por http(s): con doble clic (file://) no aplica.
@@ -74,6 +77,12 @@ writeFileSync(join(OUT, 'sw.js'), readFileSync(join(WEB, 'sw.js'), 'utf8').repla
 for (const f of ['manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png', 'og.png']) {
   if (!existsSync(join(WEB, f))) { console.error('[build-web] ERROR: falta web/' + f); process.exit(1); }
   copyFileSync(join(WEB, f), join(OUT, f));
+}
+// la muestra en video: el service worker no la guarda (web/sw.js deja pasar /video/*.mp4 directo a la red)
+mkdirSync(join(OUT, 'video'), { recursive: true });
+for (const f of ['como-se-usa.mp4', 'como-se-usa.jpg']) {
+  if (!existsSync(join(WEB, 'video', f))) { console.error('[build-web] ERROR: falta web/video/' + f); process.exit(1); }
+  copyFileSync(join(WEB, 'video', f), join(OUT, 'video', f));
 }
 writeFileSync(join(OUT, 'robots.txt'), `User-agent: *\nAllow: /\n\nSitemap: ${SITE_URL}/sitemap.xml\n`);
 writeFileSync(join(OUT, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url><loc>${SITE_URL}/</loc><lastmod>${new Date().toISOString().slice(0, 10)}</lastmod></url>\n</urlset>\n`);

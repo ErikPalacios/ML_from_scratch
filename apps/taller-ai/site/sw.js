@@ -1,7 +1,7 @@
 /* Service worker del Dojo: la portada y las estaciones abren sin conexión después de la primera visita.
    tools/build.mjs reemplaza __BUILD__ por el hash del contenido y __PAGES__ por la lista de archivos: cada deploy
    nuevo instala un service worker nuevo, guarda lo nuevo y borra la caché anterior. Los kits (.zip) no se
-   guardan por adelantado: se bajan de la red cuando los pides. */
+   guardan por adelantado: se bajan de la red cuando los pides. El video de la portada (.mp4) no se guarda nunca. */
 'use strict';
 const BUILD = '__BUILD__';
 const CACHE = 'taller-' + BUILD;
@@ -51,6 +51,7 @@ self.addEventListener('fetch', (event) => {
   if (url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com') { event.respondWith(swr(req, FONTS)); return; }
   if (url.origin !== self.location.origin) return;
   if (url.pathname.endsWith('.zip')) return; // los kits van directo a la red
+  if (url.pathname.endsWith('.mp4')) return; // el video también: la caché rompe las peticiones por rangos al adelantarlo
   if (req.mode === 'navigate') { event.respondWith(networkFirst(req)); return; }
   event.respondWith(caches.match(req).then((hit) => hit || fetch(req)));
 });

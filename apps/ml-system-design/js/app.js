@@ -955,6 +955,9 @@
     const summary = m.summary && m.summary !== m.title ? m.summary :
       'Curso y simulador para la ronda de <i>ML System Design</i> de las entrevistas de ML Engineer: todo lo que rodea al modelo en producción —serving, datos, evaluación, monitoreo y costo— explicado como lo evalúa un entrevistador.';
     const rest = 'Pasa el cursor por un módulo del índice para ver qué etapas cubre.';
+    // La muestra en video (30 s): solo la versión web la trae (build-web.mjs pone el <meta> y copia web/video/).
+    const vm = document.querySelector('meta[name="ronda-video"]');
+    const vid = vm && vm.getAttribute('content');
     const scene = h('figure', { class: 'home-t', 'aria-hidden': 'true' },
       h('div', { class: 'home-t__mark', html: tmMark(1, 'inicio', '420px') }),
       h('figcaption', { class: 'home-t__cap' }, rest));
@@ -963,6 +966,7 @@
         h('p', { class: 'eyebrow' }, 'Panel de estudio'),
         h('h1', { class: 'phead__title', id: 'page-title', tabindex: '-1' }, APP_NAME),
         h('p', { class: 'phead__summary', html: summary }),
+        vid ? h('p', { class: 'home-hero__play' }, h('a', { class: 'btn', href: '#inicio.video' }, '▶ Míralo en 30 s')) : null,
         h('p', { class: 'home-hero__note' }, 'Del dato al monitoreo: cada módulo del curso cae en una o más etapas de la T, y cada caso las cruza todas.'),
         h('p', { class: 'home-hero__sensei' }, '¿Un concepto no te queda claro? ',
           h('a', { href: SENSEI_URL, target: '_blank', rel: 'noopener' }, 'Sensei'),
@@ -970,6 +974,18 @@
       scene));
     S.homeT = { el: scene.querySelector('.home-t__mark'), cap: scene.querySelector('.home-t__cap'), rest };
     if (root.TrueMLMark && root.TrueMLMark.play) root.TrueMLMark.play(S.homeT.el);
+
+    // Una muestra: el simulador en 30 s, con subtítulos (sin voz).
+    if (vid) {
+      c.appendChild(h('section', { class: 'drow home-video', id: 'inicio.video', tabindex: '-1', 'aria-labelledby': 'home-video-title' },
+        h('p', { class: 'drow__label' }, 'Una muestra', h('small', null, '30 segundos')),
+        h('div', { class: 'drow__body' },
+          h('h2', { class: 'home-video__title', id: 'home-video-title' }, 'Practica la entrevista de diseño de ML'),
+          h('p', { class: 'home-video__txt' }, 'El caso, el reloj de 45 minutos y el esqueleto de 7 pasos, en acción. Lleva subtítulos, así que no necesitas sonido.'),
+          h('div', { class: 'home-video__frame' },
+            h('video', { controls: true, preload: 'none', playsinline: true, poster: vid + '.jpg', width: '1920', height: '1080' },
+              h('source', { src: vid + '.mp4', type: 'video/mp4' }))))));
+    }
 
     const row = (k, small, ...body) => h('section', { class: 'drow', 'aria-label': k },
       h('h2', { class: 'drow__label' }, k, small ? h('small', null, small) : null), h('div', { class: 'drow__body' }, body));

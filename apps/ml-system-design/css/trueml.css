@@ -224,6 +224,17 @@ kbd { border-radius: 6px; border-color: var(--rule-strong); }
 .sensei-pre__ext { color: var(--muted); }
 .home-hero__sensei { margin-top: 10px; font-size: 14.5px; line-height: 1.5; color: var(--muted); max-width: 60ch; }
 .home-hero__sensei a { font-weight: 700; }
+.home-hero__play { margin-top: 16px; }
+
+/* ------------------------------------------------------------------ inicio: la muestra en video (solo en la versión web) */
+.home-video:focus { outline: none; }
+.home-video__title { margin: 0; font: 800 clamp(22px, 2.4vw, 28px)/1.2 var(--font-display); letter-spacing: -.02em; color: var(--ink); text-wrap: balance; }
+.drow__body > .home-video__txt { margin-top: 6px; }
+.home-video__txt { font-size: 15px; line-height: 1.55; color: var(--muted); max-width: 62ch; }
+.home-video__frame { aspect-ratio: 16 / 9; width: 100%; max-width: 960px; border-radius: 20px; overflow: hidden; background: var(--tm-code, #0E1530); box-shadow: var(--card-sh); }
+.home-video__frame video { display: block; width: 100%; height: 100%; object-fit: contain; background: transparent; }
+.home-video__frame video:focus-visible { outline: 3px solid var(--yt); outline-offset: -3px; }
+@media print { .home-video, .home-hero__play { display: none !important; } }
 
 /* ------------------------------------------------------------------ botón «Volver a TrueML» (vendor/trueml/piezas.js) */
 /* en pantallas anchas va a la derecha de la barra lateral; el panel de notas (a la izquierda) lo tapa, así que lo esconde */
