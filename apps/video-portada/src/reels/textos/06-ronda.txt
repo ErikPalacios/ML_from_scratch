@@ -1,0 +1,13 @@
+Tienes 45 minutos para diseñar un sistema de ML. ⏱️ ¿Por dónde empiezas?
+
+La Ronda de Diseño ML es un simulador de entrevistas de ML System Design:
+
+🔹 Un caso real y el reloj corriendo desde 45:00.
+🔹 El framework de 7 pasos a la vista: aclarar el problema, requisitos y métricas, estimaciones, arquitectura, deep dives, evaluación y monitoreo, y cierre.
+🔹 El reloj te dice en qué paso deberías ir.
+🔹 Al final, autoevaluación con rúbrica y la solución.
+
+Gratis · sin cuenta · en español.
+👉 Link en la bio
+
+#MLSystemDesign #SystemDesign #EntrevistaTécnica #MachineLearning #MLEngineering #IAenEspañol #AprendeIA #FAANG

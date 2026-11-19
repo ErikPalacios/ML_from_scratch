@@ -48,3 +48,36 @@ de una escena en `src/tiempos.json`, vuelve a generar la pista (`npm run sonido`
 
 Para grabar se usa el Chromium que Playwright ya tiene descargado (`tools/navegador.mjs`). Con `CHROME=<ruta>` puedes
 usar otro.
+
+## Reels de Instagram (`src/reels/`)
+
+Siete reels verticales (1080×1920) para abrir la cuenta. Hay uno por herramienta, más el recorrido completo:
+
+| # | Reel | Gancho | Duración |
+|---|---|---|---|
+| 01 | Recorrido (la composición `Instagram`) | «¿Quieres entender ML engineering de verdad?» | 79 s |
+| 02 | Laboratorio Transformer | «Esto es un transformer aprendiendo.» | 24 s |
+| 03 | Sensei | «¿Cómo lee un LLM esta frase?» | 25,5 s |
+| 04 | Dojo | «Constrúyelo. Rómpelo. Arréglalo.» | 25 s |
+| 05 | Atlas de Arquitecturas | «¿Te piden dibujar ViT en la entrevista?» | 23 s |
+| 06 | Ronda de Diseño ML | «Tienes 45 minutos para diseñar un sistema de ML.» | 23 s |
+| 07 | Cheat sheets y tablero | «La noche antes de la entrevista:» | 23 s |
+
+- **Las escenas:** `src/reels/reels.json` dice cuánto dura cada escena, dónde entra el barrido, el frame que sirve de
+  portada y los efectos de sonido. Los componentes están en `src/reels/<Herramienta>.tsx`.
+- **Las piezas:** en `src/reels/kit.tsx` está lo propio de los reels. El gancho ya se lee en el frame 0, la aurora
+  usa los seis colores de la T, y el cierre es el mismo en todos: la T, «Gratis · Sin cuenta · En español» y el link.
+  Lo demás sale de `src/piezas.tsx`. La `Ventana` acepta `proporcion` para mostrar la grabación más alta.
+- **El sonido:** cada reel tiene su propia pista (`tools/sonido-reel.mjs`), hecha con el mismo sintetizador que el
+  video completo (`tools/sintes.mjs`). El pad y el arpegio suenan desde el primer segundo, y el bombo entra justo
+  cuando termina el gancho.
+- **Los textos:** el de cada publicación está en `src/reels/textos/<id>.txt`.
+
+```bash
+node tools/reels.mjs                      # los siete: pista, video, portada (PNG) y texto en out/reels/
+node tools/reels.mjs 04-dojo              # solo uno
+tools/hoja-reel.sh out/reels/04-dojo.mp4 hoja.png   # hoja de contacto con las líneas de la zona segura
+```
+
+Orden sugerido para publicar los siete el mismo día: 07 → 06 → 05 → 04 → 03 → 02 → 01, y luego fijar el 01. Así
+el perfil queda con el recorrido, el Transformer y Sensei arriba.

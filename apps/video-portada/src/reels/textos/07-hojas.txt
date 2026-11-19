@@ -1,0 +1,12 @@
+La noche antes de la entrevista: 9 cheat sheets para repasar rápido. 📄
+
+Estimaciones · Docker · Kubernetes · Del dato a producción · Git y GitHub Actions · De PyTorch a Triton · FastAPI en producción · Prometheus y Grafana · Serving de LLMs con vLLM.
+
+Números, comandos y fórmulas, al grano. Las lees en la web o las bajas en PDF.
+
+Y para tus proyectos, un tablero que los muestra como un mapa de metro, del dato al monitoreo.
+
+Gratis · sin cuenta · en español.
+👉 Link en la bio
+
+#CheatSheet #MLOps #Docker #Kubernetes #MachineLearning #EntrevistaTécnica #IAenEspañol #AprendeIA

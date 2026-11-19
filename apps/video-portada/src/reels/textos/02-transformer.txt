@@ -1,0 +1,10 @@
+Esto es un transformer aprendiendo, operación por operación. 🔥
+
+En el Laboratorio Transformer ves cada paso del entrenamiento: forward, pérdida, backward y actualización. Cada matriz viene con su fórmula y sus dimensiones. Después lo pones a entrenar cientos de iteraciones seguidas y miras cómo baja la pérdida.
+
+Todo se calcula en tu navegador. No instalas nada.
+
+Gratis · sin cuenta · en español.
+👉 Link en la bio
+
+#Transformers #DeepLearning #MachineLearning #LLM #InteligenciaArtificial #IAenEspañol #AprendeIA #NLP

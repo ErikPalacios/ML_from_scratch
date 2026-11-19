@@ -86,11 +86,13 @@ const ClipVideo: React.FC<{ clip: Clip; local: number }> = ({ clip, local }) => 
  */
 export const Ventana: React.FC<{
   clips: Clip[]; url: string; ancho: number; x: number; y: number; desde?: number; giro?: [number, number]; inclina?: number; color?: string; sombra?: boolean; z?: number;
-}> = ({ clips, url, ancho, x, y, desde = 0, giro = [-14, -5], inclina = 6, color = C.acc, z = 0 }) => {
+  /** alto / ancho del área de la grabación (16:9 por omisión; en los reels se usa más alta y se recorta a los lados). */
+  proporcion?: number;
+}> = ({ clips, url, ancho, x, y, desde = 0, giro = [-14, -5], inclina = 6, color = C.acc, z = 0, proporcion = 9 / 16 }) => {
   const f = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
   const e = useEntrada(desde, 20, 1.1);
-  const alto = (ancho * 9) / 16;
+  const alto = ancho * proporcion;
   const rot = interpolate(f, [desde, durationInFrames], giro, clamp);
   const flota = Math.sin((f + z * 40) / 38) * 6;
   // qué clip toca y su tiempo local
