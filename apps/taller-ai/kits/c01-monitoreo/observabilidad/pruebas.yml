@@ -1,0 +1,9 @@
+# Tus pruebas de las reglas: promtool simula horas y días en segundos. Córrelas con:
+#   python mundo/promtool.py prueba        (= promtool test rules observabilidad/pruebas.yml)
+#
+# Contrato: que pasen, que prueben FastBurn, SlowBurn, LowConfidenceSpike y MonitoringJobStale, y que al menos tres
+# casos esperen que algo NO suene (exp_alerts: []). Formato: https://prometheus.io/docs/prometheus/latest/configuration/unit_testing_rules/
+rule_files:
+  - reglas.yml
+evaluation_interval: 2m      # con 1m, 7 días de una regla son 10,080 muestras: más que el tope de promtool test (10,000)
+tests: []

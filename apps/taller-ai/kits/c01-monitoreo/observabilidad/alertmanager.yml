@@ -1,0 +1,15 @@
+# De la alerta a la persona: tu configuración de Alertmanager. En C01: el Alertmanager de kube-prometheus-stack.
+# Después de cada cambio: python mundo/recargar.py alertmanager
+#
+# Contrato (verificar.py lo prueba con amtool y con una alerta de verdad):
+# - Las integraciones del buscapersonas son de plataforma (secretos): cada receptor usa un webhook con
+#   url_file: /etc/alertmanager/plataforma/<guardia|canal|tickets|latido>.url (mundo/alertmanager/LEEME.md).
+# - Rutas: alertname Watchdog → latido (repite al menos cada 1 min) · severity page → guardia · warning → canal ·
+#   ticket → tickets · lo que no cae en ninguna → tickets (nunca al teléfono).
+# - Inhibición: un page calla los ticket del mismo slo.
+route:
+  receiver: tickets
+receivers:
+  - name: tickets
+    webhook_configs:
+      - url_file: /etc/alertmanager/plataforma/tickets.url

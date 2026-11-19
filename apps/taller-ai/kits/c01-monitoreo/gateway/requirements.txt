@@ -1,0 +1,8 @@
+# Lo que necesita el gateway, y nada más: es la lista de su imagen de contenedor (estación 7).
+fastapi==0.163.2
+uvicorn==0.54.0
+tritonclient[http]==2.75.0
+prometheus-client==0.26.0
+pillow==13.0.0
+numpy==2.5.4
+pyyaml==6.0.3

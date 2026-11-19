@@ -1,0 +1,47 @@
+# De la alerta a la persona (solución de referencia). En C01: el Alertmanager de kube-prometheus-stack, con las
+# integraciones de PagerDuty y Slack. Las URL de cada integración son de plataforma (secretos): se leen con url_file.
+route:
+  receiver: tickets                       # lo que no cae en ninguna ruta va a la cola, nunca al teléfono
+  group_by: [alertname]
+  group_wait: 30s                         # espera a juntar las alertas de un mismo incidente antes del primer aviso
+  group_interval: 5m                      # cada cuánto se avisa de cambios en un grupo que ya avisó
+  repeat_interval: 4h                     # cada cuánto se repite el aviso de algo que sigue sonando
+  routes:
+    - matchers: [alertname="Watchdog"]    # el latido: llega todo el tiempo, por eso va primero y solo a su receptor
+      receiver: latido
+      group_wait: 0s
+      group_interval: 30s
+      repeat_interval: 1m                 # el buscapersonas espera uno cada ≤ 150 s
+    - matchers: [severity="page"]
+      receiver: guardia
+      group_wait: 10s                     # un page no espera: alguien ya está sufriendo
+      group_interval: 1m
+      repeat_interval: 1h
+    - matchers: [severity="warning"]
+      receiver: canal
+    - matchers: [severity="ticket"]
+      receiver: tickets
+      group_wait: 1m
+      repeat_interval: 24h
+inhibit_rules:
+  # Si el page de errores está sonando, el ticket lento del mismo SLO es el mismo incidente: se calla.
+  - source_matchers: [severity="page"]
+    target_matchers: [severity="ticket"]
+    equal: [slo]
+receivers:
+  - name: guardia
+    webhook_configs:
+      - url_file: /etc/alertmanager/plataforma/guardia.url
+        send_resolved: true               # que la guardia sepa cuándo se apagó
+  - name: canal
+    webhook_configs:
+      - url_file: /etc/alertmanager/plataforma/canal.url
+        send_resolved: true
+  - name: tickets
+    webhook_configs:
+      - url_file: /etc/alertmanager/plataforma/tickets.url
+        send_resolved: false              # un ticket se cierra a mano, después de entender qué pasó
+  - name: latido
+    webhook_configs:
+      - url_file: /etc/alertmanager/plataforma/latido.url
+        send_resolved: false

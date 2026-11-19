@@ -1,0 +1,130 @@
+# Las pruebas de tus reglas (solución de referencia): promtool simula horas y días en un par de segundos.
+#   python mundo/promtool.py prueba        (= promtool test rules observabilidad/pruebas.yml, en un contenedor)
+rule_files:
+  - reglas.yml
+evaluation_interval: 2m      # con 1m, 7 días de la regla son 10,080 muestras: más que el tope de promtool test
+tests:
+  # 1. El incidente de la lección: 0.1 % de errores de fondo y 3 % (β = 30) del minuto 60 al 99.
+  #    La ventana de 1 h cruza 14.4× ≈ 27 min después de empezar; la de 5 min la apaga ≈ 2 min después del arreglo.
+  - name: page por burn rate rápido
+    interval: 1m
+    input_series:
+      - series: 'classifier_requests_total{code="200"}'
+        values: '0+999x60 59940+970x40 98740+999x100'
+      - series: 'classifier_requests_total{code="503"}'
+        values: '0+1x60 60+30x40 1260+1x100'
+      - series: 'classifier_requests_total{code="415"}'       # los 4xx no cuentan: ni arriba ni abajo
+        values: '0+500x200'
+    alert_rule_test:
+      - {eval_time: 86m, alertname: ClassifierErrorBudgetFastBurn, exp_alerts: []}
+      - eval_time: 88m
+        alertname: ClassifierErrorBudgetFastBurn
+        exp_alerts:
+          - exp_labels: {severity: page, slo: disponibilidad}
+            exp_annotations:
+              summary: "El presupuesto de errores se gasta más de 14.4× más rápido de lo permitido (2 % del mes en 1 h)"
+              runbook_url: "https://runbooks.c01.test/classifier/error-budget-burn"
+      - {eval_time: 105m, alertname: ClassifierErrorBudgetFastBurn, exp_alerts: []}
+    promql_expr_test:
+      - expr: classifier:error_ratio:rate1h
+        eval_time: 170m
+        exp_samples: [{labels: 'classifier:error_ratio:rate1h', value: 0.001}]
+
+  # 2. El ticket lento: 0.7 % durante 7 h sí (β = 7 > 6); el goteo de 0.5 % (β = 5) nunca, aunque dure.
+  - name: ticket por burn rate lento, y el goteo que se escapa
+    interval: 1m
+    input_series:
+      - series: 'classifier_requests_total{code="200"}'
+        values: '0+993x420'
+      - series: 'classifier_requests_total{code="503"}'
+        values: '0+7x420'
+    alert_rule_test:
+      - {eval_time: 420m, alertname: ClassifierErrorBudgetFastBurn, exp_alerts: []}
+      - eval_time: 420m
+        alertname: ClassifierErrorBudgetSlowBurn
+        exp_alerts:
+          - exp_labels: {severity: ticket, slo: disponibilidad}
+            exp_annotations:
+              summary: "El presupuesto de errores se gasta más de 6× más rápido de lo permitido (5 % del mes en 6 h)"
+              runbook_url: "https://runbooks.c01.test/classifier/error-budget-burn"
+  - name: el goteo de 0.5 % no llega a 6×
+    interval: 1m
+    input_series:
+      - series: 'classifier_requests_total{code="200"}'
+        values: '0+995x420'
+      - series: 'classifier_requests_total{code="503"}'
+        values: '0+5x420'
+    alert_rule_test:
+      - {eval_time: 420m, alertname: ClassifierErrorBudgetSlowBurn, exp_alerts: []}
+
+  # 3. La baja confianza: 7 días al 8 %, luego al 20 % (más del doble) con 10 fotos/s. Suena 30 min después de cruzar.
+  - name: pico de baja confianza
+    interval: 5m
+    input_series:
+      - series: 'classifier_top1_score_bucket{le="0.3"}'
+        values: '0+240x2016 483840+600x24'
+      - series: 'classifier_top1_score_count'
+        values: '0+3000x2040'
+    alert_rule_test:
+      - {eval_time: 7d, alertname: ClassifierLowConfidenceSpike, exp_alerts: []}
+      - eval_time: 7d1h50m
+        alertname: ClassifierLowConfidenceSpike
+        exp_alerts:
+          - exp_labels: {severity: ticket}
+            exp_annotations:
+              summary: "La fracción de fotos dudosas pasó del doble de su promedio de 7 días"
+              runbook_url: "https://runbooks.c01.test/classifier/low-confidence"
+  # 4. Con poco tráfico (0.5 fotos/s) el mismo salto no abre nada: un puñado de fotos no es una tasa.
+  - name: poco tráfico no alerta
+    interval: 5m
+    input_series:
+      - series: 'classifier_top1_score_bucket{le="0.3"}'
+        values: '0+12x2016 24192+30x24'
+      - series: 'classifier_top1_score_count'
+        values: '0+150x2040'
+    alert_rule_test:
+      - {eval_time: 7d1h50m, alertname: ClassifierLowConfidenceSpike, exp_alerts: []}
+  # 5. Una hora sin tráfico a mitad de la semana: la regla no guarda NaN y la alerta sigue funcionando.
+  - name: una hora sin tráfico no envenena el promedio
+    interval: 5m
+    input_series:
+      - series: 'classifier_top1_score_bucket{le="0.3"}'
+        values: '0+240x1000 240000x12 240000+240x1004 481920+600x24'
+      - series: 'classifier_top1_score_count'
+        values: '0+3000x1000 3000000x12 3000000+3000x1028'
+    alert_rule_test:
+      - eval_time: 7d1h50m
+        alertname: ClassifierLowConfidenceSpike
+        exp_alerts:
+          - exp_labels: {severity: ticket}
+            exp_annotations:
+              summary: "La fracción de fotos dudosas pasó del doble de su promedio de 7 días"
+              runbook_url: "https://runbooks.c01.test/classifier/low-confidence"
+
+  # 6. El job diario empujó a las 00:00 y no volvió a correr: a las 26 h abre ticket.
+  - name: el job diario dejó de publicar
+    interval: 10m
+    input_series:
+      - series: 'push_time_seconds{job="monitoreo-diario"}'
+        values: '0x200'
+    alert_rule_test:
+      - {eval_time: 25h50m, alertname: MonitoringJobStale, exp_alerts: []}
+      - eval_time: 26h10m
+        alertname: MonitoringJobStale
+        exp_alerts:
+          - exp_labels: {severity: ticket, job: monitoreo-diario}
+            exp_annotations:
+              summary: "El job monitoreo-diario no publica desde hace más de 26 h: el PSI y la aceptación que ves son viejos"
+              runbook_url: "https://runbooks.c01.test/classifier/monitoring-job-stale"
+
+  # 7. El latido: siempre suena.
+  - name: el Watchdog siempre suena
+    interval: 1m
+    input_series: []
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: Watchdog
+        exp_alerts:
+          - exp_labels: {severity: none}
+            exp_annotations:
+              summary: "Siempre suena: si deja de llegar al buscapersonas, Prometheus o Alertmanager no están avisando"

@@ -1,0 +1,8 @@
+{
+  "nota": "De los equipos de cada app (no es tuyo): cómo procesa la foto cada versión antes de mandarla. carga.py lo relee cada 5 s.",
+  "apps": {
+    "mobile": {"version": "5.2.0", "proceso": {"contraste": 0.85, "calidad": 70}},
+    "web": {"version": "2026.11.2", "proceso": null},
+    "internal": {"version": "moderacion-3.8", "proceso": null}
+  }
+}

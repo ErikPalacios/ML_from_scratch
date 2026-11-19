@@ -116,7 +116,7 @@ test('errores claros: archivo ajeno o estación sin taller', () => {
   const d = nuevoTablero(P);
   assert.throws(() => opsDeProgreso(d, [], P), /no es un progreso.json/);
   assert.throws(() => opsDeProgreso(d, { foo: 1 }, P), /falta «estacion»/);
-  assert.throws(() => opsDeProgreso(d, { estacion: 'c01-monitoreo' }, P), /no tiene taller/);
+  assert.throws(() => opsDeProgreso(d, { estacion: 'ia-privada-modelo-local' }, P), /no tiene taller/);
   assert.equal(queEs(PROGRESO), 'progreso');
   assert.equal(queEs({ app: 'dojo-tablero', tablero: d }), 'respaldo');
 });

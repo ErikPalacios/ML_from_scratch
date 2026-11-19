@@ -1,0 +1,77 @@
+# Las reglas de classifier (solución de referencia). En C01: un PrometheusRule en el repositorio de despliegue.
+# Las ventanas y umbrales son los de C01: el reloj del dojo es el de verdad, y pruebas.yml simula los días.
+groups:
+  - name: classifier-slo
+    rules:
+      # La fracción de errores del servidor (5xx ÷ requests sin 4xx) en cuatro ventanas, para el burn rate.
+      # «or vector(0)»: sin ningún 5xx en la ventana, la suma no tiene series y la división daría vacío, no 0.
+      - record: classifier:error_ratio:rate5m
+        expr: |
+          (sum(rate(classifier_requests_total{code=~"5.."}[5m])) or vector(0))
+            / sum(rate(classifier_requests_total{code!~"4.."}[5m]))
+      - record: classifier:error_ratio:rate30m
+        expr: |
+          (sum(rate(classifier_requests_total{code=~"5.."}[30m])) or vector(0))
+            / sum(rate(classifier_requests_total{code!~"4.."}[30m]))
+      - record: classifier:error_ratio:rate1h
+        expr: |
+          (sum(rate(classifier_requests_total{code=~"5.."}[1h])) or vector(0))
+            / sum(rate(classifier_requests_total{code!~"4.."}[1h]))
+      - record: classifier:error_ratio:rate6h
+        expr: |
+          (sum(rate(classifier_requests_total{code=~"5.."}[6h])) or vector(0))
+            / sum(rate(classifier_requests_total{code!~"4.."}[6h]))
+      - alert: ClassifierErrorBudgetFastBurn
+        expr: |
+          classifier:error_ratio:rate1h > (14.4 * 0.001)
+          and classifier:error_ratio:rate5m > (14.4 * 0.001)
+        labels:
+          severity: page
+          slo: disponibilidad
+        annotations:
+          summary: "El presupuesto de errores se gasta más de 14.4× más rápido de lo permitido (2 % del mes en 1 h)"
+          runbook_url: "https://runbooks.c01.test/classifier/error-budget-burn"
+      - alert: ClassifierErrorBudgetSlowBurn
+        expr: |
+          classifier:error_ratio:rate6h > (6 * 0.001)
+          and classifier:error_ratio:rate30m > (6 * 0.001)
+        labels:
+          severity: ticket
+          slo: disponibilidad
+        annotations:
+          summary: "El presupuesto de errores se gasta más de 6× más rápido de lo permitido (5 % del mes en 6 h)"
+          runbook_url: "https://runbooks.c01.test/classifier/error-budget-burn"
+  - name: classifier-modelo
+    rules:
+      # La fracción de fotos dudosas (top-1 < 0.3) en 30 min. El «> 0» del denominador: sin tráfico no hay muestra
+      # (un 0/0 guardaría NaN, y un NaN arrastra el promedio de 7 días toda una semana).
+      - record: classifier:low_confidence_share:rate30m
+        expr: |
+          sum(rate(classifier_top1_score_bucket{le="0.3"}[30m]))
+            / (sum(rate(classifier_top1_score_count[30m])) > 0)
+      - alert: ClassifierLowConfidenceSpike
+        expr: |
+          classifier:low_confidence_share:rate30m
+            > 2 * avg_over_time(classifier:low_confidence_share:rate30m[7d])
+          and on() sum(rate(classifier_top1_score_count[30m])) > 1
+        for: 30m
+        labels:
+          severity: ticket
+        annotations:
+          summary: "La fracción de fotos dudosas pasó del doble de su promedio de 7 días"
+          runbook_url: "https://runbooks.c01.test/classifier/low-confidence"
+  - name: classifier-vigilar-al-que-vigila
+    rules:
+      - alert: MonitoringJobStale
+        expr: time() - push_time_seconds{job="monitoreo-diario"} > 26 * 3600
+        labels:
+          severity: ticket
+        annotations:
+          summary: "El job monitoreo-diario no publica desde hace más de 26 h: el PSI y la aceptación que ves son viejos"
+          runbook_url: "https://runbooks.c01.test/classifier/monitoring-job-stale"
+      - alert: Watchdog
+        expr: vector(1)
+        labels:
+          severity: none
+        annotations:
+          summary: "Siempre suena: si deja de llegar al buscapersonas, Prometheus o Alertmanager no están avisando"

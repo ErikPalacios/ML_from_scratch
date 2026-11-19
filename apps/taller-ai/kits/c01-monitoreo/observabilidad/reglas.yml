@@ -1,0 +1,18 @@
+# Tus reglas de Prometheus: lo que vigila el servicio y el modelo, y a quién avisa. En C01: un PrometheusRule en el
+# repositorio de despliegue. Prometheus lo lee de aquí (mundo/prometheus/prometheus.yml); después de cada cambio:
+#   python mundo/promtool.py revisar && python mundo/recargar.py prometheus
+#
+# Contrato (verificar.py lo prueba con promtool sobre días simulados; los nombres no cambian):
+# - 5 recording rules, sin etiquetas (sumas de los dos pods):
+#     classifier:error_ratio:rate5m | rate30m | rate1h | rate6h   5xx ÷ requests sin 4xx (code de classifier_requests_total);
+#                                                                sin ningún 5xx vale 0, no «vacío»
+#     classifier:low_confidence_share:rate30m                    bucket le="0.3" ÷ count de classifier_top1_score, en 30 min;
+#                                                                sin tráfico no guarda nada (nunca un 0/0)
+# - 5 alertas, cada una con severity, y las cuatro primeras con annotations.summary y annotations.runbook_url:
+#     ClassifierErrorBudgetFastBurn   page    más de 14.4× el presupuesto (SLO 99.9 %) en 1 h Y en 5 min; slo: disponibilidad
+#     ClassifierErrorBudgetSlowBurn   ticket  más de 6× en 6 h Y en 30 min; slo: disponibilidad
+#     ClassifierLowConfidenceSpike    ticket  la fracción de 30 min pasa del doble de su promedio de 7 días, con más de
+#                                             1 foto/s, durante 30 min
+#     MonitoringJobStale              ticket  el job monitoreo-diario no empuja a la Pushgateway hace más de 26 h
+#     Watchdog                        none    siempre suena (el latido)
+groups: []

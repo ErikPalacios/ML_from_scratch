@@ -1,0 +1,71 @@
+# La infraestructura del mundo: el S3 local (RustFS), Prometheus, Alertmanager y el Pushgateway. `python mundo/crear.py`
+# la levanta. En C01 real: Amazon S3 y kube-prometheus-stack en el namespace monitoring (Prometheus, Alertmanager), más
+# un Pushgateway para los jobs. Los pods del gateway, Triton, el buscapersonas y el tráfico corren en tu Mac
+# (mundo/servicios.py).
+name: taller-c01-monitoreo
+services:
+  s3:
+    image: rustfs/rustfs:1.0.4
+    ports: ["9960:9000", "9961:9001"]       # en tu Mac: 9960 = API S3 · 9961 = consola web
+    environment:                            # credenciales de prueba del dojo (solo existen en tu Mac)
+      RUSTFS_ACCESS_KEY: taller
+      RUSTFS_SECRET_KEY: taller-secreto
+      RUSTFS_ADDRESS: ":9000"
+      RUSTFS_CONSOLE_ADDRESS: ":9001"
+      RUSTFS_CONSOLE_ENABLE: "true"
+    volumes: ["s3-monitoreo:/data"]
+    command: ["/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://localhost:9000/health || exit 1"]
+      interval: 3s
+      retries: 30
+  prometheus:
+    image: prom/prometheus:v3.15.1
+    ports: ["9962:9090"]
+    command:
+      - --config.file=/etc/prometheus-plataforma/prometheus.yml   # de plataforma: qué lee y a qué Alertmanager avisa
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d      # la alerta de baja confianza promedia 7 días: la retención tiene que cubrirlos
+      - --web.enable-lifecycle                 # POST /-/reload vuelve a leer la configuración y tus reglas
+    volumes:
+      - ./observabilidad:/etc/prometheus:ro                      # tus reglas.yml y pruebas.yml
+      - ./mundo/prometheus:/etc/prometheus-plataforma:ro         # prometheus.yml de plataforma
+      - ./nodo/historia:/historia:ro                             # la historia de métricas que rellena mundo/historia.py
+      - prom-monitoreo:/prometheus
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9090/-/ready || exit 1"]
+      interval: 3s
+      retries: 40
+  alertmanager:
+    image: prom/alertmanager:v0.34.2
+    ports: ["9963:9093"]
+    command:
+      - --config.file=/etc/alertmanager/dojo/alertmanager.yml   # tu alertmanager.yml (la carpeta: así ve cada versión)
+      - --storage.path=/alertmanager
+      - --cluster.listen-address=                               # una sola réplica: sin cluster (C01: dos, que se deduplican)
+    volumes:
+      - ./observabilidad:/etc/alertmanager/dojo:ro
+      - ./mundo/alertmanager:/etc/alertmanager/plataforma:ro    # lo de plataforma: la URL de cada integración
+      - am-monitoreo:/alertmanager
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9093/-/ready || exit 1"]
+      interval: 3s
+      retries: 30
+  pushgateway:
+    image: prom/pushgateway:v1.11.5
+    ports: ["9964:9091"]
+    command:
+      - --persistence.file=/pushgateway/metricas   # guarda lo empujado: un reinicio no lo borra (tampoco lo olvida nunca)
+      - --persistence.interval=30s
+    volumes: ["pg-monitoreo:/pushgateway"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9091/-/ready || exit 1"]
+      interval: 3s
+      retries: 30
+volumes:
+  s3-monitoreo: {}
+  prom-monitoreo: {}
+  am-monitoreo: {}
+  pg-monitoreo: {}

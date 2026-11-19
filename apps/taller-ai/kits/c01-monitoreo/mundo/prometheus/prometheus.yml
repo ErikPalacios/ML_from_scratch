@@ -1,0 +1,37 @@
+# De plataforma (no se toca): qué lee Prometheus, cada cuánto evalúa tus reglas y a qué Alertmanager avisa. En C01: el
+# Prometheus de kube-prometheus-stack, con un PodMonitor del gateway (estación 11) y tus reglas como PrometheusRule.
+global:
+  scrape_interval: 5s          # C01: 15 s
+  evaluation_interval: 15s     # cada cuánto evalúa tus recording rules y alertas (C01: 1 min)
+  external_labels: {cluster: dojo}
+rule_files:
+  - /etc/prometheus/reglas.yml             # tu archivo (observabilidad/reglas.yml)
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+scrape_configs:
+  - job_name: gateway                      # los dos pods (lo que dejó la estación 11, con sus etiquetas)
+    static_configs:
+      - targets: ["host.docker.internal:8961"]
+        labels: {namespace: classifier, pod: gateway-6f7b9c4d58-xa7k2, nodo: a}
+      - targets: ["host.docker.internal:8962"]
+        labels: {namespace: classifier, pod: gateway-6f7b9c4d58-qm4t8, nodo: b}
+  - job_name: triton
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["host.docker.internal:8965"]
+        labels: {namespace: classifier, pod: triton-v15-7c5d8f9b6-k2p9w}
+  - job_name: pushgateway                  # lo que empujan los jobs que corren y terminan (monitoreo-diario)
+    honor_labels: true                     # respeta el job="monitoreo-diario" del que empujó, no el de este scrape
+    static_configs:
+      - targets: ["pushgateway:9091"]
+  - job_name: buscapersonas                # el latido: cuándo llegó el último Watchdog
+    static_configs:
+      - targets: ["host.docker.internal:8966"]
+  - job_name: alertmanager
+    static_configs:
+      - targets: ["alertmanager:9093"]
+  - job_name: prometheus                   # él mismo: prometheus_notifications_errors_total y compañía
+    static_configs:
+      - targets: ["localhost:9090"]

@@ -1,0 +1,13 @@
+# Lo que corre y se borra: lo compartido con los contenedores, los logs de los procesos, el estado de romper.py y la
+# config de Docker del dojo. Tu registro (taller/progreso.json y BITACORA.md) tampoco: un árbol con cambios sin commit
+# bloquea el git revert de una falla.
+/nodo/
+/logs/
+/.taller/
+/.docker/
+/.venv/
+/taller/progreso.json
+/BITACORA.md
+__pycache__/
+*.pyc
+.pytest_cache/

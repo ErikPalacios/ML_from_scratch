@@ -1,0 +1,29 @@
+# Lo que el equipo de plataforma decide y tú no tocas: los pods, el job programado y sus credenciales, el SLO, quién es
+# dueño de qué y el buscapersonas. Lo leen mundo/servicios.py, mundo/cron.py, mundo/buscapersonas.py y tus jobs (para
+# el SLO y los dueños). Cambia solo con un commit.
+pods:
+  - {nombre: gateway-6f7b9c4d58-xa7k2, nodo: a, puerto: 8961}
+  - {nombre: gateway-6f7b9c4d58-qm4t8, nodo: b, puerto: 8962}
+triton: {nombre: triton-v15-7c5d8f9b6-k2p9w, puerto: 8965}
+slo:
+  disponibilidad: 0.999            # 99.9 % de las requests sin error del servidor, en 30 días
+  ventana_dias: 30
+  p99_ms: 200
+jobs:
+  monitoreo-diario:                # en C01: el CronWorkflow de Argo Workflows, a las 01:00 UTC, sobre el día anterior
+    horario: "0 1 * * *"
+    pasos: [diario/monitoreo.py, diario/disparador.py]
+    s3:                            # la cuenta de servicio con que corre (en C01: un rol de IAM solo de lectura + monitoreo/)
+      llave: taller
+      secreto: taller-secreto
+    pushgateway: http://localhost:9964
+examen: datasets/golden-v1/sha256.txt   # las fotos del examen fijo (estación 4), en S3: nunca se mandan a etiquetar
+dueños:                            # a quién se le avisa cuando el cambio es de quien llama, no del modelo
+  source=mobile: equipo-app-mobile
+  source=web: equipo-web
+  source=internal: equipo-moderacion
+  modelo: equipo-classifier
+buscapersonas:
+  puerto: 8966
+  latido_max_s: 150                # si el Watchdog no llega en 150 s, el buscapersonas avisa que se perdió el latido
+  guardia: Marta                   # quien está de guardia esta semana
