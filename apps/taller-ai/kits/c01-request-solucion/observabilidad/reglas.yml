@@ -1,0 +1,43 @@
+# Las preguntas de todos los días, ya calculadas (recording rules), y las alertas (solución de referencia).
+# Ventanas de 1 min y esperas cortas: en el dojo se lee cada 5 s y nadie espera una hora. En C01: 5 min.
+groups:
+  - name: classifier-consultas
+    rules:
+      - record: classifier:requests:rate1m            # requests por segundo por código: primero rate, luego sum
+        expr: sum by (code) (rate(classifier_requests_total[1m]))
+      - record: classifier:errores_servidor:ratio_rate1m   # 5xx sobre las que no son 4xx (sin 5xx: 0, no vacío)
+        expr: |
+          (sum(rate(classifier_requests_total{code=~"5.."}[1m])) or vector(0))
+            /
+          sum(rate(classifier_requests_total{code!~"4.."}[1m]))
+      - record: classifier:latencia:p99_1m            # el p99 de todo el gateway, sumando los buckets de los pods
+        expr: histogram_quantile(0.99, sum by (le, model_version) (rate(classifier_request_seconds_bucket[1m])))
+  - name: classifier-alertas
+    rules:
+      - alert: ClassifierHigh5xxRate
+        expr: classifier:errores_servidor:ratio_rate1m > 0.01
+        for: 1m
+        labels: {severity: page}
+        annotations: {summary: "Más del 1 % de 5xx en el gateway"}
+      - alert: ClassifierP99Alto
+        expr: classifier:latencia:p99_1m > 0.2
+        for: 2m
+        labels: {severity: page}
+        annotations: {summary: "El p99 del gateway pasó de 200 ms"}
+      - alert: GatewaySinLectura                       # el monitoreo que falla en silencio: no hay qué leer
+        expr: absent(up{job="gateway"} == 1) or count(up{job="gateway"} == 1) < 2
+        for: 30s
+        labels: {severity: ticket}
+        annotations: {summary: "Prometheus no está leyendo los 2 pods del gateway"}
+      - alert: LogsStale                               # 3 veces el upload_timeout de Fluent Bit (C01: 30 min)
+        expr: time() - max by (nodo) (dojo_s3_ultimo_objeto_timestamp_seconds) > 180
+        labels: {severity: ticket}
+        annotations: {summary: "El nodo {{ $labels.nodo }} lleva 3 min sin subir logs a S3"}
+      - alert: ALB5xx                                  # lo que el gateway no ve: el ALB contestando 5xx él mismo
+        expr: |
+          (sum(rate(alb_httpcode_elb_total{code=~"5.."}[1m])) or vector(0))
+            /
+          (sum(rate(alb_request_count_total[1m])) + sum(rate(alb_httpcode_elb_total{code=~"5.."}[1m]))) > 0.005
+        for: 30s
+        labels: {severity: page}
+        annotations: {summary: "El ALB contesta 5xx él mismo (sin destinos sanos)"}

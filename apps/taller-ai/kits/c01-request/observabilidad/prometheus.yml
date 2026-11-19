@@ -1,0 +1,11 @@
+# Qué lee Prometheus y cada cuánto. LO ESCRIBES TÚ (paso 4). En C01: el PodMonitor del gateway.
+# Después de cambiarlo: python mundo/recargar.py prometheus (lo revisa con promtool y Prometheus lo vuelve a leer).
+global:
+  scrape_interval: 5s          # C01: 15 s. En el dojo, más seguido para no esperar
+  evaluation_interval: 5s
+scrape_config_files: [/etc/prometheus-plataforma/*.yml]   # Triton, el ALB, Fluent Bit y el vigía: ya los lee la plataforma
+rule_files: [reglas.yml]
+scrape_configs: []
+# TODO paso 4: el job «gateway». Los pods están en /etc/prometheus-descubrimiento/pods.json (file_sd), con las mismas
+# etiquetas __meta_kubernetes_* que daría kubernetes_sd_configs con role: pod. Cada pod del gateway, una sola vez, con
+# las etiquetas pod, nodo y hash.

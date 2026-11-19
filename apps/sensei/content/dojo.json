@@ -89,8 +89,8 @@
       "id": "request",
       "titulo": "La request en vivo",
       "etapa": "monitoreo",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://taller-ai-engineer.vercel.app/c01/request/"
     },
     {
       "num": 12,

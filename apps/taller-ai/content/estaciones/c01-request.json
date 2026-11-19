@@ -1,0 +1,1717 @@
+{
+  "id": "request",
+  "patron": "sincrono",
+  "caso": "c01",
+  "num": 11,
+  "titulo": "La request en vivo",
+  "nav": "La request en vivo",
+  "pregunta": "La release 15 ya atiende el 100 % del tráfico y contesta bien, pero no deja rastro: mañana nadie podría decir qué contestó, con qué versión ni qué tan rápido. ¿Qué tiene que quedar escrito de cada request (su nombre, una línea de log, sus sumas en las métricas y, a veces, un exemplar), cómo llega cada rastro a donde alguien lo puede leer sin frenar nunca la respuesta, y quién ve lo que pasa antes de que la request llegue al gateway?",
+  "version": "2026-11-18",
+  "mapa": {
+    "resumen": "La estación 10 dejó la release 15 al 100 %, pero así como viene el gateway contesta y olvida. Aquí cada request recibe un <b>nombre</b> (su <code>request_id</code>, de punta a punta), deja una <b>línea de log</b> de ≈ 300 B en stdout y <b>suma</b> en las métricas: contadores, un gauge e histogramas con nombres que no cambian. <b>Prometheus</b> lee cada pod una sola vez, guarda las consultas de todos los días y evalúa las alertas; <b>Fluent Bit</b> lleva el log del disco de cada nodo a <b>S3</b> cada minuto, y un job diario lo pasa a <b>Parquet</b>. Al final miras lo que el gateway no ve: el ALB contestando él mismo.",
+    "entra": [
+      "la release 15 (<code>resnet50-2026-11-01</code>) al 100 %: dos pods del gateway, uno en cada nodo, y su Triton, detrás del ALB",
+      "un gateway que contesta bien pero no deja rastro: <code>gateway/app/rastro.py</code> no guarda el id, no escribe ninguna línea y no suma nada",
+      "Prometheus, Fluent Bit y el S3 corriendo, todavía sin configurar para el gateway, y el log de ayer ya subido",
+      "las reglas de otros equipos: los nombres de las métricas (estaciones 6 y 10), las etiquetas de los pods y el ALB"
+    ],
+    "sale": [
+      "cada request con su <code>request_id</code> en la respuesta, en su línea de log y, en ≈ 1 %, como exemplar en la latencia",
+      "una línea de JSON compacto por request en el disco del nodo, en S3 cada minuto y en Parquet al día siguiente, partido por versión",
+      "las 8 métricas del contrato, leídas por Prometheus una vez por pod, con 3 recording rules y 5 alertas",
+      "la prueba de que el monitoreo tiene puntos ciegos: con Triton caído, el gateway no ve nada y solo el ALB lo cuenta"
+    ],
+    "escala": [
+      {
+        "que": "El tráfico",
+        "c01": "≈ 10 M requests al día: ≈ 116 por segundo en promedio, ≈ 350 en el pico",
+        "taller": "5 fotos por segundo de siempre (los tres callers) y la carga que mandes con <code>mundo/carga.py</code>"
+      },
+      {
+        "que": "Pods y nodos",
+        "c01": "de 3 a 12 pods del gateway en nodos de EKS, en dos zonas",
+        "taller": "2 pods, uno en cada nodo: dos contenedores de Docker (<code>nodo-a</code>, <code>nodo-b</code>) con su runtime"
+      },
+      {
+        "que": "El log",
+        "c01": "≈ 300 B por request: ≈ 3 GB al día, 90 días en S3 (≈ 270 GB, ≈ US$6 al mes)",
+        "taller": "310 B por request; el log de ayer: 11,849 requests en 578 archivos"
+      },
+      {
+        "que": "Quién lo sube",
+        "c01": "Fluent Bit como DaemonSet: sube cada 5 min, con 1 GB de buffer por nodo",
+        "taller": "un Fluent Bit 5.1.5 por nodo: sube cada minuto, con 256 MB de buffer y <code>retry_limit 60</code>"
+      },
+      {
+        "que": "Prometheus",
+        "c01": "kube-prometheus-stack: lee cada 15 s con un PodMonitor; ventanas de 5 min",
+        "taller": "Prometheus v3.15.1 en <code>localhost:9952</code>: lee cada 5 s con <code>file_sd_configs</code> sobre <code>pods.json</code>; ventanas de 1 min"
+      },
+      {
+        "que": "Las alertas",
+        "c01": "5xx, p99, LogsStale a los 30 min y ALB5xx en CloudWatch",
+        "taller": "las mismas 5 en tu <code>reglas.yml</code>: LogsStale a los 3 min, ALB5xx con las métricas del ALB del dojo"
+      },
+      {
+        "que": "Trazas",
+        "c01": "≈ 1 % con OpenTelemetry y Grafana Tempo; los exemplars llevan a la traza",
+        "taller": "≈ 1 % como exemplar (el <code>request_id</code> como trace_id), sin trazas completas: del exemplar a la línea con <code>mundo/buscar.py</code>"
+      },
+      {
+        "que": "El almacén",
+        "c01": "Amazon S3, bucket <code>ml-datos</code>, con KMS y un rol que solo escribe en <code>logs/</code>",
+        "taller": "RustFS 1.0.4 en <code>localhost:9950</code>: el mismo bucket y las mismas rutas"
+      }
+    ],
+    "hoja": "https://cheat-sheets-ml.vercel.app/recorrido/#est-request"
+  },
+  "precalculos": {
+    "intro": "Antes de escribir, las cuentas de servilleta: cuánto pesa el log y cuánto cuesta, cuánto mide la misma request en cada reloj, cuántas series deja el gateway (y cuántas con un id por request), cuántas muestras guarda Prometheus, qué tasa sale con un reinicio, cuántas lentas tienen exemplar, cuánto aguanta el buffer si S3 se cae, cuántas filas sobran sin quitar repetidos y qué pasa cuando contesta el ALB. Cada cuenta va en las dos escalas: C01 y el dojo.",
+    "cuentas": [
+      {
+        "id": "volumen-log",
+        "pregunta": "¿Cuánto pesa el log de un día, cuánto cuesta guardarlo y en cuántos archivos llega?",
+        "formula": "bytes al día = requests al día × bytes por línea · guardado = bytes al día × días · costo = guardado × precio por GB al mes · archivos al día por nodo = segundos del día ÷ segundos entre subidas",
+        "c01": {
+          "cuenta": "10,000,000 × 300 B = 3 GB al día; 90 días: 3 × 90 = 270 GB; a US$0.023 por GB al mes, 270 × 0.023 ≈ US$6 (sin contar la compresión de gzip, que lo baja). Con una subida cada 5 min: 86,400 ÷ 300 = 288 archivos al día por nodo",
+          "valor": "≈ 3 GB al día · ≈ US$6 al mes · 288 archivos por nodo"
+        },
+        "taller": {
+          "cuenta": "5 fotos/s × 86,400 s = 432,000 requests al día × 310 B ≈ 134 MB al día; con una subida por minuto, 86,400 ÷ 60 = 1,440 archivos al día por nodo. El log de ayer que dejó el mundo: 11,849 requests en 578 archivos",
+          "valor": "≈ 134 MB al día · 1,440 archivos por nodo"
+        },
+        "decide": "Que guardar el 100 % del log es barato (≈ US$6 al mes contra ≈ US$1.8k de toda la infraestructura del clasificador) y por eso no se muestrea: la falla callada de un modelo, un 200 con una sugerencia mala, solo se ve uniendo cada línea con lo que eligió la persona. Lo que no se guarda es la foto: a ≈ 200 KB serían 2 TB al día. Y como cada byte de la línea se paga 10 millones de veces al día, va en JSON compacto, sin hora y sin espacios.",
+        "conceptos": [
+          "linea-log"
+        ],
+        "comprueba": {
+          "code": "python verificar.py request-id linea-log",
+          "nota": "verificar.py mide una línea real del disco del nodo: sus bytes, con el salto de línea.",
+          "donde": "mac",
+          "salida": "✓ request-id        respeta el id del caller (también en el 415), inventa un UUID v4 si falta y reemplaza los que no son sanos; el id está en el log\n✓ linea-log         una línea de JSON compacto en stdout (310 B), con request_id, ms y status, sin hora ni foto · nodo-a:/var/log/pods/classifier_gateway-6f7b9c4d58-xa7k2_3f1c9a2e-7b44-4d0e-9a61-5c2b8e0d7a11/gateway/0.log\n\n2/2 en verde"
+        },
+        "confirma": "el paso 8: el job leyó el día de ayer, 11,887 registros en 578 objetos."
+      },
+      {
+        "id": "tres-relojes",
+        "pregunta": "¿Cuánto mide la misma request en cada reloj, y dónde se va la diferencia?",
+        "formula": "reloj del ALB = reloj del gateway + red entre el ALB y el pod · reloj del backend = reloj del ALB + lo que tarda el ALB en sus cuentas + la red entre el backend y el ALB",
+        "c01": {
+          "cuenta": "la foto de Ana: 20 ms en el gateway; con ≈ 1 ms de red al pod, 20 + 1 ≈ 21 en el ALB; con ≈ 2 ms de entrada (TLS, revisar el token y la red del backend), 21 + 2 ≈ 23 en el backend",
+          "valor": "20 · ≈ 21 · ≈ 23 ms"
+        },
+        "taller": {
+          "cuenta": "814 requests con los tres relojes, en p50: gateway 6 ms, ALB 9.4 ms, backend 11.9 ms. ALB − gateway ≈ 3.4 ms (la red al pod y lo que el gateway no ve) y backend − ALB ≈ 2.3 ms",
+          "valor": "6 · 9.4 · 11.9 ms (p50)"
+        },
+        "decide": "A qué reloj se le promete qué: el SLO de C01 (p99 ≤ 200 ms) es del lado del servidor, con el reloj del gateway; el backend vive con su timeout de 300 ms; el ALB ve lo que pasa antes del gateway. En el dojo cada salto pesa ≈ 4 ms (la red de Docker Desktop y un ALB escrito en Python); en C01, 1 o 2. Ningún reloj miente: si el backend se queja y el gateway dice que va rápido, el tiempo se fue fuera del gateway.",
+        "conceptos": [
+          "tres-relojes"
+        ],
+        "comprueba": {
+          "code": "python mundo/relojes.py 1000",
+          "nota": "Los tres relojes de las mismas requests, unidos por request_id.",
+          "donde": "mac",
+          "salida": "814 requests con los tres relojes (de las últimas 1000 del backend con 200)\n\nreloj                                                     p50      p99\nbackend                                                 11.9     86.0  ms\nALB (TargetResponseTime)                                 9.4     54.3  ms\ngateway (ms.total)                                       6.0     21.7  ms\nbackend − ALB (red y ALB)                                2.3     47.1  ms\nALB − gateway (red al pod y lo que el gateway no ve)     3.4     36.6  ms"
+        },
+        "confirma": "el paso 1: <code>mundo/carga.py --una</code> muestra los tres relojes de una sola request."
+      },
+      {
+        "id": "series-por-pod",
+        "pregunta": "¿Cuántas series deja el gateway en Prometheus, y cuántas si el request_id fuera etiqueta?",
+        "formula": "series de un histograma = (bordes + 4) × combinaciones de etiquetas · de un contador = 2 × combinaciones · con un id por request: series nuevas = (bordes + 4) × requests",
+        "c01": {
+          "cuenta": "239 por pod si aparecen todas las combinaciones (88 del contador con 11 códigos × 4 fuentes, 60 de la latencia, 52 de los bytes…); con 3 pods ≈ 720, con 12 ≈ 2,900. Con el request_id en la latencia: 15 × 10,000,000 = 150 millones de series nuevas al día",
+          "valor": "239 por pod · 150 M nuevas al día con el request_id"
+        },
+        "taller": {
+          "cuenta": "el contrato del dojo por pod: contador 2 × 11 códigos × 4 fuentes = 88; latencia (11 + 4) × 4 = 60; preproceso e inferencia 15 cada uno; score (10 + 4) = 14; bytes (7 + 4) × 4 = 44; categorías 2 × 10 = 20; en vuelo, 1: 257 si aparecieran los 11 códigos. Al final del Guiado, el pod con más tenía 195. Con el request_id: 15 × 5 fotos/s = 75 series nuevas por segundo, ≈ 6.5 millones al día",
+          "valor": "≈ 257 por pod (tope de verificar.py: 400) · 75 nuevas por segundo con el request_id"
+        },
+        "decide": "Qué puede ser etiqueta: solo lo que tiene una lista corta y conocida de valores. <code>source</code> se reduce a 4 aunque el header traiga cualquier texto; el <code>request_id</code> va al log y al exemplar, nunca a una etiqueta. verificar.py pone el tope en 400 por pod: si algo crece sin techo, lo ve.",
+        "conceptos": [
+          "cardinalidad",
+          "histograma"
+        ],
+        "comprueba": {
+          "code": "curl -s localhost:8951/metrics | grep -c '^classifier_'",
+          "nota": "Después de 10 s de un caller con un X-Client-Source distinto en cada request: de 155 a 187 series, por la fuente <code>other</code> que apareció, y ya no crece.",
+          "donde": "mac",
+          "salida": "187"
+        },
+        "confirma": "la falla «Encontrar las lentas» de Romper: un histograma con la etiqueta request_id dejó 4,470 buckets en un pod con 20 s de carga."
+      },
+      {
+        "id": "muestras-prometheus",
+        "pregunta": "¿Cuántas muestras guarda Prometheus al día por el gateway?",
+        "formula": "muestras por serie al día = 86,400 ÷ segundos entre lecturas · muestras al día = series × muestras por serie",
+        "c01": {
+          "cuenta": "86,400 ÷ 15 = 5,760 por serie; 717 series (3 pods) × 5,760 ≈ 4.1 millones al día; en 15 días de retención, ≈ 62 millones",
+          "valor": "5,760 por serie · ≈ 4.1 M al día"
+        },
+        "taller": {
+          "cuenta": "86,400 ÷ 5 = 17,280 por serie; las 376 series classifier_* que Prometheus guardaba de los 2 pods en el paso 4 × 17,280 ≈ 6.5 millones al día",
+          "valor": "17,280 por serie · ≈ 6.5 M al día"
+        },
+        "decide": "Cada cuánto leer: más seguido da más resolución y cuesta más memoria y disco. C01 lee cada 15 s; el dojo cada 5 s para no esperar (una ventana de 1 min junta 12 lecturas). Y por qué se vigilan las series: el costo es series × lecturas, y las series son lo que puede crecer sin techo.",
+        "conceptos": [
+          "scrape"
+        ],
+        "comprueba": {
+          "code": "q 'count by (__name__) ({job=\"gateway\", __name__=~\"classifier_.*\"})'",
+          "nota": "Las series del gateway en Prometheus, por nombre: cada histograma con sus _bucket, _count, _sum y _created.",
+          "donde": "mac",
+          "salida": "{__name__=\"classifier_requests_total\"} 19\n{__name__=\"classifier_requests_created\"} 19\n{__name__=\"classifier_request_seconds_bucket\"} 96\n{__name__=\"classifier_request_seconds_count\"} 8\n{__name__=\"classifier_request_seconds_sum\"} 8\n{__name__=\"classifier_request_seconds_created\"} 8\n{__name__=\"classifier_preprocess_seconds_bucket\"} 24\n{__name__=\"classifier_preprocess_seconds_count\"} 2\n{__name__=\"classifier_preprocess_seconds_sum\"} 2\n{__name__=\"classifier_preprocess_seconds_created\"} 2\n{__name__=\"classifier_inference_seconds_bucket\"} 24\n{__name__=\"classifier_inference_seconds_count\"} 2\n{__name__=\"classifier_inference_seconds_sum\"} 2\n{__name__=\"classifier_inference_seconds_created\"} 2\n{__name__=\"classifier_top1_score_bucket\"} 22\n{__name__=\"classifier_top1_score_count\"} 2\n{__name__=\"classifier_top1_score_sum\"} 2\n{__name__=\"classifier_top1_score_created\"} 2\n{__name__=\"classifier_image_bytes_bucket\"} 64\n{__name__=\"classifier_image_bytes_count\"} 8\n{__name__=\"classifier_image_bytes_sum\"} 8\n{__name__=\"classifier_image_bytes_created\"} 8\n{__name__=\"classifier_top1_label_total\"} 20\n{__name__=\"classifier_top1_label_created\"} 20\n{__name__=\"classifier_requests_in_flight\"} 2"
+        }
+      },
+      {
+        "id": "tasa-reinicio",
+        "pregunta": "Si un pod se reinicia, ¿qué tasa da sacar la tasa primero y qué tasa da sumar primero?",
+        "formula": "tasa = suma de los aumentos de cada serie ÷ ventana; un contador que baja se lee como reinicio y cuenta su valor nuevo",
+        "c01": {
+          "cuenta": "un pod leído cada 15 s: 1,000,000 · 1,000,540 · 1,001,080 · 120 · 660; aumentos 540 + 540 + 120 + 540 = 1,740 en 60 s = 29 por segundo. La resta ingenua, (660 − 1,000,000) ÷ 60, da ≈ −16,656",
+          "valor": "29 por segundo, no −16,656"
+        },
+        "taller": {
+          "cuenta": "el paso 5 mata el contenedor del pod del nodo a: su contador de 200 pasa de 1,565 a 248. <code>sum(rate(…[1m]))</code> = 21.9 req/s; <code>rate(sum(…)[1m:5s])</code> = 49.9: la suma bajó, rate() lo leyó como un reinicio de todo y volvió a contar la suma entera",
+          "valor": "21.9 contra 49.9 req/s"
+        },
+        "decide": "El orden dentro de cada recording rule: siempre <code>sum(rate(…))</code>, primero la tasa de cada serie y luego la suma. verificar.py consultas lo revisa en el texto de tu regla.",
+        "conceptos": [
+          "promql-rate"
+        ],
+        "comprueba": {
+          "code": "q 'rate(sum(classifier_requests_total{code=\"200\"})[1m:5s])'",
+          "nota": "Primero la suma y luego la tasa, después del reinicio: un pico falso.",
+          "donde": "mac",
+          "salida": "{} 49.945454545454545"
+        },
+        "confirma": "el paso 5: <code>resets()</code> ve el reinicio en las series del pod a y no en las del b."
+      },
+      {
+        "id": "exemplars-uno-por-ciento",
+        "pregunta": "¿Cuántas requests dejan exemplar con el 1 %, y cuántas de las lentas?",
+        "formula": "requests con exemplar = requests × fracción · lentas con exemplar = requests × fracción de lentas × fracción con exemplar",
+        "c01": {
+          "cuenta": "hora pico: 350 × 3,600 = 1,260,000 requests; 0.5 % lentas (más de 200 ms) = 6,300; al 1 %, 6,300 × 0.01 = 63 con traza",
+          "valor": "≈ 63 lentas con traza por hora pico"
+        },
+        "taller": {
+          "cuenta": "el paso 6: 872 requests de la carga más ≈ 600 del tráfico de siempre en la ventana de 2 min; al 1 %, ≈ 15 con exemplar. Prometheus devolvió 11: el texto de /metrics lleva a lo más un exemplar por bucket (el último), y entre dos lecturas los demás se pisan",
+          "valor": "≈ 15 esperados · 11 en Prometheus"
+        },
+        "decide": "Que el exemplar sirve para pasar de la curva a una request de ejemplo, no para encontrar todas las lentas: con un muestreo que decide al principio (head sampling), casi ninguna lenta queda elegida. Para guardarlas todas hay que decidir al final (tail sampling), que pide juntar la request completa antes de decidir; C01 empieza con el simple.",
+        "conceptos": [
+          "exemplar"
+        ],
+        "comprueba": {
+          "code": "python -c \"import json,sys;d=json.load(sys.stdin)['data'];ex=[(float(e['value']),e['labels']['trace_id'],s['seriesLabels']['le']) for s in d for e in s['exemplars']];ex.sort(reverse=True);print(len(ex),'exemplars en 2 min');[print(f'{v*1000:6.1f} ms  le={le:<6} trace_id={t}') for v,t,le in ex[:5]]\" < logs/exemplars.json",
+          "nota": "Los exemplars de los últimos 2 min, del más lento al más rápido.",
+          "donde": "mac",
+          "salida": "11 exemplars en 2 min\n   8.6 ms  le=0.01   trace_id=e05fd2aa-78b0-48df-a941-e526d54e5d1e\n   7.8 ms  le=0.01   trace_id=755f9807-188b-4db5-8629-0e3b8a50099b\n   7.7 ms  le=0.01   trace_id=f00a1e32-cd18-43c8-baa9-b2a93bd9c551\n   7.4 ms  le=0.01   trace_id=f38dc684-db66-4300-ab35-9bf610137204\n   7.0 ms  le=0.01   trace_id=0113dff8-332b-4980-92e4-a2a6be85f316"
+        },
+        "confirma": "el paso 6: el exemplar más lento (8.6 ms) lleva a su línea con <code>mundo/buscar.py</code>."
+      },
+      {
+        "id": "aguante-buffer",
+        "pregunta": "Si S3 se cae, ¿cuánto aguanta un nodo antes de perder líneas?",
+        "formula": "aguante en horas = buffer del nodo ÷ lo que escribe un nodo en una hora; y nunca más que lo que Fluent Bit reintenta antes de rendirse",
+        "c01": {
+          "cuenta": "1 GB × 2 nodos × 24 h ÷ 3 GB al día = 16 h con el tráfico parejo; si todo fuera hora pico (1/8 del día), 1 ÷ (3 ÷ 8 ÷ 2) ≈ 5.3 h. LogsStale avisa a los 30 min",
+          "valor": "≈ 16 h (≈ 5 h en pico)"
+        },
+        "taller": {
+          "cuenta": "un nodo recibe la mitad de las 5 fotos/s: 2.5 × 310 B × 3,600 ≈ 2.8 MB por hora; 256 MB ÷ 2.8 ≈ 92 h de disco. Pero con el <code>retry_limit</code> por omisión, el plugin s3 reintenta cada ≈ 5 s y a los 6 intentos se rinde: ≈ 30 s de S3 caído y el pedazo se va a cuarentena",
+          "valor": "≈ 92 h de disco · ≈ 30 s con el retry_limit por omisión"
+        },
+        "decide": "Que el tope real no siempre es el disco: es cuántas veces reintenta Fluent Bit. Con el valor por omisión, en una prueba de la construcción del dojo, 3 min de S3 caído mandaron dos pedazos (≈ 2 min de líneas) a cuarentena y nunca llegaron a S3, con <code>fluentbit_output_retries_failed_total</code> en 0; <code>retry_limit no_limits</code> lo recorta a 5. Por eso la solución usa <code>retry_limit 60</code> (reintenta cada ≈ 18 s) y <code>verificar.py log-en-s3</code> reprueba si hubo cuarentena. LogsStale avisa mucho antes de que el disco se llene.",
+        "conceptos": [
+          "buffer-en-disco"
+        ],
+        "comprueba": {
+          "code": "curl -s localhost:9953/api/v2/metrics/prometheus | grep -E '^fluentbit_output_(proc_records|errors|retries|retries_failed)_total'",
+          "nota": "Después de volver S3: los intentos que fallaron (errors) y lo que ya entregó.",
+          "donde": "mac",
+          "salida": "fluentbit_output_proc_records_total{name=\"s3.0\"} 2273\nfluentbit_output_errors_total{name=\"s3.0\"} 2\nfluentbit_output_retries_total{name=\"s3.0\"} 0\nfluentbit_output_retries_failed_total{name=\"s3.0\"} 0"
+        },
+        "confirma": "el paso 7: con S3 apagado, las 1,725 requests de la carga contestaron y, al volver, el Fluent Bit del nodo a subió 3 pedazos atrasados de un jalón."
+      },
+      {
+        "id": "repetidos",
+        "pregunta": "¿Cuántas filas sobrarían sin quitar los repetidos?",
+        "formula": "filas repetidas = archivos subidos dos veces × líneas por archivo · líneas por archivo = requests al día ÷ (archivos al día por nodo × nodos)",
+        "c01": {
+          "cuenta": "10,000,000 ÷ (288 × 2) ≈ 17,400 líneas por archivo: cada archivo que se sube dos veces mete ≈ 17,400 filas de más",
+          "valor": "≈ 17,400 filas de más por archivo repetido"
+        },
+        "taller": {
+          "cuenta": "el día de ayer: 11,887 registros leídos de 578 objetos; 37 repetidos (los 2 archivos subidos dos veces) y 1 ignorados (stderr o texto suelto): 11,887 − 37 − 1 = 11,849 filas",
+          "valor": "37 filas de más sin quitar repetidos"
+        },
+        "decide": "Que el job diario quita repetidos siempre, con la llave (request_id, time): Fluent Bit entrega al menos una vez. Sin eso, el join del mes contaría esas fotos dos veces y las etiquetas de entrenamiento saldrían chuecas.",
+        "conceptos": [
+          "al-menos-una-vez"
+        ],
+        "comprueba": {
+          "code": "python diario/a_parquet.py",
+          "nota": "Lo que leyó, lo que quitó y lo que quedó por versión.",
+          "donde": "mac",
+          "salida": "2026-11-18: 578 objetos · 11,887 registros · 37 repetidos · 1 ignorados\n  logs/predicciones/dt=2026-11-18/model_version=resnet50-2026-10-01/parte-0.parquet  7,830 filas\n  logs/predicciones/dt=2026-11-18/model_version=resnet50-2026-11-01/parte-0.parquet  4,019 filas\ntotal: 11,849 filas"
+        }
+      },
+      {
+        "id": "lo-que-contesta-el-alb",
+        "pregunta": "Si Triton se cae 4 minutos, ¿cuántas requests contesta el ALB con 503, y qué ve el gateway?",
+        "formula": "requests con 503 del ALB = tasa × segundos caído · fracción del presupuesto = esas requests ÷ las que el mes deja fallar",
+        "c01": {
+          "cuenta": "116 × 240 = 27,840 con 503 del ALB; el presupuesto de errores del mes (99.9 % de ≈ 300 M) deja fallar 300,000: 27,840 ÷ 300,000 ≈ 9.3 % en 4 minutos. El gateway cuenta 0",
+          "valor": "27,840 · ≈ 9.3 % del presupuesto del mes"
+        },
+        "taller": {
+          "cuenta": "el paso 9: 975 requests en 50 s, códigos 503: 975. Prometheus: el ALB contestaba ≈ 20.7 req/s con 503 él mismo mientras el gateway contaba 0.05 req/s",
+          "valor": "≈ 20.7 req/s del ALB contra 0.05 del gateway"
+        },
+        "decide": "Que una alerta sobre las métricas del gateway no basta: hace falta la que mira lo que contesta el propio ALB (ALB5xx; en C01, en CloudWatch). Y que el presupuesto de errores se va rápido: 4 minutos de Triton caído son casi la décima parte del mes.",
+        "conceptos": [
+          "punto-ciego-alb"
+        ],
+        "comprueba": {
+          "code": "curl -s localhost:8957/metrics | grep -E '^alb_(request_count_total|httpcode_elb_total\\{code=\"503\"\\}|healthy_host_count)'",
+          "nota": "Las métricas del ALB: sus 503 propios y cuántos destinos sanos le quedan.",
+          "donde": "mac",
+          "salida": "alb_request_count_total 11173.0\nalb_httpcode_elb_total{code=\"503\"} 1248.0\nalb_healthy_host_count 0.0"
+        }
+      }
+    ]
+  },
+  "conceptos": [
+    {
+      "id": "observabilidad",
+      "termino": "Observabilidad: los tres rastros",
+      "en": "observability / metrics, logs, traces",
+      "def": "Poder entender qué pasa adentro de un servicio mirando lo que deja escrito: métricas (sumas: ¿cuánto?), logs (una línea por request: ¿qué pasó con esta?) y trazas o exemplars (¿dónde se fue el tiempo?).",
+      "analogia": "El tablero, la bitácora y la cámara de un auto. El tablero (métricas) avisa que el motor se calienta; la bitácora (log) dice en qué viajes pasó; el video de un viaje (traza) muestra en qué subida. Video solo se graba de unos cuantos viajes: son caros.",
+      "importa": "Cada rastro contesta una pregunta distinta y se usan en orden: la métrica avisa («el p99 subió a las 14:05»), el exemplar lleva a una request de ejemplo y el log dice cuántas se parecen y qué tienen en común. Los une el <code>request_id</code>. Para un modelo hay algo más: un 200 con una sugerencia mala no se ve en ninguna métrica de servicio, solo en el log, uniendo cada predicción con lo que eligió la persona. Por eso C01 guarda el log del 100 % de las requests.",
+      "trampa": "Creer que con métricas basta. Las métricas no recuerdan ninguna request: con ellas sabes que algo va mal, no a quién le pasó ni qué contestó el modelo."
+    },
+    {
+      "id": "request-id",
+      "termino": "request_id de punta a punta",
+      "en": "request ID / correlation ID / X-Request-ID / UUID v4",
+      "def": "El nombre único de cada request: el X-Request-ID del caller si es sano, o un UUID versión 4 nuevo. Vuelve en la respuesta y va en el log y en el exemplar: es la llave para unir lo que dejó en cada lugar.",
+      "analogia": "El número de guía de un paquete: el remitente, la bodega y el repartidor anotan cosas distintas en sus propias libretas, pero con el mismo número cualquiera junta la historia completa sin saber en qué camión viajó.",
+      "importa": "Sin él, unir el log del backend, el access log del ALB y la línea del gateway sería adivinar por la hora, y con 116 fotos por segundo eso falla. Respetar el id del caller hace que backend y gateway llamen igual a la misma request. Un UUID v4 son 122 bits al azar: dos pods inventan ids al mismo tiempo sin chocar y sin preguntarle a nadie.",
+      "trampa": "Copiar cualquier X-Request-ID que llegue: uno de 80 caracteres o con un salto de línea ensucia el log (o lo parte en dos). Y ponerlo como etiqueta de una métrica: una serie nueva por request."
+    },
+    {
+      "id": "linea-log",
+      "termino": "La línea de log: JSON Lines en stdout",
+      "en": "structured logging / JSON Lines / stdout / CRI log format",
+      "def": "Una línea de JSON compacto por request, escrita en la salida estándar (stdout) y sin hora. El runtime del nodo la guarda en un archivo con su hora, en formato CRI, y rota el archivo cuando crece.",
+      "analogia": "Dictarle a una secretaria: dices una frase por caso y sigues con lo tuyo; ella la anota en el cuaderno con la hora del reloj de la pared y, cuando el cuaderno se llena, empieza otro y tira el más viejo.",
+      "importa": "El gateway no abre archivos, no conoce S3 y no espera a nadie: escribir en stdout termina en microsegundos, así que el log nunca frena la request. Una línea por request, con request_id, caller, source, model_version, top5, ms, bytes, sha256 y status: ≈ 300 B, lo que lee el job del día siguiente. La hora la pone uno solo, el runtime, en UTC con nanosegundos: en el disco del nodo queda «&lt;hora&gt; stdout F &lt;tu línea&gt;», en 5 archivos de 10 MiB por contenedor.",
+      "trampa": "Poner la hora en la línea (dos relojes en el mismo registro), escribir con espacios (≈ 10 % más bytes, pagados 10 millones de veces al día) o escribir directo a S3 desde la request: una lentitud de S3 se vuelve lentitud para el usuario."
+    },
+    {
+      "id": "tres-relojes",
+      "termino": "Tres relojes",
+      "en": "server-side latency / TargetResponseTime / client-side latency",
+      "def": "La misma request mide distinto según quién mida: el gateway (desde que su código la recibe hasta que contesta), el ALB (TargetResponseTime) y el backend (todo lo que esperó). Cada reloj contiene al anterior.",
+      "analogia": "Una pizza a domicilio: la cocina cuenta desde que entra la orden hasta que sale la caja; el repartidor, desde que la recoge hasta que toca el timbre; tú, desde que colgaste el teléfono. Los tres tienen razón y ninguno es «el tiempo de la pizza».",
+      "importa": "El SLO de C01 (p99 ≤ 200 ms) se mide del lado del servidor, con el reloj del gateway; el backend vive con su timeout de 300 ms. TargetResponseTime va desde que la request sale del ALB hasta que el pod empieza a mandar los headers de la respuesta. Si el backend se queja de 280 ms y el gateway dice 20, el tiempo se fue fuera del gateway: en el ALB, en la red o en el backend.",
+      "trampa": "Comparar un número de un reloj con el de otro como si fueran lo mismo, o unir los relojes por la hora en lugar de por request_id."
+    },
+    {
+      "id": "contador-gauge",
+      "termino": "Contador y gauge",
+      "en": "counter / gauge",
+      "def": "Un contador empieza en 0 y solo sube (las requests con 200): lo útil es cuánto subió en un rato. Un gauge sube y baja, y su valor sí dice algo en cada momento (las requests en vuelo ahora).",
+      "analogia": "El odómetro y el velocímetro de un auto: el odómetro solo sube y lo útil es cuántos km hiciste hoy (una resta); el velocímetro sube y baja y lo que importa es lo que marca ahora.",
+      "importa": "<code>classifier_requests_total{code, source, model_version}</code> es el contador del que salen las requests por segundo y la fracción de errores; <code>classifier_requests_in_flight</code> es el gauge (de 0 a 16, el tope del gateway). Si el proceso se reinicia, el contador vuelve a 0: no es un error, es la regla, y quien lo lee entiende que un contador que baja se reinició. Las métricas viven en la memoria del pod; el gateway las expone en <code>GET /metrics</code> y alguien las lee.",
+      "trampa": "Leer el valor de un contador como si dijera algo («lleva 957,980»): solo dice cuánto contó desde que arrancó. O usar un gauge para «las requests del último minuto»: no se suma bien entre pods y no sobrevive a un reinicio."
+    },
+    {
+      "id": "histograma",
+      "termino": "Histograma y buckets",
+      "en": "histogram / buckets / le / histogram_quantile",
+      "def": "Un grupo de contadores, uno por bucket: cada observación suma 1 a los buckets cuyo borde (le, «menor o igual») es mayor o igual a su valor, más _count y _sum. De ahí sale el p99 sin guardar cada número.",
+      "analogia": "Una fila de cubetas con letreros «hasta 5 ms», «hasta 10 ms», «hasta 20 ms»…: cada request echa una canica en cada cubeta cuyo letrero le queda grande. Contando canicas sabes debajo de qué tiempo cayó el 99 %.",
+      "importa": "Los bordes se eligen alrededor de lo que importa: los de la latencia alrededor del SLO (0.15, 0.2 y 0.25 s), los del score con uno en 0.3, el umbral de baja confianza. Como son contadores, los de varios pods se suman antes de estimar el percentil con <code>histogram_quantile</code>. Cada combinación de etiquetas cuesta bordes + 4 series: +Inf, _count, _sum y _created.",
+      "trampa": "Un promedio o un percentil calculado en cada pod: el p99 de todo el gateway no es el promedio de los p99 de cada pod (y el Summary de prometheus_client ni siquiera calcula cuantiles). Y meter los 4xx a la latencia: un 415 tarda microsegundos y baja el p99 sin que nadie conteste más rápido."
+    },
+    {
+      "id": "cardinalidad",
+      "termino": "Cardinalidad",
+      "en": "cardinality / label values / high-cardinality labels",
+      "def": "Cuántas series deja una métrica: una por cada combinación distinta de valores de sus etiquetas. Cada serie le cuesta a Prometheus memoria, un lugar en su índice y una muestra en cada lectura.",
+      "analogia": "Los cajones de un archivero, uno por combinación de etiquetas: con «tipo de documento» y «año» son unos cuantos; si agregas «número de folio», necesitas un cajón por hoja y el archivero ya no cabe en el cuarto.",
+      "importa": "Solo pueden ser etiquetas los datos con una lista corta y conocida de valores: <code>code</code>, <code>source</code> reducida a 4, <code>model_version</code>. Lo que identifica a una request (su id, el sha256 de la foto) va al log. En C01, el request_id en la latencia serían 15 series nuevas por request: 150 millones al día, y Prometheus se queda sin memoria en horas.",
+      "trampa": "Copiar un header a una etiqueta tal como llega (un caller con un bug manda un texto distinto en cada request), o creer que no pasa nada porque todo contesta 200: el costo aparece en Prometheus, horas después."
+    },
+    {
+      "id": "scrape",
+      "termino": "Scrape: Prometheus jala",
+      "en": "scrape / pull model / up",
+      "def": "Prometheus le pide /metrics a cada objetivo cada cierto tiempo (5 s en el dojo, 15 s en C01) y guarda cada número con la hora. Por cada objetivo guarda también up: 1 si la lectura salió bien, 0 si no.",
+      "analogia": "El que lee los medidores de luz: pasa por cada casa y anota lo que marca; si una casa no le abre, lo anota. Si las casas mandaran su lectura por correo, una casa sin luz simplemente no mandaría nada, y su silencio se parecería a «todo bien».",
+      "importa": "Jalar en vez de recibir hace que un pod muerto se note: su <code>up</code> baja a 0. Cada serie junta una muestra por lectura: 86,400 ÷ 15 = 5,760 al día en C01. Lo primero que se revisa después de un cambio de monitoreo es que <code>up</code> exista y valga 1 para cada pod.",
+      "trampa": "Pensar que si Prometheus no se queja, está leyendo todo: si un pod no está en su lista, no hay ningún up de ese pod que baje. Nada truena; simplemente no lo lee."
+    },
+    {
+      "id": "descubrimiento",
+      "termino": "Descubrimiento y relabel: pods, no Services",
+      "en": "service discovery / relabel_configs / PodMonitor vs. ServiceMonitor",
+      "def": "Prometheus no lleva una lista fija de pods: los descubre (en C01, de la API de Kubernetes; en el dojo, de pods.json) y con relabel_configs se queda con los que quiere y les pone etiquetas.",
+      "analogia": "Un cartero con el padrón del edificio: no se aprende los nombres, lee el padrón cada día y reparte según lo que dice. Si repartiera por el buzón de cada empresa y dos empresas comparten oficina, esa oficina recibiría todo dos veces.",
+      "importa": "En C01 lo arma kube-prometheus-stack con un PodMonitor, que elige pods por sus etiquetas. Fuera de un canary, <code>gateway-stable</code> y <code>gateway-canary</code> eligen los mismos pods: un ServiceMonitor los leería por los dos Services, con la etiqueta <code>service</code>, y cada suma saldría al doble. Las etiquetas que empiezan con <code>__</code> se tiran después del relabel: lo que quieras guardar (pod, nodo, hash) lo copias antes.",
+      "trampa": "Leer por los Services, o creer que no pasa porque al probar sin la etiqueta service salía bien: Prometheus descarta objetivos repetidos con las mismas etiquetas, y la cuenta doble aparece con service. Y un keep sobre una etiqueta que otro equipo puede renombrar sin avisar."
+    },
+    {
+      "id": "promql-rate",
+      "termino": "PromQL: rate, y luego sum",
+      "en": "PromQL / rate() / sum by / counter resets",
+      "def": "rate(contador[1m]) da cuánto subió por segundo en el último minuto, leyendo cualquier bajada como un reinicio; sum by (…) suma series y deja separadas las etiquetas que nombras. Siempre sum(rate(…)).",
+      "analogia": "Medir el ritmo de un grupo de corredores con podómetros que a veces se reinician: sacas los pasos por minuto de cada uno (si su podómetro marca menos, se reinició) y luego sumas. Si primero sumas los podómetros y uno se reinicia, el total baja y parece que todos se reiniciaron a la vez.",
+      "importa": "Es la base de todas las tasas: requests por segundo, la fracción de errores del servidor (5xx sobre lo que no es 4xx) y el p99 (<code>histogram_quantile</code> sobre <code>sum by (le)</code> de las tasas de los buckets). Con lecturas cada 5 s, una ventana de 1 min junta 12 muestras; con 15 s, C01 usa 5 min.",
+      "trampa": "<code>rate(sum(…))</code>: cuando un pod se reinicia, la suma baja, rate() la lee como un reinicio de todo y cuenta la suma entera otra vez: un pico falso. Y dividir los 5xx entre todas las requests: un caller que manda basura (4xx) baja tu tasa de errores."
+    },
+    {
+      "id": "recording-rule",
+      "termino": "Recording rule",
+      "en": "recording rule / level:metric:operations",
+      "def": "Una consulta que Prometheus hace solo cada pocos segundos y guarda como una serie nueva con nombre (nivel:métrica:operación). El tablero y las alertas leen ese nombre en lugar de repetir la cuenta.",
+      "analogia": "El corte de caja de una tienda cada hora: en lugar de que cada gerente sume los tickets cuando quiere saber cuánto se vendió, alguien hace la suma a la hora y la anota en una hoja con nombre.",
+      "importa": "Las preguntas de todos los días (requests por segundo por código, fracción de errores del servidor, p99 por versión) quedan calculadas igual para todos, y las alertas se escriben sobre ellas. En el dojo se evalúan cada 5 s, con ventanas de 1 min.",
+      "trampa": "Una división sin numerador da vacío, no 0: sin ningún 5xx, la serie de 5xx no existe y la fracción desaparece del tablero. Por eso el <code>or vector(0)</code>. Y un <code>rate(sum(…))</code> dentro de una regla esconde el error detrás de un nombre bonito."
+    },
+    {
+      "id": "alerta",
+      "termino": "Alertas: for, pending y absent",
+      "en": "alerting rule / for / pending / firing / absent()",
+      "def": "Una regla que avisa si su condición se cumple durante un tiempo (for): mientras no lo cumple está pending; después, firing. absent() da una serie cuando no hay ninguna: así también suena lo que se calla.",
+      "analogia": "Una alarma de humo con espera: un cerillo no la dispara; el humo que sigue 30 segundos, sí. Y otra alarma que suena si la de humo se quedó sin pila: la más peligrosa es la que no suena porque no tiene nada que medir.",
+      "importa": "Las 5 de la estación: ClassifierHigh5xxRate (más de 1 % por 1 min), ClassifierP99Alto (más de 200 ms por 2 min), GatewaySinLectura (Prometheus no lee los 2 pods, con absent), LogsStale (un nodo lleva 3 min sin subir a S3; C01: 30 min) y ALB5xx (los 5xx que pone el ALB). El <code>for</code> evita despertar a alguien por un pico de un instante.",
+      "trampa": "Alertas que dependen de series que pueden desaparecer: si tu job pierde los pods, la de 5xx evalúa sobre nada y no suena, justo cuando no ves nada. Por eso GatewaySinLectura mira <code>up</code> con absent."
+    },
+    {
+      "id": "exemplar",
+      "termino": "Exemplar",
+      "en": "exemplar / trace_id / OpenMetrics / head sampling",
+      "def": "Un id pegado a una observación de un histograma: «una de las que cayeron en este bucket es la request tal». En el dojo, el request_id de ≈ 1 % de las requests, elegidas por el hash del id.",
+      "analogia": "Un post-it en una caja de la bodega: la etiqueta dice «150 paquetes de 10 a 20 kg»; el post-it dice «uno de ellos es el folio 5a1e07c3», para que puedas abrir uno y ver cómo viene.",
+      "importa": "Une la métrica con una request concreta: ves el p99 subir, tocas un punto y llegas al id (en C01, a su traza; en el dojo, con <code>mundo/buscar.py</code>, a su línea). Dos condiciones: prometheus_client solo los escribe en el formato OpenMetrics, que Prometheus 3 pide al leer, y Prometheus solo los guarda con <code>--enable-feature=exemplar-storage</code>, que viene apagado.",
+      "trampa": "Esperar que el exemplar sea una de las lentas: el muestreo decide al principio (head sampling), sin saber cuánto va a tardar, y cada bucket lleva a lo más uno (el último) entre dos lecturas. Para guardar todas las lentas hay que decidir al final (tail sampling)."
+    },
+    {
+      "id": "fluent-bit",
+      "termino": "Fluent Bit en cada nodo",
+      "en": "Fluent Bit / tail input / DaemonSet",
+      "def": "Un programa chico que corre en cada nodo, sigue los archivos de log mientras crecen (tail, con el parser cri), anota hasta dónde leyó (su DB) y sube lo que junta a S3. En C01, un DaemonSet: un pod por nodo.",
+      "analogia": "El mensajero de cada piso de un edificio: pasa por las bandejas de su piso, se lleva lo nuevo, anota en su libreta hasta qué hoja recogió y lo manda al archivo central. Con un mensajero por piso, ningún piso se queda sin recoger, ni siquiera uno nuevo.",
+      "importa": "El gateway no conoce S3: Fluent Bit hace el camino. Con un Deployment de 3 réplicas, dos nodos podrían quedarse sin quien lea sus logs; el DaemonSet pone uno en cada nodo, también en los que lleguen. Si se cae, las líneas esperan en el disco del nodo y, al volver, sigue donde se quedó gracias a su DB, mientras el kubelet no haya rotado esos archivos.",
+      "trampa": "Pensar que si Fluent Bit se cae no pasa nada porque el gateway sigue contestando: el log de ese nodo se atrasa y, si tarda más que la rotación (5 archivos de 10 MiB), esas líneas se pierden. Lo avisa LogsStale, por nodo."
+    },
+    {
+      "id": "buffer-en-disco",
+      "termino": "Buffer en disco y reintentos",
+      "en": "store_dir / retry_limit / quarantine / never block the request",
+      "def": "Lo que Fluent Bit no pudo subir lo guarda en el disco del nodo (store_dir, con su tope) y lo reintenta. Nunca frena la request: si S3 se cae, se atrasa el monitoreo, no el servicio.",
+      "analogia": "La bandeja de salida de una oficina cuando el correo no pasa: las cartas se juntan ahí y se mandan cuando vuelve el cartero. Si la bandeja se llena, o si alguien se cansa de esperar y tira las cartas viejas, esas se pierden.",
+      "importa": "En C01, 1 GB por nodo aguanta ≈ 16 h de S3 caído. El otro tope son los reintentos: con el <code>retry_limit</code> por omisión, el plugin s3 de Fluent Bit 5.1.5 se rinde a los 6 intentos (≈ 30 s) y manda el pedazo a cuarentena: esas líneas no llegan nunca. Por eso la solución usa <code>retry_limit 60</code> y verificar.py reprueba si hubo cuarentena.",
+      "trampa": "Fiarse de las métricas de reintentos del motor: en la construcción del dojo, <code>fluentbit_output_retries_failed_total</code> siguió en 0 mientras se perdían pedazos. Y un log que espera a que S3 confirme: cualquier lentitud de S3 se vuelve lentitud para todos."
+    },
+    {
+      "id": "al-menos-una-vez",
+      "termino": "Entrega al menos una vez",
+      "en": "at-least-once delivery / deduplication",
+      "def": "Fluent Bit garantiza que cada línea llegue, no que llegue una sola vez: si una subida falla después de que S3 sí la guardó, la reintenta y el mismo archivo llega dos veces. Quien lee quita los repetidos.",
+      "analogia": "Mandar una carta importante y, como no llegó el acuse, mandarla otra vez: la otra persona puede recibir dos, y por eso numeras tus cartas, para que tire la repetida.",
+      "importa": "El log de ayer del dojo trae dos archivos subidos dos veces. Sin quitarlos, el join del mes contaría esas fotos dos veces. La llave es (request_id, time): el mismo id con otra hora es otra request de verdad (un caller que reintenta con el mismo X-Request-ID), y esa se queda.",
+      "trampa": "Quitar repetidos solo por request_id: borra los reintentos legítimos del caller. O creer que «exactamente una vez» viene gratis: casi ningún camino de logs lo promete."
+    },
+    {
+      "id": "parquet-particiones",
+      "termino": "Parquet por fecha y versión",
+      "en": "Parquet / partitioning / dt= / idempotent job",
+      "def": "Parquet guarda una tabla por columnas, comprimida y con el tipo de cada columna. Partida en carpetas (dt=AAAA-MM-DD/model_version=…/), una consulta de un día y una versión solo lee esa carpeta.",
+      "analogia": "Un archivero con un cajón por día y una carpeta por versión adentro: para ver cómo le fue a la versión 15 el martes, abres un cajón y una carpeta, no el archivero entero.",
+      "importa": "El crudo de C01 son ≈ 3 GB de JSON al día; en Parquet, ≈ 0.5 GB en 4 archivos. De ahí leen el PSI diario, la aceptación y las fotos para etiquetar de la estación 12. El job es idempotente: borra lo de ese día y lo vuelve a escribir, así que correrlo dos veces (un reintento del orquestador) da lo mismo.",
+      "trampa": "Un job que agrega en lugar de reemplazar: el reintento duplica el día. Y filtrar el día con la hora local: el crudo y la carpeta están en UTC, y en las fronteras del día se pierden o se duplican filas."
+    },
+    {
+      "id": "punto-ciego-alb",
+      "termino": "Lo que el gateway no ve",
+      "en": "blind spot / HTTPCode_ELB_5XX_Count / RequestCount / fail open",
+      "def": "Las requests que el ALB contesta él mismo (401 por el token, 503 sin destinos registrados) nunca llegan al gateway: sus métricas no las cuentan. Solo las ven las métricas del ALB (en C01, CloudWatch).",
+      "analogia": "El portero de un restaurante que cierra la puerta cuando la cocina se incendia: el libro de órdenes de la cocina dice «tarde tranquila, cero quejas»; a los que se fueron sin comer solo los contó el portero.",
+      "importa": "Con Triton caído, los pods fallan su readiness y salen del target group (en C01: salen de los Endpoints y el AWS Load Balancer Controller los da de baja); sin destinos registrados, el ALB contesta 503 y la fracción de 5xx del gateway se queda sin requests. ALB5xx lo ve; como <code>RequestCount</code> solo cuenta las requests para las que el ALB eligió destino, el total suma las dos. Si los destinos siguen registrados pero todos fallan el health check, el ALB de AWS abre el paso (fail open) y les manda tráfico igual.",
+      "trampa": "Confiar en una tasa de errores calculada en el gateway como si viera todo: ve todo menos el caso en que no llega nada. Antes de confiar en una alerta, pregunta qué requests no cuenta."
+    }
+  ],
+  "mundo": {
+    "resumen": "El kit trae la release 15 de C01 corriendo en chico, de verdad: dos nodos del gateway (contenedores de Docker con un pod cada uno y su runtime, que escribe el stdout del pod en el disco del nodo), un Fluent Bit 5.1.5 por nodo, RustFS como S3, Prometheus v3.15.1 con exemplars, el Triton del dojo, el ALB del dojo (token, target group y sus métricas «de CloudWatch»), el vigía de S3, el tráfico de siempre y el log de ayer ya subido. Lo tuyo: el rastro de cada request, lo que lee Prometheus, sus reglas y alertas, el camino del log a S3 y el job diario a Parquet.",
+    "trae": [
+      {
+        "que": "mundo/crear.py y compose.yaml",
+        "detalle": "Levanta todo en ≈ 14 s (la primera vez ≈ 2 min, porque baja las imágenes y construye la del nodo): RustFS 1.0.4 como S3 (<code>localhost:9950</code>, consola en 9951), Prometheus v3.15.1 con <code>exemplar-storage</code> (<code>localhost:9952</code>), los nodos <code>nodo-a</code> y <code>nodo-b</code> y un Fluent Bit por nodo. Deja en S3 el log de ayer (11,849 requests, con el rollout de la 14 a la 15 a las 16:00 UTC y 2 archivos subidos dos veces) y vuelve la carpeta un repositorio de git."
+      },
+      {
+        "que": "mundo/runtime.py y mundo/nodo.py",
+        "detalle": "El runtime de cada nodo (en C01, containerd): corre el pod y escribe su stdout en <code>/var/log</code> en formato CRI, con la rotación del kubelet (5 archivos de 10 MiB). Y el kubelet del dojo: <code>estado</code>, <code>logs</code>, <code>reiniciar</code>, <code>matar</code>, <code>parar</code>, <code>arrancar</code>, <code>publicar</code>. Al publicar escribe <code>nodo/descubrimiento/pods.json</code> y <code>servicios.json</code>: lo que la API de Kubernetes le contestaría a Prometheus."
+      },
+      {
+        "que": "mundo/alb.py",
+        "detalle": "El ALB del dojo en <code>localhost:8950</code>: verifica el JWT de cada caller, reparte entre los pods registrados en su target group (health check a <code>/readyz</code> cada 2 s), contesta él mismo 401, 404 y 503, mide TargetResponseTime, escribe su access log en <code>logs/alb.log</code> y publica sus números con nombres de CloudWatch en <code>localhost:8957</code>."
+      },
+      {
+        "que": "mundo/carga.py, mundo/buscar.py y mundo/relojes.py",
+        "detalle": "Los callers, por el ALB y con token (<code>--una</code> cuenta una request con detalle; <code>--basura</code> manda 415 y 405; <code>--fuente-loca</code>, un X-Client-Source distinto en cada request); buscar una request por su id en el backend, el ALB, el disco de cada nodo y S3; y los tres relojes unidos por request_id. El tráfico de siempre, 5 fotos/s, corre solo."
+      },
+      {
+        "que": "mundo/recargar.py",
+        "detalle": "Lleva tus cambios a lo que corre: <code>prometheus</code> (promtool y recarga), <code>fluent-bit</code> (reinicia los dos) y <code>gateway</code> (reinicia los pods uno tras otro, drenándolos en el ALB). Antes espera a que el contenedor vea tu archivo completo."
+      },
+      {
+        "que": "mundo/vigia_s3.py y mundo/triton_dojo/",
+        "detalle": "El vigía publica en <code>localhost:8956</code> cuándo llegó el último archivo de log de cada nodo (<code>dojo_s3_ultimo_objeto_timestamp_seconds</code>); Triton del dojo sirve la release 15 en <code>localhost:8955</code>."
+      },
+      {
+        "que": "mundo/plataforma.yaml y mundo/prometheus/plataforma.yml",
+        "detalle": "Lo del equipo de plataforma: los pods con sus etiquetas, el kubelet, el ALB y su llave, y lo que Prometheus ya lee (Triton, el ALB, Fluent Bit y el vigía). Cambia solo con un commit."
+      },
+      {
+        "que": "gateway/ (menos rastro.py), gateway.yaml y servir/",
+        "detalle": "La release 15 de las estaciones 6 a 10. <code>main.py</code> llama a <code>rastro.py</code> para todo lo que la request deja escrito; <code>gateway.yaml</code> trae las fuentes permitidas (mobile, web, internal) y la fracción de exemplars (0.01)."
+      },
+      {
+        "que": "verificar.py y romper.py",
+        "detalle": "12 checks contra lo que corre (los pods, Prometheus, Fluent Bit y S3) y 6 fallas en el mundo, la configuración o la infraestructura, nunca en lo que escribes."
+      }
+    ],
+    "tu_pipeline": [
+      {
+        "archivo": "gateway/app/rastro.py",
+        "hace": "El rastro de cada request: su request_id, la fuente reducida a 4 valores, si deja exemplar (por el hash del id), las 8 métricas del contrato y la línea de JSON compacto en stdout."
+      },
+      {
+        "archivo": "observabilidad/prometheus.yml",
+        "hace": "El job <code>gateway</code>: descubre los pods en <code>pods.json</code> y se queda con cada uno una sola vez, con las etiquetas pod, nodo y hash."
+      },
+      {
+        "archivo": "observabilidad/reglas.yml",
+        "hace": "3 recording rules (requests por segundo, fracción de errores del servidor, p99 por versión) y 5 alertas, también para lo que se calla."
+      },
+      {
+        "archivo": "observabilidad/fluent-bit.conf",
+        "hace": "Lee los logs del gateway en formato CRI, agrega el nodo y los sube a S3 cada minuto, con gzip, buffer en disco y reintentos suficientes."
+      },
+      {
+        "archivo": "diario/a_parquet.py",
+        "hace": "El job diario: el crudo de ayer, sin repetidos y solo las líneas del gateway, a Parquet por fecha y versión, idempotente."
+      }
+    ],
+    "requisitos": [
+      "Docker Desktop con al menos 4 GiB libres",
+      "Python 3.11 o más nuevo, con el venv del kit: <code>python3 -m venv .venv && .venv/bin/pip install -r requirements.txt</code> y <code>source .venv/bin/activate</code>",
+      "git e Internet la primera vez (las imágenes de RustFS, Prometheus y Fluent Bit, y la del nodo)",
+      "Los puertos 8950–8957 y 9950–9954 libres en tu Mac"
+    ],
+    "sustituciones": [
+      {
+        "nube": "Nodos de EKS con 3 a 12 pods del gateway",
+        "local": "dos contenedores de Docker (<code>nodo-a</code>, <code>nodo-b</code>) con un pod cada uno",
+        "diferencia": "Cada nodo tiene su propio disco de logs (un volumen): solo lo ven su runtime y su Fluent Bit, como en un nodo de verdad."
+      },
+      {
+        "nube": "containerd y el kubelet",
+        "local": "<code>mundo/runtime.py</code> y <code>mundo/nodo.py</code>",
+        "diferencia": "El mismo formato CRI, la misma rotación (5 archivos de 10 MiB) y el reinicio con espera creciente."
+      },
+      {
+        "nube": "Un PodMonitor de kube-prometheus-stack (<code>kubernetes_sd_configs</code>)",
+        "local": "<code>file_sd_configs</code> sobre <code>nodo/descubrimiento/pods.json</code>",
+        "diferencia": "Las mismas etiquetas <code>__meta_kubernetes_*</code>: tu <code>relabel_configs</code> es el que escribirías en C01. Lo que haría un ServiceMonitor sale de <code>servicios.json</code>."
+      },
+      {
+        "nube": "Fluent Bit como DaemonSet",
+        "local": "un contenedor de Fluent Bit 5.1.5 por nodo",
+        "diferencia": "La misma configuración en los dos; <code>${NODO}</code> lo pone cada contenedor."
+      },
+      {
+        "nube": "Amazon S3, con KMS y un rol que solo escribe en <code>logs/</code>",
+        "local": "RustFS 1.0.4 en <code>localhost:9950</code>",
+        "diferencia": "La misma API, el mismo bucket y las mismas rutas; sin cifrado ni roles."
+      },
+      {
+        "nube": "CloudWatch con las métricas del ALB (AWS/ApplicationELB) y la alarma ALB5xx",
+        "local": "el ALB del dojo publica en <code>localhost:8957</code> con nombres de CloudWatch y Prometheus los lee",
+        "diferencia": "ALB5xx vive en tu <code>reglas.yml</code>, junto a las demás."
+      },
+      {
+        "nube": "Lecturas cada 15 s, ventanas de 5 min, subidas cada 5 min y LogsStale a los 30 min",
+        "local": "cada 5 s, ventanas de 1 min, cada minuto y a los 3 min",
+        "diferencia": "Todo más corto para no esperar; las reglas y las consultas son las mismas."
+      },
+      {
+        "nube": "Trazas completas con OpenTelemetry y Grafana Tempo; los exemplars llevan a la traza",
+        "local": "el exemplar lleva el request_id como trace_id; de ahí, <code>mundo/buscar.py</code> encuentra la línea",
+        "diferencia": "No hay spans: no ves por dentro de Triton, solo los tramos de la línea (pre, triton, post)."
+      },
+      {
+        "nube": "≈ 116 requests por segundo en promedio",
+        "local": "5 fotos/s de siempre y la carga que mandes",
+        "diferencia": "Los volúmenes son chicos; las cuentas por request (bytes, series) son las mismas."
+      },
+      {
+        "nube": "La lección de Sensei nombra la etiqueta <code>status</code> y el histograma <code>classifier_request_latency_seconds</code>",
+        "local": "<code>code</code> y <code>classifier_request_seconds</code>",
+        "diferencia": "El dojo sigue los nombres de sus estaciones 6 y 10, los que ya busca el análisis del canary. Lo demás es igual."
+      },
+      {
+        "nube": "La lección de Sensei sigue a la release 14 (<code>resnet50-2026-10-01</code>)",
+        "local": "la release 15 (<code>resnet50-2026-11-01</code>)",
+        "diferencia": "El dojo sigue su propio tronco: la estación 10 subió la 15."
+      },
+      {
+        "nube": "El 405 lo contesta FastAPI antes de que corra el código: sin línea ni cuenta en el gateway",
+        "local": "el gateway del dojo también anota el 405 (su línea y su cuenta)",
+        "diferencia": "<code>main.py</code> lo atrapa en su manejador de errores; el ALB lo cuenta igual."
+      }
+    ],
+    "arranque": "unzip c01-request.zip && cd c01-request\npython3 -m venv .venv && .venv/bin/pip install -r requirements.txt\nsource .venv/bin/activate\npython mundo/crear.py\npython verificar.py mundo",
+    "python": "python"
+  },
+  "guiado": [
+    {
+      "n": 0,
+      "id": "mundo",
+      "titulo": "Levantar el mundo",
+      "objetivo": "S3, Prometheus, los dos nodos con su pod del gateway y su Fluent Bit, Triton, el ALB, el vigía y el tráfico de siempre arriba, y el log de ayer ya en S3.",
+      "conceptos": [
+        "observabilidad"
+      ],
+      "explica": "<code>mundo/crear.py</code> levanta <code>compose.yaml</code> (RustFS como S3, Prometheus y los contenedores <code>nodo-a</code> y <code>nodo-b</code>, cada uno con su Fluent Bit), deja en S3 el log de ayer para tu job diario y arranca con <code>mundo/nodo.py</code> lo que corre en tu Mac: Triton, los dos pods del gateway (uno dentro de cada nodo), el ALB del dojo, el vigía de S3 y el tráfico de siempre, 5 fotos por segundo de tres callers. También vuelve la carpeta un repositorio de git: los cambios de otros equipos llegan como commits.",
+      "codigo": [],
+      "comandos": [
+        {
+          "code": "python mundo/crear.py",
+          "nota": "Se puede correr otra vez: deja el mundo como al principio, salvo tus archivos.",
+          "donde": "mac",
+          "salida": "== Docker, el venv y git\n✓ la carpeta del kit es un repositorio de git (main)\n\n== compose: S3, Prometheus, los dos nodos del gateway y su Fluent Bit (la primera vez construye la imagen del nodo, ≈ 1 min)\n✓ s3 :9950 · prometheus :9952 · fluent-bit-a :9953 · fluent-bit-b :9954 · imagen dojo-c01-nodo:11\n\n== El log de ayer, ya subido\n✓ log de ayer (2026-11-18) en s3://ml-datos/logs/crudo/2026/11/18/: 11,849 requests en 578 archivos (2 subidos dos veces); los de las 23:55 en adelante, en logs/crudo/2026/11/19/00/\n\n== Los procesos: Triton, los pods del gateway, el ALB y el vigía\n✓ triton listo en 0.4 s\n✓ gateway-6f7b9c4d58-xa7k2 (nodo-a) listo en 0.6 s\n✓ gateway-6f7b9c4d58-qm4t8 (nodo-b) listo en 0.6 s\n✓ alb listo en 0.4 s\n✓ vigia listo en 0.4 s\n✓ trafico listo en 1.6 s\n\n✓ el mundo está arriba en 14 s. La entrada es el ALB: http://localhost:8950\n  Sigue con: python verificar.py mundo"
+        },
+        {
+          "code": "python verificar.py mundo",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ mundo             S3, Prometheus, 2 nodos con su pod y su Fluent Bit, Triton, ALB y vigía arriba · una foto por el ALB: 200 (resnet50-2026-11-01)\n\n1/1 en verde"
+        },
+        {
+          "code": "python mundo/nodo.py estado",
+          "nota": "Cada pod escribe su stdout en el disco de su nodo: esa ruta de <code>/var/log/pods/…</code> es la que va a leer Fluent Bit.",
+          "donde": "mac",
+          "salida": "triton                       PID 54236 · salud 200\nalb                          PID 54273 · salud 200\nvigia                        PID 54277 · salud 200\ntrafico                      PID 54286 · salud vivo\ngateway-6f7b9c4d58-xa7k2     nodo-a · /readyz 200 · reinicios 0 · /var/log/pods/classifier_gateway-6f7b9c4d58-xa7k2_3f1c9a2e-7b44-4d0e-9a61-5c2b8e0d7a11/gateway/0.log\ngateway-6f7b9c4d58-qm4t8     nodo-b · /readyz 200 · reinicios 0 · /var/log/pods/classifier_gateway-6f7b9c4d58-qm4t8_9d0e4b17-2c85-4f3a-b6d2-81a7e5c3f902/gateway/0.log"
+        },
+        {
+          "code": "python mundo/carga.py --una",
+          "nota": "Una foto contada con detalle. El gateway todavía no escribe su línea: falta el tercer reloj.",
+          "donde": "mac",
+          "salida": "→ POST http://localhost:8950/v1/classify  (1,534 B, caller backend-publicaciones, X-Request-ID c8976a09-a540-425f-9a07-6b26ea3676b9)\n← 200 · X-Request-ID: 5750388e-263e-4057-93e8-3247c8f429d0 · X-Amzn-Trace-Id: Root=1-6afe8e31-c5072fa18bf08e92957f7485\n   {\"model_version\":\"resnet50-2026-11-01\",\"predictions\":[{\"label\":\"abrigos\",\"score\":0.7138},{\"label\":\"playeras\",\"score\":0.1201},{\"label\":\"tenis\",\"score\":0.0555},{\"label\":\"sandalias\",\"score\":0.0531},{\"lab\n\nlos tres relojes de la misma request:\n  backend (lo que esperó, timeout 300 ms) .........    5.7 ms\n  ALB, TargetResponseTime (logs/alb.log) ..........    5.0 ms\n  gateway: no encontré su línea en el disco de ningún nodo (¿tu rastro.py ya escribe la línea?)"
+        },
+        {
+          "code": "python mundo/nodo.py logs a 4",
+          "nota": "Lo único que hay en el disco del nodo: lo que el proceso escribió en stderr al arrancar.",
+          "donde": "mac",
+          "salida": "/var/log/pods/classifier_gateway-6f7b9c4d58-xa7k2_3f1c9a2e-7b44-4d0e-9a61-5c2b8e0d7a11/gateway/0.log\n2026-11-19T05:50:36.798974716Z stderr F INFO:     Waiting for application startup.\n2026-11-19T05:50:36.802786633Z stderr F gateway listo · gateway-6f7b9c4d58-xa7k2 en nodo-a · resnet50-2026-11-01 · Triton host.docker.internal:8955\n2026-11-19T05:50:36.802824758Z stderr F INFO:     Application startup complete.\n2026-11-19T05:50:36.802934633Z stderr F INFO:     Uvicorn running on http://0.0.0.0:8080 (Press CTRL+C to quit)"
+        },
+        {
+          "code": "python verificar.py",
+          "nota": "Al empezar, 2 de 12 en verde: el mundo y las series acotadas (todavía no hay series). Lo demás es tu trabajo.",
+          "donde": "mac",
+          "salida": "✓ mundo             S3, Prometheus, 2 nodos con su pod y su Fluent Bit, Triton, ALB y vigía arriba · una foto por el ALB: 200 (resnet50-2026-11-01)\n✗ request-id        mandé X-Request-ID 633eb4e8-c12d-4496-a30d-18741c598883 y volvió f24162ef-19cd-4d27-9614-c754c36be0ad: el id sano del caller se respeta\n✗ linea-log         la request 1a93237f-1060-4e8a-b642-bbe6a0e5337d dejó 0 líneas en los nodos: tiene que ser exactamente una\n✗ metricas          falta classifier_requests_total en /metrics (los nombres no se cambian: las alertas y el canary los buscan así)\n✗ reglas-de-conteo  10 requests con 415 sumaron 0 al contador con code=\"415\"\n✗ prometheus-lee    Prometheus no tiene ningún objetivo con job=\"gateway\": falta el job en observabilidad/prometheus.yml (y curl -X POST localhost:9952/-/reload)\n✗ consultas         faltan recording rules en observabilidad/reglas.yml: classifier:errores_servidor:ratio_rate1m, classifier:latencia:p99_1m, classifier:requests:rate1m\n✗ alertas           faltan alertas en observabilidad/reglas.yml: ALB5xx, ClassifierHigh5xxRate, ClassifierP99Alto, GatewaySinLectura, LogsStale\n✓ series-acotadas   ≤ 1 series classifier_* por pod (tope 400) · ninguna etiqueta con un valor por request\n✗ log-en-s3         el nodo a no ha subido nada en la última hora (¿tu fluent-bit.conf lee y sube? docker compose logs fluent-bit-a)\n✗ parquet           no hay Parquet en s3://ml-datos/logs/predicciones/dt=2026-11-18/: python diario/a_parquet.py\n✗ de-punta-a-punta  la respuesta trae model_version y el X-Request-ID\n\n2/12 en verde · falta: request-id, linea-log, metricas, reglas-de-conteo, prometheus-lee, consultas, alertas, log-en-s3, parquet, de-punta-a-punta"
+        }
+      ],
+      "verifica": "<code>python verificar.py mundo</code> en verde: todo arriba, y una foto por el ALB contesta 200 con <code>resnet50-2026-11-01</code>.",
+      "ojo": "La primera vez, <code>crear.py</code> baja las imágenes y construye la del nodo (≈ 2 min). Para <code>docker compose</code> en esta carpeta, primero <code>export DOCKER_CONFIG=$PWD/.docker</code> (lo crea crear.py, sin el llavero de macOS). Si un puerto del 8950 al 8957 o del 9950 al 9954 está ocupado, apaga la otra estación que lo usa. <code>python mundo/nodo.py parar</code> y <code>docker compose stop</code> liberan tu Mac; <code>crear.py</code> lo regresa todo."
+    },
+    {
+      "n": 1,
+      "id": "linea",
+      "titulo": "El request_id y la línea de log",
+      "objetivo": "Cada request con un nombre (su request_id) que vuelve en la respuesta, y una sola línea de JSON compacto en stdout, sin hora, que el runtime guarda en el disco del nodo.",
+      "conceptos": [
+        "request-id",
+        "linea-log",
+        "observabilidad"
+      ],
+      "explica": "Escribe en <code>gateway/app/rastro.py</code> la función del principio y la línea del final. <code>request_id()</code> respeta el <code>X-Request-ID</code> del caller si es sano (de 8 a 64 caracteres de letras, números, «-», «_», «.» o «:») y, si no, inventa un UUID versión 4: así el backend y el gateway llaman igual a la misma request, y un id con espacios o de 80 caracteres no se cuela al log. <code>anotar()</code> pone el status y <code>ms.total</code> en el evento y lo escribe como una línea de JSON compacto (<code>separators=(',', ':')</code>) en stdout. No lleva hora: la pone el runtime del nodo al recibirla. <code>main.py</code> llama a <code>anotar()</code> en un <code>finally</code>, así que también los 4xx dejan su línea. Las métricas todavía no: llegan en el paso 3. Recarga los pods con <code>mundo/recargar.py gateway</code> y sigue una request por los tres lugares donde dejó rastro.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "gateway/app/rastro.py",
+          "code": "\"\"\"Lo que deja escrito cada request: su nombre, su línea de log y sus sumas en las métricas (solución de referencia).\n\nContrato (lo usa gateway/app/main.py, que viene dado):\n- request_id(header) → str. Si el caller mandó X-Request-ID y es un id sano (8 a 64 caracteres de letras, números,\n  «-», «_», «.» o «:»), ese; si no (falta, vacío, muy largo, con espacios o saltos de línea), un UUID versión 4 nuevo\n  (str(uuid.uuid4()), 36 caracteres).\n- fuente(header, fuentes) → str. La etiqueta source: el header en minúsculas y sin espacios si está en `fuentes`\n  (gateway.yaml: rastro.fuentes); si no, «other». Así la etiqueta tiene 4 valores, venga lo que venga.\n- se_traza(request_id, fraccion) → bool. Los primeros 8 caracteres hex del sha256 del id, como número, < fraccion × 2³².\n  La misma request siempre cae del mismo lado.\n- Rastro(registro, reglas, modelo): crea, en ese registro, las métricas con estos nombres, etiquetas y bordes (las\n  alertas y el análisis del canary de la estación 10 los buscan por nombre: no se cambian):\n    classifier_requests_total{code, source, model_version}        contador\n    classifier_request_seconds{source, model_version}             histograma (sin los 4xx), bordes MS\n    classifier_preprocess_seconds{model_version}                  histograma, bordes MS\n    classifier_inference_seconds{model_version}                   histograma, bordes MS\n    classifier_top1_score{model_version}                          histograma, bordes SCORE (uno en 0.3)\n    classifier_image_bytes{source}                                histograma, bordes BYTES\n    classifier_top1_label_total{label}                            contador, cada categoría desde el arranque\n    classifier_requests_in_flight                                 gauge (rastro.en_vuelo)\n  y los métodos bytes(n, fuente), pre(s), inferencia(s), top1(score, label) y anotar(ev, status, fuente, t0).\n- anotar: pone status y ms.total en ev, escribe ev como UNA línea de JSON compacto en stdout (sin la hora: la pone el\n  runtime del nodo) y suma: el contador siempre; la latencia solo si no es 4xx, con el request_id como exemplar\n  (trace_id) si se_traza. Nunca frena la request: escribir en stdout no espera a la red.\n\"\"\"\nfrom __future__ import annotations\n\nimport hashlib\nimport json\nimport re\nimport sys\nimport time\nimport uuid\n\nfrom prometheus_client import CollectorRegistry, Counter, Gauge, Histogram\n\nMS = (0.005, 0.01, 0.02, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.5, 1.0)   # bordes alrededor del SLO de 200 ms\nSCORE = (0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99)             # 0.3 = el umbral de baja confianza\nBYTES = (1e3, 1e4, 1e5, 3e5, 1e6, 3e6, 1e7)\nID_SANO = re.compile(r\"[A-Za-z0-9._:-]{8,64}\")\n\n\ndef request_id(header: str | None) -> str:\n    if header and ID_SANO.fullmatch(header):\n        return header\n    return str(uuid.uuid4())\n\n\ndef fuente(header: str | None, fuentes: list[str]) -> str:\n    return \"other\"                       # paso 3\n\n\ndef se_traza(rid: str, fraccion: float) -> bool:\n    return False                         # paso 6\n\n\nclass Rastro:\n    def __init__(self, registro: CollectorRegistry, reglas: dict, modelo: dict):\n        self.version = modelo[\"model_version\"]\n        self.fraccion = reglas[\"rastro\"][\"traza\"]\n        self.en_vuelo = Gauge(\"classifier_requests_in_flight\", \"Requests adentro ahora\", registry=registro)\n\n    def bytes(self, n: int, fuente_: str) -> None:\n        pass\n\n    def pre(self, s: float) -> None:\n        pass\n\n    def inferencia(self, s: float) -> None:\n        pass\n\n    def top1(self, score: float, label: str) -> None:\n        pass\n\n    def anotar(self, ev: dict, status: int, fuente_: str, t0: float) -> None:\n        s = time.monotonic() - t0\n        ev[\"status\"] = status\n        ev.setdefault(\"ms\", {})[\"total\"] = round(s * 1000, 1)\n        sys.stdout.write(json.dumps(ev, ensure_ascii=False, separators=(\",\", \":\")) + \"\\n\")\n        sys.stdout.flush()\n        # paso 3: las sumas",
+          "nota": "Así queda en este paso: <code>fuente()</code> devuelve «other» y <code>se_traza()</code> False hasta los pasos 3 y 6, y la clase todavía no crea las métricas. El <code>flush()</code> de cada línea: si el proceso muere, lo escrito ya está en manos del runtime."
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python mundo/recargar.py gateway",
+          "nota": "Un pod tras otro, como un rollout: el ALB drena cada uno antes de reiniciarlo.",
+          "donde": "mac",
+          "salida": "✓ gateway-6f7b9c4d58-xa7k2 (nodo-a) listo en 0.6 s\n✓ gateway-6f7b9c4d58-qm4t8 (nodo-b) listo en 0.6 s"
+        },
+        {
+          "code": "python mundo/carga.py --una",
+          "nota": "Ahora sí: el tercer reloj sale de la línea, y el mismo X-Request-ID volvió en la respuesta.",
+          "donde": "mac",
+          "salida": "→ POST http://localhost:8950/v1/classify  (1,534 B, caller backend-publicaciones, X-Request-ID c64fc68d-08a5-4b06-8637-35464e8723be)\n← 200 · X-Request-ID: c64fc68d-08a5-4b06-8637-35464e8723be · X-Amzn-Trace-Id: Root=1-6afe8e45-c2123a59e46c43ec0dc954bb\n   {\"model_version\":\"resnet50-2026-11-01\",\"predictions\":[{\"label\":\"abrigos\",\"score\":0.7138},{\"label\":\"playeras\",\"score\":0.1201},{\"label\":\"tenis\",\"score\":0.0555},{\"label\":\"sandalias\",\"score\":0.0531},{\"lab\n\nlos tres relojes de la misma request:\n  backend (lo que esperó, timeout 300 ms) .........    8.6 ms\n  ALB, TargetResponseTime (logs/alb.log) ..........    7.9 ms\n  gateway, ms.total (su línea de log) .............    5.9 ms   pre 0.9 · triton 4.6 · post 0.1\n\nla línea del gateway, en nodo-a:/var/log/pods/classifier_gateway-6f7b9c4d58-xa7k2_3f1c9a2e-7b44-4d0e-9a61-5c2b8e0d7a11/gateway/0.log (la hora la puso el runtime del nodo):\n  {\"hora\": \"2026-11-19T05:51:01.822575797Z\", \"flujo\": \"stdout\", \"request_id\": \"c64fc68d-08a5-4b06-8637-35464e8723be\", \"caller\": \"backend-publicaciones\", \"source\": \"mobile\", \"model_version\": \"resnet50-2026-11-01\", \"ms\": {\"pre\": 0.9, \"triton\": 4.6, \"post\": 0.1, \"total\": 5.9}, \"bytes\": 1534, \"sha256\": \"68e8dc23540b\", \"top5\": [[4, 0.7138], [0, 0.1201], [7, 0.0555], [5, 0.0531], [2, 0.0488]], \"status\": 200}"
+        },
+        {
+          "code": "python mundo/nodo.py logs b 3",
+          "nota": "Así queda en el disco del nodo, en formato CRI: la hora del runtime, el flujo, F (línea completa) y tu texto. El 405 también deja su línea.",
+          "donde": "mac",
+          "salida": "/var/log/pods/classifier_gateway-6f7b9c4d58-qm4t8_9d0e4b17-2c85-4f3a-b6d2-81a7e5c3f902/gateway/0.log\n2026-11-19T05:51:01.813882589Z stdout F {\"request_id\":\"8b8af464-3f7d-4832-bda8-912716bd258d\",\"caller\":\"backend-publicaciones\",\"source\":\"mobile\",\"model_version\":\"resnet50-2026-11-01\",\"ms\":{\"pre\":0.8,\"triton\":4.3,\"post\":0.1,\"total\":5.9},\"bytes\":1534,\"sha256\":\"68e8dc23540b\",\"top5\":[[4,0.7138],[0,0.1201],[7,0.0555],[5,0.0531],[2,0.0488]],\"status\":200}\n2026-11-19T05:51:02.015494589Z stdout F {\"request_id\":\"9cab9ffc-be6f-4e7a-91b3-0c0e582ed112\",\"caller\":\"backend-publicaciones\",\"source\":\"mobile\",\"model_version\":\"resnet50-2026-11-01\",\"ms\":{\"pre\":1.0,\"triton\":5.1,\"post\":0.2,\"total\":6.9},\"bytes\":1504,\"sha256\":\"6c50dde9f5f6\",\"top5\":[[9,0.4347],[5,0.2461],[8,0.1442],[0,0.075],[7,0.0504]],\"status\":200}\n2026-11-19T05:51:02.160162339Z stdout F {\"request_id\":\"f5df97de-5085-4c98-a39a-9d5a41deb462\",\"caller\":\"busqueda\",\"source\":\"web\",\"model_version\":\"resnet50-2026-11-01\",\"ms\":{\"pre\":0.9,\"triton\":4.4,\"post\":0.1,\"total\":5.7},\"bytes\":1520,\"sha256\":\"8b6f91949809\",\"top5\":[[9,0.297],[5,0.2723],[2,0.1293],[7,0.0972],[4,0.0731]],\"status\":200}"
+        },
+        {
+          "code": "python mundo/buscar.py c64fc68d-08a5-4b06-8637-35464e8723be --sin-s3",
+          "nota": "El mismo id en el log del backend, en el access log del ALB y en el disco del nodo: así se unen.",
+          "donde": "mac",
+          "salida": "request_id c64fc68d-08a5-4b06-8637-35464e8723be\n\nbackend (logs/backend.log): {\"request_id\": \"c64fc68d-08a5-4b06-8637-35464e8723be\", \"caller\": \"backend-publicaciones\", \"status\": 200, \"ms_backend\": 8.6}\nALB (logs/alb.log, el access log): {\"time\": \"2026-11-19T05:51:01.833854Z\", \"request\": \"POST /v1/classify\", \"x_request_id\": \"c64fc68d-08a5-4b06-8637-35464e8723be\", \"trace_id\": \"Root=1-6afe8e45-c2123a59e46c43ec0dc954bb\", \"elb_status_code\": 200, \"target\": \"gateway-6f7b9c4d58-xa7k2\", \"target_status_code\": 200, \"request_processing_time\": 0.0001, \"target_processing_time\": 0.0079, \"caller\": \"backend-publicaciones\"}\ngateway, disco de nodo-a (/var/log/pods/classifier_gateway-6f7b9c4d58-xa7k2_3f1c9a2e-7b44-4d0e-9a61-5c2b8e0d7a11/gateway/0.log):\n  2026-11-19T05:51:01.822575797Z stdout F {\"request_id\":\"c64fc68d-08a5-4b06-8637-35464e8723be\",\"caller\":\"backend-publicaciones\",\"source\":\"mobile\",\"model_version\":\"resnet50-2026-11-01\",\"ms\":{\"pre\":0.9,\"triton\":4.6,\"post\":0.1,\"total\":5.9},\"bytes\":1534,\"sha256\":\"68e8dc23540b\",\"top5\":[[4,0.7138],[0,0.1201],[7,0.0555],[5,0.0531],[2,0.0488]],\"status\":200}"
+        },
+        {
+          "code": "curl -s -i -X POST localhost:8951/v1/classify -H 'Content-Type: text/plain' -H 'X-Request-ID: con espacios' --data 'hola' | grep -iE '^HTTP|x-request-id'",
+          "nota": "Directo al pod: un id con espacios no es sano y el gateway lo reemplaza, también en un 415.",
+          "donde": "mac",
+          "salida": "HTTP/1.1 415 Unsupported Media Type\nx-request-id: 78c8be95-13eb-4ef3-9d0f-46ff8a3e37d3"
+        },
+        {
+          "code": "python verificar.py request-id linea-log",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ request-id        respeta el id del caller (también en el 415), inventa un UUID v4 si falta y reemplaza los que no son sanos; el id está en el log\n✓ linea-log         una línea de JSON compacto en stdout (310 B), con request_id, ms y status, sin hora ni foto · nodo-a:/var/log/pods/classifier_gateway-6f7b9c4d58-xa7k2_3f1c9a2e-7b44-4d0e-9a61-5c2b8e0d7a11/gateway/0.log\n\n2/2 en verde"
+        }
+      ],
+      "verifica": "<code>python verificar.py request-id linea-log</code>: el id del caller se respeta (también en el 415), uno malo se reemplaza y cada request deja una sola línea de 310 B, sin hora ni foto.",
+      "ojo": "Con <code>print(json.dumps(ev))</code> salen espacios después de cada «,» y «:»: ≈ 10 % más bytes, pagados 10 millones de veces al día en C01; verificar.py pide JSON compacto. No pongas la hora en la línea: el runtime ya la pone, y dos horas en el mismo registro (la del proceso y la del nodo) confunden a quien lo lea. Y si una request dejara dos líneas (una en el handler y otra en el <code>finally</code>), el join del mes contaría la foto dos veces.",
+      "en_pagina": {
+        "conceptos": [
+          "request-id",
+          "linea-log",
+          "observabilidad"
+        ],
+        "precalculos": [
+          "volumen-log"
+        ],
+        "del_paso0": [
+          3,
+          4,
+          5
+        ]
+      }
+    },
+    {
+      "n": 2,
+      "id": "relojes",
+      "titulo": "Tres relojes",
+      "objetivo": "Medir las mismas requests con tres relojes (backend, ALB y gateway) y ver dónde se va la diferencia.",
+      "conceptos": [
+        "tres-relojes",
+        "request-id"
+      ],
+      "explica": "Cada reloj empieza y termina en un lugar distinto. El gateway mide desde que su código recibe la request hasta que contesta: <code>ms.total</code> de su línea. El ALB mide <code>TargetResponseTime</code>: desde que la request sale del ALB hacia el pod hasta que el pod empieza a mandar los headers de su respuesta (en su access log, <code>target_processing_time</code>). El backend mide todo lo que esperó, contra su timeout de 300 ms. <code>mundo/relojes.py</code> une los tres por <code>request_id</code>: sin un nombre común serían tres montones de números imposibles de casar. En este paso no escribes nada: miras con lo que dejó el paso 1.",
+      "codigo": [],
+      "comandos": [
+        {
+          "code": "python mundo/carga.py --tasa 40 --segundos 30 --basura 0",
+          "nota": "40 fotos por segundo durante 30 s, sin basura.",
+          "donde": "mac",
+          "salida": "1170 requests en 30 s (39.0/s) · códigos: 200: 1170\nel backend midió (solo 200): p50 11.8 ms · p99 75.1 ms"
+        },
+        {
+          "code": "python mundo/relojes.py 1000",
+          "nota": "De las últimas 1000 que mandó el backend con 200, las que tienen su línea en algún nodo: el p50 y el p99 de cada reloj y de cada salto.",
+          "donde": "mac",
+          "salida": "814 requests con los tres relojes (de las últimas 1000 del backend con 200)\n\nreloj                                                     p50      p99\nbackend                                                 11.9     86.0  ms\nALB (TargetResponseTime)                                 9.4     54.3  ms\ngateway (ms.total)                                       6.0     21.7  ms\nbackend − ALB (red y ALB)                                2.3     47.1  ms\nALB − gateway (red al pod y lo que el gateway no ve)     3.4     36.6  ms"
+        }
+      ],
+      "verifica": "Ves que, en p50, el gateway mide 6 ms, el ALB 9.4 y el backend 11.9: cada reloj contiene al anterior.",
+      "ojo": "En el dojo cada salto pesa varios milisegundos (la red de Docker Desktop entre tu Mac y los contenedores, y un ALB escrito en Python); en C01, 1 o 2. Lo que no cambia es la regla: no compares un número de un reloj con el de otro. El SLO de C01 (p99 ≤ 200 ms) es del reloj del gateway, y ninguno de los tres incluye la subida desde el celular de quien vende hasta AWS.",
+      "en_pagina": {
+        "conceptos": [
+          "tres-relojes"
+        ],
+        "precalculos": [
+          "tres-relojes"
+        ]
+      }
+    },
+    {
+      "n": 3,
+      "id": "metricas",
+      "titulo": "Lo que suma cada request",
+      "objetivo": "Las 8 métricas del contrato, con sus nombres, etiquetas y bordes fijos: cada request suma al contador y, si no es 4xx, a la latencia.",
+      "conceptos": [
+        "contador-gauge",
+        "histograma",
+        "cardinalidad"
+      ],
+      "explica": "Completa la clase <code>Rastro</code>. En su <code>__init__</code> crea, en el registro que te pasan, el contador <code>classifier_requests_total{code, source, model_version}</code>, el gauge de requests en vuelo y seis histogramas con bordes fijos: los de la latencia alrededor del SLO de 200 ms, los del score con uno en 0.3 (el umbral de baja confianza). Los nombres y las etiquetas son los de las estaciones 6 y 10: las alertas y el análisis del canary los buscan así. <code>fuente()</code> reduce el header <code>X-Client-Source</code> a 4 valores (mobile, web, internal y, para todo lo demás, other), para que la etiqueta no crezca con cada texto nuevo; el log guarda el header tal como llegó. En <code>anotar()</code>, el contador suma siempre y la latencia solo si el status no es 4xx: un 415 tarda microsegundos y bajaría el p99 sin que nadie contestara más rápido. Las 10 categorías de <code>classifier_top1_label_total</code> se crean al arrancar, aunque valgan 0, para que el PSI del canary no vea huecos.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "gateway/app/rastro.py (lo que cambia: fuente() y la clase)",
+          "code": "def fuente(header: str | None, fuentes: list[str]) -> str:\n    f = (header or \"\").strip().lower()\n    return f if f in fuentes else \"other\"\n\n\ndef se_traza(rid: str, fraccion: float) -> bool:\n    return False                         # paso 6\n\n\nclass Rastro:\n    def __init__(self, registro: CollectorRegistry, reglas: dict, modelo: dict):\n        self.version = modelo[\"model_version\"]\n        self.fraccion = reglas[\"rastro\"][\"traza\"]\n        v = self.version\n        self.requests = Counter(\"classifier_requests_total\", \"Requests por código, fuente y versión del modelo\",\n                                [\"code\", \"source\", \"model_version\"], registry=registro)\n        self.latencia = Histogram(\"classifier_request_seconds\", \"Latencia total en el gateway (sin los 4xx)\",\n                                  [\"source\", \"model_version\"], buckets=MS, registry=registro)\n        self._pre = Histogram(\"classifier_preprocess_seconds\", \"Decode y preprocess\", [\"model_version\"],\n                              buckets=MS, registry=registro).labels(v)\n        self._inf = Histogram(\"classifier_inference_seconds\", \"La llamada a Triton, también si no contestó\",\n                              [\"model_version\"], buckets=MS, registry=registro).labels(v)\n        self._top1 = Histogram(\"classifier_top1_score\", \"El score de la primera sugerencia\", [\"model_version\"],\n                               buckets=SCORE, registry=registro).labels(v)\n        self._bytes = Histogram(\"classifier_image_bytes\", \"Tamaño de la foto\", [\"source\"], buckets=BYTES,\n                                registry=registro)\n        self._label = Counter(\"classifier_top1_label_total\", \"Fotos por categoría que va primero (para el PSI)\",\n                              [\"label\"], registry=registro)\n        for lb in modelo[\"labels\"]:                       # cada categoría existe desde el arranque, aunque valga 0\n            self._label.labels(lb)\n        self.en_vuelo = Gauge(\"classifier_requests_in_flight\", \"Requests adentro ahora\", registry=registro)\n\n    def bytes(self, n: int, fuente_: str) -> None:\n        self._bytes.labels(fuente_).observe(n)\n\n    def pre(self, s: float) -> None:\n        self._pre.observe(s)\n\n    def inferencia(self, s: float) -> None:\n        self._inf.observe(s)\n\n    def top1(self, score: float, label: str) -> None:\n        self._top1.observe(score)\n        self._label.labels(label).inc()\n\n    def anotar(self, ev: dict, status: int, fuente_: str, t0: float) -> None:\n        s = time.monotonic() - t0\n        ev[\"status\"] = status\n        ev.setdefault(\"ms\", {})[\"total\"] = round(s * 1000, 1)\n        sys.stdout.write(json.dumps(ev, ensure_ascii=False, separators=(\",\", \":\")) + \"\\n\")\n        sys.stdout.flush()\n        self.requests.labels(str(status), fuente_, self.version).inc()\n        if not 400 <= status < 500:                       # un 415 tarda microsegundos: no baja el p99 de nadie\n            ej = {\"trace_id\": ev[\"request_id\"]} if se_traza(ev[\"request_id\"], self.fraccion) else None\n            self.latencia.labels(fuente_, self.version).observe(s, exemplar=ej)",
+          "nota": "Cada histograma de prometheus_client deja, por combinación de etiquetas, un bucket por borde, el +Inf, <code>_count</code>, <code>_sum</code> y <code>_created</code>: bordes + 4 series. <code>se_traza()</code> sigue en False hasta el paso 6."
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python mundo/recargar.py gateway",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ gateway-6f7b9c4d58-xa7k2 (nodo-a) listo en 0.6 s\n✓ gateway-6f7b9c4d58-qm4t8 (nodo-b) listo en 0.9 s"
+        },
+        {
+          "code": "python mundo/carga.py --tasa 20 --segundos 10",
+          "nota": "Con un poco de basura: algunos 415 y algún 405.",
+          "donde": "mac",
+          "salida": "174 requests en 10 s (17.4/s) · códigos: 200: 165, 405: 1, 415: 8\nel backend midió (solo 200): p50 11.7 ms · p99 81.2 ms"
+        },
+        {
+          "code": "curl -s localhost:8951/metrics | grep -E '^classifier_requests_total|^classifier_request_seconds_(bucket|count|sum)' | grep 'source=\"mobile\"' | head -20",
+          "nota": "Las cuentas del contador de un pod, por código, fuente y versión. Los 415 cuentan aquí; en la latencia, no.",
+          "donde": "mac",
+          "salida": "classifier_requests_total{code=\"200\",model_version=\"resnet50-2026-11-01\",source=\"mobile\"} 62.0\nclassifier_requests_total{code=\"415\",model_version=\"resnet50-2026-11-01\",source=\"mobile\"} 2.0\nclassifier_request_seconds_bucket{le=\"0.005\",model_version=\"resnet50-2026-11-01\",source=\"mobile\"} 7.0\nclassifier_request_seconds_bucket{le=\"0.01\",model_version=\"resnet50-2026-11-01\",source=\"mobile\"} 56.0\nclassifier_request_seconds_bucket{le=\"0.02\",model_version=\"resnet50-2026-11-01\",source=\"mobile\"} 60.0\nclassifier_request_seconds_bucket{le=\"0.05\",model_version=\"resnet50-2026-11-01\",source=\"mobile\"} 62.0\nclassifier_request_seconds_bucket{le=\"0.1\",model_version=\"resnet50-2026-11-01\",source=\"mobile\"} 62.0\nclassifier_request_seconds_bucket{le=\"0.15\",model_version=\"resnet50-2026-11-01\",source=\"mobile\"} 62.0\nclassifier_request_seconds_bucket{le=\"0.2\",model_version=\"resnet50-2026-11-01\",source=\"mobile\"} 62.0\nclassifier_request_seconds_bucket{le=\"0.25\",model_version=\"resnet50-2026-11-01\",source=\"mobile\"} 62.0\nclassifier_request_seconds_bucket{le=\"0.3\",model_version=\"resnet50-2026-11-01\",source=\"mobile\"} 62.0\nclassifier_request_seconds_bucket{le=\"0.5\",model_version=\"resnet50-2026-11-01\",source=\"mobile\"} 62.0\nclassifier_request_seconds_bucket{le=\"1.0\",model_version=\"resnet50-2026-11-01\",source=\"mobile\"} 62.0\nclassifier_request_seconds_bucket{le=\"+Inf\",model_version=\"resnet50-2026-11-01\",source=\"mobile\"} 62.0\nclassifier_request_seconds_count{model_version=\"resnet50-2026-11-01\",source=\"mobile\"} 62.0\nclassifier_request_seconds_sum{model_version=\"resnet50-2026-11-01\",source=\"mobile\"} 0.4679947889944742"
+        },
+        {
+          "code": "curl -s localhost:8951/metrics | grep -c '^classifier_'",
+          "nota": "Las líneas classifier_* de un pod: sus series.",
+          "donde": "mac",
+          "salida": "155"
+        },
+        {
+          "code": "python mundo/carga.py --tasa 20 --segundos 10 --fuente-loca",
+          "nota": "Un caller con un bug: un X-Client-Source distinto en cada request.",
+          "donde": "mac",
+          "salida": "188 requests en 10 s (18.8/s) · códigos: 200: 182, 405: 1, 415: 5\nel backend midió (solo 200): p50 11.7 ms · p99 63.6 ms"
+        },
+        {
+          "code": "curl -s localhost:8951/metrics | grep -c '^classifier_'",
+          "nota": "Crecen una vez, por la fuente other, y ya no.",
+          "donde": "mac",
+          "salida": "187"
+        },
+        {
+          "code": "curl -s localhost:8951/metrics | grep '^classifier_requests_total' | grep -o 'source=\"[a-z]*\"' | sort | uniq -c",
+          "nota": "La etiqueta source tiene 4 valores posibles, venga lo que venga en el header.",
+          "donde": "mac",
+          "salida": "   2 source=\"internal\"\n   2 source=\"mobile\"\n   2 source=\"other\"\n   3 source=\"web\""
+        },
+        {
+          "code": "python verificar.py metricas series-acotadas",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ metricas          las 8 métricas del contrato, con sus tipos, etiquetas y bordes\n✓ series-acotadas   ≤ 187 series classifier_* por pod (tope 400) · ninguna etiqueta con un valor por request\n\n2/2 en verde"
+        }
+      ],
+      "verifica": "<code>python verificar.py metricas series-acotadas</code>: las 8 métricas con sus tipos, etiquetas y bordes, y ninguna etiqueta con un valor por request.",
+      "ojo": "Crea las métricas en el registro que te pasan, no en el global de prometheus_client: las pruebas de verificar.py crean varias apps en el mismo proceso y, en el global, el segundo registro del mismo nombre truena («Duplicated timeseries»). Y no renombres una métrica, aunque sea para «mejorarla»: las alertas y el análisis del canary la buscan por nombre, y se apagan sin que nadie se entere.",
+      "en_pagina": {
+        "conceptos": [
+          "contador-gauge",
+          "histograma",
+          "cardinalidad"
+        ],
+        "precalculos": [
+          "series-por-pod"
+        ]
+      }
+    },
+    {
+      "n": 4,
+      "id": "prometheus",
+      "titulo": "Prometheus lee los pods",
+      "objetivo": "Prometheus lee cada pod del gateway una sola vez, descubriéndolos como lo haría con la API de Kubernetes, con las etiquetas pod, nodo y hash.",
+      "conceptos": [
+        "scrape",
+        "descubrimiento"
+      ],
+      "explica": "Prometheus trabaja jalando: cada 5 s le pide <code>/metrics</code> a cada objetivo que conoce (en C01, cada 15 s) y por cada uno guarda también <code>up</code>, 1 si la lectura salió bien. Ya lee lo de la plataforma (Triton, el ALB, Fluent Bit y el vigía); te falta el job <code>gateway</code>. Los pods no se escriben a mano: <code>mundo/nodo.py</code> publica en <code>nodo/descubrimiento/pods.json</code> lo que la API de Kubernetes le contestaría a <code>kubernetes_sd_configs</code> con <code>role: pod</code>, con las mismas etiquetas <code>__meta_kubernetes_*</code>, y Prometheus lo lee con <code>file_sd_configs</code>. Tus <code>relabel_configs</code> se quedan con los pods del namespace classifier, de la app gateway y del puerto http, y copian el nombre del pod, el nodo y el hash de la release a etiquetas que sí se guardan. Primero, la trampa: leer por los Services. Fuera de un canary, <code>gateway-stable</code> y <code>gateway-canary</code> eligen los mismos pods; leerlos por los dos, como haría un ServiceMonitor, pone cada pod dos veces y cada suma sale al doble. Por eso C01 usa un PodMonitor. En esta página, <code>q '…'</code> es una función de tu terminal que le pregunta a la API de Prometheus.",
+      "codigo": [
+        {
+          "lang": "bash",
+          "path": "terminal (la función q: pégala una vez en cada terminal, con el venv activo)",
+          "code": "q() { curl -s localhost:9952/api/v1/query --data-urlencode \"query=$1\" | python -c \"\nimport json,sys\nd=json.load(sys.stdin)\nif d['status']!='success': print(d); sys.exit()\nfor r in d['data']['result'] or [{'metric': {}, 'value': [0, '(vacío)']}]:\n    m={k: v for k, v in r['metric'].items() if k not in ('instance',)}\n    print(('{' + ', '.join(f'{k}=\\\"{v}\\\"' for k, v in m.items()) + '}') if m else '{}', r['value'][1])\"; }",
+          "nota": "Una línea por serie: sus etiquetas (sin instance) y su valor. «(vacío)» si la consulta no da nada."
+        },
+        {
+          "lang": "yaml",
+          "path": "observabilidad/prometheus.yml (la trampa: lo que cambia para leer por los Services)",
+          "code": "    file_sd_configs: [{files: [/etc/prometheus-descubrimiento/servicios.json]}]\n      - {source_labels: [__meta_kubernetes_service_name], target_label: service}",
+          "nota": "<code>servicios.json</code> trae los endpoints de los dos Services; la etiqueta <code>service</code> es la que pone un ServiceMonitor."
+        },
+        {
+          "lang": "yaml",
+          "path": "observabilidad/prometheus.yml",
+          "code": "# Qué lee Prometheus y cada cuánto (solución de referencia). En C01: el PodMonitor del gateway en kube-prometheus-stack.\nglobal:\n  scrape_interval: 5s          # C01: 15 s. En el dojo, más seguido para no esperar\n  evaluation_interval: 5s\nscrape_config_files: [/etc/prometheus-plataforma/*.yml]   # Triton, el ALB, Fluent Bit y el vigía (de la plataforma)\nrule_files: [reglas.yml]\nscrape_configs:\n  - job_name: gateway\n    # Los pods, no los Services: gateway-stable y gateway-canary eligen los mismos pods fuera de un canary, y leerlos\n    # por los dos contaría cada request dos veces. Esto es lo que hace un PodMonitor.\n    file_sd_configs: [{files: [/etc/prometheus-descubrimiento/pods.json]}]\n    metrics_path: /metrics\n    relabel_configs:\n      - {source_labels: [__meta_kubernetes_namespace], regex: classifier, action: keep}\n      - {source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name], regex: gateway, action: keep}\n      - {source_labels: [__meta_kubernetes_pod_container_port_name], regex: http, action: keep}\n      - {source_labels: [__meta_kubernetes_pod_name], target_label: pod}\n      - {source_labels: [__meta_kubernetes_pod_node_name], target_label: nodo}\n      - {source_labels: [__meta_kubernetes_pod_label_rollouts_pod_template_hash], target_label: hash}",
+          "nota": "Los tres <code>keep</code> eligen; los otros tres copian. Lo que empieza con <code>__</code> se tira después del relabel."
+        }
+      ],
+      "comandos": [
+        {
+          "code": "curl -s localhost:9952/api/v1/targets | python -c \"import json,sys;[print(t['labels']['job'], t['scrapeUrl'], t['health']) for t in json.load(sys.stdin)['data']['activeTargets']]\"",
+          "nota": "Hoy Prometheus lee lo de la plataforma; del gateway, nada.",
+          "donde": "mac",
+          "salida": "alb http://host.docker.internal:8957/metrics up\nfluent-bit http://fluent-bit-a:2020/api/v2/metrics/prometheus up\nfluent-bit http://fluent-bit-b:2020/api/v2/metrics/prometheus up\nprometheus http://localhost:9090/metrics up\ntriton http://host.docker.internal:8955/metrics up\nvigia-s3 http://host.docker.internal:8956/metrics up"
+        },
+        {
+          "code": "python -m json.tool nodo/descubrimiento/pods.json | head -24",
+          "nota": "Lo que publica el kubelet del dojo: las mismas etiquetas que da kubernetes_sd_configs con role: pod.",
+          "donde": "mac",
+          "salida": "[\n    {\n        \"targets\": [\n            \"nodo-a:8080\"\n        ],\n        \"labels\": {\n            \"__meta_kubernetes_namespace\": \"classifier\",\n            \"__meta_kubernetes_pod_name\": \"gateway-6f7b9c4d58-xa7k2\",\n            \"__meta_kubernetes_pod_node_name\": \"nodo-a\",\n            \"__meta_kubernetes_pod_uid\": \"3f1c9a2e-7b44-4d0e-9a61-5c2b8e0d7a11\",\n            \"__meta_kubernetes_pod_container_name\": \"gateway\",\n            \"__meta_kubernetes_pod_container_port_name\": \"http\",\n            \"__meta_kubernetes_pod_container_port_number\": \"8080\",\n            \"__meta_kubernetes_pod_label_app_kubernetes_io_name\": \"gateway\",\n            \"__meta_kubernetes_pod_labelpresent_app_kubernetes_io_name\": \"true\",\n            \"__meta_kubernetes_pod_label_rollouts_pod_template_hash\": \"6f7b9c4d58\",\n            \"__meta_kubernetes_pod_labelpresent_rollouts_pod_template_hash\": \"true\"\n        }\n    },\n    {\n        \"targets\": [\n            \"nodo-b:8080\"\n        ],\n        \"labels\": {"
+        },
+        {
+          "code": "tail -3 observabilidad/prometheus.yml",
+          "nota": "La trampa puesta: el job sobre <code>servicios.json</code>, con la etiqueta service.",
+          "donde": "mac",
+          "salida": "      - {source_labels: [__meta_kubernetes_pod_node_name], target_label: nodo}\n      - {source_labels: [__meta_kubernetes_pod_label_rollouts_pod_template_hash], target_label: hash}\n      - {source_labels: [__meta_kubernetes_service_name], target_label: service}"
+        },
+        {
+          "code": "python mundo/recargar.py prometheus",
+          "nota": "promtool revisa los dos archivos y Prometheus los vuelve a leer.",
+          "donde": "mac",
+          "salida": "Checking /etc/prometheus/prometheus.yml\n  SUCCESS: 1 rule files found\n SUCCESS: /etc/prometheus/prometheus.yml is valid prometheus config file syntax\n\nChecking /etc/prometheus/reglas.yml\n  SUCCESS: 0 rules found\n✓ Prometheus recargado · 0 reglas en 0 grupos · objetivos: alb, fluent-bit, gateway, prometheus, triton, vigia-s3"
+        },
+        {
+          "code": "q 'count by (pod) (up{job=\"gateway\"})'",
+          "nota": "Cada pod, dos veces: una por Service.",
+          "donde": "mac",
+          "salida": "{pod=\"gateway-6f7b9c4d58-qm4t8\"} 2\n{pod=\"gateway-6f7b9c4d58-xa7k2\"} 2"
+        },
+        {
+          "code": "q 'sum(rate(classifier_requests_total[30s]))'",
+          "nota": "Con 40 s de carga a 20 fotos/s más las 5 de siempre: la suma del gateway…",
+          "donde": "mac",
+          "salida": "{} 49.35704835689457"
+        },
+        {
+          "code": "q 'sum(rate(alb_request_count_total[30s]))'",
+          "nota": "…y la del ALB, que no cuenta doble: la mitad.",
+          "donde": "mac",
+          "salida": "{} 24.87900483980641"
+        },
+        {
+          "code": "python mundo/recargar.py prometheus",
+          "nota": "Ahora con tu <code>prometheus.yml</code>: los pods, una vez cada uno.",
+          "donde": "mac",
+          "salida": "Checking /etc/prometheus/prometheus.yml\n  SUCCESS: 1 rule files found\n SUCCESS: /etc/prometheus/prometheus.yml is valid prometheus config file syntax\n\nChecking /etc/prometheus/reglas.yml\n  SUCCESS: 0 rules found\n✓ Prometheus recargado · 0 reglas en 0 grupos · objetivos: alb, fluent-bit, gateway, prometheus, triton, vigia-s3"
+        },
+        {
+          "code": "curl -s localhost:9952/api/v1/targets | python -c \"import json,sys;[print(t['labels'].get('pod'), t['labels'].get('nodo'), t['labels'].get('hash'), t['scrapeUrl'], t['health']) for t in json.load(sys.stdin)['data']['activeTargets'] if t['labels']['job']=='gateway']\"",
+          "nota": "",
+          "donde": "mac",
+          "salida": "gateway-6f7b9c4d58-xa7k2 nodo-a 6f7b9c4d58 http://nodo-a:8080/metrics up\ngateway-6f7b9c4d58-qm4t8 nodo-b 6f7b9c4d58 http://nodo-b:8080/metrics up"
+        },
+        {
+          "code": "q 'up{job=\"gateway\"}'",
+          "nota": "",
+          "donde": "mac",
+          "salida": "{__name__=\"up\", hash=\"6f7b9c4d58\", job=\"gateway\", nodo=\"nodo-a\", pod=\"gateway-6f7b9c4d58-xa7k2\"} 1\n{__name__=\"up\", hash=\"6f7b9c4d58\", job=\"gateway\", nodo=\"nodo-b\", pod=\"gateway-6f7b9c4d58-qm4t8\"} 1"
+        },
+        {
+          "code": "q 'sum(rate(classifier_requests_total[30s]))'",
+          "nota": "Con el tráfico de siempre…",
+          "donde": "mac",
+          "salida": "{} 5.4"
+        },
+        {
+          "code": "q 'sum(rate(alb_request_count_total[30s]))'",
+          "nota": "…el gateway y el ALB cuentan lo mismo.",
+          "donde": "mac",
+          "salida": "{} 5.239371275446946"
+        },
+        {
+          "code": "q 'count by (__name__) ({job=\"gateway\", __name__=~\"classifier_.*\"})'",
+          "nota": "Lo que Prometheus guarda del gateway, por nombre.",
+          "donde": "mac",
+          "salida": "{__name__=\"classifier_requests_total\"} 19\n{__name__=\"classifier_requests_created\"} 19\n{__name__=\"classifier_request_seconds_bucket\"} 96\n{__name__=\"classifier_request_seconds_count\"} 8\n{__name__=\"classifier_request_seconds_sum\"} 8\n{__name__=\"classifier_request_seconds_created\"} 8\n{__name__=\"classifier_preprocess_seconds_bucket\"} 24\n{__name__=\"classifier_preprocess_seconds_count\"} 2\n{__name__=\"classifier_preprocess_seconds_sum\"} 2\n{__name__=\"classifier_preprocess_seconds_created\"} 2\n{__name__=\"classifier_inference_seconds_bucket\"} 24\n{__name__=\"classifier_inference_seconds_count\"} 2\n{__name__=\"classifier_inference_seconds_sum\"} 2\n{__name__=\"classifier_inference_seconds_created\"} 2\n{__name__=\"classifier_top1_score_bucket\"} 22\n{__name__=\"classifier_top1_score_count\"} 2\n{__name__=\"classifier_top1_score_sum\"} 2\n{__name__=\"classifier_top1_score_created\"} 2\n{__name__=\"classifier_image_bytes_bucket\"} 64\n{__name__=\"classifier_image_bytes_count\"} 8\n{__name__=\"classifier_image_bytes_sum\"} 8\n{__name__=\"classifier_image_bytes_created\"} 8\n{__name__=\"classifier_top1_label_total\"} 20\n{__name__=\"classifier_top1_label_created\"} 20\n{__name__=\"classifier_requests_in_flight\"} 2"
+        },
+        {
+          "code": "python verificar.py prometheus-lee",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ prometheus-lee    los 2 pods del gateway, una vez cada uno, con pod, nodo y hash · up = 1\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "<code>python verificar.py prometheus-lee</code>: los 2 pods, una vez cada uno, con pod, nodo y hash, y up = 1. La suma del gateway (5.40 req/s) es la del ALB (5.24); con la trampa, 49.4 contra 24.9.",
+      "ojo": "Si lees <code>servicios.json</code> sin la etiqueta <code>service</code>, no ves el doble: Prometheus descarta los objetivos repetidos que quedan con el mismo conjunto de etiquetas (lo hace su código; la documentación no lo dice). El ServiceMonitor sí pone <code>service</code>, y ahí aparece la cuenta doble. Y recarga con <code>python mundo/recargar.py prometheus</code>, no con un <code>curl -X POST localhost:9952/-/reload</code> a secas justo después de guardar: en la construcción del dojo, Docker Desktop le dio a Prometheus un <code>prometheus.yml</code> cortado (guarda unos segundos lo que el contenedor ya leyó de una carpeta compartida); recargar.py espera a que el contenedor vea el archivo completo.",
+      "en_pagina": {
+        "conceptos": [
+          "scrape",
+          "descubrimiento"
+        ],
+        "precalculos": [
+          "muestras-prometheus"
+        ]
+      }
+    },
+    {
+      "n": 5,
+      "id": "promql",
+      "titulo": "PromQL y las recording rules",
+      "objetivo": "Las preguntas de todos los días como recording rules (requests por segundo, fracción de errores del servidor y p99 por versión) y las dos alertas del servicio; y ver qué pasa con la tasa cuando un pod se reinicia.",
+      "conceptos": [
+        "promql-rate",
+        "recording-rule",
+        "alerta"
+      ],
+      "explica": "PromQL tiene dos piezas para casi todo: <code>rate(contador[1m])</code>, cuánto subió por segundo en el último minuto, contando bien los reinicios, y <code>sum by (…)</code>, que suma series y deja separadas las etiquetas que nombras. Una recording rule hace una consulta cada 5 s y guarda el resultado como una serie nueva con nombre: así el tablero y las alertas no recalculan lo mismo. Escribe en <code>observabilidad/reglas.yml</code> tres: requests por segundo por código; la fracción de 5xx sobre las requests que no son 4xx (los 4xx son culpa de quien llama: con ellos en el denominador, un caller que manda basura bajaría tu tasa), y el p99 por versión, sumando los buckets de los dos pods antes del <code>histogram_quantile</code>. Y las dos alertas del servicio: más de 1 % de 5xx durante 1 min, y el p99 arriba de 200 ms durante 2 min. Una alerta cuya condición se cumple queda <i>pending</i> y, si dura su <code>for</code>, <i>firing</i>. Después, la prueba del reinicio: matas el contenedor del pod a y comparas <code>sum(rate(…))</code> con <code>rate(sum(…))</code>.",
+      "codigo": [
+        {
+          "lang": "yaml",
+          "path": "observabilidad/reglas.yml (las consultas y las dos alertas del servicio)",
+          "code": "# Las preguntas de todos los días, ya calculadas (recording rules), y las alertas (solución de referencia).\n# Ventanas de 1 min y esperas cortas: en el dojo se lee cada 5 s y nadie espera una hora. En C01: 5 min.\ngroups:\n  - name: classifier-consultas\n    rules:\n      - record: classifier:requests:rate1m            # requests por segundo por código: primero rate, luego sum\n        expr: sum by (code) (rate(classifier_requests_total[1m]))\n      - record: classifier:errores_servidor:ratio_rate1m   # 5xx sobre las que no son 4xx (sin 5xx: 0, no vacío)\n        expr: |\n          (sum(rate(classifier_requests_total{code=~\"5..\"}[1m])) or vector(0))\n            /\n          sum(rate(classifier_requests_total{code!~\"4..\"}[1m]))\n      - record: classifier:latencia:p99_1m            # el p99 de todo el gateway, sumando los buckets de los pods\n        expr: histogram_quantile(0.99, sum by (le, model_version) (rate(classifier_request_seconds_bucket[1m])))\n  - name: classifier-alertas\n    rules:\n      - alert: ClassifierHigh5xxRate\n        expr: classifier:errores_servidor:ratio_rate1m > 0.01\n        for: 1m\n        labels: {severity: page}\n        annotations: {summary: \"Más del 1 % de 5xx en el gateway\"}\n      - alert: ClassifierP99Alto\n        expr: classifier:latencia:p99_1m > 0.2\n        for: 2m\n        labels: {severity: page}\n        annotations: {summary: \"El p99 del gateway pasó de 200 ms\"}",
+          "nota": "<code>or vector(0)</code>: sin ningún 5xx, la serie de 5xx no existe y la división daría vacío, no 0. GatewaySinLectura y ALB5xx llegan en el paso 9; LogsStale, en el 7."
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python mundo/recargar.py prometheus",
+          "nota": "",
+          "donde": "mac",
+          "salida": "Checking /etc/prometheus/prometheus.yml\n  SUCCESS: 1 rule files found\n SUCCESS: /etc/prometheus/prometheus.yml is valid prometheus config file syntax\n\nChecking /etc/prometheus/reglas.yml\n  SUCCESS: 5 rules found\n✓ Prometheus recargado · 5 reglas en 2 grupos · objetivos: alb, fluent-bit, gateway, prometheus, triton, vigia-s3"
+        },
+        {
+          "code": "q 'classifier:requests:rate1m'",
+          "nota": "Después de 65 s de carga con 5 % de basura: requests por segundo por código.",
+          "donde": "mac",
+          "salida": "{__name__=\"classifier:requests:rate1m\", code=\"200\"} 23.563636363636363\n{__name__=\"classifier:requests:rate1m\", code=\"415\"} 0.6545454545454545\n{__name__=\"classifier:requests:rate1m\", code=\"405\"} 0.07272727272727272"
+        },
+        {
+          "code": "q 'classifier:errores_servidor:ratio_rate1m'",
+          "nota": "Sin 5xx: 0, gracias al or vector(0).",
+          "donde": "mac",
+          "salida": "{__name__=\"classifier:errores_servidor:ratio_rate1m\"} 0"
+        },
+        {
+          "code": "q 'sum(rate(classifier_requests_total{code=~\"5..\"}[1m])) / sum(rate(classifier_requests_total{code!~\"4..\"}[1m]))'",
+          "nota": "La misma división sin el or vector(0): vacía.",
+          "donde": "mac",
+          "salida": "{} (vacío)"
+        },
+        {
+          "code": "q 'classifier:latencia:p99_1m'",
+          "nota": "En segundos, por versión. histogram_quantile interpola dentro del bucket: es una estimación.",
+          "donde": "mac",
+          "salida": "{__name__=\"classifier:latencia:p99_1m\", model_version=\"resnet50-2026-11-01\"} 0.009991623931623932"
+        },
+        {
+          "code": "q 'sum(rate(classifier_requests_total{code=\"200\"}[1m])) / sum(rate(classifier_requests_total[1m]))'",
+          "nota": "La fracción de 200 sobre todas: 97.0 %, por la basura. No es la tasa de errores del servidor: esa es 0.",
+          "donde": "mac",
+          "salida": "{} 0.9700598802395209"
+        },
+        {
+          "code": "q 'sum by (pod) (classifier_requests_total{code=\"200\"})'",
+          "nota": "El contador de 200 de cada pod, desde que arrancó.",
+          "donde": "mac",
+          "salida": "{pod=\"gateway-6f7b9c4d58-xa7k2\"} 1565\n{pod=\"gateway-6f7b9c4d58-qm4t8\"} 1544"
+        },
+        {
+          "code": "python mundo/nodo.py matar a",
+          "nota": "Su runtime lo vuelve a arrancar: el mismo pod, con el contador en 0.",
+          "donde": "mac",
+          "salida": "  contenedor de gateway-6f7b9c4d58-xa7k2 (PID 8 en nodo-a) muerto con SIGKILL; su runtime lo vuelve a arrancar\n✓ gateway-6f7b9c4d58-xa7k2 (nodo-a) listo en 0.0 s\n  reinicios: 1"
+        },
+        {
+          "code": "q 'sum by (pod) (classifier_requests_total{code=\"200\"})'",
+          "nota": "El del pod a volvió a empezar.",
+          "donde": "mac",
+          "salida": "{pod=\"gateway-6f7b9c4d58-xa7k2\"} 248\n{pod=\"gateway-6f7b9c4d58-qm4t8\"} 1817"
+        },
+        {
+          "code": "q 'sum(rate(classifier_requests_total{code=\"200\"}[1m]))'",
+          "nota": "Primero la tasa de cada serie, luego la suma: lo real.",
+          "donde": "mac",
+          "salida": "{} 21.871108995716323"
+        },
+        {
+          "code": "q 'rate(sum(classifier_requests_total{code=\"200\"})[1m:5s])'",
+          "nota": "Primero la suma y luego la tasa: la suma bajó, rate() lo leyó como un reinicio de todo y contó la suma entera otra vez.",
+          "donde": "mac",
+          "salida": "{} 49.945454545454545"
+        },
+        {
+          "code": "q 'resets(classifier_requests_total{code=\"200\",source=\"mobile\"}[2m])'",
+          "nota": "resets() cuenta los reinicios de cada serie en la ventana.",
+          "donde": "mac",
+          "salida": "{code=\"200\", hash=\"6f7b9c4d58\", job=\"gateway\", model_version=\"resnet50-2026-11-01\", nodo=\"nodo-a\", pod=\"gateway-6f7b9c4d58-xa7k2\", source=\"mobile\"} 1\n{code=\"200\", hash=\"6f7b9c4d58\", job=\"gateway\", model_version=\"resnet50-2026-11-01\", nodo=\"nodo-b\", pod=\"gateway-6f7b9c4d58-qm4t8\", source=\"mobile\"} 0"
+        },
+        {
+          "code": "python verificar.py consultas",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ consultas         3 recording rules sanas · errores 0.00% · p99 10.0 ms (resnet50-2026-11-01)\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "<code>python verificar.py consultas</code>: las 3 recording rules sanas, la fracción de errores en 0 (no vacía) y el p99 por versión. Con el reinicio, <code>sum(rate(…))</code> dio 21.9 req/s y <code>rate(sum(…))</code>, 49.9.",
+      "ojo": "<code>rate(sum(…))</code> es el error clásico: en un tablero se ve como un pico que nadie explica cada vez que un pod se reinicia. La ventana de <code>rate()</code> necesita al menos dos lecturas: con lecturas cada 5 s, una de 1 min junta 12 (C01 lee cada 15 s y usa 5 min). Y después de cargar reglas nuevas, Prometheus necesita ≈ 1 min de datos para que una tasa de 1 min tenga sentido: antes, una regla puede dar vacío sin estar mal escrita.",
+      "en_pagina": {
+        "conceptos": [
+          "promql-rate",
+          "recording-rule",
+          "alerta"
+        ],
+        "precalculos": [
+          "tasa-reinicio"
+        ]
+      }
+    },
+    {
+      "n": 6,
+      "id": "exemplars",
+      "titulo": "Del p99 a una request: exemplars",
+      "objetivo": "Que ≈ 1 % de las requests deje su request_id como exemplar en el histograma de latencia, para pasar de la curva a una request concreta y a su línea.",
+      "conceptos": [
+        "exemplar",
+        "histograma",
+        "request-id"
+      ],
+      "explica": "Un exemplar es un id pegado a una observación del histograma: «una de las que cayeron en este bucket es la request tal». <code>se_traza()</code> decide con el hash del <code>request_id</code> (los primeros 8 caracteres hex del sha256, como número, menor que 0.01 × 2³²): la misma request siempre cae del mismo lado, en cualquier pod. En <code>anotar()</code>, si se traza, la latencia se observa con <code>exemplar={'trace_id': request_id}</code>. Para verlos hay dos condiciones: prometheus_client solo los escribe cuando quien lee pide el formato OpenMetrics (Prometheus 3 lo pide), y Prometheus solo los guarda con <code>--enable-feature=exemplar-storage</code>, que viene apagado (el compose del dojo lo prende). En C01 el exemplar lleva a una traza completa (OpenTelemetry y Tempo); en el dojo no hay trazas: lleva al <code>request_id</code>, y de ahí <code>mundo/buscar.py</code> encuentra la línea.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "gateway/app/rastro.py (lo que cambia: se_traza y el exemplar en anotar)",
+          "code": "def se_traza(rid: str, fraccion: float) -> bool:\n    return int(hashlib.sha256(rid.encode()).hexdigest()[:8], 16) < fraccion * 2**32\n\n# …\n\n    def anotar(self, ev: dict, status: int, fuente_: str, t0: float) -> None:\n        s = time.monotonic() - t0\n        ev[\"status\"] = status\n        ev.setdefault(\"ms\", {})[\"total\"] = round(s * 1000, 1)\n        sys.stdout.write(json.dumps(ev, ensure_ascii=False, separators=(\",\", \":\")) + \"\\n\")\n        sys.stdout.flush()\n        self.requests.labels(str(status), fuente_, self.version).inc()\n        if not 400 <= status < 500:                       # un 415 tarda microsegundos: no baja el p99 de nadie\n            ej = {\"trace_id\": ev[\"request_id\"]} if se_traza(ev[\"request_id\"], self.fraccion) else None\n            self.latencia.labels(fuente_, self.version).observe(s, exemplar=ej)",
+          "nota": "<code>ej</code> es None para el 99 %: la observación es la misma, sin exemplar."
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python mundo/recargar.py gateway",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ gateway-6f7b9c4d58-xa7k2 (nodo-a) listo en 0.6 s\n✓ gateway-6f7b9c4d58-qm4t8 (nodo-b) listo en 0.6 s"
+        },
+        {
+          "code": "python mundo/carga.py --tasa 30 --segundos 30",
+          "nota": "30 fotos por segundo durante 30 s.",
+          "donde": "mac",
+          "salida": "872 requests en 30 s (29.1/s) · códigos: 200: 846, 405: 5, 415: 21\nel backend midió (solo 200): p50 16.0 ms · p99 21.8 ms"
+        },
+        {
+          "code": "curl -s -H 'Accept: application/openmetrics-text; version=1.0.0' localhost:8951/metrics | grep 'trace_id' | head -3",
+          "nota": "Pidiendo OpenMetrics, el bucket lleva su exemplar: el trace_id, la latencia y la hora.",
+          "donde": "mac",
+          "salida": "classifier_request_seconds_bucket{le=\"0.01\",model_version=\"resnet50-2026-11-01\",source=\"mobile\"} 243.0 # {trace_id=\"65eebd53-2e02-4ab2-b62a-38dcf8280b0f\"} 0.005446332999781589 1795067747.799882\nclassifier_request_seconds_bucket{le=\"0.01\",model_version=\"resnet50-2026-11-01\",source=\"web\"} 195.0 # {trace_id=\"f00a1e32-cd18-43c8-baa9-b2a93bd9c551\"} 0.007653083001059713 1795067747.9550517"
+        },
+        {
+          "code": "curl -s localhost:9952/api/v1/query_exemplars --data-urlencode 'query=classifier_request_seconds_bucket' --data-urlencode \"start=$(($(date +%s)-120))\" --data-urlencode \"end=$(date +%s)\" > logs/exemplars.json",
+          "nota": "La API de exemplars de Prometheus (experimental): los de los últimos 2 min, a un archivo.",
+          "donde": "mac",
+          "salida": ""
+        },
+        {
+          "code": "python -c \"import json,sys;d=json.load(sys.stdin)['data'];ex=[(float(e['value']),e['labels']['trace_id'],s['seriesLabels']['le']) for s in d for e in s['exemplars']];ex.sort(reverse=True);print(len(ex),'exemplars en 2 min');[print(f'{v*1000:6.1f} ms  le={le:<6} trace_id={t}') for v,t,le in ex[:5]]\" < logs/exemplars.json",
+          "nota": "Ordenados del más lento al más rápido.",
+          "donde": "mac",
+          "salida": "11 exemplars en 2 min\n   8.6 ms  le=0.01   trace_id=e05fd2aa-78b0-48df-a941-e526d54e5d1e\n   7.8 ms  le=0.01   trace_id=755f9807-188b-4db5-8629-0e3b8a50099b\n   7.7 ms  le=0.01   trace_id=f00a1e32-cd18-43c8-baa9-b2a93bd9c551\n   7.4 ms  le=0.01   trace_id=f38dc684-db66-4300-ab35-9bf610137204\n   7.0 ms  le=0.01   trace_id=0113dff8-332b-4980-92e4-a2a6be85f316"
+        },
+        {
+          "code": "python mundo/buscar.py e05fd2aa-78b0-48df-a941-e526d54e5d1e --sin-s3",
+          "nota": "El exemplar más lento, en los tres lugares donde dejó rastro.",
+          "donde": "mac",
+          "salida": "request_id e05fd2aa-78b0-48df-a941-e526d54e5d1e\n\nbackend (logs/backend.log): {\"request_id\": \"e05fd2aa-78b0-48df-a941-e526d54e5d1e\", \"caller\": \"backend-publicaciones\", \"status\": 200, \"ms_backend\": 19.2}\nALB (logs/alb.log, el access log): {\"time\": \"2026-11-19T05:55:40.406370Z\", \"request\": \"POST /v1/classify\", \"x_request_id\": \"e05fd2aa-78b0-48df-a941-e526d54e5d1e\", \"trace_id\": \"Root=1-6afe8f5c-814c28820b71ae46db9e0f28\", \"elb_status_code\": 200, \"target\": \"gateway-6f7b9c4d58-xa7k2\", \"target_status_code\": 200, \"request_processing_time\": 0.0005, \"target_processing_time\": 0.0141, \"caller\": \"backend-publicaciones\"}\ngateway, disco de nodo-a (/var/log/pods/classifier_gateway-6f7b9c4d58-xa7k2_3f1c9a2e-7b44-4d0e-9a61-5c2b8e0d7a11/gateway/0.log):\n  2026-11-19T05:55:40.417264634Z stdout F {\"request_id\":\"e05fd2aa-78b0-48df-a941-e526d54e5d1e\",\"caller\":\"backend-publicaciones\",\"source\":\"mobile\",\"model_version\":\"resnet50-2026-11-01\",\"ms\":{\"pre\":1.1,\"triton\":6.6,\"post\":0.3,\"total\":8.6},\"bytes\":1507,\"sha256\":\"b28d688b7634\",\"top5\":[[8,0.3878],[5,0.2687],[9,0.1967],[1,0.0857],[7,0.0157]],\"status\":200}"
+        },
+        {
+          "code": "python verificar.py reglas-de-conteo",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ reglas-de-conteo  los 4xx cuentan pero no entran a la latencia · source reducido a 4 valores · se_traza ≈ 1 % y determinista\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "<code>python verificar.py reglas-de-conteo</code>: los 4xx cuentan pero no entran a la latencia, source tiene 4 valores y se_traza elige ≈ 1 %, siempre igual. El exemplar más lento (8.6 ms) te llevó a su línea.",
+      "ojo": "Con un muestreo que decide al principio, el exemplar casi nunca es de las lentas: aquí los 11 cayeron en los buckets le=0.01, los de las requests normales. Y el texto de /metrics lleva a lo más un exemplar por bucket (el último): entre dos lecturas, los demás se pisan. Si no ves ninguno, revisa en orden: que <code>se_traza</code> elija algo, que pidas OpenMetrics y que Prometheus tenga <code>exemplar-storage</code>. Con <code>random()</code> en lugar del hash la muestra sale bien de tamaño, pero nadie puede repetir la decisión después, y dos pods podrían decidir distinto para la misma request reintentada.",
+      "en_pagina": {
+        "conceptos": [
+          "exemplar"
+        ],
+        "precalculos": [
+          "exemplars-uno-por-ciento"
+        ]
+      }
+    },
+    {
+      "n": 7,
+      "id": "log-a-s3",
+      "titulo": "El camino del log a S3",
+      "objetivo": "Las líneas del disco de cada nodo llegan a S3 cada minuto, comprimidas y con el nombre del nodo; si S3 se cae, la request no se entera, nada se pierde y LogsStale avisa.",
+      "conceptos": [
+        "fluent-bit",
+        "buffer-en-disco",
+        "linea-log",
+        "alerta"
+      ],
+      "explica": "En cada nodo corre un Fluent Bit (en C01, un pod de un DaemonSet: uno por nodo, y uno más en cada nodo nuevo). Escribe <code>observabilidad/fluent-bit.conf</code>. La entrada <code>tail</code> sigue los archivos <code>/var/log/containers/gateway-*</code> con el parser <code>cri</code> (separa la hora del runtime, el flujo y tu texto) y anota en su <code>DB</code> hasta dónde leyó cada archivo. El filtro <code>record_modifier</code> le agrega el nodo a cada registro. La salida <code>s3</code> junta lo de cada minuto (<code>upload_timeout 1m</code>; en C01, 5 min) y lo sube con gzip a <code>/logs/crudo/AAAA/MM/DD/HH/&lt;nodo&gt;-&lt;uuid&gt;.gz</code>; la carpeta de la hora sale de la hora del primer registro del archivo, y <code>$UUID</code> es una cadena al azar (de 8 caracteres en el dojo) para que dos archivos no choquen. Lo que no pudo subir lo guarda en disco (<code>store_dir</code>) y lo reintenta. Y una alerta más en <code>reglas.yml</code>: <code>LogsStale</code>, si un nodo lleva 3 min sin subir nada (C01: 30 min), con la hora que publica el vigía de S3. Después, el simulacro: apagas S3 con tráfico.",
+      "codigo": [
+        {
+          "lang": "text",
+          "path": "observabilidad/fluent-bit.conf",
+          "code": "# El Fluent Bit de cada nodo (solución de referencia): lee los logs del gateway y los sube a S3 cada minuto.\n# La misma configuración en los dos nodos; ${NODO} lo pone cada contenedor (en C01: el nombre del nodo).\n[SERVICE]\n    Flush        1\n    Log_Level    info\n    HTTP_Server  On\n    HTTP_Listen  0.0.0.0\n    HTTP_Port    2020\n\n[INPUT]\n    Name              tail\n    Path              /var/log/containers/gateway-*_classifier_gateway-*.log\n    multiline.parser  cri\n    Tag               gateway.*\n    DB                /var/fluent-bit/tail.db\n    Refresh_Interval  5\n    Rotate_Wait       30\n    Mem_Buf_Limit     16MB\n\n[FILTER]\n    Name    record_modifier\n    Match   gateway.*\n    Record  nodo ${NODO}\n\n[OUTPUT]\n    Name                  s3\n    Match                 gateway.*\n    bucket                ml-datos\n    region                us-east-1\n    endpoint              http://s3:9000\n    s3_key_format         /logs/crudo/%Y/%m/%d/%H/${NODO}-$UUID.gz\n    compression           gzip\n    use_put_object        On\n    upload_timeout        1m\n    store_dir             /var/fluent-bit/s3\n    store_dir_limit_size  256M\n    retry_limit           60     # por omisión se rinde a los ≈ 6 intentos (≈ 30 s de S3 caído) y manda el pedazo a cuarentena",
+          "nota": "<code>use_put_object On</code>: cada archivo en una sola subida (en C01, así el rol de Fluent Bit escribe sin poder descifrar). Por omisión, <code>upload_timeout</code> es 10m y <code>total_file_size</code> 100M (hasta 1G con <code>use_put_object</code>): aquí sube cada minuto mucho antes de llenarse. <code>store_dir_limit_size</code> por omisión es 0, sin tope; con tope, al llenarse descarta."
+        },
+        {
+          "lang": "yaml",
+          "path": "observabilidad/reglas.yml (la alerta que se agrega)",
+          "code": "      - alert: LogsStale                               # 3 veces el upload_timeout de Fluent Bit (C01: 30 min)\n        expr: time() - max by (nodo) (dojo_s3_ultimo_objeto_timestamp_seconds) > 180\n        labels: {severity: ticket}\n        annotations: {summary: \"El nodo {{ $labels.nodo }} lleva 3 min sin subir logs a S3\"}",
+          "nota": "Sin <code>for</code>: el umbral de 180 s ya es la espera."
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python mundo/recargar.py prometheus",
+          "nota": "",
+          "donde": "mac",
+          "salida": "Checking /etc/prometheus/prometheus.yml\n  SUCCESS: 1 rule files found\n SUCCESS: /etc/prometheus/prometheus.yml is valid prometheus config file syntax\n\nChecking /etc/prometheus/reglas.yml\n  SUCCESS: 6 rules found\n✓ Prometheus recargado · 6 reglas en 2 grupos · objetivos: alb, fluent-bit, gateway, prometheus, triton, vigia-s3"
+        },
+        {
+          "code": "python mundo/recargar.py fluent-bit",
+          "nota": "Como un rollout del DaemonSet: los dos con tu configuración.",
+          "donde": "mac",
+          "salida": "✓ fluent-bit-a reiniciado con tu fluent-bit.conf\n✓ fluent-bit-b reiniciado con tu fluent-bit.conf"
+        },
+        {
+          "code": "docker compose logs fluent-bit-a 2>&1 | grep -E 'inotify_fs_add|uploaded' | cut -c1-220 | tail -4",
+          "nota": "Empezó a seguir los archivos del pod de su nodo; un minuto después, la primera subida.",
+          "donde": "mac",
+          "salida": "fluent-bit-a-1  | [2026/11/19 05:55:59.839] [ info] [input:tail:tail.0] inotify_fs_add(): inode=302731 watch_fd=1 name=/var/log/containers/gateway-6f7b9c4d58-xa7k2_classifier_gateway-0806681739da891d372b7abca4bf36ad120a6\nfluent-bit-a-1  | [2026/11/19 05:55:59.839] [ info] [input:tail:tail.0] inotify_fs_add(): inode=301479 watch_fd=2 name=/var/log/containers/gateway-6f7b9c4d58-xa7k2_classifier_gateway-fd5b83bcfd375167bac8bb8a70841e97bd609\nfluent-bit-a-1  | [2026/11/19 05:57:00.621] [ info] [output:s3:s3.0] Successfully uploaded object /logs/crudo/2026/11/19/05/a-NUj3q405.gz"
+        },
+        {
+          "code": "curl -s localhost:9953/api/v2/metrics/prometheus | grep -E '^fluentbit_(input_records|output_proc_records|output_errors|output_retries)_total'",
+          "nota": "Lo que leyó la entrada y lo que entregó la salida s3.",
+          "donde": "mac",
+          "salida": "fluentbit_input_records_total{name=\"tail.0\"} 868\nfluentbit_output_proc_records_total{name=\"s3.0\"} 854\nfluentbit_output_errors_total{name=\"s3.0\"} 0\nfluentbit_output_retries_total{name=\"s3.0\"} 0"
+        },
+        {
+          "code": "python -c \"\nimport sys; sys.path.insert(0, '.')\nfrom datetime import datetime, timezone\nfrom mundo.comun import objetos\nh = datetime.now(timezone.utc)\nfor o in objetos(f'logs/crudo/{h:%Y/%m/%d/%H}/')[-4:]: print(o['Key'], o['Size'], 'B')\"",
+          "nota": "Los objetos de esta hora en S3: uno por nodo y por minuto.",
+          "donde": "mac",
+          "salida": "logs/crudo/2026/11/19/05/a-NUj3q405.gz 50004 B\nlogs/crudo/2026/11/19/05/b-UMO9oydU.gz 52679 B"
+        },
+        {
+          "code": "python mundo/buscar.py cb77861e-29f6-4337-b0f6-8dc78293df31",
+          "nota": "Una request de hace unos segundos: ya está en el disco del nodo, todavía no en S3 (Fluent Bit sube cada minuto).",
+          "donde": "mac",
+          "salida": "request_id cb77861e-29f6-4337-b0f6-8dc78293df31\n\nbackend (logs/backend.log): {\"request_id\": \"cb77861e-29f6-4337-b0f6-8dc78293df31\", \"caller\": \"backend-publicaciones\", \"status\": 200, \"ms_backend\": 17.0}\nALB (logs/alb.log, el access log): {\"time\": \"2026-11-19T05:57:01.300150Z\", \"request\": \"POST /v1/classify\", \"x_request_id\": \"cb77861e-29f6-4337-b0f6-8dc78293df31\", \"trace_id\": \"Root=1-6afe8fad-19e657c9d7e8b56b1b65dc7b\", \"elb_status_code\": 200, \"target\": \"gateway-6f7b9c4d58-xa7k2\", \"target_status_code\": 200, \"request_processing_time\": 0.0005, \"target_processing_time\": 0.0126, \"caller\": \"backend-publicaciones\"}\ngateway, disco de nodo-a (/var/log/pods/classifier_gateway-6f7b9c4d58-xa7k2_3f1c9a2e-7b44-4d0e-9a61-5c2b8e0d7a11/gateway/0.log):\n  2026-11-19T05:57:01.310447880Z stdout F {\"request_id\":\"cb77861e-29f6-4337-b0f6-8dc78293df31\",\"caller\":\"backend-publicaciones\",\"source\":\"mobile\",\"model_version\":\"resnet50-2026-11-01\",\"ms\":{\"pre\":1.1,\"triton\":5.5,\"post\":0.2,\"total\":7.4},\"bytes\":1501,\"sha256\":\"37ccb85bb3c8\",\"top5\":[[6,0.4023],[1,0.2046],[7,0.0951],[8,0.0909],[0,0.0762]],\"status\":200}\nS3 (logs/crudo/, última hora): todavía no está (Fluent Bit sube cada minuto)"
+        },
+        {
+          "code": "q 'time() - dojo_s3_ultimo_objeto_timestamp_seconds'",
+          "nota": "Cuántos segundos hace que llegó el último archivo de cada nodo.",
+          "donde": "mac",
+          "salida": "{job=\"vigia-s3\", nodo=\"a\", prefijo=\"logs/crudo/\"} 17.430000066757202\n{job=\"vigia-s3\", nodo=\"b\", prefijo=\"logs/crudo/\"} 13.434000015258789"
+        },
+        {
+          "code": "docker compose stop s3",
+          "nota": "El simulacro: S3 en mantenimiento.",
+          "donde": "mac",
+          "salida": " Container taller-c01-request-s3-1 Stopping\n Container taller-c01-request-s3-1 Stopped"
+        },
+        {
+          "code": "python mundo/carga.py --tasa 20 --segundos 90",
+          "nota": "La request no se entera: todas contestan.",
+          "donde": "mac",
+          "salida": "1725 requests en 90 s (19.2/s) · códigos: 200: 1672, 405: 8, 415: 45\nel backend midió (solo 200): p50 17.1 ms · p99 21.8 ms"
+        },
+        {
+          "code": "docker compose logs fluent-bit-a --since 90s 2>&1 | grep -iE 'error|retry|fail' | cut -c1-200 | tail -4",
+          "nota": "Fluent Bit no puede subir (PutObject request failed) y guarda en su buffer.",
+          "donde": "mac",
+          "salida": "fluent-bit-a-1  | [2026/11/19 05:58:30.613] [error] [output:s3:s3.0] PutObject request failed\nfluent-bit-a-1  | [2026/11/19 05:58:42.607] [error] [aws_client] connection initialization error\nfluent-bit-a-1  | [2026/11/19 05:58:42.611] [error] [aws_client] connection initialization error\nfluent-bit-a-1  | [2026/11/19 05:58:42.611] [error] [output:s3:s3.0] PutObject request failed"
+        },
+        {
+          "code": "curl -s localhost:9953/api/v2/metrics/prometheus | grep -E '^fluentbit_output_(proc_records|errors|retries|retries_failed)_total'",
+          "nota": "Las métricas de reintentos del motor se quedan en 0: el plugin s3 reintenta por su cuenta.",
+          "donde": "mac",
+          "salida": "fluentbit_output_proc_records_total{name=\"s3.0\"} 1929\nfluentbit_output_errors_total{name=\"s3.0\"} 0\nfluentbit_output_retries_total{name=\"s3.0\"} 0\nfluentbit_output_retries_failed_total{name=\"s3.0\"} 0"
+        },
+        {
+          "code": "q 'time() - dojo_s3_ultimo_objeto_timestamp_seconds'",
+          "nota": "",
+          "donde": "mac",
+          "salida": "{job=\"vigia-s3\", nodo=\"a\", prefijo=\"logs/crudo/\"} 108.09699988365173\n{job=\"vigia-s3\", nodo=\"b\", prefijo=\"logs/crudo/\"} 104.10099983215332"
+        },
+        {
+          "code": "python verificar.py log-en-s3",
+          "nota": "verificar.py sí lo ve.",
+          "donde": "mac",
+          "salida": "✗ log-en-s3         S3 no contesta en :9950 (EndpointConnectionError): el log se está quedando en el buffer de cada nodo\n\n0/1 en verde · falta: log-en-s3"
+        },
+        {
+          "code": "curl -s localhost:9952/api/v1/alerts | python -c \"import json,sys;[print(a['labels']['alertname'], a['labels'].get('nodo',''), a['state']) for a in json.load(sys.stdin)['data']['alerts']]\"",
+          "nota": "Más de 3 min sin archivos nuevos: LogsStale, nodo por nodo.",
+          "donde": "mac",
+          "salida": "LogsStale a firing\nLogsStale b firing"
+        },
+        {
+          "code": "docker compose start s3",
+          "nota": "",
+          "donde": "mac",
+          "salida": " Container taller-c01-request-s3-1 Starting\n Container taller-c01-request-s3-1 Started"
+        },
+        {
+          "code": "docker compose logs fluent-bit-a --since 30s 2>&1 | grep -E 'uploaded' | cut -c1-200 | tail -4",
+          "nota": "Al volver S3, sube los pedazos atrasados de un jalón.",
+          "donde": "mac",
+          "salida": "fluent-bit-a-1  | [2026/11/19 06:00:36.619] [ info] [output:s3:s3.0] Successfully uploaded object /logs/crudo/2026/11/19/05/a-r6x4PuIu.gz\nfluent-bit-a-1  | [2026/11/19 06:00:36.632] [ info] [output:s3:s3.0] Successfully uploaded object /logs/crudo/2026/11/19/05/a-oUl6f9Zk.gz\nfluent-bit-a-1  | [2026/11/19 06:00:36.637] [ info] [output:s3:s3.0] Successfully uploaded object /logs/crudo/2026/11/19/05/a-65t3OLbc.gz"
+        },
+        {
+          "code": "curl -s localhost:9953/api/v2/metrics/prometheus | grep -E '^fluentbit_output_(proc_records|errors|retries|retries_failed)_total'",
+          "nota": "<code>output_errors_total</code>: los intentos que fallaron mientras S3 no estaba.",
+          "donde": "mac",
+          "salida": "fluentbit_output_proc_records_total{name=\"s3.0\"} 2273\nfluentbit_output_errors_total{name=\"s3.0\"} 2\nfluentbit_output_retries_total{name=\"s3.0\"} 0\nfluentbit_output_retries_failed_total{name=\"s3.0\"} 0"
+        },
+        {
+          "code": "python verificar.py log-en-s3",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ log-en-s3         los dos nodos suben a S3 (lo último, hace 24 s y menos) · logs/crudo/2026/11/19/05/b-qR7btmvg.gz\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "<code>python verificar.py log-en-s3</code>: los dos nodos suben a S3, con el nombre de archivo y los campos <code>time</code>, <code>stream</code>, <code>log</code> y <code>nodo</code>, sin pedazos en cuarentena. Con S3 apagado, las 1,725 requests de la carga contestaron (200: 1672, 405: 8, 415: 45) y LogsStale sonó.",
+      "ojo": "Con el <code>retry_limit</code> por omisión, el plugin s3 de Fluent Bit 5.1.5 reintenta un pedazo cada ≈ 5 s y a los 6 intentos se rinde («Chunk file failed to send 6 times, will not retry» y el pedazo va a cuarentena): aguanta ≈ 30 s de S3 caído. En una prueba de la construcción, 3 min de caída mandaron dos pedazos (≈ 2 min de líneas) a cuarentena y no llegaron nunca a S3, con <code>fluentbit_output_retries_failed_total</code> en 0. <code>retry_limit no_limits</code> lo recorta a 5. Con <code>retry_limit 60</code> reintenta cada ≈ 18 s y, al volver S3, subió todo: nunca bloquear la request, pero tampoco perder en silencio. Y por qué los nodos son contenedores con su propio volumen: en esta Mac, con los logs en una carpeta compartida, Fluent Bit no se enteraba de lo que un proceso del Mac agregaba al archivo (Docker Desktop no le avisaba al contenedor por inotify). Es lo que pasó al construir el dojo, no algo documentado. Al arrancar, Fluent Bit lee su DB y sube lo atrasado.",
+      "en_pagina": {
+        "conceptos": [
+          "fluent-bit",
+          "buffer-en-disco"
+        ],
+        "precalculos": [
+          "aguante-buffer"
+        ]
+      }
+    },
+    {
+      "n": 8,
+      "id": "parquet",
+      "titulo": "El job diario: del crudo a Parquet",
+      "objetivo": "El job diario lee el crudo de ayer, quita los repetidos, se queda con las líneas del gateway y escribe un Parquet por versión del modelo; correrlo dos veces da lo mismo.",
+      "conceptos": [
+        "al-menos-una-vez",
+        "parquet-particiones"
+      ],
+      "explica": "Escribe <code>diario/a_parquet.py</code>, la primera parte del job <code>monitoreo-diario</code> que en C01 corre a la 01:00 UTC. Lee los archivos de <code>logs/crudo/</code> del día, en UTC, y los de la hora 00 del siguiente (un archivo subido a las 00:00:40 trae líneas de las 23:59). Se queda con los registros de stdout cuyo texto es un JSON con <code>request_id</code> y quita los repetidos: Fluent Bit entrega al menos una vez, y si una subida se reintenta después de que S3 sí la guardó, el mismo archivo llega dos veces. La llave es (<code>request_id</code>, <code>time</code>): el mismo id con otra hora es otra request de verdad. Escribe Parquet, una tabla por columnas, en <code>logs/predicciones/dt=AAAA-MM-DD/model_version=…/</code>: una consulta de un día y una versión solo lee esa carpeta. Antes de escribir borra lo que hubiera de ese día: correrlo dos veces da lo mismo (idempotente). El log de ayer trae el rollout de la 14 a la 15 a las 16:00 UTC: salen dos carpetas.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "diario/a_parquet.py",
+          "code": "\"\"\"El job monitoreo-diario, primera parte: del log crudo de un día a Parquet (solución de referencia).\n\n    python diario/a_parquet.py                  # ayer (UTC), como el job de la 01:00\n    python diario/a_parquet.py --dia 2026-11-18\n\nContrato:\n- Lee todos los objetos de s3://ml-datos/logs/crudo/AAAA/MM/DD/ (las 24 carpetas de hora) del día, en UTC, y los de\n  la hora 00 del día siguiente (un archivo subido a las 00:00:40 trae líneas de las 23:59). Cada uno es un .gz con una línea JSON por registro de Fluent Bit: time (la hora del runtime), stream, _p, log (el texto que\n  escribió el gateway) y nodo.\n- Se queda con las de stdout cuyo log es un JSON con request_id; las demás (stderr, texto suelto) son «ignoradas».\n- Fluent Bit entrega al menos una vez: si sube un archivo dos veces, hay registros repetidos. Se quitan los repetidos\n  por (request_id, time).\n- Una fila por request, con hora (timestamp UTC), nodo, request_id, caller, source, model_version, status, top1 y score\n  (la primera sugerencia, o nulos), ms_pre, ms_triton, ms_post, ms_total, bytes, sha256 y error. Solo las de ese día.\n- Escribe s3://ml-datos/logs/predicciones/dt=AAAA-MM-DD/model_version=<v>/parte-0.parquet, una carpeta por versión,\n  después de borrar lo que hubiera en dt=AAAA-MM-DD/: correrlo dos veces da lo mismo (idempotente).\n- Imprime cuántos objetos y registros leyó, cuántos repetidos e ignorados quitó y cuántas filas quedaron por versión.\n\"\"\"\nfrom __future__ import annotations\n\nimport argparse\nimport gzip\nimport json\nimport sys\nimport tempfile\nfrom datetime import date, datetime, timedelta, timezone\nfrom pathlib import Path\n\nimport duckdb\n\nsys.path.insert(0, str(Path(__file__).resolve().parent.parent))\nfrom mundo.comun import BUCKET, CRUDO, PREDICCIONES, objetos, s3  # noqa: E402\n\nCOLUMNAS = {\"hora\": \"TIMESTAMP\", \"nodo\": \"VARCHAR\", \"request_id\": \"VARCHAR\", \"caller\": \"VARCHAR\", \"source\": \"VARCHAR\",\n            \"model_version\": \"VARCHAR\", \"status\": \"INTEGER\", \"top1\": \"INTEGER\", \"score\": \"DOUBLE\", \"ms_pre\": \"DOUBLE\",\n            \"ms_triton\": \"DOUBLE\", \"ms_post\": \"DOUBLE\", \"ms_total\": \"DOUBLE\", \"bytes\": \"BIGINT\", \"sha256\": \"VARCHAR\",\n            \"error\": \"VARCHAR\"}\n\n\ndef fila(reg: dict) -> dict | None:\n    if reg.get(\"stream\") != \"stdout\":\n        return None\n    try:\n        ev = json.loads(reg.get(\"log\", \"\"))\n    except (json.JSONDecodeError, TypeError):\n        return None\n    if not isinstance(ev, dict) or \"request_id\" not in ev:\n        return None\n    ms, top5 = ev.get(\"ms\") or {}, ev.get(\"top5\") or []\n    return {\"hora\": reg[\"time\"], \"nodo\": reg.get(\"nodo\"), \"request_id\": ev[\"request_id\"], \"caller\": ev.get(\"caller\"),\n            \"source\": ev.get(\"source\"), \"model_version\": ev.get(\"model_version\"), \"status\": ev.get(\"status\"),\n            \"top1\": top5[0][0] if top5 else None, \"score\": top5[0][1] if top5 else None,\n            \"ms_pre\": ms.get(\"pre\"), \"ms_triton\": ms.get(\"triton\"), \"ms_post\": ms.get(\"post\"), \"ms_total\": ms.get(\"total\"),\n            \"bytes\": ev.get(\"bytes\"), \"sha256\": ev.get(\"sha256\"), \"error\": ev.get(\"error\")}\n\n\ndef main() -> None:\n    ap = argparse.ArgumentParser()\n    ap.add_argument(\"--dia\", type=date.fromisoformat,\n                    default=(datetime.now(timezone.utc) - timedelta(days=1)).date())\n    dia = ap.parse_args().dia\n    c = s3()\n    # un archivo subido a las 00:00:40 trae líneas de las 23:59: también se lee la primera hora del día siguiente\n    objs = objetos(f\"{CRUDO}{dia:%Y/%m/%d}/\") + objetos(f\"{CRUDO}{dia + timedelta(days=1):%Y/%m/%d}/00/\")\n    vistos, filas, leidos, repetidos, ignorados = set(), [], 0, 0, 0\n    for o in objs:\n        texto = gzip.decompress(c.get_object(Bucket=BUCKET, Key=o[\"Key\"])[\"Body\"].read()).decode(\"utf-8\", \"replace\")\n        for linea in texto.splitlines():\n            leidos += 1\n            try:\n                f = fila(json.loads(linea))\n            except json.JSONDecodeError:\n                f = None\n            if f is None or not f[\"hora\"].startswith(dia.isoformat()):\n                ignorados += 1\n                continue\n            llave = (f[\"request_id\"], f[\"hora\"])\n            if llave in vistos:\n                repetidos += 1\n                continue\n            vistos.add(llave)\n            filas.append(f)\n    prefijo = f\"{PREDICCIONES}dt={dia.isoformat()}/\"\n    for o in objetos(prefijo):\n        c.delete_object(Bucket=BUCKET, Key=o[\"Key\"])\n    por_version: dict[str, int] = {}\n    with tempfile.TemporaryDirectory() as tmp:\n        ndjson = Path(tmp) / \"filas.json\"\n        ndjson.write_text(\"\".join(json.dumps(f) + \"\\n\" for f in filas))\n        con = duckdb.connect()\n        cols = \", \".join(f\"'{k}': '{v}'\" for k, v in COLUMNAS.items())\n        con.execute(f\"CREATE TABLE t AS SELECT * FROM read_json('{ndjson}', format='newline_delimited', columns={{{cols}}})\"\n                    if filas else \"CREATE TABLE t AS SELECT 1 WHERE false\")\n        for (v,) in con.execute(\"SELECT DISTINCT model_version FROM t ORDER BY 1\").fetchall() if filas else []:\n            destino = Path(tmp) / f\"{v}.parquet\"\n            con.execute(f\"COPY (SELECT * FROM t WHERE model_version = ? ORDER BY hora) TO '{destino}' (FORMAT parquet)\", [v])\n            c.upload_file(str(destino), BUCKET, f\"{prefijo}model_version={v}/parte-0.parquet\")\n            por_version[v] = con.execute(\"SELECT count(*) FROM t WHERE model_version = ?\", [v]).fetchone()[0]\n    print(f\"{dia}: {len(objs)} objetos · {leidos:,} registros · {repetidos:,} repetidos · {ignorados:,} ignorados\")\n    for v, n in por_version.items():\n        print(f\"  {prefijo}model_version={v}/parte-0.parquet  {n:,} filas\")\n    print(f\"total: {sum(por_version.values()):,} filas\")\n\n\nif __name__ == \"__main__\":\n    main()",
+          "nota": "DuckDB escribe el Parquet con los tipos de <code>COLUMNAS</code>: la hora como TIMESTAMP, no como texto."
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python diario/a_parquet.py",
+          "nota": "El día de ayer en 1.5 s.",
+          "donde": "mac",
+          "salida": "2026-11-18: 578 objetos · 11,887 registros · 37 repetidos · 1 ignorados\n  logs/predicciones/dt=2026-11-18/model_version=resnet50-2026-10-01/parte-0.parquet  7,830 filas\n  logs/predicciones/dt=2026-11-18/model_version=resnet50-2026-11-01/parte-0.parquet  4,019 filas\ntotal: 11,849 filas"
+        },
+        {
+          "code": "python diario/a_parquet.py",
+          "nota": "Otra vez: lo mismo, no el doble.",
+          "donde": "mac",
+          "salida": "2026-11-18: 578 objetos · 11,887 registros · 37 repetidos · 1 ignorados\n  logs/predicciones/dt=2026-11-18/model_version=resnet50-2026-10-01/parte-0.parquet  7,830 filas\n  logs/predicciones/dt=2026-11-18/model_version=resnet50-2026-11-01/parte-0.parquet  4,019 filas\ntotal: 11,849 filas"
+        },
+        {
+          "code": "python -c \"\nimport sys, duckdb; sys.path.insert(0, '.')\nfrom datetime import datetime, timedelta, timezone\nfrom mundo.comun import BUCKET, PREDICCIONES, objetos, s3\ndia = (datetime.now(timezone.utc) - timedelta(days=1)).date()\nc = s3()\nfor o in objetos(f'{PREDICCIONES}dt={dia}/'):\n    c.download_file(BUCKET, o['Key'], f'logs/{o[\\\"Key\\\"].split(\\\"=\\\")[2].split(\\\"/\\\")[0]}.parquet')\ncon = duckdb.connect()\nprint(con.sql(\\\"SELECT model_version, count(*) AS filas, round(quantile_cont(ms_total, 0.99), 1) AS p99_ms, round(avg(CASE WHEN status >= 500 THEN 1 ELSE 0 END) * 100, 2) AS pct_5xx, round(avg(score), 3) AS score_medio FROM 'logs/resnet50-*.parquet' GROUP BY 1 ORDER BY 1\\\"))\nprint(con.sql(\\\"SELECT hour(hora) AS hora_utc, model_version, count(*) AS filas FROM 'logs/resnet50-*.parquet' WHERE hour(hora) BETWEEN 15 AND 16 GROUP BY 1, 2 ORDER BY 1, 2\\\"))\nprint(con.sql(\\\"DESCRIBE SELECT * FROM 'logs/resnet50-2026-11-01.parquet'\\\").fetchall()[:6])\"",
+          "nota": "DuckDB lee los Parquet: filas, p99 y 5xx por versión, y el cambio de versión a las 16:00 UTC.",
+          "donde": "mac",
+          "salida": "┌─────────────────────┬───────┬────────┬─────────┬─────────────┐\n│    model_version    │ filas │ p99_ms │ pct_5xx │ score_medio │\n│       varchar       │ int64 │ double │ double  │   double    │\n├─────────────────────┼───────┼────────┼─────────┼─────────────┤\n│ resnet50-2026-10-01 │  7830 │   18.2 │    1.16 │       0.306 │\n│ resnet50-2026-11-01 │  4019 │   19.3 │    1.07 │       0.306 │\n└─────────────────────┴───────┴────────┴─────────┴─────────────┘\n\n┌──────────┬─────────────────────┬───────┐\n│ hora_utc │    model_version    │ filas │\n│  int64   │       varchar       │ int64 │\n├──────────┼─────────────────────┼───────┤\n│       15 │ resnet50-2026-10-01 │   478 │\n│       16 │ resnet50-2026-11-01 │   539 │\n└──────────┴─────────────────────┴───────┘\n\n[('hora', 'TIMESTAMP', 'YES', None, None, None), ('nodo', 'VARCHAR', 'YES', None, None, None), ('request_id', 'VARCHAR', 'YES', None, None, None), ('caller', 'VARCHAR', 'YES', None, None, None), ('source', 'VARCHAR', 'YES', None, None, None), ('model_version', 'VARCHAR', 'YES', None, None, None)]"
+        },
+        {
+          "code": "python verificar.py parquet",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ parquet           dt=2026-11-18 · resnet50-2026-10-01: 7,830 filas · resnet50-2026-11-01: 4,019 filas · cuadra con el crudo\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "<code>python verificar.py parquet</code>: resnet50-2026-10-01, 7,830 filas y resnet50-2026-11-01, 4,019 filas, sin repetidos, y cuadra con una cuenta independiente del crudo.",
+      "ojo": "El día se cuenta en UTC, igual que la carpeta de S3 y la hora del runtime: si filtras con la hora local de tu Mac, pierdes o duplicas las filas de la frontera. Sin quitar repetidos, los 2 archivos subidos dos veces meten 37 filas de más, y el join del mes contaría esas fotos dos veces. Y si el job agrega en lugar de reemplazar, un reintento duplica el día entero.",
+      "en_pagina": {
+        "conceptos": [
+          "al-menos-una-vez",
+          "parquet-particiones"
+        ],
+        "precalculos": [
+          "repetidos"
+        ]
+      }
+    },
+    {
+      "n": 9,
+      "id": "punto-ciego",
+      "titulo": "Lo que el gateway no ve",
+      "objetivo": "Las dos alertas que faltan, GatewaySinLectura y ALB5xx, y la prueba de lo que el gateway no ve: con Triton caído, el ALB contesta 503 él mismo y solo sus métricas lo cuentan.",
+      "conceptos": [
+        "punto-ciego-alb",
+        "alerta",
+        "scrape"
+      ],
+      "explica": "Dos alertas para los puntos ciegos. <code>GatewaySinLectura</code> suena si Prometheus no lee los 2 pods; con <code>absent(up{job=\"gateway\"} == 1)</code> suena también cuando no hay ninguna serie: si un cambio de etiquetas deja a tu job sin pods, las alertas que miran <code>classifier_*</code> evalúan sobre nada y no suenan, y esta sí. <code>ALB5xx</code> mira la fracción de 5xx que pone el propio ALB. ¿Por qué hace falta? Cuando Triton se cae, los pods del gateway contestan 503 en <code>/readyz</code> y el ALB los da de baja de su target group (en C01: salen de los Endpoints y el AWS Load Balancer Controller los da de baja); sin destinos registrados, el ALB contesta 503 él mismo y las requests nunca llegan a un pod. <code>classifier_requests_total</code> no sube y la fracción de 5xx del gateway se queda sin requests: el peor momento del servicio se ve tranquilo. Lo cuentan las métricas del ALB (en C01, CloudWatch: <code>HTTPCode_ELB_5XX_Count</code>). Como <code>RequestCount</code> solo cuenta las requests para las que el ALB pudo elegir un destino, el denominador suma las dos.",
+      "codigo": [
+        {
+          "lang": "yaml",
+          "path": "observabilidad/reglas.yml (las dos alertas que se agregan)",
+          "code": "      - alert: GatewaySinLectura                       # el monitoreo que falla en silencio: no hay qué leer\n        expr: absent(up{job=\"gateway\"} == 1) or count(up{job=\"gateway\"} == 1) < 2\n        for: 30s\n        labels: {severity: ticket}\n        annotations: {summary: \"Prometheus no está leyendo los 2 pods del gateway\"}\n      - alert: ALB5xx                                  # lo que el gateway no ve: el ALB contestando 5xx él mismo\n        expr: |\n          (sum(rate(alb_httpcode_elb_total{code=~\"5..\"}[1m])) or vector(0))\n            /\n          (sum(rate(alb_request_count_total[1m])) + sum(rate(alb_httpcode_elb_total{code=~\"5..\"}[1m]))) > 0.005\n        for: 30s\n        labels: {severity: page}\n        annotations: {summary: \"El ALB contesta 5xx él mismo (sin destinos sanos)\"}",
+          "nota": "En el ALB de AWS, el 503 propio sale cuando no queda ningún destino registrado. Si los destinos siguen registrados pero todos fallan el health check, el ALB «abre el paso» (fail open) y les manda tráfico igual; el ALB del dojo solo imita el primer caso."
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python mundo/recargar.py prometheus",
+          "nota": "",
+          "donde": "mac",
+          "salida": "Checking /etc/prometheus/prometheus.yml\n  SUCCESS: 1 rule files found\n SUCCESS: /etc/prometheus/prometheus.yml is valid prometheus config file syntax\n\nChecking /etc/prometheus/reglas.yml\n  SUCCESS: 8 rules found\n✓ Prometheus recargado · 8 reglas en 2 grupos · objetivos: alb, fluent-bit, gateway, prometheus, triton, vigia-s3"
+        },
+        {
+          "code": "python verificar.py alertas",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ alertas           las 5 alertas cargadas, sanas y sin sonar\n\n1/1 en verde"
+        },
+        {
+          "code": "python mundo/nodo.py parar triton",
+          "nota": "Triton se cae. En ≈ 4 s, el ALB da de baja a los dos pods.",
+          "donde": "mac",
+          "salida": "  triton parado"
+        },
+        {
+          "code": "python mundo/carga.py --tasa 20 --segundos 50",
+          "nota": "Todas 503.",
+          "donde": "mac",
+          "salida": "975 requests en 50 s (19.5/s) · códigos: 503: 975"
+        },
+        {
+          "code": "tail -1 logs/alb.log",
+          "nota": "El access log del ALB: elb_status_code 503, sin target, con su error_reason.",
+          "donde": "mac",
+          "salida": "{\"time\":\"2026-11-19T06:02:05.182445Z\",\"request\":\"POST /v1/classify\",\"x_request_id\":\"8adf8952-4bf0-4645-b34d-d4722de40f4c\",\"trace_id\":\"Root=1-6afe90dd-3e9db7e6b92aa392e7a6c496\",\"elb_status_code\":503,\"target\":\"-\",\"target_status_code\":\"-\",\"target_processing_time\":-1,\"request_processing_time\":0.0001,\"error_reason\":\"el target group no tiene destinos registrados\"}"
+        },
+        {
+          "code": "curl -s localhost:8957/metrics | grep -E '^alb_(request_count_total|httpcode_elb_total\\{code=\"503\"\\}|healthy_host_count)'",
+          "nota": "Las métricas «de CloudWatch» del ALB: sus 503 propios y 0 destinos sanos.",
+          "donde": "mac",
+          "salida": "alb_request_count_total 11173.0\nalb_httpcode_elb_total{code=\"503\"} 1248.0\nalb_healthy_host_count 0.0"
+        },
+        {
+          "code": "q 'classifier:errores_servidor:ratio_rate1m'",
+          "nota": "La regla del gateway: 9.1 %. Son las pocas requests que llegaron al gateway en los segundos antes de que el ALB lo diera de baja (2 revisiones fallidas, cada 2 s).",
+          "donde": "mac",
+          "salida": "{__name__=\"classifier:errores_servidor:ratio_rate1m\"} 0.09120252554741076"
+        },
+        {
+          "code": "q 'sum(rate(classifier_requests_total[1m]))'",
+          "nota": "Lo que cuenta el gateway: casi nada.",
+          "donde": "mac",
+          "salida": "{} 0.05454545454545454"
+        },
+        {
+          "code": "q 'sum(rate(alb_httpcode_elb_total{code=\"503\"}[1m]))'",
+          "nota": "Lo que contesta el ALB él mismo, por segundo.",
+          "donde": "mac",
+          "salida": "{} 20.711705725142263"
+        },
+        {
+          "code": "curl -s localhost:9952/api/v1/alerts | python -c \"import json,sys;[print(a['labels']['alertname'], a['state']) for a in json.load(sys.stdin)['data']['alerts']]\"",
+          "nota": "ALB5xx sonando; ClassifierHigh5xxRate, en pending por esas pocas. Cuando su ventana de 1 min las deja atrás, la fracción del gateway se queda sin requests y se apaga, aunque la caída siga.",
+          "donde": "mac",
+          "salida": "ClassifierHigh5xxRate pending\nALB5xx firing"
+        },
+        {
+          "code": "python verificar.py de-punta-a-punta",
+          "nota": "El check sí lo ve: manda una foto por el ALB, como un caller.",
+          "donde": "mac",
+          "salida": "✗ de-punta-a-punta  una foto por el ALB da 503 ({\"error\":\"el target group no tiene destinos registrados\"}): mira las métricas del ALB (curl localhost:8957/metrics) y su access log (logs/alb.log); el gateway puede no haberla visto nunca\n\n0/1 en verde · falta: de-punta-a-punta"
+        },
+        {
+          "code": "python mundo/nodo.py arrancar triton",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ triton listo en 0.5 s"
+        },
+        {
+          "code": "curl -s localhost:9952/api/v1/alerts | python -c \"import json,sys;[print(a['labels']['alertname'], a['state']) for a in json.load(sys.stdin)['data']['alerts']]\"",
+          "nota": "Un minuto después: sin alertas. La ventana de 1 min ya no ve los 503.",
+          "donde": "mac",
+          "salida": ""
+        },
+        {
+          "code": "python verificar.py",
+          "nota": "Al final de la estación: los 12 checks.",
+          "donde": "mac",
+          "salida": "✓ mundo             S3, Prometheus, 2 nodos con su pod y su Fluent Bit, Triton, ALB y vigía arriba · una foto por el ALB: 200 (resnet50-2026-11-01)\n✓ request-id        respeta el id del caller (también en el 415), inventa un UUID v4 si falta y reemplaza los que no son sanos; el id está en el log\n✓ linea-log         una línea de JSON compacto en stdout (310 B), con request_id, ms y status, sin hora ni foto · nodo-a:/var/log/pods/classifier_gateway-6f7b9c4d58-xa7k2_3f1c9a2e-7b44-4d0e-9a61-5c2b8e0d7a11/gateway/0.log\n✓ metricas          las 8 métricas del contrato, con sus tipos, etiquetas y bordes\n✓ reglas-de-conteo  los 4xx cuentan pero no entran a la latencia · source reducido a 4 valores · se_traza ≈ 1 % y determinista\n✓ prometheus-lee    los 2 pods del gateway, una vez cada uno, con pod, nodo y hash · up = 1\n✓ consultas         3 recording rules sanas · errores 0.00% · p99 10.0 ms (resnet50-2026-11-01)\n✓ alertas           las 5 alertas cargadas, sanas y sin sonar\n✓ series-acotadas   ≤ 195 series classifier_* por pod (tope 400) · ninguna etiqueta con un valor por request\n✓ log-en-s3         los dos nodos suben a S3 (lo último, hace 12 s y menos) · logs/crudo/2026/11/19/06/b-irU3nLvy.gz\n✓ parquet           dt=2026-11-18 · resnet50-2026-10-01: 7,830 filas · resnet50-2026-11-01: 4,019 filas · cuadra con el crudo\n✓ de-punta-a-punta  200 con model_version y X-Request-ID · ALB 5.4 req/s ≈ gateway 5.3 req/s · el ALB no contesta por su cuenta\n\n12/12 en verde"
+        }
+      ],
+      "verifica": "Con Triton caído, las 975 requests de la carga recibieron 503 del ALB mientras el gateway contaba 0.05 req/s, y ALB5xx sonó. Con Triton de vuelta, <code>python verificar.py</code>: 12 de 12 en verde.",
+      "ojo": "Un 4xx también puede ser del ALB: si la llave con que verifica los tokens cambia, contesta 401 a todos sin tocar un pod, y el gateway se ve tranquilo otra vez (la falla «La rotación de llaves»). Antes de confiar en una alerta, pregunta qué requests no cuenta. Y espera ≈ 1 min después de arreglar algo antes de correr <code>verificar.py alertas</code>: las ventanas de 1 min todavía ven el problema.",
+      "en_pagina": {
+        "conceptos": [
+          "punto-ciego-alb"
+        ],
+        "precalculos": [
+          "lo-que-contesta-el-alb"
+        ]
+      }
+    }
+  ],
+  "solo": {
+    "reglas": [
+      "Empieza con el kit recién descomprimido en una carpeta nueva y <code>python mundo/crear.py</code>. El mundo es uno solo (los mismos puertos y el mismo proyecto de compose): si el de Construir con ayuda sigue prendido en otra carpeta, apágalo allá antes (<code>python mundo/nodo.py parar</code> y <code>docker compose down -v</code>).",
+      "Sin <code>GUION.md</code>: solo estos objetivos y el contrato arriba de cada archivo tuyo (<code>gateway/app/rastro.py</code>, <code>observabilidad/prometheus.yml</code>, <code>observabilidad/reglas.yml</code>, <code>observabilidad/fluent-bit.conf</code> y <code>diario/a_parquet.py</code>).",
+      "Cada objetivo tiene su check; corre <code>python verificar.py &lt;check&gt;</code> cuando creas que quedó.",
+      "Un archivo bien escrito que no se recargó no cuenta: <code>python mundo/recargar.py gateway|prometheus|fluent-bit</code>. Para ver algo con tráfico, <code>python mundo/carga.py --tasa 30 --segundos 60</code> en otra terminal; Prometheus necesita ≈ 1 min de datos para una tasa de 1 min.",
+      "Las reglas de otros equipos no se tocan: <code>mundo/</code>, <code>gateway.yaml</code>, <code>gateway/app/main.py</code> y los nombres de las métricas."
+    ],
+    "objetivos": [
+      {
+        "n": 1,
+        "objetivo": "El S3, Prometheus, los dos nodos con su pod y su Fluent Bit, Triton, el ALB y el vigía arriba, y una foto por el ALB contestada.",
+        "check": "mundo"
+      },
+      {
+        "n": 2,
+        "objetivo": "Cada request con un nombre: el X-Request-ID del caller si es sano (también en un 415), uno nuevo si falta o no es sano, en la respuesta y en el log.",
+        "check": "request-id",
+        "pista": "¿Qué pasa en el log si un caller manda un id con un salto de línea?"
+      },
+      {
+        "n": 3,
+        "objetivo": "Una sola línea por request en stdout, en JSON compacto, con request_id, ms y status, sin hora ni foto, y con el X-Client-Source tal como llegó.",
+        "check": "linea-log",
+        "pista": "¿Quién pone la hora de cada línea en el disco del nodo?"
+      },
+      {
+        "n": 4,
+        "objetivo": "Las 8 métricas del contrato en /metrics, con sus nombres, tipos, etiquetas y bordes, y cada categoría desde el arranque.",
+        "check": "metricas"
+      },
+      {
+        "n": 5,
+        "objetivo": "Los 4xx cuentan pero no entran a la latencia, la fuente tiene 4 valores venga lo que venga, y ≈ 1 % de las requests deja exemplar, siempre las mismas.",
+        "check": "reglas-de-conteo",
+        "pista": "¿Qué le hace al p99 un 415 que tarda microsegundos?"
+      },
+      {
+        "n": 6,
+        "objetivo": "Prometheus lee los 2 pods del gateway, una vez cada uno, con las etiquetas pod, nodo y hash.",
+        "check": "prometheus-lee",
+        "pista": "¿Qué pasa si lees a cada pod por los dos Services que lo eligen?"
+      },
+      {
+        "n": 7,
+        "objetivo": "Las 3 recording rules (requests por segundo, fracción de errores del servidor que da 0 y no vacío, p99 por versión), con la tasa antes de la suma.",
+        "check": "consultas",
+        "pista": "¿Qué da una división cuando la serie de arriba no existe?"
+      },
+      {
+        "n": 8,
+        "objetivo": "Las 5 alertas cargadas y sanas, sin sonar con el mundo sano; una de ellas suena también cuando no hay nada que leer.",
+        "check": "alertas",
+        "pista": "¿Cómo suena una alerta sobre una serie que desapareció?"
+      },
+      {
+        "n": 9,
+        "objetivo": "Las series de cada pod acotadas: ninguna etiqueta con un valor por request.",
+        "check": "series-acotadas"
+      },
+      {
+        "n": 10,
+        "objetivo": "Los dos nodos suben su log a S3 cada minuto, con el nombre del nodo en el archivo y en cada registro, sin perder pedazos si S3 se cae un rato.",
+        "check": "log-en-s3",
+        "pista": "¿Cuántas veces reintenta Fluent Bit antes de rendirse, si no le dices nada?"
+      },
+      {
+        "n": 11,
+        "objetivo": "El día de ayer en Parquet, una carpeta por versión, sin repetidos ni líneas que no son del gateway, y correrlo dos veces da lo mismo.",
+        "check": "parquet",
+        "pista": "¿Qué dos registros son de verdad la misma línea?"
+      },
+      {
+        "n": 12,
+        "objetivo": "Una foto por el ALB contesta 200 con model_version y su X-Request-ID, y lo que el ALB manda a los pods es lo que el gateway cuenta.",
+        "check": "de-punta-a-punta"
+      }
+    ]
+  },
+  "fallas": [
+    {
+      "id": "etiqueta-sin-techo",
+      "titulo": "Encontrar las lentas",
+      "tipo": "config",
+      "historia": "Beto, del equipo de classifier, cerró el BUG-2291: «ya podemos ver en Grafana cuáles requests son las lentas del p99». Hizo merge en la tarde y los pods se reiniciaron con su cambio. Todo contesta 200.",
+      "sintoma": "<code>verificar.py</code>: ✗ series-acotadas   gateway-6f7b9c4d58-xa7k2: classifier_request_debug_seconds_bucket tiene la etiqueta request_id: un valor por request es una serie por request. Lo que identifica a una request va al log",
+      "hipotesis": [
+        "Una métrica nueva tiene una etiqueta con un valor por request.",
+        "Volvió el caller de la fuente loca y la etiqueta source creció.",
+        "Las series vienen de otro lado (Triton, el ALB) y el gateway no tiene nada que ver."
+      ],
+      "confirma": {
+        "code": "curl -s localhost:8951/metrics | grep -c '^classifier_request_debug_seconds_bucket'\ncurl -s localhost:8951/metrics | grep '^classifier_request_debug_seconds_count' | head -2\nq 'count({__name__=~\"classifier_request_debug_seconds.*\"})'\nq 'prometheus_tsdb_head_series'\ngit log -1 -p --format='%h %an: %s' -- gateway/app/main.py | grep -E '^[0-9a-f]{7}|^\\+[^+]'",
+        "nota": "<code>q '…'</code> le pregunta a la API de Prometheus, como la función del paso 4 (aquí imprime las etiquetas a la manera de Python).",
+        "donde": "mac",
+        "salida": "4470\nclassifier_request_debug_seconds_count{request_id=\"036be1ac-0d13-4806-9a6c-b2130566687b\"} 1.0\nclassifier_request_debug_seconds_count{request_id=\"60ab368a-51ec-4354-9b8a-d43bcf540718\"} 1.0\n\n{} 8136\n{'__name__': 'prometheus_tsdb_head_series', 'job': 'prometheus'} 10636\n\nc404912 Beto (equipo de classifier): gateway: histograma por request para encontrar las lentas del p99 (BUG-2291)\n+    from prometheus_client import Histogram   # BUG-2291: encontrar las requests lentas del p99 (temporal)\n+    depurar = Histogram(\"classifier_request_debug_seconds\", \"Latencia por request, para depurar\",\n+                        [\"request_id\"], registry=registro)\n+            depurar.labels(rid).observe(time.monotonic() - t0)"
+      },
+      "arreglo": "El commit de Beto en <code>gateway/app/main.py</code> agregó un histograma <code>classifier_request_debug_seconds</code> con la etiqueta <code>request_id</code>: cada request crea su propia combinación, 15 series nuevas (11 buckets, +Inf, <code>_sum</code>, <code>_count</code> y <code>_created</code>). Con 20 s de carga, un pod ya exponía 4,470 buckets y Prometheus guardaba 8,136 series de ese histograma. A 5 fotos/s son ≈ 75 series nuevas por segundo; en C01, 150 millones al día: Prometheus se queda sin memoria en horas. Todo contesta 200 y la métrica «funciona»: esa es la trampa. Lo que Beto buscaba ya existe: el exemplar de la latencia (paso 6) y la línea de log. Arreglo: <code>git revert</code> del commit y <code>python mundo/nodo.py reiniciar gateway</code>. Las series viejas se quedan en Prometheus hasta que dejan de recibir muestras; las nuevas ya no nacen.",
+      "concepto": "cardinalidad",
+      "check": "series-acotadas"
+    },
+    {
+      "id": "monitor-perdido",
+      "titulo": "Nombres con prefijo",
+      "tipo": "config",
+      "historia": "Plataforma cerró el PLAT-4610: «todas las apps con el prefijo de su servicio, para ordenar el catálogo». Producción contesta normal y nadie reportó nada. Es viernes en la tarde.",
+      "sintoma": "<code>verificar.py</code>: ✗ prometheus-lee    Prometheus no tiene ningún objetivo con job=\"gateway\": falta el job en observabilidad/prometheus.yml (y curl -X POST localhost:9952/-/reload)",
+      "hipotesis": [
+        "Prometheus no puede conectarse a los pods (la red, el puerto).",
+        "Cambiaron las etiquetas de los pods y el keep de tu job ya no elige ninguno.",
+        "El gateway dejó de exponer /metrics."
+      ],
+      "confirma": {
+        "code": "python -c \"import json;[print(t['targets'], t['labels'].get('__meta_kubernetes_pod_label_app_kubernetes_io_name')) for t in json.load(open('nodo/descubrimiento/pods.json'))]\"\nq 'up{job=\"gateway\"}'\nq 'classifier:errores_servidor:ratio_rate1m'\ncurl -s localhost:9952/api/v1/alerts | python -c \"import json,sys;a=json.load(sys.stdin)['data']['alerts'];[print(x['labels']['alertname'], x['labels'].get('nodo',''), x['state']) for x in a] or print('(ninguna)')\"\ngit log -1 -p --format='%h %an: %s' -- mundo/plataforma.yaml | grep -E '^[0-9a-f]{7}|^[-+][^-+]'",
+        "nota": "<code>q '…'</code> le pregunta a la API de Prometheus, como la función del paso 4 (aquí imprime las etiquetas a la manera de Python).",
+        "donde": "mac",
+        "salida": "['nodo-a:8080'] classifier-gateway\n['nodo-b:8080'] classifier-gateway\n['host.docker.internal:8955'] triton\n\n(vacío)\n{'__name__': 'classifier:errores_servidor:ratio_rate1m'} 0\nGatewaySinLectura  pending\n\ne53e7bd Equipo de plataforma: plataforma: nombres de app con el prefijo del servicio (PLAT-4610)\n-      app.kubernetes.io/name: gateway\n+      app.kubernetes.io/name: classifier-gateway\n-      app.kubernetes.io/name: gateway\n+      app.kubernetes.io/name: classifier-gateway"
+      },
+      "arreglo": "El commit de plataforma en <code>mundo/plataforma.yaml</code> cambió la etiqueta de los pods del gateway de <code>app.kubernetes.io/name: gateway</code> a <code>classifier-gateway</code>. Tu job elige los pods con un <code>keep</code> sobre esa etiqueta: ya no elige ninguno. Nada truena: el gateway contesta, Prometheus no se queja (no hay objetivo que falle), y las alertas que dependen de <code>classifier_*</code> evalúan sobre nada y no suenan. Solo GatewaySinLectura lo ve, porque mira <code>up</code> con absent. Arreglo: <code>git revert</code> del commit y <code>python mundo/nodo.py publicar</code>. Aceptar el nombre nuevo en tu <code>prometheus.yml</code> también arregla, pero el arreglo de fondo es acordar el cambio antes: esa etiqueta era un contrato entre dos equipos.",
+      "concepto": "descubrimiento",
+      "check": "prometheus-lee"
+    },
+    {
+      "id": "s3-caido",
+      "titulo": "El S3 en mantenimiento",
+      "tipo": "infra",
+      "historia": "Llegó al canal del equipo: «LogsStale: el nodo a lleva 3 min sin subir logs a S3». Los usuarios no se han quejado: el clasificador contesta bien.",
+      "sintoma": "<code>verificar.py</code>: ✗ log-en-s3         S3 no contesta en :9950 (EndpointConnectionError): el log se está quedando en el buffer de cada nodo",
+      "hipotesis": [
+        "S3 no contesta.",
+        "El Fluent Bit del nodo a dejó de leer los archivos del pod.",
+        "Fluent Bit se rindió y mandó pedazos a cuarentena."
+      ],
+      "confirma": {
+        "code": "docker compose logs fluent-bit-a --since 40s 2>&1 | grep -iE 'error|fail' | tail -3\ncurl -s localhost:9953/api/v2/metrics/prometheus | grep -E '^fluentbit_output_(retries|errors)_total'\ndocker compose ps s3 --all --format '{{.Service}} {{.State}} {{.Status}}'",
+        "nota": "",
+        "donde": "mac",
+        "salida": "fluent-bit-a-1  | [2026/11/19 06:07:02.606] [error] [aws_client] connection initialization error\nfluent-bit-a-1  | [2026/11/19 06:07:02.611] [error] [aws_client] connection initialization error\nfluent-bit-a-1  | [2026/11/19 06:07:02.611] [error] [output:s3:s3.0] PutObject request failed\nfluentbit_output_errors_total{name=\"s3.0\"} 2\nfluentbit_output_retries_total{name=\"s3.0\"} 0\n\ns3 exited Exited (0) 41 seconds ago"
+      },
+      "arreglo": "El S3 del mundo (RustFS) está apagado. El gateway no se entera: escribe en stdout y sigue; el runtime guarda en el disco del nodo, y cada Fluent Bit junta lo que no puede subir en su buffer en disco (<code>store_dir</code>) y lo reintenta. Se degrada el monitoreo, no el servicio: ninguna request falló, y <code>de-punta-a-punta</code> sigue en verde. Arreglo: <code>docker compose start s3</code>; en segundos los Fluent Bit suben lo atrasado. No se pierde ninguna línea mientras el buffer aguante y mientras Fluent Bit no se rinda: con el <code>retry_limit</code> por omisión, a los 6 intentos (≈ 30 s) el pedazo se va a cuarentena y esas líneas no llegan a S3. Por eso tu <code>fluent-bit.conf</code> lleva <code>retry_limit 60</code>.",
+      "concepto": "buffer-en-disco",
+      "check": "log-en-s3"
+    },
+    {
+      "id": "lector-caido",
+      "titulo": "El nodo sin lector",
+      "tipo": "infra",
+      "historia": "LogsStale avisa, pero solo para un nodo. El otro sube normal. Producción contesta bien.",
+      "sintoma": "<code>verificar.py</code>: ✗ log-en-s3         el Fluent Bit del nodo b no contesta (docker compose ps)",
+      "hipotesis": [
+        "S3 se cayó.",
+        "El Fluent Bit del nodo b no corre.",
+        "El pod del nodo b dejó de escribir su log."
+      ],
+      "confirma": {
+        "code": "docker compose ps --all --format '{{.Service}} {{.State}}'\ncurl -s localhost:9952/api/v1/alerts | python -c \"import json,sys;a=json.load(sys.stdin)['data']['alerts'];[print(x['labels']['alertname'], x['labels'].get('nodo',''), x['state']) for x in a] or print('(ninguna)')\"\nq 'time() - dojo_s3_ultimo_objeto_timestamp_seconds'",
+        "nota": "<code>q '…'</code> le pregunta a la API de Prometheus, como la función del paso 4 (aquí imprime las etiquetas a la manera de Python).",
+        "donde": "mac",
+        "salida": "fluent-bit-a running\nfluent-bit-b exited\nnodo-a running\nnodo-b running\nprometheus running\ns3 running\n\nLogsStale b firing\n{'job': 'vigia-s3', 'nodo': 'a', 'prefijo': 'logs/crudo/'} 47.621999979019165\n{'job': 'vigia-s3', 'nodo': 'b', 'prefijo': 'logs/crudo/'} 190.62199997901917"
+      },
+      "arreglo": "El Fluent Bit del nodo b está apagado (en C01: el pod del DaemonSet de ese nodo no corre por un taint, un OOMKilled o un nodo nuevo donde no cupo). El otro nodo sube normal: por eso LogsStale va por nodo. Las líneas del pod del nodo b se quedan en el disco del nodo y, mientras el kubelet no las rote (5 archivos de 10 MiB), no se pierden. Arreglo: <code>docker compose start fluent-bit-b</code>; al volver, Fluent Bit sigue donde se quedó (su DB) y en ≈ 1 min sube lo atrasado.",
+      "concepto": "fluent-bit",
+      "check": "log-en-s3"
+    },
+    {
+      "id": "triton-caido",
+      "titulo": "Las métricas tranquilas",
+      "tipo": "infra",
+      "historia": "Soporte escribe: «los vendedores dicen que no salen las sugerencias». Abres el tablero del gateway: la tasa de 5xx está en cero y el p99 se ve bien. ¿Qué pasa?",
+      "sintoma": "<code>verificar.py</code>: ✗ mundo             Triton no está listo: python mundo/nodo.py estado\n✗ de-punta-a-punta  una foto por el ALB da 503 ({\"error\":\"el target group no tiene destinos registrados\"}): mira las métricas del ALB (curl localhost:8957/metrics) y su access log (logs/alb.log); el gateway puede no haberla visto nunca",
+      "hipotesis": [
+        "El gateway está bien y el problema es del backend.",
+        "Los pods no están listos y el ALB contesta él mismo.",
+        "El token de los callers dejó de servir."
+      ],
+      "confirma": {
+        "code": "q 'sum(rate(classifier_requests_total[1m]))'\nq 'classifier:errores_servidor:ratio_rate1m'\ncurl -s localhost:8957/metrics | grep -E '^alb_(httpcode_elb_total\\{code=\"503\"\\}|healthy_host_count)'\ntail -1 logs/alb.log\ncurl -s localhost:9952/api/v1/alerts | python -c \"import json,sys;a=json.load(sys.stdin)['data']['alerts'];[print(x['labels']['alertname'], x['labels'].get('nodo',''), x['state']) for x in a] or print('(ninguna)')\"\npython mundo/nodo.py estado",
+        "nota": "<code>q '…'</code> le pregunta a la API de Prometheus, como la función del paso 4 (aquí imprime las etiquetas a la manera de Python).",
+        "donde": "mac",
+        "salida": "{} 1.709977107828848\n{'__name__': 'classifier:errores_servidor:ratio_rate1m'} 0.008829066828439366\nalb_httpcode_elb_total{code=\"503\"} 1479.0\nalb_healthy_host_count 0.0\n{\"time\":\"2026-11-19T06:12:57.279573Z\",\"request\":\"POST /v1/classify\",\"x_request_id\":\"cc741b6b-6c30-472a-a603-9a23beb1fb4f\",\"trace_id\":\"Root=1-6afe9369-861eb88c259741cf780d7e44\",\"elb_status_code\":503,\"target\":\"-\",\"target_status_code\":\"-\",\"target_processing_time\":-1,\"request_processing_time\":0.0001,\"error_reason\":\"el target group no tiene destinos registrados\"}\nALB5xx  firing\n\ntriton                       no corre\nalb                          PID 54273 · salud 200\nvigia                        PID 54277 · salud 200\ntrafico                      PID 54286 · salud vivo\ngateway-6f7b9c4d58-xa7k2     nodo-a · /readyz 503 · reinicios 0 · /var/log/pods/classifier_gateway-6f7b9c4d58-xa7k2_3f1c9a2e-7b44-4d0e-9a61-5c2b8e0d7a11/gateway/0.log\ngateway-6f7b9c4d58-qm4t8     nodo-b · /readyz 503 · reinicios 0 · /var/log/pods/classifier_gateway-6f7b9c4d58-qm4t8_9d0e4b17-2c85-4f3a-b6d2-81a7e5c3f902/gateway/0.log"
+      },
+      "arreglo": "Triton está apagado. Los dos pods del gateway contestan 503 en <code>/readyz</code>, salen del target group (en C01: salen de los Endpoints y el AWS Load Balancer Controller los da de baja) y el ALB, sin destinos registrados, contesta 503 él mismo: las requests nunca llegan a un pod. <code>classifier_requests_total</code> casi no sube, la fracción de 5xx del gateway no tiene requests (o queda en 0) y ClassifierHigh5xxRate no suena. Solo lo ven las métricas del ALB (<code>alb_httpcode_elb_total{code=\"503\"}</code> y <code>alb_healthy_host_count</code> en 0) y la alerta ALB5xx. Arreglo: <code>python mundo/nodo.py arrancar triton</code>; en ≈ 1 min la ventana de las tasas ya no ve los 503 y ALB5xx se apaga.",
+      "concepto": "punto-ciego-alb",
+      "check": "de-punta-a-punta"
+    },
+    {
+      "id": "llave-rotada",
+      "titulo": "La rotación de llaves",
+      "tipo": "config",
+      "historia": "Seguridad cerró el SEC-118: «rotamos la llave con que el ALB verifica los tokens, como cada trimestre». Diez minutos después, el backend de publicaciones dice que el clasificador «está caído».",
+      "sintoma": "<code>verificar.py</code>: ✗ mundo             una foto por el ALB da 401: {\"error\":\"token ausente o inválido (firma, emisor, audiencia o caducidad)\"}\n✗ de-punta-a-punta  una foto por el ALB da 401 ({\"error\":\"token ausente o inválido (firma, emisor, audiencia o caducidad)\"}): mira las métricas del ALB (curl localhost:8957/metrics) y su access log (logs/alb.log); el gateway puede no haberla visto nunca",
+      "hipotesis": [
+        "El gateway truena con las requests del backend.",
+        "El ALB rechaza los tokens y contesta 401 él mismo.",
+        "Los pods salieron del target group."
+      ],
+      "confirma": {
+        "code": "curl -s localhost:8957/metrics | grep -E '^alb_httpcode_elb_total\\{code=\"401\"\\}'\ntail -1 logs/alb.log\ngit log -1 -p --format='%h %an: %s' -- mundo/plataforma.yaml | grep -E '^[0-9a-f]{7}|^[-+][^-+]'",
+        "nota": "",
+        "donde": "mac",
+        "salida": "alb_httpcode_elb_total{code=\"401\"} 97.0\n{\"time\":\"2026-11-19T06:14:36.670323Z\",\"request\":\"POST /v1/classify\",\"x_request_id\":\"b8a0310e-9dd8-4a9c-aea8-731a59e8b8f7\",\"trace_id\":\"Root=1-6afe93cc-1a8445061c43c27aee9243cf\",\"elb_status_code\":401,\"target\":\"-\",\"target_status_code\":\"-\",\"target_processing_time\":-1,\"request_processing_time\":0.0,\"error_reason\":\"token ausente o inválido (firma, emisor, audiencia o caducidad)\"}\n\nce95daa Equipo de plataforma: plataforma: rota la llave con que el ALB verifica los tokens (SEC-118)\n-    llave: acbb9f8b6aaf6329216ce3e455202bf5\n+    llave: d282aa9c9bc026cc627414055decf816"
+      },
+      "arreglo": "El commit de plataforma cambió <code>alb.jwt.llave</code> en <code>mundo/plataforma.yaml</code>, pero el proveedor de identidad sigue firmando con la anterior (<code>mundo/callers.json</code>): toda firma falla y el ALB contesta 401 él mismo. Los pods están sanos, el gateway no recibe nada y sus métricas se ven tranquilas; los 401 solo están en el ALB. Un 4xx no es culpa de Alba… salvo cuando lo pone su propia puerta. Arreglo: <code>git revert</code> del commit y <code>python mundo/nodo.py reiniciar alb</code>; en ≈ 1 min la ventana de las tasas ya no ve los 401. En C01, la rotación se hace publicando la llave nueva junto a la vieja (JWKS) antes de firmar con ella.",
+      "concepto": "punto-ciego-alb",
+      "check": "de-punta-a-punta"
+    }
+  ],
+  "listo": [
+    "Cada request lleva su request_id de punta a punta: el del caller si es sano, uno nuevo si no; en la respuesta, en la línea y, en ≈ 1 %, como exemplar.",
+    "Cada request deja una sola línea de JSON compacto en stdout, sin hora, que el runtime guarda en el disco de su nodo.",
+    "Las 8 métricas del contrato suman lo que deben: los 4xx cuentan pero no entran a la latencia, y ninguna etiqueta tiene un valor por request.",
+    "Prometheus lee cada pod una sola vez, con pod, nodo y hash, y tiene 3 recording rules y 5 alertas sanas.",
+    "Fluent Bit sube el log de cada nodo a S3 cada minuto; con S3 caído, la request no se enteró y nada se fue a cuarentena.",
+    "El crudo de ayer está en Parquet por versión, sin repetidos, y correr el job dos veces da lo mismo.",
+    "Viste lo que el gateway no ve: con Triton caído, solo el ALB y ALB5xx contaron los 503."
+  ],
+  "repaso": {
+    "memo": "<b>Nombrar, escribir, sumar, leer, llevar y mirar lo que no se ve.</b> Cada request recibe un <b>nombre</b> (el request_id del caller si es sano, o un UUID v4) que viaja en la respuesta, en la línea y en el exemplar. <b>Escribe</b> una línea de JSON compacto en stdout, sin hora: el runtime la guarda con la suya. <b>Suma</b> en contadores e histogramas con nombres fijos y etiquetas de pocos valores. Prometheus <b>lee</b> cada pod una sola vez, guarda las preguntas de todos los días como recording rules con <code>sum(rate(…))</code> y evalúa alertas con su <code>for</code>. Fluent Bit <b>lleva</b> el log a S3 cada minuto, con un buffer que aguanta si S3 se cae, y al día siguiente queda en Parquet, sin repetidos y por versión. Y alguien <b>mira</b> lo que el gateway no ve: el ALB contestando él mismo.",
+    "trampa": "Un id como etiqueta de una métrica (una serie por request); <code>rate(sum(…))</code> en lugar de <code>sum(rate(…))</code>; un log que espera a la red; o creer que una tasa de errores calculada en el gateway ve las requests que nunca le llegaron.",
+    "entrevista": [
+      {
+        "q": "¿Qué dejas escrito de cada request de un modelo en producción, y dónde?",
+        "a": "Tres rastros unidos por el mismo request_id. Una línea de log estructurada por request (id, caller, versión del modelo, top-k con scores, tiempos por tramo, status), en stdout, que un agente por nodo sube a un almacén de objetos y un job diario pasa a Parquet: de ahí salen el drift, la aceptación y las etiquetas del mes. Métricas: contadores e histogramas con etiquetas de pocos valores, leídas por Prometheus, para las alertas. Y trazas o exemplars en ≈ 1 %, para pasar de una curva a una request concreta. Ninguno puede frenar la respuesta."
+      },
+      {
+        "q": "¿Por qué no pones el request_id o el user_id como etiqueta de una métrica?",
+        "a": "Porque cada combinación de etiquetas es una serie, y un valor por request es una serie por request: en un histograma de 11 bordes son 15 series nuevas por request, 150 millones al día con 10 M requests, y Prometheus se queda sin memoria. Las etiquetas solo llevan listas cortas y cerradas (código, versión, una fuente reducida a 4 valores); lo que identifica a una request va al log, y del agregado se llega a una request con exemplars."
+      },
+      {
+        "q": "Se cae tu almacén de logs (S3, Elasticsearch). ¿Qué le pasa al usuario?",
+        "a": "Nada: el servicio escribe en stdout y sigue, el runtime guarda en el disco del nodo y el agente (Fluent Bit) junta en un buffer en disco y reintenta. Se degrada el monitoreo, no el servicio. Lo que cuidas es no perder en silencio: un buffer con tamaño calculado (en C01, ≈ 16 h), reintentos suficientes (con los de por omisión, el plugin s3 de Fluent Bit se rinde en ≈ 30 s) y una alerta de frescura por nodo (LogsStale)."
+      },
+      {
+        "q": "¿Cómo calculas la tasa de errores y el p99 de un servicio con varios pods en Prometheus?",
+        "a": "Errores: sum(rate(requests{code=~\"5..\"}[5m])) dividido entre sum(rate(requests{code!~\"4..\"}[5m])), con or vector(0) arriba para que sin errores dé 0 y no vacío; los 4xx fuera porque son culpa del caller. p99: histogram_quantile(0.99, sum by (le) (rate(latency_bucket[5m]))), sumando los buckets de todos los pods. Siempre la tasa antes de la suma: rate(sum(…)) convierte el reinicio de un pod en un pico falso. Y las dos como recording rules."
+      },
+      {
+        "q": "La tasa de 5xx del servicio está en cero y soporte dice que no funciona. ¿Qué revisas?",
+        "a": "Qué requests no cuenta esa tasa. Primero, si Prometheus está leyendo los pods (up, una alerta con absent): una etiqueta cambiada deja al job sin objetivos y todo se ve en cero. Después, el balanceador: si los pods salieron del target group (por ejemplo, porque su dependencia cayó y fallan la readiness), el ALB contesta 503 él mismo y el servicio no ve nada; o un 401 por una llave rotada. Eso solo está en las métricas del ALB (HTTPCode_ELB_5XX_Count en CloudWatch) y en su access log."
+      },
+      {
+        "q": "El p99 subió a las 14:05. ¿Cómo llegas de esa curva a una request concreta?",
+        "a": "Con exemplars: el histograma de latencia guarda, junto a algunos buckets, el id de una request trazada que cayó ahí; Grafana los dibuja sobre la curva y abres su traza o, con el request_id, su línea de log. Ojo: el muestreo decide al principio (≈ 1 % por el hash del id), así que pocas lentas tienen exemplar; para estudiar todas las lentas, el log del día (filtrar por ms.total y buscar qué tienen en común) o tail sampling."
+      }
+    ]
+  },
+  "prompts": {
+    "claude_md": "kits/c01-request/CLAUDE.md",
+    "guiado": "content/estaciones/c01-request/prompts/guiado.md",
+    "solo": "content/estaciones/c01-request/prompts/solo.md",
+    "romper_ayuda": "content/estaciones/c01-request/prompts/romper-ayuda.md",
+    "romper_solo": "content/estaciones/c01-request/prompts/romper-solo.md"
+  }
+}

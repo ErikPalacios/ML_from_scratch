@@ -1,0 +1,35 @@
+{
+  "modelo": "classifier",
+  "version": 15,
+  "model_version": "resnet50-2026-11-01",
+  "engine_sha256": "577d5bcbea1d0ee831a355d63262fe0dcebca4acd0d18b08e1347a261f36edec",
+  "labels": [
+    "playeras",
+    "pantalones",
+    "sueteres",
+    "vestidos",
+    "abrigos",
+    "sandalias",
+    "camisas",
+    "tenis",
+    "bolsas",
+    "botines"
+  ],
+  "labels_sha256": "97864728052cf9112d04f7e5b963867ba8c7f2a4cb520a5fe6588269300bef31",
+  "entrada": {
+    "nombre": "input",
+    "forma": [
+      -1,
+      3,
+      32,
+      32
+    ]
+  },
+  "salida": {
+    "nombre": "logits",
+    "forma": [
+      -1,
+      10
+    ]
+  }
+}

@@ -1,0 +1,21 @@
+# La configuración de classifier en el servidor de modelos (Triton). Formato de texto de protobuf.
+# En C01: platform "tensorrt_plan", [3, 224, 224] → [500] y KIND_GPU en la T4.
+name: "classifier"
+platform: "onnxruntime_onnx"
+max_batch_size: 32                         # el batch más grande que arma el servidor (el engine acepta hasta 32)
+version_policy: { latest { num_versions: 1 } }
+input  [ { name: "input"   data_type: TYPE_FP32  dims: [ 3, 32, 32 ] } ]   # sin el eje del batch: Triton le antepone -1
+output [ { name: "logits"  data_type: TYPE_FP32  dims: [ 10 ] } ]
+dynamic_batching {
+  preferred_batch_size: [ 16, 32 ]
+  max_queue_delay_microseconds: 2000       # espera hasta 2 ms a que lleguen más fotos para correrlas juntas
+  default_queue_policy {
+    timeout_action: REJECT
+    default_timeout_microseconds: 100000   # 100 ms en la fila sin entrar al modelo: se rechaza (gateway.yaml: fila_triton)
+  }
+}
+instance_group [ { count: 2  kind: KIND_CPU } ]   # dos copias del modelo
+model_warmup [ {
+  name: "ceros"  batch_size: 32  count: 3
+  inputs { key: "input"  value: { data_type: TYPE_FP32  dims: [ 3, 32, 32 ]  zero_data: true } }
+} ]

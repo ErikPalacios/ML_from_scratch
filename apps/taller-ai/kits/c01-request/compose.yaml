@@ -1,0 +1,89 @@
+# La infraestructura del mundo: el S3 local (RustFS), Prometheus, los dos nodos del gateway (un pod en cada uno) y un
+# Fluent Bit por nodo. `python mundo/crear.py` la levanta. En C01 real: Amazon S3, kube-prometheus-stack en el namespace
+# monitoring, nodos de EKS y Fluent Bit como DaemonSet. Triton, el ALB y el vigía corren en tu Mac (mundo/nodo.py).
+# Cada nodo guarda sus logs en su propio disco (el volumen log-a o log-b): solo los ven su runtime y su Fluent Bit.
+name: taller-c01-request
+services:
+  s3:
+    image: rustfs/rustfs:1.0.4
+    ports: ["9950:9000", "9951:9001"]       # en tu Mac: 9950 = API S3 · 9951 = consola web
+    environment:                            # credenciales de prueba del dojo (solo existen en tu Mac)
+      RUSTFS_ACCESS_KEY: taller
+      RUSTFS_SECRET_KEY: taller-secreto
+      RUSTFS_ADDRESS: ":9000"
+      RUSTFS_CONSOLE_ADDRESS: ":9001"
+      RUSTFS_CONSOLE_ENABLE: "true"
+    volumes: ["s3-request:/data"]
+    command: ["/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://localhost:9000/health || exit 1"]
+      interval: 3s
+      retries: 30
+  prometheus:
+    image: prom/prometheus:v3.15.1
+    ports: ["9952:9090"]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=3d
+      - --web.enable-lifecycle                 # POST /-/reload vuelve a leer prometheus.yml y reglas.yml
+      - --enable-feature=exemplar-storage      # guarda los exemplars (viene apagado)
+    volumes:
+      - ./observabilidad:/etc/prometheus:ro                      # tu prometheus.yml y tu reglas.yml
+      - ./mundo/prometheus:/etc/prometheus-plataforma:ro         # lo que lee la plataforma (Triton, ALB, Fluent Bit…)
+      - ./nodo/descubrimiento:/etc/prometheus-descubrimiento:ro  # la «API de Kubernetes»: los pods que corren
+      - prom-request:/prometheus
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9090/-/ready || exit 1"]
+      interval: 3s
+      retries: 30
+  nodo-a: &nodo
+    build: {context: ., dockerfile: mundo/nodo/Dockerfile}
+    image: dojo-c01-nodo:11
+    init: true
+    # El runtime del nodo (mundo/runtime.py) corre el pod y escribe su stdout en /var/log, en formato CRI.
+    command: [python, mundo/runtime.py, --pod, gateway-6f7b9c4d58-xa7k2, --nodo, a,
+              --uid, 3f1c9a2e-7b44-4d0e-9a61-5c2b8e0d7a11, --max-mib, "10", --max-archivos, "5", --,
+              python, -m, uvicorn, app.main:app, --app-dir, gateway, --host, 0.0.0.0, --port, "8080", --workers, "1",
+              --timeout-keep-alive, "75", --timeout-graceful-shutdown, "10", --no-access-log]
+    environment: {POD: gateway-6f7b9c4d58-xa7k2, NODO: nodo-a, TRITON_URL: "host.docker.internal:8955"}
+    volumes: ["./:/kit:ro", "log-a:/var/log"]
+    ports: ["8951:8080"]                     # en tu Mac: el ALB llega a este pod por aquí
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    stop_grace_period: 15s
+  nodo-b:
+    <<: *nodo
+    command: [python, mundo/runtime.py, --pod, gateway-6f7b9c4d58-qm4t8, --nodo, b,
+              --uid, 9d0e4b17-2c85-4f3a-b6d2-81a7e5c3f902, --max-mib, "10", --max-archivos, "5", --,
+              python, -m, uvicorn, app.main:app, --app-dir, gateway, --host, 0.0.0.0, --port, "8080", --workers, "1",
+              --timeout-keep-alive, "75", --timeout-graceful-shutdown, "10", --no-access-log]
+    environment: {POD: gateway-6f7b9c4d58-qm4t8, NODO: nodo-b, TRITON_URL: "host.docker.internal:8955"}
+    volumes: ["./:/kit:ro", "log-b:/var/log"]
+    ports: ["8952:8080"]
+  fluent-bit-a: &fluent
+    image: fluent/fluent-bit:5.1.5
+    environment: {NODO: a, AWS_ACCESS_KEY_ID: taller, AWS_SECRET_ACCESS_KEY: taller-secreto}
+    volumes:
+      - log-a:/var/log:ro                                        # el disco del nodo a: lo que escribe su runtime
+      - fb-a:/var/fluent-bit                                     # su DB de lectura y su buffer en disco
+      - ./observabilidad:/fluent-bit/etc/dojo:ro                 # tu fluent-bit.conf (la carpeta: así ve cada versión)
+    command: [/fluent-bit/bin/fluent-bit, -c, /fluent-bit/etc/dojo/fluent-bit.conf]
+    ports: ["9953:2020"]
+    restart: unless-stopped
+    depends_on: {s3: {condition: service_healthy}}
+  fluent-bit-b:
+    <<: *fluent
+    environment: {NODO: b, AWS_ACCESS_KEY_ID: taller, AWS_SECRET_ACCESS_KEY: taller-secreto}
+    volumes:
+      - log-b:/var/log:ro
+      - fb-b:/var/fluent-bit
+      - ./observabilidad:/fluent-bit/etc/dojo:ro
+    ports: ["9954:2020"]
+volumes:
+  s3-request: {}
+  prom-request: {}
+  log-a: {}
+  log-b: {}
+  fb-a: {}
+  fb-b: {}

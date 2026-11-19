@@ -1,0 +1,11 @@
+{
+  "nota": "El proveedor de identidad del dojo: cada caller pide aquí su token (un JWT HS256 de 15 min). En C01 lo firma el IdP con su llave privada y el ALB lo verifica con la pública.",
+  "emisor": "https://identidad.c01.test",
+  "audiencia": "classifier",
+  "llave": "acbb9f8b6aaf6329216ce3e455202bf5",
+  "callers": {
+    "backend-publicaciones": {"fuentes": {"mobile": 0.6, "web": 0.4}, "manda_request_id": true, "peso": 0.7},
+    "moderacion": {"fuentes": {"internal": 1.0}, "manda_request_id": false, "peso": 0.2},
+    "busqueda": {"fuentes": {"web": 1.0}, "manda_request_id": true, "peso": 0.1}
+  }
+}

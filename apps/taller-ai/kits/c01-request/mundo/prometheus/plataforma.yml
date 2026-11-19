@@ -1,0 +1,16 @@
+# Lo que lee la plataforma, aparte de tu gateway (en C01: los ServiceMonitor de kube-prometheus-stack). No lo cambias:
+# tu prometheus.yml lo incluye con scrape_config_files.
+scrape_configs:
+  - job_name: prometheus
+    static_configs: [{targets: [localhost:9090]}]
+  - job_name: triton                       # su /metrics (nv_inference_*), en el mismo puerto HTTP en el dojo
+    static_configs: [{targets: [host.docker.internal:8955], labels: {pod: triton-v15-7c5d8f9b6-k2p9w}}]
+  - job_name: alb                          # en C01 esto vive en CloudWatch (AWS/ApplicationELB)
+    static_configs: [{targets: [host.docker.internal:8957]}]
+  - job_name: fluent-bit                   # el DaemonSet: un pod por nodo del gateway
+    metrics_path: /api/v2/metrics/prometheus
+    static_configs:
+      - {targets: [fluent-bit-a:2020], labels: {nodo: nodo-a}}
+      - {targets: [fluent-bit-b:2020], labels: {nodo: nodo-b}}
+  - job_name: vigia-s3                     # cuándo llegó el último archivo de log de cada nodo
+    static_configs: [{targets: [host.docker.internal:8956]}]

@@ -1,0 +1,3 @@
+# Las preguntas de todos los días, ya calculadas (recording rules), y las alertas. LO ESCRIBES TÚ (pasos 5, 7 y 9).
+# Después de cambiarlo: python mundo/recargar.py prometheus
+groups: []

@@ -1,0 +1,19 @@
+# Qué lee Prometheus y cada cuánto (solución de referencia). En C01: el PodMonitor del gateway en kube-prometheus-stack.
+global:
+  scrape_interval: 5s          # C01: 15 s. En el dojo, más seguido para no esperar
+  evaluation_interval: 5s
+scrape_config_files: [/etc/prometheus-plataforma/*.yml]   # Triton, el ALB, Fluent Bit y el vigía (de la plataforma)
+rule_files: [reglas.yml]
+scrape_configs:
+  - job_name: gateway
+    # Los pods, no los Services: gateway-stable y gateway-canary eligen los mismos pods fuera de un canary, y leerlos
+    # por los dos contaría cada request dos veces. Esto es lo que hace un PodMonitor.
+    file_sd_configs: [{files: [/etc/prometheus-descubrimiento/pods.json]}]
+    metrics_path: /metrics
+    relabel_configs:
+      - {source_labels: [__meta_kubernetes_namespace], regex: classifier, action: keep}
+      - {source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name], regex: gateway, action: keep}
+      - {source_labels: [__meta_kubernetes_pod_container_port_name], regex: http, action: keep}
+      - {source_labels: [__meta_kubernetes_pod_name], target_label: pod}
+      - {source_labels: [__meta_kubernetes_pod_node_name], target_label: nodo}
+      - {source_labels: [__meta_kubernetes_pod_label_rollouts_pod_template_hash], target_label: hash}

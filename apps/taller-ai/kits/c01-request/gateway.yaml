@@ -1,0 +1,27 @@
+# Las reglas del gateway, del equipo de serving. Tu código las lee al arrancar y nunca las escribe. En C01: las
+# constantes y variables de entorno del Deployment del gateway, revisadas en el repositorio classifier.
+contrato:
+  ruta: /v1/classify
+  tipos: [image/jpeg, image/png, image/webp]
+  top_k: {defecto: 5, min: 1, max: 10}   # C01: de 1 a 20, con 500 categorías; aquí hay 10
+limites:
+  max_bytes: 10485760         # 10 MiB: el body más grande que se lee; se corta al leer, no se confía en Content-Length
+  max_pixeles: 40000000       # 40 MP, leídos del encabezado de la imagen, antes de decodificar
+  max_proporcion: 8           # el lado largo hasta 8 veces el corto
+  decodes: 2                  # decodes a la vez en un proceso (el semáforo)
+  espera_cpu_ms: 50           # lo más que una request espera un lugar de decode; después, 503
+  en_vuelo: 16                # requests adentro a la vez; la 17 recibe 503 al instante
+plazos_ms:                    # cada eslabón, menor que el de afuera: el de adentro se rinde primero
+  app: 300                    # lo que espera el backend antes de mostrar el selector manual de categorías
+  gateway: 250                # el plazo total de una request en el gateway
+  triton: 150                 # el tope de la llamada a Triton (o lo que le quede a la request, si es menos)
+  fila_triton: 100            # lo más que una foto espera en la fila de Triton (default_timeout_microseconds)
+rastro:                       # estación 11: lo que deja cada request (lo usa gateway/app/rastro.py)
+  fuentes: [mobile, web, internal]   # los valores que puede tomar la etiqueta source; todo lo demás es «other»
+  traza: 0.01                 # la fracción de requests con traza (exemplar), decidida por el hash del request_id
+  largo_fuente_log: 64        # el log guarda el X-Client-Source tal cual llegó, hasta este largo
+triton:
+  url: localhost:8955         # en tu Mac. Cada pod lo puede cambiar con TRITON_URL
+  modelo: classifier
+  conexiones: 64              # el pool de conexiones del cliente de Triton, uno por proceso
+  listo_timeout_ms: 500       # lo más que /readyz espera la respuesta de Triton

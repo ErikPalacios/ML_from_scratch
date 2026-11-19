@@ -1,0 +1,14 @@
+# Versiones fijadas: así el kit corre igual en tu Mac hoy y dentro de seis meses.
+# Lo del gateway va también en gateway/requirements.txt (la imagen del gateway de la estación 7).
+fastapi==0.163.2
+uvicorn==0.54.0
+tritonclient[http]==2.75.0    # el cliente oficial de Triton (HTTP); habla igual con el servidor del dojo
+prometheus-client==0.26.0
+pillow==13.0.0
+numpy==2.5.4
+pyyaml==6.0.3
+httpx==0.28.1                 # el ALB del dojo, los callers y el cliente de pruebas
+pytest==9.2.0
+onnxruntime==1.32.0           # el runtime del servidor de modelos del dojo
+boto3==1.43.123               # S3 (RustFS): el vigía, verificar.py y tu job diario
+duckdb==2.0.0                 # tu job diario: del log crudo a Parquet

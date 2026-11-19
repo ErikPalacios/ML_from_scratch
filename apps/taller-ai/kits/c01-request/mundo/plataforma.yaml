@@ -1,0 +1,42 @@
+# Lo que el equipo de plataforma decide y tú no tocas: los pods (lo que en C01 dice el Rollout y su ReplicaSet), el
+# kubelet de cada nodo y el ALB. mundo/nodo.py lo lee para publicar los pods a Prometheus (nodo/descubrimiento/pods.json,
+# lo que en C01 le contesta la API de Kubernetes) y el ALB para su target group. Cambia solo con un commit.
+pods:
+  - nombre: gateway-6f7b9c4d58-xa7k2
+    tipo: gateway
+    nodo: a                         # us-east-1a · el contenedor nodo-a de compose.yaml
+    puerto: 8080                    # el del contenedor (el que lee Prometheus dentro de la red del mundo)
+    puerto_host: 8951               # el que ve tu Mac (y el ALB)
+    uid: 3f1c9a2e-7b44-4d0e-9a61-5c2b8e0d7a11
+    etiquetas:
+      app.kubernetes.io/name: gateway
+      rollouts-pod-template-hash: 6f7b9c4d58
+  - nombre: gateway-6f7b9c4d58-qm4t8
+    tipo: gateway
+    nodo: b                         # us-east-1b · el contenedor nodo-b
+    puerto: 8080
+    puerto_host: 8952
+    uid: 9d0e4b17-2c85-4f3a-b6d2-81a7e5c3f902
+    etiquetas:
+      app.kubernetes.io/name: gateway
+      rollouts-pod-template-hash: 6f7b9c4d58
+  - nombre: triton-v15-7c5d8f9b6-k2p9w
+    tipo: triton
+    nodo: t4                        # un proceso de tu Mac
+    puerto: 8955
+    puerto_host: 8955
+    uid: 5b7a2c90-1e3d-4f86-a9c4-6d0b3e8f1a27
+    etiquetas:
+      app.kubernetes.io/name: triton
+      classifier.c01/version: "15"
+kubelet:                            # la rotación de los archivos de log de cada contenedor (los valores por omisión)
+  container_log_max_size_mib: 10
+  container_log_max_files: 5
+alb:
+  oyente: 8950                      # el puerto del «ALB interno»
+  regla: {metodo_cualquiera: true, ruta_exacta: /v1/classify}   # solo la API: /metrics, /healthz y /readyz no salen
+  salud: {ruta: /readyz, intervalo_s: 2, timeout_s: 1, sanos: 2, enfermos: 2}   # C01: 10 s · 5 · 2
+  jwt:                              # cómo verifica el token del caller (en C01: la llave pública del proveedor, JWKS)
+    emisor: https://identidad.c01.test
+    audiencia: classifier
+    llave: acbb9f8b6aaf6329216ce3e455202bf5
