@@ -121,7 +121,7 @@ sync.onChange((what) => {
 function viewLogin() {
   const problems = ui.problems || [];
   return `<section class="login card">
-    <div class="login__mark" aria-hidden="true">${tMark('login', null, '120px')}</div>
+    <div class="login__mark" aria-hidden="true">${tMark('login', null, '180px')}</div>
     <span class="kick">TrueML · ML Board</span>
     <h1>ML Project Board</h1>
     <p class="muted">Private. Sign in with the password stored in Vercel as <code>APP_PASSWORD</code>.</p>
@@ -160,7 +160,7 @@ function viewHome() {
         <button class="btn" data-act="import">${icon('upload')} Import JSON</button>
         <button class="btn" data-act="export-all" ${list.length ? '' : 'disabled'}>${icon('download')} Export all</button></div>
     </div>
-    <figure class="hero__t" aria-hidden="true">${tMark('home', T_LABELS, '300px')}</figure>
+    <figure class="hero__t" aria-hidden="true">${tMark('home', T_LABELS, '440px')}</figure>
   </section>
     ${s.status === 'offline' ? '<div class="banner">Offline: showing the last copy saved on this device.</div>' : ''}
     ${list.length ? `<div class="cards">${cards}</div>` : !ui.listLoaded ? '<div class="card empty"><p class="muted">Loading…</p></div>' : `<div class="card empty"><h2>No projects yet</h2><p class="muted">Create one from a design pattern${SEED_C01_INFO ? SEED_C01_INFO.emptyHint : ''}.</p></div>`}

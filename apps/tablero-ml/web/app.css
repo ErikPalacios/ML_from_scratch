@@ -207,7 +207,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent-soft
 .map__pips i[data-s="no_aplica"] { opacity: 1; background: transparent; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16); }
 .map__hint { margin: 0; min-height: 1.45em; font: 500 12px/1.45 var(--mono); color: var(--m-ink3); }
 .map[data-focus] .map__hint { color: var(--m-ink); }
-.map__t { flex: none; width: clamp(76px, 10vw, 120px); margin: -6px 4px -10px 0; }
+.map__t { flex: none; width: clamp(104px, 14vw, 170px); margin: -6px 4px -10px 0; }
 .map__t svg { display: block; width: 100%; height: auto; }
 
 /* la línea: el brillo ancho debajo, el trazo de color de cada etapa encima y los puntos que fluyen */
