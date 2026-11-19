@@ -52,7 +52,7 @@ export const ATLAS: Guion = {
         cam: [{ f: 0, z: 1.75, x: 0.42, y: 0.3 }, { f: 240, z: 1.6, x: 0.45, y: 0.32 }] }],
       subs: [
         { f: 0, t: 'Cambia el tamaño del parche o de la imagen…' },
-        { f: 100, t: '…y mira cómo cambian *los tokens* y la memoria. Las cuentas cuadran con PyTorch.' },
+        { f: 100, t: '…y mira cómo cambian *los tokens* y el costo. Las cuentas cuadran con PyTorch.' },
       ],
     },
   ],
