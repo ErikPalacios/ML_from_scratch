@@ -3,7 +3,7 @@
   "name": "TrueML",
   "url": "https://trueml.app",
   "tagline": "Herramientas gratuitas para aprender y practicar ML engineering: un curso de teoría y un dojo de práctica, sin cuenta, sin conexión, en español.",
-  "description": "Sensei, el curso de teoría de ML engineering desde cero, y el Dojo, para practicar cada etapa del dato a producción. Además, un curso de ML System Design, hojas de estudio, un atlas de arquitecturas y un transformer paso a paso. En español, gratis y sin cuenta.",
+  "description": "Aprende ML engineering desde cero y practícalo del dato a producción: curso de teoría, dojo de práctica y ML System Design. En español, gratis y sin cuenta.",
   "author": "Erik Palacios",
   "repo": "https://github.com/ErikPalacios/ML_from_scratch",
   "issues": "https://github.com/ErikPalacios/ML_from_scratch/issues/new",

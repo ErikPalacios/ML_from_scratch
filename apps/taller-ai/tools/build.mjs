@@ -69,8 +69,14 @@ const ESTACIONES = readdirSync(join(ROOT, 'content', 'estaciones')).filter((f) =
 
 // ---------------------------------------------------------------- piezas de HTML
 // lectura: las páginas de estación, de proyecto y de práctica llevan «Marcar como leída», el tanque de avance y notas (piezas.js)
+// Descripciones para buscadores escritas a mano (content/seo.json): ganan a la automática, que a veces pasa de 160.
+const SEO = JSON.parse(readFileSync(join(ROOT, 'content', 'seo.json'), 'utf8')).descripciones;
+const SEO_USADAS = new Set();
+// En el <title> va la marca corta: Google muestra unos 60 caracteres y el nombre largo del Dojo se comía la mitad.
+const MARCA_CORTA = 'Dojo TrueML';
 function pagina({ path, title, desc, body, lectura = false }) {
   const url = SITE_URL + path;
+  if (SEO[path]) { desc = SEO[path]; SEO_USADAS.add(path); }
   return `<!doctype html>
 <html lang="es" data-tm-herramienta="Dojo" data-tm-inicio="/" data-tm-clave="dojo" data-tm-portada="https://trueml.app/"${lectura ? ' data-tm-avance=".d-main .d-sec[id]" data-tm-notas=".d-main" data-tm-tanque-en=".d-hero"' : ''}>
 <head>
@@ -108,11 +114,11 @@ function portada() {
     body: cuerpoPortada({ tronco: TRONCO, lista: deLinea(TRONCO.caso), ramas: RAMAS_L }) });
 }
 function paginaTronco() {
-  return pagina({ path: `/${TRONCO.caso}/`, title: `${TRONCO.entrenamiento} · ${TRONCO.caso.toUpperCase()} · ${SITE_NAME}`, desc: 'Un clasificador de fotos de punta a punta, del dato etiquetado al modelo en producción, en 12 estaciones que corren en tu Mac.',
+  return pagina({ path: `/${TRONCO.caso}/`, title: `${TRONCO.entrenamiento} · ${TRONCO.caso.toUpperCase()} · ${MARCA_CORTA}`, desc: 'Un clasificador de fotos de punta a punta, del dato etiquetado al modelo en producción, en 12 estaciones que corren en tu Mac.',
     body: cuerpoTronco({ tronco: TRONCO, lista: deLinea(TRONCO.caso), ramas: RAMAS_L, mapa: MAPA, hoja: HOJA_RECORRIDO, sensei: SENSEI_TRONCO }) });
 }
 function paginaRama(r) {
-  return pagina({ path: `/${r.id}/`, title: `${r.entrenamiento || r.nombre}${r.caso.codigo ? ' · ' + r.caso.codigo : ''} · ${SITE_NAME}`, desc: r.resumen,
+  return pagina({ path: `/${r.id}/`, title: `${r.entrenamiento || r.nombre}${r.caso.codigo ? ' · ' + r.caso.codigo : ''} · ${MARCA_CORTA}`, desc: r.resumen,
     body: cuerpoRama(r, { tronco: TRONCO, listaTronco: deLinea(TRONCO.caso), ramas: RAMAS_L }) });
 }
 
@@ -181,21 +187,21 @@ for (const e of ESTACIONES) {
   const z = zip(archivosKit(e));
   writeFileSync(join(OUT, 'kits', `${e.slug}.zip`), z);
   e.versionTxt = fecha(e.version);
-  pages[e.url] = pagina({ path: e.url, title: `${e.titulo} · ${e.linea.corto} · ${SITE_NAME}`, desc: `${e.pregunta} Un mini-proyecto para construir, rehacer y romper en tu Mac.`,
+  pages[e.url] = pagina({ path: e.url, title: `${e.titulo} · ${e.linea.corto} · ${MARCA_CORTA}`, desc: `${e.pregunta} Un mini-proyecto para construir, rehacer y romper en tu Mac.`,
     body: cuerpoEstacion(e, { total: e.linea.total, kitBytes: z.length, kb }), lectura: true });
   const dir = join(OUT, e.linea.id, e.id);
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, 'index.html'), pages[e.url]);
   console.log(`[build] ${e.url} · kit ${kb(z.length)}`);
   if (e.kitUrl !== e.url) {
-    pages[e.kitUrl] = pagina({ path: e.kitUrl, title: `Proyecto con kit · ${e.titulo} · ${SITE_NAME}`, desc: `${e.mundo.resumen.replace(/<[^>]+>/g, '')} Las cuatro rondas de la estación ${e.num} de ${e.linea.nombre}.`,
+    pages[e.kitUrl] = pagina({ path: e.kitUrl, title: `Proyecto con kit · ${e.titulo} · ${MARCA_CORTA}`, desc: `${e.mundo.resumen.replace(/<[^>]+>/g, '')} Las cuatro rondas de la estación ${e.num} de ${e.linea.nombre}.`,
       body: cuerpoProyecto(e, { total: e.linea.total, kitBytes: z.length, kb }), lectura: true });
     mkdirSync(join(dir, 'proyecto-con-kit'), { recursive: true });
     writeFileSync(join(dir, 'proyecto-con-kit', 'index.html'), pages[e.kitUrl]);
     console.log(`[build] ${e.kitUrl}`);
   }
   for (const p of e.practicas) {
-    pages[p.url] = pagina({ path: p.url, title: `${p.titulo} · ${e.titulo} · ${SITE_NAME}`, desc: `${p.subtitulo} Práctica desde cero de la estación ${e.num} de ${e.linea.nombre}.`,
+    pages[p.url] = pagina({ path: p.url, title: `${p.titulo} · ${MARCA_CORTA}`, desc: `${p.subtitulo} Práctica desde cero de la estación ${e.num} de ${e.linea.nombre}.`,
       body: cuerpoPractica(e, p), lectura: true });
     mkdirSync(join(dir, p.id), { recursive: true });
     writeFileSync(join(dir, p.id, 'index.html'), pages[p.url]);
@@ -237,6 +243,10 @@ hash.update(DOJO_CSS).update(readFileSync(join(ROOT, 'site', 'app.js'))).update(
 for (const m of MODULOS) hash.update(m).update(readFileSync(join(ROOT, 'site', 'tablero', m)));
 const BUILD = hash.digest('hex').slice(0, 12);
 writeFileSync(join(OUT, 'sw.js'), readFileSync(join(ROOT, 'site', 'sw.js'), 'utf8').replace("'__BUILD__';", `'${BUILD}';`).replace('= __PAGES__;', `= ${JSON.stringify(core)};`));
+for (const [p, d] of Object.entries(SEO)) {
+  if (!SEO_USADAS.has(p)) { console.error(`[build] content/seo.json: la ruta ${p} no es una página del dojo`); process.exit(1); }
+  if (d.length > 160) { console.error(`[build] content/seo.json: la descripción de ${p} tiene ${d.length} caracteres (máximo 160)`); process.exit(1); }
+}
 writeFileSync(join(OUT, 'robots.txt'), `User-agent: *\nAllow: /\nSitemap: ${SITE_URL}/sitemap.xml\n`);
 writeFileSync(join(OUT, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((p) => `  <url><loc>${SITE_URL}${p}</loc></url>`).join('\n')}\n</urlset>\n`);
 console.log(`[build] listo: ${Object.keys(pages).length} páginas · BUILD ${BUILD}`);

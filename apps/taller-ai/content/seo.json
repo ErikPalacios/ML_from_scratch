@@ -1,0 +1,19 @@
+{
+  "nota": "Descripciones para buscadores (≤ 160 caracteres) de las páginas cuya descripción automática sale muy larga. La clave es la ruta de la página; el build falla si una ruta no existe o si se pasa de 160.",
+  "descripciones": {
+    "/": "Elige un entrenamiento (clasificación de imágenes o RAG) y constrúyelo de punta a punta en tu Mac: con ayuda, solo y rompiéndolo. En español y gratis.",
+    "/c01/empaquetado/": "Convierte el código de serving y el modelo en imágenes Docker que corren igual en tu Mac, en CI y en el clúster. Un mini-proyecto para construir y romper.",
+    "/rag/": "Construye un asistente RAG que cita sus fuentes y respeta los permisos de cada persona: ingestión, índice híbrido, golden set y evals. Corre en tu Mac.",
+    "/ia-privada/": "Opera un modelo open weight en hardware propio: serving, gateway, RAG con los documentos de la empresa, evals, observabilidad y entrega sin internet.",
+    "/c01/cicd/": "Que en producción corra exactamente la imagen que se probó y que volver a la anterior tarde segundos: CI/CD y registro de imágenes, en tu Mac.",
+    "/c01/datos/proyecto-con-kit/": "Corre una empresa ficticia con el clasificador en producción y construye encima el pipeline de datos y etiquetas: las cuatro rondas de la estación 1.",
+    "/c01/datos/antes-de-produccion/": "De 10 fotos sueltas a un dataset versionado, con un contrato y un primer modelo que sabe con qué datos se entrenó. Práctica desde cero.",
+    "/c01/datos/en-produccion/": "Un mes de datos reales: qué etiquetar con un presupuesto, una clase nueva y modelo-v2 comparado con el mismo examen. Práctica desde cero.",
+    "/c01/export/": "Exporta el modelo aprobado al archivo que se sirve y comprueba que responde lo mismo y no es más lento. Un mini-proyecto para construir y romper en tu Mac.",
+    "/c01/kubernetes/": "Despliega Triton y los gateways en Kubernetes: una GPU en cada zona, autoescalado en los picos y cambios de versión sin cortar tráfico. En tu Mac.",
+    "/c01/monitoreo/": "Alertas que despiertan solo cuando importa, notar que el modelo empeora aunque todo conteste 200 y convertirlo en fotos para etiquetar. En tu Mac.",
+    "/c01/request/": "Que cada request deje rastro (logs, métricas y exemplars) y llegue a donde alguien lo lea sin frenar la respuesta. Un mini-proyecto en tu Mac.",
+    "/c01/rollout/": "Pon la versión nueva frente al tráfico real de a poco, con reglas escritas antes que deciden si se queda, y vuelve en segundos si falla. En tu Mac.",
+    "/c01/serving/": "El programa que pone al modelo a responder fotos por la red sin caerse con una foto rara, un pico de tráfico o un servidor trabado. En tu Mac."
+  }
+}
