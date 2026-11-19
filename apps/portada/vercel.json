@@ -7,18 +7,18 @@
   "trailingSlash": true,
   "redirects": [
     {
-      "source": "/:path*",
+      "source": "/(.*)",
       "has": [
         {
           "type": "host",
           "value": "www.trueml.app"
         }
       ],
-      "destination": "https://trueml.app/:path*",
+      "destination": "https://trueml.app/$1",
       "permanent": true
     },
     {
-      "source": "/:path*",
+      "source": "/(.*)",
       "has": [
         {
           "type": "host",
@@ -30,7 +30,7 @@
           "value": ".*(bot|Bot|BOT|crawler|Crawler|spider|Spider|facebookexternalhit|WhatsApp|Slurp|Google-InspectionTool|embedly|Embedly|Iframely|vkShare).*"
         }
       ],
-      "destination": "https://trueml.app/:path*",
+      "destination": "https://trueml.app/$1",
       "permanent": true
     },
     {

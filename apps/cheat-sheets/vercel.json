@@ -7,7 +7,7 @@
   "trailingSlash": true,
   "redirects": [
     {
-      "source": "/:path*",
+      "source": "/(.*)",
       "has": [
         {
           "type": "host",
@@ -19,7 +19,7 @@
           "value": ".*(bot|Bot|BOT|crawler|Crawler|spider|Spider|facebookexternalhit|WhatsApp|Slurp|Google-InspectionTool|embedly|Embedly|Iframely|vkShare).*"
         }
       ],
-      "destination": "https://hojas.trueml.app/:path*",
+      "destination": "https://hojas.trueml.app/$1",
       "permanent": true
     },
     {

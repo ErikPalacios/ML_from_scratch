@@ -6,7 +6,7 @@
   "outputDirectory": "dist/web",
   "redirects": [
     {
-      "source": "/:path*",
+      "source": "/(.*)",
       "has": [
         {
           "type": "host",
@@ -18,7 +18,7 @@
           "value": ".*(bot|Bot|BOT|crawler|Crawler|spider|Spider|facebookexternalhit|WhatsApp|Slurp|Google-InspectionTool|embedly|Embedly|Iframely|vkShare).*"
         }
       ],
-      "destination": "https://ronda.trueml.app/:path*",
+      "destination": "https://ronda.trueml.app/$1",
       "permanent": true
     },
     {
