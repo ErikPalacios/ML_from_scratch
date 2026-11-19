@@ -29,9 +29,9 @@ code { background: var(--tm-chip); border: 0; border-radius: 6px; padding: 0.08e
   border-bottom: 0; box-shadow: 0 1px 0 var(--tm-line);
 }
 .bar__stripe { margin: 0 -16px; }
-.bar__in { min-height: 56px; gap: 12px; }
-.brand { gap: 10px; font: 800 18px/1 var(--sans); letter-spacing: -0.035em; }
-.brand__mark { width: 24px; display: block; flex: none; }
+.bar__in { min-height: 62px; gap: 12px; }
+.brand { gap: 12px; font: 800 19px/1 var(--sans); letter-spacing: -0.035em; }
+.brand__mark { width: 34px; display: block; flex: none; }
 .brand__mark svg { display: block; width: 100%; height: auto; }
 .bar__title { font: 600 13px/1.2 var(--mono); color: var(--muted); padding-left: 12px; border-left: 1px solid var(--tm-line); }
 .sync { font: 600 12px/1 var(--mono); padding: 7px 12px; background: var(--tm-card); border: 0; box-shadow: var(--tm-sh); }
@@ -39,7 +39,7 @@ code { background: var(--tm-chip); border: 0; border-radius: 6px; padding: 0.08e
 .sync[data-s="saving"] i { background: var(--tm-acc); }
 .sync[data-s="offline"] i { background: var(--yt); }
 .sync[data-s="error"] i { background: var(--warn); }
-@media (max-width: 520px) { .brand__name { font-size: 17px; } .brand { margin-right: auto; } }
+@media (max-width: 520px) { .brand__name { font-size: 17px; } .brand { margin-right: auto; gap: 10px; } .brand__mark { width: 28px; } .bar__in { min-height: 56px; } }
 
 /* ------------------------------------------------------------------ botones, chips y campos */
 .btn {
@@ -211,7 +211,7 @@ dialog::backdrop { background: rgba(10, 15, 34, 0.5); -webkit-backdrop-filter: b
 .tm-foot { max-width: 1120px; margin: 40px auto 0; display: flex; justify-content: center; }
 .tm-foot a { display: inline-flex; align-items: center; gap: 10px; padding: 8px 14px; border-radius: 999px; color: var(--muted); text-decoration: none; font: 500 13px/1.3 var(--sans); }
 .tm-foot a:hover { background: var(--tm-chip); color: var(--ink); }
-.tm-foot__mark { width: 16px; flex: none; display: block; }
+.tm-foot__mark { width: 22px; flex: none; display: block; }
 .tm-foot__mark svg { display: block; width: 100%; height: auto; }
 .tm-foot b { font-weight: 800; letter-spacing: -0.03em; color: var(--ink); }
 .tm-foot b span { color: var(--tm-acc); }
