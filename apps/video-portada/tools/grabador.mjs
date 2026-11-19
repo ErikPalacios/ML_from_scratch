@@ -54,6 +54,21 @@ export const centro = async (p, sel) => {
   const r = await p.locator(sel).first().boundingBox(); if (!r) throw new Error('sin caja ' + sel);
   return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
 };
+/**
+ * Anota dónde está un elemento en este instante de la grabación (para dibujar un aro encima en el montaje).
+ * Queda en src/marcas.json: { toma: { id: { t (s desde que empieza la grabación), x, y, w, h (fracciones de la ventana) } } }.
+ */
+export const marcar = async (p, sel, id, pad = 8) => {
+  const r = await p.locator(sel).first().boundingBox(); if (!r) throw new Error('sin caja ' + sel);
+  const t = p.__t0 ? Date.now() / 1000 - p.__t0 : 0;
+  (p.__marcas ||= {})[id] = { t: +t.toFixed(2), x: +((r.x - pad) / ANCHO).toFixed(4), y: +((r.y - pad) / ALTO).toFixed(4), w: +((r.width + 2 * pad) / ANCHO).toFixed(4), h: +((r.height + 2 * pad) / ALTO).toFixed(4) };
+};
+/** Segundos desde que empezó la grabación (para anotar momentos sin caja). */
+export const momento = (p, id) => { (p.__marcas ||= {})[id] = { t: +(Date.now() / 1000 - p.__t0).toFixed(2) }; };
+
+/** Escribe como una persona (tecla por tecla) en el elemento, después de darle clic. */
+export const teclear = async (p, sel, texto, ms = 75) => { await clic(p, sel, 600); await p.waitForTimeout(200); await p.keyboard.type(texto, { delay: ms }); };
+
 export const clic = async (p, sel, ms = 700) => { const c = await centro(p, sel); await mover(p, c.x, c.y, ms); await p.waitForTimeout(150); await p.mouse.down(); await p.waitForTimeout(90); await p.mouse.up(); };
 
 // Arrastra un <input type=range> de su valor actual a otro, como lo haría una mano.
@@ -72,9 +87,12 @@ export const arrastrar = async (p, loc, hasta, ms = 1400) => {
  */
 export async function grabar(toma, carpetaSalida) {
   const b = await abrir();
-  const ctx = await b.newContext({ viewport: { width: ANCHO, height: ALTO }, deviceScaleFactor: ESCALA, colorScheme: toma.tema || 'dark', reducedMotion: 'no-preference' });
+  const ctx = await b.newContext({ ...(toma.contexto || {}), viewport: { width: ANCHO, height: ALTO }, deviceScaleFactor: ESCALA, colorScheme: toma.tema || 'dark', reducedMotion: 'no-preference' });
   await ctx.addInitScript(CURSOR);
+  if (toma.init) await ctx.addInitScript(toma.init);
   const p = await ctx.newPage();
+  p.setDefaultTimeout(10000);
+  p.on('dialog', (d) => d.accept().catch(() => {}));
   await p.goto(toma.url, { waitUntil: 'load', timeout: 45000 });
   await p.waitForTimeout(1200);
   if (toma.preparar) await toma.preparar(p);
@@ -92,7 +110,9 @@ export async function grabar(toma, carpetaSalida) {
   await p.evaluate(() => { const d = document.createElement('div'); d.style.cssText = 'position:fixed;left:0;bottom:0;width:1px;height:1px;opacity:.01;pointer-events:none;z-index:2147483647'; document.body.appendChild(d); let k = 0; const f = () => { d.style.transform = `translateX(${(k ^= 1)}px)`; requestAnimationFrame(f); }; f(); });
   await p.waitForTimeout(300);
   const t0 = Date.now() / 1000;
-  await toma.accion(p);
+  p.__t0 = t0; p.__marcas = {};
+  try { await toma.accion(p); }
+  catch (e) { await cdp.send('Page.stopScreencast').catch(() => {}); await b.close(); rmSync(tmp, { recursive: true, force: true }); throw e; }
   await p.waitForTimeout(300);
   const t1 = Date.now() / 1000;
   await cdp.send('Page.stopScreencast');
@@ -111,5 +131,5 @@ export async function grabar(toma, carpetaSalida) {
   rmSync(tmp, { recursive: true, force: true });
   const dur = t1 - t0;
   console.log(`✓ ${toma.nombre}: ${dur.toFixed(1)} s, ${lista.length} cuadros (${(lista.length / dur).toFixed(1)} por segundo reales)`);
-  return { salida, dur };
+  return { salida, dur, marcas: p.__marcas };
 }

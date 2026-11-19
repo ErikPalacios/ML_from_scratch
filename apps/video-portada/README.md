@@ -81,3 +81,37 @@ tools/hoja-reel.sh out/reels/04-dojo.mp4 hoja.png   # hoja de contacto con las l
 
 Orden sugerido para publicar los siete el mismo día: 07 → 06 → 05 → 04 → 03 → 02 → 01, y luego fijar el 01. Así
 el perfil queda con el recorrido, el Transformer y Sensei arriba.
+
+## Videos explicativos (cómo se usa cada herramienta)
+
+Siete videos de 16:9 (1920×1080) en `src/tutoriales/`. Tres son tutoriales completos, de unos 2 a 2.5 minutos: **Sensei**,
+**el Dojo** y **el tablero de proyectos** (la demo pública). Los otros cuatro son muestras de unos 30 s: el
+Laboratorio Transformer, el Atlas, la Ronda y las cheat sheets. Todos usan el mismo formato:
+
+- **A la izquierda**, la lista de pasos. El paso actual se enciende y los anteriores llevan una palomita.
+- **A la derecha**, la grabación real dentro de una ventana casi plana, para que se lea. La cámara se acerca a lo
+  importante y un aro rodea el botón o el bloque del que se habla.
+- **Abajo**, el subtítulo que explica qué está pasando. Las palabras entre `*asteriscos*` salen resaltadas.
+
+Cómo se arma:
+
+1. **Las tomas** están en `tools/tomas-tutoriales.mjs`. Mientras graba, `marcar(p, selector, id)` anota en qué segundo
+   y en qué lugar de la pantalla está cada elemento. Esas marcas se guardan en `src/marcas.json`, y
+   `momento(p, id)` anota solo el segundo.
+2. **Los guiones** (`src/tutoriales/sensei.ts`, `dojo.ts`, `tablero.ts`, `muestras.ts`) usan esas marcas para todo:
+   - Cada tramo de grabación va de una marca a otra (`de`, `a`).
+   - La cámara apunta a una marca (`m`) en el instante de otra (`fm`).
+   - Cada subtítulo entra cuando la grabación llega a su marca.
+
+   Así, si vuelves a grabar y la página tarda distinto, el montaje se acomoda solo.
+3. **La pista** (`tools/sonido-tutorial.mjs`) es un fondo tranquilo para leer, sin bombo. Lleva una nota al empezar
+   cada paso y un barrido al entrar y al salir. Lee los tiempos del guion compilándolo con esbuild.
+
+```bash
+node tools/capturar.mjs sen-inicio dojo-t-mapa tab-mapa   # graba tomas (sin nombres: todas, también las del video de portada)
+npm run tutoriales                                        # pista + video + póster de los siete en out/tutoriales/
+node tools/tutoriales.mjs sensei                          # solo uno
+```
+
+Si una toma falla porque cambió un selector, el video que la usa desaparece de Remotion Studio (con un aviso) hasta
+que la vuelvas a grabar. Los demás videos no se afectan.

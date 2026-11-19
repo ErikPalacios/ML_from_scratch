@@ -11,6 +11,7 @@
     "render": "remotion render src/index.ts Portada out/portada.mp4 --codec h264 --crf 18 --audio-codec aac --audio-bitrate 192k",
     "instagram": "remotion render src/index.ts Instagram out/instagram.mp4 --codec h264 --crf 18 --audio-codec aac --audio-bitrate 192k",
     "web": "node tools/web.mjs",
+    "tutoriales": "node tools/tutoriales.mjs",
     "portada": "npm run sonido && npm run render && npm run web"
   },
   "dependencies": {
