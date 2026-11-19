@@ -1,7 +1,7 @@
 // Las páginas de estación con el diseño «Dojo» de TrueML (Claude Design: «Dojo Estacion 01»).
 // La T de vidrio y las etapas salen del sistema de diseño compartido (apps/trueml, copiado en vendor/trueml con
 // node apps/trueml/sync.mjs). Se dibuja al construir: la página no necesita JavaScript para verse y abre sin conexión.
-import { TrueMLMark as TM, RANGOS_C01, franja, miniT, IDS, bloqueCodigo } from '../vendor/trueml/lib.mjs';
+import { TrueMLMark as TM, RANGOS_C01, franja, miniT, IDS, bloqueCodigo, donar } from '../vendor/trueml/lib.mjs';
 import { repartir, repartirPractica } from './schema.mjs';
 
 export const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -135,6 +135,7 @@ function hero({ volver, volverTxt, pill, h1, lead, tiles, botones, etapaIdx, num
 const pie = `<footer class="d-wrap d-foot">
   <p>© ${new Date().getFullYear()} Erik Palacios · Contenido bajo <a href="https://creativecommons.org/licenses/by-nc-nd/4.0/deed.es">CC BY-NC-ND 4.0</a> · <a href="${PORTADA}">TrueML</a> · <a href="https://github.com/ErikPalacios/ML_from_scratch/issues/new">Reportar un error</a></p>
   <p>La app es la guía: no corre nada. El trabajo pasa en tu Mac, con el kit y una sesión de Claude Code. Después de la primera visita abre sin conexión.</p>
+  <p>El Dojo es gratis y sin anuncios. ¿Te sirvió? ${donar()}</p>
 </footer>
 <div class="d-toast" aria-live="polite" role="status"></div>`;
 

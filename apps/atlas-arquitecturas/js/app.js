@@ -443,6 +443,7 @@
     f.appendChild(h('div', { class: 'foot-row' }, h('span', { class: 'foot-row__label', 'aria-hidden': 'true' }, 'Tema'), seg));
     f.appendChild(h('button', { type: 'button', class: 'btn btn--sm', id: 'btn-portability', on: { click: openPortability } },
       h('span', { html: icon('database') }), 'Exportar / importar progreso'));
+    if (window.TrueMLDonar) f.appendChild(window.TrueMLDonar.enlace());
     renderStatus();
   }
 

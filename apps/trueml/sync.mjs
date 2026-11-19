@@ -18,6 +18,11 @@ const APPS = ['taller-ai', 'portada', 'sensei', 'ml-system-design', 'atlas-arqui
 const DOJO = { carpeta: 'taller-ai', url: 'https://dojo.trueml.app' };
 const check = process.argv.includes('--check');
 
+// El enlace de donación vive en lib.mjs (builds) y en piezas.js (apps sin build): tienen que ser el mismo.
+const urlDe = (f, re) => (readFileSync(join(AQUI, f), 'utf8').match(re) || [])[1];
+const donarLib = urlDe('lib.mjs', /DONAR_URL = '([^']+)'/), donarPiezas = urlDe('piezas.js', /DONAR_URL = '([^']+)'/);
+if (!donarLib || donarLib !== donarPiezas) { console.error(`✗ DONAR_URL distinta: lib.mjs ${donarLib} · piezas.js ${donarPiezas}`); process.exit(1); }
+
 const salidas = [];   // [ruta, contenido]
 for (const app of APPS) for (const f of ARCHIVOS) salidas.push([join(APPS_DIR, app, 'vendor', 'trueml', f), readFileSync(join(AQUI, f), 'utf8')]);
 

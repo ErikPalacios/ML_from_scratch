@@ -183,7 +183,7 @@ for (const [label, args] of VIEWS) {
   console.log(`${ok ? 'ok ' : 'MAL'} /tablero/ importar ${label.padEnd(10)} ${v ? (v.error || `rondas ${v.rondas} · fallas ${v.fallas} · notas ${v.notas} · T ${v.t} · ancho ${v.scrollWidth}/${v.innerWidth}${v.wide.length ? ' · ' + v.wide.join(' ') : ''}`) : 'sin resultado'}`);
 }
 const s = await run(['--url', BASE + '/', '--wait', '2500', '--width', '1024', '--height', '800', '--light'], SW);
-const swOk = s && s.controller && PAGES.every((p) => s.cached.includes(p)) && PAGES.slice(1).every((p) => s.offline[p] && s.offline[p].includes("Dojo de entrenamiento ML engineer's"));
+const swOk = s && s.controller && PAGES.every((p) => s.cached.includes(p)) && PAGES.slice(1).every((p) => s.offline[p] && s.offline[p].includes('Dojo'));   // «… · Dojo TrueML» desde los títulos cortos (dbfb4d9)
 if (!swOk) bad++;
 console.log(`${swOk ? 'ok ' : 'MAL'} service worker: ${JSON.stringify(s)}`);
 server.close();

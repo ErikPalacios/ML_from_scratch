@@ -82,3 +82,10 @@ export const franja = (clase = 'tm-stripe') => `<div class="${clase}" aria-hidde
 /** El selector de tema: Claro / Oscuro / Auto (lo maneja cliente.js o el script de la app). */
 export const selectorTema = (clase = '') => `<div class="tema tm-tema ${clase}" role="group" aria-label="Tema">${[['light', 'Claro'], ['dark', 'Oscuro'], ['auto', 'Auto']]
   .map(([t, l]) => `<button type="button" data-tema="${t}" aria-pressed="false">${l}</button>`).join('')}</div>`;
+
+// ---------------------------------------------------------------- donar
+// El enlace de donación de todas las apps. La misma URL vive en piezas.js (para las apps sin build); sync.mjs revisa que coincidan.
+export const DONAR_URL = 'https://ko-fi.com/trueml';
+const TAZA = '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6.5h8.5v3.5a3 3 0 0 1-3 3h-2.5a3 3 0 0 1-3-3z"/><path d="M11 7.5h1a1.9 1.9 0 0 1 0 3.8h-1.2"/><path d="M5.5 2.5v1.8M8.5 2.5v1.8"/></svg>';
+export const donar = ({ texto = 'Invítame un café', clase = '' } = {}) =>
+  `<a class="tm-donar${clase ? ' ' + clase : ''}" href="${DONAR_URL}" target="_blank" rel="noopener">${TAZA}<span>${esc(texto)}</span></a>`;

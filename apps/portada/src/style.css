@@ -146,3 +146,4 @@ body.tm-pagina {
 .p-legal code { font: .9em var(--mono); }
 .p-legal .p-nota { font-size: 14px; color: var(--tm-ink3); }
 @media (prefers-reduced-motion: reduce) { .p-btn, .p-tool, .p-dojo { transition: none; } }
+.p-donar-btn { margin-top: 14px; font-size: 15px; padding: 12px 18px; }

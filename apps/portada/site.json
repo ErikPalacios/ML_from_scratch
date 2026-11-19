@@ -139,5 +139,10 @@
   "feedback": {
     "titulo": "Cuéntame qué te sirvió y qué falló",
     "texto": "Esto lo hago una persona y mejora con lo que me cuentas. Si encuentras un error, algo confuso o una hoja que te falta, <a href=\"{{issues}}\">abre un comentario en GitHub</a> (necesitas una cuenta gratuita) y lo reviso."
+  },
+  "donar": {
+    "titulo": "¿Te sirvió? Invítame un café",
+    "texto": "Todo TrueML es gratis, sin anuncios y sin cuenta, y así se queda. Si te ayudó a aprender, una donación en Ko-fi ayuda a pagar el dominio y las horas de armar más estaciones y lecciones. Es voluntaria: no desbloquea nada.",
+    "boton": "Invítame un café en Ko-fi"
   }
 }

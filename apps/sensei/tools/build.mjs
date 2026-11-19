@@ -28,7 +28,7 @@ import { createHash } from 'node:crypto';
 import { crear, esc } from './md.mjs';
 import { validar as validarDiagrama, montar } from './diagrama.mjs';
 import { validar as validarCalc, dibujar as dibujarCalc } from './calculadora.mjs';
-import { marca, miniT, etapas as etapasDe } from '../vendor/trueml/lib.mjs';
+import { marca, miniT, etapas as etapasDe, donar } from '../vendor/trueml/lib.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const C = join(ROOT, 'content');
@@ -206,6 +206,7 @@ function sidebar(actual) {
 const pie = `<footer class="pie">
   <p>© ${new Date().getFullYear()} Erik Palacios · Contenido bajo <a href="https://creativecommons.org/licenses/by-nc-nd/4.0/deed.es">CC BY-NC-ND 4.0</a> · <a href="${SITIO.portada}">TrueML</a> · <a href="/que-sigue/">Después de Sensei</a> · <a href="${SITIO.issues}">Reportar un error</a></p>
   <p>Después de la primera visita, ${esc(SITIO.nombre)} abre sin conexión.</p>
+  <p>${esc(SITIO.nombre)} es gratis y sin anuncios. ¿Te sirvió? ${donar()}</p>
 </footer>`;
 
 const globo = `<div class="g-pop" hidden role="dialog" aria-modal="false" aria-labelledby="g-pop-t"><div class="g-pop-in">

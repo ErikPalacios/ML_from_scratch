@@ -1,5 +1,5 @@
 /* TrueML · piezas de interfaz compartidas (sin dependencias). Fuente única: apps/trueml; sync.mjs la copia a cada app.
-   Tres piezas, cada una se activa con atributos en la etiqueta raíz (o llamando a su función desde la app):
+   Cuatro piezas (la 4, donar, va sola en cada [data-tm-donar] vacío); las otras tres se activan con atributos en la etiqueta raíz (o llamando a su función desde la app):
      1. Volver      data-tm-herramienta="Sensei" data-tm-inicio="/"   → botón «Volver a TrueML» (+ «‹ Sensei» si no estás en su portada)
                     data-tm-portada="https://…" (por defecto la portada de TrueML) · data-tm-sin-volver (no mostrarlo)
      2. Avance      data-tm-avance="section.sec"                       → «Marcar como leída» al final de cada sección y un tanque que se llena
@@ -388,12 +388,24 @@
     aplicar();
   }
 
+  // ================================================================ 4 · donar
+  // La misma URL que DONAR_URL en lib.mjs (sync.mjs revisa que coincidan). Para las apps sin build:
+  //   <span data-tm-donar></span> (data-tm-donar="Buy me a coffee" cambia el texto) o TrueMLDonar.enlace(texto) desde la app.
+  var DONAR_URL = 'https://ko-fi.com/trueml';
+  function enlaceDonar(texto) {
+    return h('a', { class: 'tm-donar', href: DONAR_URL, target: '_blank', rel: 'noopener', html:
+      '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6.5h8.5v3.5a3 3 0 0 1-3 3h-2.5a3 3 0 0 1-3-3z"/><path d="M11 7.5h1a1.9 1.9 0 0 1 0 3.8h-1.2"/><path d="M5.5 2.5v1.8M8.5 2.5v1.8"/></svg>' }, [h('span', { text: texto || 'Invítame un café' })]);
+  }
+  function donar() { $$('[data-tm-donar]').forEach(function (e) { if (!e.firstChild) e.appendChild(enlaceDonar(e.getAttribute('data-tm-donar'))); }); }
+
   window.TrueMLPiezas = { volver: volver };
+  window.TrueMLDonar = { url: DONAR_URL, enlace: enlaceDonar };
   window.TrueMLAvance = { init: avance, resumen: resumen };
   window.TrueMLNotas = { init: notas, aplicar: aplicar, abrirPanel: abrirPanel };
 
   function arrancar() {
     volver();
+    donar();
     if (tiene('avance')) avance();
     if (tiene('notas')) notas();
   }

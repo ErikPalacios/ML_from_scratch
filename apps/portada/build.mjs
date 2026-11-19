@@ -6,7 +6,7 @@
 import { readFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { etapas, franja, marca, miniT, resumen, selectorTema } from './vendor/trueml/lib.mjs';
+import { etapas, franja, marca, miniT, resumen, selectorTema, donar, DONAR_URL } from './vendor/trueml/lib.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const SRC = join(ROOT, 'src');
@@ -100,6 +100,7 @@ const vars = {
   RUTAS: site.rutas.map(ruta).join('\n    '),
   GARANTIAS: site.garantias.map((g, i) => `<li><span class="p-check p-check-${i % 4}">✓</span>${esc(g)}</li>`).join(''),
   FEEDBACK_T: esc(site.feedback.titulo), FEEDBACK: enlaces(site.feedback.texto),
+  DONAR_T: esc(site.donar.titulo), DONAR: esc(site.donar.texto), DONAR_BTN: donar({ texto: site.donar.boton, clase: 'p-donar-btn' }), DONAR_URL,
 };
 const fill = (t) => t.replace(/\{\{(\w+)\}\}/g, (_, k) => { if (!(k in vars)) fail('falta la variable {{' + k + '}}'); return vars[k]; });
 

@@ -13,7 +13,7 @@ import { readFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync, rmSyn
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
-import { etapas, franja, marca, miniT, resumen, IDS, TrueMLMark } from '../vendor/trueml/lib.mjs';
+import { etapas, franja, marca, miniT, resumen, IDS, TrueMLMark, donar } from '../vendor/trueml/lib.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SITE = join(ROOT, 'site');
@@ -100,7 +100,7 @@ const seo = (path, title, desc, html) => {
   return HEAD + '\n' + meta;
 };
 // Crédito y licencia al pie de cada página (la imagen de copia no se bloquea: se protege la atribución).
-const FOOT = `<footer class="hub-credit"><p>© ${new Date().getFullYear()} Erik Palacios · Contenido bajo <a href="https://creativecommons.org/licenses/by-nc-nd/4.0/deed.es">CC BY-NC-ND 4.0</a> · <a href="https://trueml.app">ML desde cero</a> · <a href="https://github.com/ErikPalacios/ML_from_scratch/issues/new">Reportar un error</a></p></footer>`;
+const FOOT = `<footer class="hub-credit"><p>© ${new Date().getFullYear()} Erik Palacios · Contenido bajo <a href="https://creativecommons.org/licenses/by-nc-nd/4.0/deed.es">CC BY-NC-ND 4.0</a> · <a href="https://trueml.app">ML desde cero</a> · <a href="https://github.com/ErikPalacios/ML_from_scratch/issues/new">Reportar un error</a></p><p class="hub-donar">Las hojas son gratis y sin anuncios. ¿Te sirvieron? ${donar()}</p></footer>`;
 // el service worker solo se registra servido por http(s): abriendo el archivo con doble clic no aplica.
 const REGISTER = `<script>
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
@@ -177,6 +177,7 @@ body { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area
 }
 .hub-credit { max-width: 1120px; margin: 48px auto 0; padding: 22px 16px 40px; border-top: 1px solid var(--tm-line); text-align: center; font: 13.5px/1.55 var(--sans); color: var(--tm-ink3); }
 .hub-credit p { margin: 0; }
+.hub-credit .hub-donar { margin-top: 12px; }
 .hub-credit a { color: var(--tm-acc); }
 @media print { .hub-bar { display: none !important; } }
 `;
