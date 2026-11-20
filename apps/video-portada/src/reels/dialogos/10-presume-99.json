@@ -1,0 +1,18 @@
+{
+  "nota": "Lo que se dice en el reel 10 (presumir 99 % de accuracy en la entrevista: baseline y recall). «debug» es el narrador; «turbo» habla chillón. El entrevistador no tiene voz: solo escribe en la videollamada. El texto es para la voz; lo que se lee en pantalla está en Presume99.tsx. t1, n2, n3, t3, n5 y t4 se generaron para una versión anterior del guion y se reutilizan tal cual (mismo texto).",
+  "lineas": [
+    { "id": "n1", "quien": "debug", "texto": "Cuando presumes noventa y nueve por ciento de accuracy en la entrevista..." },
+    { "id": "t1", "quien": "turbo", "texto": "¡Noventa y nueve! ¡Soy un genio!" },
+    { "id": "t2", "quien": "turbo", "texto": "¿Base... qué?" },
+    { "id": "n2", "quien": "debug", "texto": "Imagina cien transacciones. Solo una es fraude." },
+    { "id": "n3", "quien": "debug", "texto": "Un modelo que siempre dice «no es fraude» acierta noventa y nueve. Noventa y nueve por ciento, sin aprender nada." },
+    { "id": "t3", "quien": "turbo", "texto": "...Ese es mi modelo." },
+    { "id": "n5", "quien": "debug", "texto": "Es un detector de humo que nunca suena: acierta casi todos los días, y falla justo el del incendio." },
+    { "id": "n6", "quien": "debug", "texto": "Lo que debiste responder: le gano al baseline, y mido el recall: de los fraudes reales, atrapo ocho de cada diez." },
+    { "id": "t4", "quien": "turbo", "texto": "¡Fácil! ¡Ahora todo es fraude!" },
+    { "id": "t5", "quien": "turbo", "texto": "¿Eso es un sí?" },
+    { "id": "d2", "quien": "debug", "texto": "No." },
+    { "id": "n7", "quien": "debug", "texto": "Baseline, recall y más, en tru eme ele punto app." }
+  ],
+  "velDebug": 1.2
+}

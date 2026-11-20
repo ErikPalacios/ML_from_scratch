@@ -183,6 +183,40 @@
           { "t": "rueda", "f": 1341, "a": 1425, "cada": 14 }
         ]
       }
+    },
+    {
+      "id": "10-presume-99",
+      "escenas": [
+        { "id": "gancho", "dur": 315 },
+        { "id": "baseline", "dur": 400, "barrido": true },
+        { "id": "detector", "dur": 180, "barrido": true },
+        { "id": "respuesta", "dur": 240, "barrido": true },
+        { "id": "remate", "dur": 225, "barrido": true },
+        { "id": "cierre", "dur": 135, "barrido": true }
+      ],
+      "portada": 170,
+      "sonido": {
+        "drop": 315, "hat": 715,
+        "eventos": [
+          { "t": "escala", "f": 104, "paso": 4, "m": 12, "g": 0.45 },
+          { "t": "tic", "f": 176, "g": 0.5 }, { "t": "tic", "f": 184, "g": 0.5 },
+          { "t": "pop", "f": 196, "m": 72, "g": 0.6 }, { "t": "boing", "f": 206, "g": 0.5 },
+          { "t": "subida", "f": 285, "a": 315, "g": 0.4 },
+          { "t": "golpe", "f": 315, "g": 0.6 },
+          { "t": "baraja", "f": 427, "paso": 10 },
+          { "t": "golpe", "f": 511, "g": 0.6 },
+          { "t": "caida", "f": 625, "g": 0.5 },
+          { "t": "reloj", "f": 735, "a": 825 },
+          { "t": "golpe", "f": 841, "g": 0.8 },
+          { "t": "pop", "f": 939, "m": 72, "g": 0.55 }, { "t": "pop", "f": 987, "m": 76, "g": 0.55 },
+          { "t": "escala", "f": 1045, "paso": 4, "m": 12, "g": 0.5 },
+          { "t": "boing", "f": 1141, "g": 0.5 },
+          { "t": "pop", "f": 1227, "m": 70, "g": 0.6 },
+          { "t": "caida", "f": 1267, "g": 0.6 },
+          { "t": "boing", "f": 1287, "g": 0.35 },
+          { "t": "golpe", "f": 1360, "g": 0.8 }, { "t": "escala", "f": 1365, "paso": 5, "m": 12, "g": 0.6 }
+        ]
+      }
     }
   ]
 }

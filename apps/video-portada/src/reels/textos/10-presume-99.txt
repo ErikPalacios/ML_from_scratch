@@ -1,0 +1,12 @@
+«Mi modelo de fraude tiene 99 % de accuracy.» «¿Y contra qué baseline?» Turbo no sabía qué responder. 🐹
+
+Accuracy es de todas las predicciones, cuántas acertaste. Suena bien hasta que una clase es muy rara. Si 1 de cada 100 transacciones es fraude, un modelo que SIEMPRE dice «no es fraude» acierta 99 de 100: 99 % sin aprender nada, y atrapa 0 fraudes. Es como un detector de humo que nunca suena: acierta casi todos los días y falla justo el del incendio.
+
+Ese modelo tonto se llama baseline, y el tuyo tiene que ganarle. En los datos reales es aún peor: en un dataset público muy usado de fraude con tarjetas, solo el 0.17 % de las transacciones son fraude, así que el «nunca es fraude» saca 99.8 %.
+
+Lo que debiste responder: «Le gano al baseline y mido el recall»: de los fraudes reales, cuántos atrapo. Y ojo, marcar TODO como fraude da 100 % de recall… y bloquea a todos tus clientes. Por eso el recall se mide junto con la precision.
+
+Baseline, recall y más, explicados desde cero en trueml.app. Gratis · sin cuenta · en español.
+👉 Link en la bio
+
+#MachineLearning #IAenEspañol #DataScience #EntrevistaTech #Recall #DeteccionDeFraude #AprendeIA #InteligenciaArtificial
