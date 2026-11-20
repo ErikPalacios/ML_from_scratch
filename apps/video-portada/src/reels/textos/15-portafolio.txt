@@ -1,0 +1,16 @@
+Cuando tu portafolio son 5 notebooks del Titanic… 🐹🚢
+
+En la primera revisión, un reclutador le dedica unos 7 segundos a un CV (estudio de eye-tracking de Ladders, 2018: 7.4 s en promedio). Y el Titanic, iris y MNIST son los ejercicios con los que todos empezamos: están bien para aprender, pero no te distinguen de nadie. Es como un arquitecto que enseña cinco maquetas armadas con el mismo instructivo: prueba que sabes seguir pasos, no que sabes resolver un problema.
+
+Lo que sí ayuda es un proyecto completo y propio:
+1. Un problema real, y tuyo (no el dataset del tutorial).
+2. Completo, con un link que cualquiera pueda probar.
+3. Un README que diga qué resolviste, cómo y con qué resultado (una cifra).
+4. Código ordenado: no un notebook de 300 celdas.
+
+Uno solo así pesa más que diez notebooks de tutorial.
+
+En el Dojo de trueml.app construyes un proyecto completo, paso a paso. Gratis · sin cuenta · en español.
+👉 Link en la bio
+
+#MachineLearning #IAenEspañol #Portafolio #CienciaDeDatos #DataScience #MLEngineer #AprendeIA #Empleo #Programación
