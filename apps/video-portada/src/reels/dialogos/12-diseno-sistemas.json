@@ -1,0 +1,19 @@
+{
+  "nota": "Lo que se dice en el reel 12 (en la entrevista de diseño de sistemas, el modelo va casi al final). «debug» es el narrador; «turbo» habla chillón. El entrevistador no tiene voz: solo texto en pantalla. Lo que se lee está en DisenoSistemas.tsx.",
+  "lineas": [
+    { "id": "n1", "quien": "debug", "texto": "Cuando te piden diseñar un sistema de recomendaciones... y empiezas por el modelo." },
+    { "id": "t1", "quien": "turbo", "texto": "¡Fácil! ¡Un transformer de siete mil millones de parámetros!" },
+    { "id": "t2", "quien": "turbo", "texto": "¿Eh... cosas?" },
+    { "id": "n2", "quien": "debug", "texto": "Lo que debiste hacer. El modelo va casi al final." },
+    { "id": "n3", "quien": "debug", "texto": "Uno: aclara el problema. ¿Qué recomiendas, a cuántos usuarios, y qué tan rápido respondes?" },
+    { "id": "n4", "quien": "debug", "texto": "Dos: cómo mides el éxito. ¿Clics? ¿Minutos vistos?" },
+    { "id": "n5", "quien": "debug", "texto": "Tres: qué datos tienes." },
+    { "id": "t3", "quien": "turbo", "texto": "¡Ahora sí el transformer!" },
+    { "id": "n6", "quien": "debug", "texto": "Cuatro: el modelo, empezando simple. Y el truco clásico: de millones de videos te quedas con unos cientos, y solo esos los ordenas." },
+    { "id": "n7", "quien": "debug", "texto": "Cinco: cómo lo sirves, y cómo lo vigilas." },
+    { "id": "t4", "quien": "turbo", "texto": "¿Sí me van a llamar?" },
+    { "id": "d1", "quien": "debug", "texto": "No." },
+    { "id": "n8", "quien": "debug", "texto": "Esa ronda de entrevista se practica en tru eme ele punto app." }
+  ],
+  "velDebug": 1.2
+}
