@@ -1,0 +1,14 @@
+Pusiste Docker y Kubernetes en el CV… y te preguntan la diferencia. 🐹
+
+Lo que debiste responder:
+
+Docker = la caja. Mete tu app con todo lo que necesita (código, Python, librerías, configuración) en un paquete. El molde se llama imagen; cada copia corriendo es un contenedor. Por eso funciona igual en tu compu, en el servidor o en la nube.
+
+Kubernetes = el timonel (eso significa en griego; de ahí el K8s: la K, 8 letras y la s). Maneja muchos contenedores en muchas máquinas: tú le dices «quiero 3 copias» y él las mantiene. Si una se cae, levanta otra sola. Si sube el tráfico, pasa de 3 a 10.
+
+En una frase: Docker empaqueta, Kubernetes administra.
+
+Las hojas de repaso de Docker y Kubernetes están en trueml.app. Gratis · sin cuenta · en español.
+👉 Link en la bio
+
+#MachineLearning #IAenEspañol #Docker #Kubernetes #MLOps #DevOps #EntrevistaTécnica #AprendeIA #Programación
