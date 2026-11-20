@@ -1,0 +1,16 @@
+Cuando te preguntan cuántos servidores necesitas y dices «muchos». 🐹
+
+En una entrevista de system design no esperan el número exacto: esperan que sepas hacer la cuenta rápida (back-of-the-envelope). Por ejemplo, para una app con 1 millón de requests al día:
+
+1. Un día tiene 24 × 60 × 60 = 86,400 segundos.
+2. 1,000,000 ÷ 86,400 ≈ 12 requests por segundo, en promedio.
+3. Pero no llegan parejas: en la hora pico, supón el triple → 36 por segundo.
+4. Si cada request tarda 100 ms, un servidor atiende unas 10 por segundo → 36 ÷ 10 = 3.6 → 4 servidores.
+5. Más uno de repuesto, por si alguno se cae → 5.
+
+La regla para recordarla: divide por el día, multiplica por el pico y súmale margen. Lo que importa es que expliques cada supuesto en voz alta.
+
+Esta y otras cuentas vienen en la hoja de estimaciones de trueml.app. Gratis · sin cuenta · en español.
+👉 Link en la bio
+
+#MachineLearning #IAenEspañol #SystemDesign #MLOps #EntrevistaTécnica #Backend #AprendeIA #Programación

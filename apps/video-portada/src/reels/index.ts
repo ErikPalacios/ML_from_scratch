@@ -13,6 +13,7 @@ import { ReelPresume99 } from './Presume99';
 import { ReelVibecoding } from './Vibecoding';
 import { ReelDisenoSistemas } from './DisenoSistemas';
 import { ReelDockerKubernetes } from './DockerKubernetes';
+import { ReelEstimaciones } from './Estimaciones';
 
 const lista: [string, React.FC<{ sonido?: boolean }>][] = [
   ['02-transformer', ReelTransformer],
@@ -27,5 +28,6 @@ const lista: [string, React.FC<{ sonido?: boolean }>][] = [
   ['11-vibecoding', ReelVibecoding],
   ['12-diseno-sistemas', ReelDisenoSistemas],
   ['13-docker-kubernetes', ReelDockerKubernetes],
+  ['14-estimaciones', ReelEstimaciones],
 ];
 export const REELS = lista.map(([id, componente]) => ({ id, componente, dur: duracion(id) }));
