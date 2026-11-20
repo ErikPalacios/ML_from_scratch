@@ -1,0 +1,71 @@
+{
+  "nota": "Lo que se dice en el reel 13 (la diferencia entre Docker y Kubernetes, la que pusiste en el CV y no supiste explicar en la entrevista). «debug» es el narrador; «turbo» habla chillón. El texto es para la voz; lo que se lee en pantalla está en DockerKubernetes.tsx. «velDebug» acelera la voz de Debug solo en este reel (por defecto 1.1).",
+  "lineas": [
+    {
+      "id": "n1",
+      "quien": "debug",
+      "texto": "Cuando pusiste Docker y Kubernetes en el CV... y te preguntan la diferencia."
+    },
+    {
+      "id": "t1",
+      "quien": "turbo",
+      "texto": "¿Uno es la ballenita... y el otro es el timón?"
+    },
+    {
+      "id": "d1",
+      "quien": "debug",
+      "texto": "Esos son los logos."
+    },
+    {
+      "id": "n2",
+      "quien": "debug",
+      "texto": "Lo que debiste responder. Docker mete tu app, con todo lo que necesita, en una caja. Como un contenedor de barco."
+    },
+    {
+      "id": "n3",
+      "quien": "debug",
+      "texto": "El molde es la imagen. Cada caja corriendo es un contenedor."
+    },
+    {
+      "id": "n4",
+      "quien": "debug",
+      "texto": "Kubernetes, en griego, es «timonel». Maneja muchos contenedores en muchas máquinas."
+    },
+    {
+      "id": "n5",
+      "quien": "debug",
+      "texto": "Le dices: quiero tres copias. Si una se cae, levanta otra sola."
+    },
+    {
+      "id": "t2",
+      "quien": "turbo",
+      "texto": "¡Oye! ¡Ese era yo!"
+    },
+    {
+      "id": "n6",
+      "quien": "debug",
+      "texto": "Y si sube el tráfico, pasa de tres a diez."
+    },
+    {
+      "id": "t3",
+      "quien": "turbo",
+      "texto": "¡Ya entendí! ¿Me contratan?"
+    },
+    {
+      "id": "d2",
+      "quien": "debug",
+      "texto": "Nosotros te llamamos."
+    },
+    {
+      "id": "t4",
+      "quien": "turbo",
+      "texto": "¡¿Qué?!"
+    },
+    {
+      "id": "n7",
+      "quien": "debug",
+      "texto": "Las hojas de repaso de Docker y Kubernetes, gratis, en tru eme ele punto app."
+    }
+  ],
+  "velDebug": 1.2
+}
