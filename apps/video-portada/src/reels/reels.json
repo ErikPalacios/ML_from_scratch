@@ -215,6 +215,10 @@
           { "t": "caida", "f": 1267, "g": 0.6 },
           { "t": "boing", "f": 1287, "g": 0.35 },
           { "t": "golpe", "f": 1360, "g": 0.8 }, { "t": "escala", "f": 1365, "paso": 5, "m": 12, "g": 0.6 }
+        ]
+      }
+    },
+    {
       "id": "11-vibecoding",
       "escenas": [
         { "id": "gancho", "dur": 180 },
@@ -248,6 +252,10 @@
           { "t": "boing", "f": 1241, "g": 0.5 },
           { "t": "pop", "f": 1281, "m": 79, "g": 0.5 },
           { "t": "golpe", "f": 1305, "g": 0.7 }, { "t": "escala", "f": 1310, "paso": 5, "m": 12, "g": 0.5 }
+        ]
+      }
+    },
+    {
       "id": "12-diseno-sistemas",
       "escenas": [
         { "id": "entrevista", "dur": 345 },
@@ -275,6 +283,10 @@
           { "t": "pop", "f": 1189, "m": 72, "g": 0.5 },
           { "t": "golpe", "f": 1281, "g": 0.7 },
           { "t": "caida", "f": 1289, "g": 0.6 }, { "t": "golpe", "f": 1301, "g": 0.9 }
+        ]
+      }
+    },
+    {
       "id": "13-docker-kubernetes",
       "escenas": [
         { "id": "gancho", "dur": 315 },
@@ -303,6 +315,10 @@
           { "t": "golpe", "f": 1125, "g": 0.5 }, { "t": "boing", "f": 1131, "g": 0.4 },
           { "t": "pasos", "f": 1250, "a": 1275, "cada": 4, "g": 0.8 },
           { "t": "golpe", "f": 1275, "g": 0.8 }, { "t": "escala", "f": 1280, "paso": 5, "m": 12, "g": 0.6 }
+        ]
+      }
+    },
+    {
       "id": "14-estimaciones",
       "escenas": [
         { "id": "gancho", "dur": 300 },
@@ -330,6 +346,10 @@
           { "t": "tic", "f": 1233, "g": 0.6 },
           { "t": "golpe", "f": 1267, "g": 0.7 },
           { "t": "golpe", "f": 1320, "g": 0.6 }
+        ]
+      }
+    },
+    {
       "id": "15-portafolio",
       "escenas": [
         { "id": "gancho", "dur": 465 },

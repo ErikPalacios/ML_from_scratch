@@ -131,6 +131,10 @@ Nada de «¡Descubre!», «¡No te lo pierdas!» ni tono de venta.
   profundidad memoriza casi todo el entrenamiento · TrueML (Sensei).
 - (Hecho: 08 · overfitting / early stopping, el debut de Turbo.)
 - (Hecho: 09 · la T: entrenar el modelo es solo 1 de las 6 piezas; analogía del platillo y el restaurante.)
+- (Hecho, lote del 2026-11-20, tono «la brecha entre saber ML y que te contraten»: 10 · presumir 99 % en la entrevista
+  (baseline y recall) · 11 · el vibecoding no basta (`except: pass`, traceback, un test) · 12 · diseño de sistemas, el
+  modelo va casi al final · 13 · Docker vs Kubernetes en el CV (la caja y el timonel) · 14 · estimaciones, «muchos»
+  servidores = 5 · 15 · el portafolio de 5 notebooks del Titanic.)
 
 ## 8. Gustos y humor del usuario (el registro que permite pasar de etapa)
 
@@ -194,3 +198,19 @@ fecha. Esta sección es lo que más importa para trabajar solo más adelante: se
   tres ganchos; eligió el de «Cuando tu modelo saca 95 % y ya te crees ML Engineer» y lo aprobó **tal cual**, sin
   cambios. Para que quepa (52 s) se recortaron frases de la voz y Debug fue a 1.15× → le gusta el formato «Cuando…»
   con un remate tonto de Turbo (la ruedita: corre mucho y no llega).
+- 2026-11-20 · **Cambio de tono para el lote 10–15:** el usuario pidió que, más que clases de ML, los reels sean
+  **burlas de la brecha entre «sé modelos / hago vibecoding» y «me contratan / paso la entrevista»**. Turbo llega
+  confiado a una entrevista o a un trabajo y la riega; Debug le da «lo que debiste responder», con una lección concreta.
+  Claude propuso 8 ideas y el usuario eligió las 6 primeras. Las hicieron 6 sesiones en paralelo, sin él, y él aprobó
+  el lote completo («¡Listo, tenemos todo para el Instagram!»). Lo que decidieron las sesiones y quedó aprobado:
+  - El entrevistador **no tiene voz**: es una silueta en una videollamada, su chat o una tarjeta de texto. Debug lee
+    sus preguntas. La IA tampoco tiene voz. Ninguna marca real en pantalla («la IA», «el entrevistador», «el reclutador»).
+  - Remate recurrente: «Gracias. **Nosotros te llamamos**.» → Turbo: «¿Eso es un sí?» → Debug: «No.» (10, 12 y 13).
+  - Gags que funcionaron: lentes oscuros que se le resbalan (10), «¡Ahora TODO es fraude!» (10), la IA que pide
+    perdón en loop (11), los mini-Turbos de Kubernetes y «¡Ese era yo!» (13), el sello «AL TANTEO» y «cinco son
+    muchos» (14), `titanic_v6_con_icebergs.ipynb` (15).
+  - Debug va a 1.15–1.2× (`velDebug`) para quedar ≤ 50 s; lo que no cabe en voz se queda en pantalla o en el texto.
+  - Cifras con fuente y solo en el texto de la publicación cuando nombran una marca (paper de YouTube 2016, estudio de
+    TheLadders 2018: ~7 s por CV, dataset de fraude con 0.17 %).
+  - Para ahorrar créditos se pueden reusar los mp3 que ya dicen lo mismo. Los puntos suspensivos en las líneas de
+    Turbo le meten ruidos raros a la voz: mejor evitarlos.
