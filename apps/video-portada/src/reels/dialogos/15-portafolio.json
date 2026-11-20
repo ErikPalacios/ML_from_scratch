@@ -1,0 +1,76 @@
+{
+  "nota": "Lo que se dice en el reel 15 (un portafolio de notebooks de tutorial vs. un proyecto completo y propio). «debug» es el narrador; «turbo» habla chillón. El texto es para la voz; lo que se lee en pantalla está en Portafolio.tsx. Los 7 segundos: estudio de eye-tracking de Ladders (2018), primera revisión de un CV = 7.4 s.",
+  "lineas": [
+    {
+      "id": "n1",
+      "quien": "debug",
+      "texto": "Cuando tu portafolio son cinco notebooks del Titanic..."
+    },
+    {
+      "id": "t1",
+      "quien": "turbo",
+      "texto": "¡Mírelos! ¡Titanic, iris... y el Titanic final final!"
+    },
+    {
+      "id": "n2",
+      "quien": "debug",
+      "texto": "El reclutador le da unos siete segundos. Y esos notebooks los tienen miles."
+    },
+    {
+      "id": "t2",
+      "quien": "turbo",
+      "texto": "¿¡Siete!? ¡Tardé una semana!"
+    },
+    {
+      "id": "n3",
+      "quien": "debug",
+      "texto": "Como un arquitecto con cinco maquetas del mismo instructivo."
+    },
+    {
+      "id": "n4",
+      "quien": "debug",
+      "texto": "Uno: un problema real, y tuyo."
+    },
+    {
+      "id": "n5",
+      "quien": "debug",
+      "texto": "Dos: completo, con un link que cualquiera pueda probar."
+    },
+    {
+      "id": "n6",
+      "quien": "debug",
+      "texto": "Tres: un README que diga qué resolviste y con qué resultado."
+    },
+    {
+      "id": "n7",
+      "quien": "debug",
+      "texto": "Cuatro: código ordenado. No un notebook de trescientas celdas."
+    },
+    {
+      "id": "t3",
+      "quien": "turbo",
+      "texto": "¿Trescientas es mucho?"
+    },
+    {
+      "id": "t4",
+      "quien": "turbo",
+      "texto": "¡Listo! Proyecto cien por ciento original."
+    },
+    {
+      "id": "d1",
+      "quien": "debug",
+      "texto": "Turbo..."
+    },
+    {
+      "id": "t5",
+      "quien": "turbo",
+      "texto": "¡¿Qué?! ¡Tiene icebergs!"
+    },
+    {
+      "id": "n8",
+      "quien": "debug",
+      "texto": "Un proyecto completo, paso a paso, en tru eme ele punto app."
+    }
+  ],
+  "velDebug": 1.2
+}
