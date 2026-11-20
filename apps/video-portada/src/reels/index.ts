@@ -7,6 +7,7 @@ import { ReelDojo } from './Dojo';
 import { ReelAtlas } from './Atlas';
 import { ReelRonda } from './Ronda';
 import { ReelHojas } from './Hojas';
+import { ReelOverfitting } from './Overfitting';
 
 const lista: [string, React.FC<{ sonido?: boolean }>][] = [
   ['02-transformer', ReelTransformer],
@@ -15,5 +16,6 @@ const lista: [string, React.FC<{ sonido?: boolean }>][] = [
   ['05-atlas', ReelAtlas],
   ['06-ronda', ReelRonda],
   ['07-hojas', ReelHojas],
+  ['08-overfitting', ReelOverfitting],
 ];
 export const REELS = lista.map(([id, componente]) => ({ id, componente, dur: duracion(id) }));

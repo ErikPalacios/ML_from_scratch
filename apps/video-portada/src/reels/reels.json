@@ -127,6 +127,32 @@
           { "t": "golpe", "f": 540, "g": 0.8 }, { "t": "escala", "f": 545, "paso": 5, "m": 12, "g": 0.6 }
         ]
       }
+    },
+    {
+      "id": "08-overfitting",
+      "escenas": [
+        { "id": "gancho", "dur": 135 },
+        { "id": "grafica", "dur": 225, "barrido": true },
+        { "id": "explica", "dur": 240, "barrido": true },
+        { "id": "solucion", "dur": 255, "barrido": true },
+        { "id": "cierre", "dur": 150, "barrido": true }
+      ],
+      "portada": 320,
+      "sonido": {
+        "drop": 135, "hat": 360,
+        "eventos": [
+          { "t": "escala", "f": 2, "paso": 4 },
+          { "t": "tic", "f": 52 },
+          { "t": "subida", "f": 90, "a": 135 },
+          { "t": "golpe", "f": 135 },
+          { "t": "tic", "f": 171 }, { "t": "pop", "f": 231, "m": 72 }, { "t": "pop", "f": 247, "m": 76 },
+          { "t": "golpe", "f": 307, "g": 0.9 }, { "t": "tic", "f": 313 },
+          { "t": "pop", "f": 426, "m": 69 }, { "t": "tic", "f": 528 },
+          { "t": "escala", "f": 615, "paso": 4, "g": 0.7 },
+          { "t": "tic", "f": 700 }, { "t": "pop", "f": 750, "m": 64 }, { "t": "golpe", "f": 776, "g": 0.7 },
+          { "t": "golpe", "f": 855, "g": 0.8 }, { "t": "escala", "f": 860, "paso": 5, "m": 12, "g": 0.6 }
+        ]
+      }
     }
   ]
 }

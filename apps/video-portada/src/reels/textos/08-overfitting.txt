@@ -1,0 +1,12 @@
+¿Más epochs = modelo más listo? Turbo cree que sí. 🐹
+
+Una epoch es una vuelta completa a tus datos de entrenamiento. Al principio, cada vuelta ayuda: el error (la loss) baja en entrenamiento y también en validación, que son datos que el modelo nunca vio.
+
+Pero pasado cierto punto, el modelo deja de aprender y empieza a memorizar. La loss de entrenamiento sigue bajando, y la de validación sube. Eso es overfitting (sobreajuste): como aprenderte las respuestas del examen de práctica y reprobar el de verdad.
+
+La solución se llama early stopping: si la validación lleva varias epochs sin mejorar (a esa espera se le llama patience), paras y te quedas con el mejor modelo.
+
+Esto y más, explicado desde cero en trueml.app. Gratis · sin cuenta · en español.
+👉 Link en la bio
+
+#MachineLearning #IAenEspañol #Overfitting #DeepLearning #EarlyStopping #AprendeIA #InteligenciaArtificial #Programación

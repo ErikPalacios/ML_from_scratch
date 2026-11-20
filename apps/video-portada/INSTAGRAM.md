@@ -116,6 +116,12 @@ Nada de «¡Descubre!», «¡No te lo pierdas!» ni tono de venta.
 
 (Se llena con el usuario. Formato: tema · gancho · cifra memorable · herramienta de TrueML que se menciona al final.)
 
+- Clases desbalanceadas · «Cuando tu modelo de fraude tiene 99 % de accuracy 😎» · 99 % de accuracy y 0 fraudes
+  atrapados · TrueML (Sensei).
+- Evaluar con los datos de entrenamiento · «Cuando tu modelo saca 100 % a la primera» · un árbol sin límite de
+  profundidad memoriza casi todo el entrenamiento · TrueML (Sensei).
+- (Hecho: 08 · overfitting / early stopping, el debut de Turbo.)
+
 ## 8. Gustos y humor del usuario (el registro que permite pasar de etapa)
 
 Después de cada pieza, Claude anota aquí lo que el usuario cambió, eligió o rechazó **y por qué**, en una línea con
@@ -153,6 +159,13 @@ fecha. Esta sección es lo que más importa para trabajar solo más adelante: se
 - 2026-11-19 · Diseños de cuerpo entero: de frente (`turbo-cuerpo.mjs`) y de espaldas (`turbo-espalda.mjs`), en la
   hoja `turbo-hoja.svg`. Pidió que **de espaldas se le vean unas nalguitas** redondas con su colita → le gusta el
   humor tierno y un poco tonto del personaje (sirve para gags: Turbo se va corriendo, se agacha, mueve la colita).
+- 2026-11-20 · **La personalidad de Turbo:** súper tierno por fuera, **grosero y de «voz gruesa»** por dentro. Ese
+  contraste es el chiste. Como no hay voz, la voz gruesa se hace con sus burbujas: negras, con borde blanco grueso, en
+  mayúsculas pesadas y con un temblor al aparecer. Las groserías van con símbolos («¿¡#@$%&!?»), nunca con palabrotas
+  escritas, y las frases son de neutro a seco («No me discutas», «Nadie te preguntó, pato», «Me voy. No me hablen»).
+  Debug, en cambio, habla en burbujas claras y tranquilas.
+- 2026-11-20 · El usuario se cansó de elegir ideas y dijo «dale lo que se te ocurra». Para el primer reel, Claude
+  escogió la idea y el guion. Lo que se apruebe o corrija se anota abajo.
 - Compañero propuesto: un **patito de hule** (*rubber duck debugging*) que sabe y explica; con burbujas de texto.
 - 2026-11-19 · Es **el que la riega**: comete el error que el espectador ya cometió. Alguien más (o el texto) explica
   lo correcto.
@@ -161,3 +174,6 @@ fecha. Esta sección es lo que más importa para trabajar solo más adelante: se
 **Registro por pieza:**
 
 <!-- AAAA-MM-DD · <pieza> · lo que se cambió → lo que eso dice de sus gustos -->
+- 2026-11-20 · 08-overfitting (debut de Turbo) · le encantó tal cual. Pidió dos cosas para lo que sigue:
+  **sonidos para los movimientos de Turbo** y, si se puede, **voz** (ElevenLabs) → quiere que el personaje se sienta
+  más vivo. La voz cambia la regla de «sin voz». Las burbujas se quedan como subtítulos.
