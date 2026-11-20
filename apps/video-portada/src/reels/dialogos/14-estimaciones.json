@@ -1,0 +1,76 @@
+{
+  "nota": "Lo que se dice en el reel 14 (la cuenta rápida: cuántos servidores para 1 millón de requests al día). «debug» es el narrador; «turbo» habla chillón. El texto es para la voz; lo que se lee en pantalla está en Estimaciones.tsx. «velDebug» acelera la voz de Debug solo en este reel (por defecto 1.1).",
+  "lineas": [
+    {
+      "id": "n1",
+      "quien": "debug",
+      "texto": "Cuando en la entrevista te preguntan: un millón de requests al día, ¿cuántos servidores necesitas?"
+    },
+    {
+      "id": "t1",
+      "quien": "turbo",
+      "texto": "¡Muchos, obvio!"
+    },
+    {
+      "id": "d1",
+      "quien": "debug",
+      "texto": "¿Cuántos son muchos?"
+    },
+    {
+      "id": "t2",
+      "quien": "turbo",
+      "texto": "¿Más de tres?"
+    },
+    {
+      "id": "n2",
+      "quien": "debug",
+      "texto": "Lo que debiste responder: una cuenta rápida. Un día tiene ochenta y seis mil cuatrocientos segundos."
+    },
+    {
+      "id": "t3",
+      "quien": "turbo",
+      "texto": "¿Matemáticas? ¿En una entrevista?"
+    },
+    {
+      "id": "n3",
+      "quien": "debug",
+      "texto": "Un millón entre eso: unas doce requests por segundo, en promedio."
+    },
+    {
+      "id": "n4",
+      "quien": "debug",
+      "texto": "Pero no llegan parejas. En la hora pico, supón el triple: treinta y seis por segundo."
+    },
+    {
+      "id": "n5",
+      "quien": "debug",
+      "texto": "Si tu modelo tarda cien milisegundos, un servidor atiende diez por segundo. Necesitas cuatro."
+    },
+    {
+      "id": "n6",
+      "quien": "debug",
+      "texto": "Y uno de repuesto, por si alguno se cae. Cinco servidores."
+    },
+    {
+      "id": "t4",
+      "quien": "turbo",
+      "texto": "¡Eso mismo calculé yo! ¡Al tanteo!"
+    },
+    {
+      "id": "d2",
+      "quien": "debug",
+      "texto": "Dijiste «muchos»."
+    },
+    {
+      "id": "t5",
+      "quien": "turbo",
+      "texto": "¡Pues cinco son muchos!"
+    },
+    {
+      "id": "n7",
+      "quien": "debug",
+      "texto": "Estas cuentas, en la hoja de estimaciones de tru eme ele punto app."
+    }
+  ],
+  "velDebug": 1.2
+}
