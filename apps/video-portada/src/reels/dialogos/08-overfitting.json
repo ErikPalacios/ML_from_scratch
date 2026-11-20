@@ -1,0 +1,75 @@
+{
+  "nota": "Lo que se dice en el reel 08. «debug» es el narrador; «turbo» habla chillón (al procesarla su voz sube ~4 semitonos y va 1.3× más rápido; Debug va 1.1× más rápido). El texto es para la voz; lo que se lee en pantalla está en Overfitting.tsx.",
+  "lineas": [
+    {
+      "id": "n1",
+      "quien": "debug",
+      "texto": "Cuando entrenas quinientas epochs para que tu modelo aprenda más..."
+    },
+    {
+      "id": "t1",
+      "quien": "turbo",
+      "texto": "¡Más vueltas, más listo! ¡No me discutas!"
+    },
+    {
+      "id": "n2",
+      "quien": "debug",
+      "texto": "La pérdida es qué tanto se equivoca el modelo. Más bajo, mejor."
+    },
+    {
+      "id": "t2",
+      "quien": "turbo",
+      "texto": "¿Ves? ¡Baja y baja! ¡Soy una bestia!"
+    },
+    {
+      "id": "d1",
+      "quien": "debug",
+      "texto": "¿Y la de validación? Son datos que el modelo nunca vio."
+    },
+    {
+      "id": "t3",
+      "quien": "turbo",
+      "texto": "¡¿Quéééé?!"
+    },
+    {
+      "id": "n3",
+      "quien": "debug",
+      "texto": "Pasado cierto punto, el modelo deja de aprender y empieza a memorizar."
+    },
+    {
+      "id": "n4",
+      "quien": "debug",
+      "texto": "Como memorizar el examen de práctica y reprobar el de verdad. Eso es overfitting."
+    },
+    {
+      "id": "t4",
+      "quien": "turbo",
+      "texto": "Nadie te preguntó, pato."
+    },
+    {
+      "id": "n5",
+      "quien": "debug",
+      "texto": "La solución: early stopping. Si la validación deja de mejorar, paras y te quedas con el mejor modelo."
+    },
+    {
+      "id": "t5",
+      "quien": "turbo",
+      "texto": "¿O sea que corrí trescientas ochenta epochs de más?"
+    },
+    {
+      "id": "d2",
+      "quien": "debug",
+      "texto": "Sí."
+    },
+    {
+      "id": "t6",
+      "quien": "turbo",
+      "texto": "¡Me voy! ¡No me hablen!"
+    },
+    {
+      "id": "n6",
+      "quien": "debug",
+      "texto": "Esto y más, en tru eme ele punto app."
+    }
+  ]
+}

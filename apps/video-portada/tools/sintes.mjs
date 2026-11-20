@@ -116,5 +116,10 @@ export function mezcla(DUR) {
     execFileSync('ffmpeg', ['-loglevel', 'error', '-y', '-i', crudo, '-af', 'loudnorm=I=-14:TP=-1.5:LRA=11', '-ar', String(SR), final]);
   };
 
-  return { musica, nota, whoosh, golpe, subida, pop, tic, escribir };
+  // efectos de caricatura para Turbo
+  const pasito = (t0, g = 1, pan = 0) => { let ph = 0; suma(t0, 0.06, (i, t) => { ph += (1700 - 9000 * t) / SR; return Math.sin(2 * Math.PI * ph) * Math.exp(-t * 70) * 0.09 * g; }, pan, 0.1); };
+  const rechinido = (t0, g = 1) => { let ph = 0; suma(t0, 0.16, (i, t) => { ph += (2300 + 260 * Math.sin(2 * Math.PI * 38 * t)) / SR; return Math.sin(2 * Math.PI * ph) * Math.sin(Math.PI * t / 0.16) * 0.035 * g; }, 0.35, 0.3); };
+  const boing = (t0, g = 1, pan = 0) => { let ph = 0; suma(t0, 0.45, (i, t) => { ph += (170 + 260 * Math.min(1, t * 5) + 25 * Math.sin(2 * Math.PI * 13 * t)) / SR; return Math.sin(2 * Math.PI * ph) * Math.exp(-t * 6) * 0.2 * g; }, pan, 0.25); };
+  const caida = (t0, g = 1) => { let ph = 0; suma(t0, 0.4, (i, t) => { ph += (1900 * Math.exp(-t * 3.5)) / SR; return Math.sin(2 * Math.PI * ph) * Math.min(1, t * 80) * Math.exp(-t * 2) * 0.08 * g; }, 0, 0.3); };
+  return { musica, nota, whoosh, golpe, subida, pop, tic, pasito, rechinido, boing, caida, escribir };
 }

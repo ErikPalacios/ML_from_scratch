@@ -2,5 +2,8 @@ out/
 public/capturas/
 public/sonido.wav
 public/sonido-crudo.wav
-public/reels/
+# los audios de los reels se generan; las voces (mp3 de ElevenLabs) sí se guardan porque cuestan créditos
+public/reels/*
+!public/reels/voz/
+public/reels/voz/**/*.wav
 public/tutoriales/

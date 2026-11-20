@@ -21,7 +21,7 @@ export const reel = (id: string) => {
 export const duracion = (id: string) => reel(id).escenas.reduce((s, e) => s + e.dur, 0);
 
 /** El reel completo: las escenas en fila, el barrido al entrar a las que lo piden y la pista. */
-export const Reel: React.FC<{ id: string; escenas: Escenas; sonido?: boolean }> = ({ id, escenas, sonido = true }) => {
+export const Reel: React.FC<{ id: string; escenas: Escenas; sonido?: boolean; volMusica?: number }> = ({ id, escenas, sonido = true, volMusica = 1 }) => {
   const r = reel(id);
   let t = 0;
   const piezas: React.ReactNode[] = [];
@@ -34,7 +34,7 @@ export const Reel: React.FC<{ id: string; escenas: Escenas; sonido?: boolean }> 
   return (
     <AbsoluteFill style={{ background: C.bg }}>
       {piezas}
-      {sonido && <Audio src={staticFile(`reels/${id}.wav`)} />}
+      {sonido && <Audio src={staticFile(`reels/${id}.wav`)} volume={volMusica} />}
     </AbsoluteFill>
   );
 };

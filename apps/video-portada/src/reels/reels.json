@@ -131,26 +131,28 @@
     {
       "id": "08-overfitting",
       "escenas": [
-        { "id": "gancho", "dur": 135 },
-        { "id": "grafica", "dur": 225, "barrido": true },
-        { "id": "explica", "dur": 240, "barrido": true },
-        { "id": "solucion", "dur": 255, "barrido": true },
-        { "id": "cierre", "dur": 150, "barrido": true }
+        { "id": "gancho", "dur": 215 },
+        { "id": "grafica", "dur": 441, "barrido": true },
+        { "id": "explica", "dur": 350, "barrido": true },
+        { "id": "solucion", "dur": 425, "barrido": true },
+        { "id": "cierre", "dur": 135, "barrido": true }
       ],
-      "portada": 320,
+      "portada": 596,
       "sonido": {
-        "drop": 135, "hat": 360,
+        "drop": 215, "hat": 656,
         "eventos": [
-          { "t": "escala", "f": 2, "paso": 4 },
-          { "t": "tic", "f": 52 },
-          { "t": "subida", "f": 90, "a": 135 },
-          { "t": "golpe", "f": 135 },
-          { "t": "tic", "f": 171 }, { "t": "pop", "f": 231, "m": 72 }, { "t": "pop", "f": 247, "m": 76 },
-          { "t": "golpe", "f": 307, "g": 0.9 }, { "t": "tic", "f": 313 },
-          { "t": "pop", "f": 426, "m": 69 }, { "t": "tic", "f": 528 },
-          { "t": "escala", "f": 615, "paso": 4, "g": 0.7 },
-          { "t": "tic", "f": 700 }, { "t": "pop", "f": 750, "m": 64 }, { "t": "golpe", "f": 776, "g": 0.7 },
-          { "t": "golpe", "f": 855, "g": 0.8 }, { "t": "escala", "f": 860, "paso": 5, "m": 12, "g": 0.6 }
+          { "t": "pasos", "f": 0, "a": 586, "cada": 4, "g": 0.8 },
+          { "t": "rueda", "f": 0, "a": 586, "cada": 22 },
+          { "t": "subida", "f": 175, "a": 215, "g": 0.4 },
+          { "t": "golpe", "f": 215, "g": 0.6 },
+          { "t": "boing", "f": 461, "g": 0.5 },
+          { "t": "caida", "f": 584 }, { "t": "golpe", "f": 586, "g": 0.9 },
+          { "t": "tic", "f": 952, "g": 0.6 },
+          { "t": "pop", "f": 1031, "m": 76 },
+          { "t": "golpe", "f": 1324, "g": 0.6 },
+          { "t": "pasos", "f": 1378, "a": 1431, "cada": 5 },
+          { "t": "boing", "f": 1381, "g": 0.55 }, { "t": "boing", "f": 1398, "g": 0.55 }, { "t": "boing", "f": 1415, "g": 0.55 },
+          { "t": "golpe", "f": 1431, "g": 0.8 }, { "t": "escala", "f": 1436, "paso": 5, "m": 12, "g": 0.6 }
         ]
       }
     }

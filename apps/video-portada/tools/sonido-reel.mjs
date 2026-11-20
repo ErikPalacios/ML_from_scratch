@@ -44,6 +44,11 @@ for (const reel of R.reels.filter((r) => !pedidos.length || pedidos.includes(r.i
     else if (ev.t === 'baraja') for (let i = 0; i < 9; i++) { M.tic(t0 + s(i * ev.paso), 0.7, -0.4 + i * 0.1); M.pop(t0 + s(i * ev.paso), ESCALA[i % 6] + (i >= 6 ? 12 : 0), 0.45); }
     // el reloj: un tic por segundo, más fuerte cada dos
     else if (ev.t === 'reloj') for (let f = ev.f; f < ev.a; f += 15) M.tic(s(f), (f / 15) % 2 ? 0.5 : 0.9, (f / 15) % 2 ? 0.3 : -0.3);
+    // Turbo: pasitos alternados, el rechinido de la ruedita, el boing (nalgas) y el silbido que cae (susto)
+    else if (ev.t === 'pasos') for (let f = ev.f, k = 0; f < ev.a; f += ev.cada ?? 4, k++) M.pasito(s(f), g * (k % 2 ? 0.8 : 1), k % 2 ? 0.2 : -0.2);
+    else if (ev.t === 'rueda') for (let f = ev.f; f < ev.a; f += ev.cada ?? 22) M.rechinido(s(f), g);
+    else if (ev.t === 'boing') M.boing(t0, g);
+    else if (ev.t === 'caida') M.caida(t0, g);
     else throw new Error(`efecto desconocido: ${ev.t}`);
   }
   // acorde final largo

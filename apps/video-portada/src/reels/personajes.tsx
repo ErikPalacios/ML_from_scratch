@@ -41,10 +41,10 @@ export const Turbo: React.FC<{ cx: number; pies: number; escala: number; pose?: 
   };
 
 /** Debug, el pato. (x, y) = esquina de arriba a la izquierda; mira a la izquierda salvo con `derecha`. */
-export const Debug: React.FC<{ x: number; y: number; escala?: number; ceja?: number; derecha?: boolean }> = ({ x, y, escala = 1, ceja = 0, derecha = false }) => (
+export const Debug: React.FC<{ x: number; y: number; escala?: number; ceja?: number; habla?: number; derecha?: boolean }> = ({ x, y, escala = 1, ceja = 0, habla = 0, derecha = false }) => (
   <svg viewBox="0 0 210 145" width={210 * escala} height={145 * escala}
     style={{ position: 'absolute', left: x, top: y, overflow: 'visible', transform: derecha ? 'scaleX(-1)' : undefined }}
-    dangerouslySetInnerHTML={{ __html: pato({ ceja }) }} />
+    dangerouslySetInnerHTML={{ __html: pato({ ceja, habla }) }} />
 );
 
 /** La ruedita, vista de frente. `ang` gira los peldaños y los rayos. */

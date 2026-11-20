@@ -61,8 +61,17 @@ los botones de Instagram. Para comprobarlo: `tools/hoja-reel.sh out/reels/<id>.m
 `apps/trueml`. Se usan los seis colores de la T y la T de vidrio (`src/marca.ts`), y el cierre de `src/reels/kit.tsx`.
 No se mete el logo donde no encaja.
 
-**Sonido:** música hecha con código (`tools/sonido-reel.mjs`, 120 BPM). Nunca música de terceros. No hay voz: todo va
-con texto en pantalla, y cada texto se tiene que poder leer en el tiempo que dura.
+**Sonido:** música hecha con código (`tools/sonido-reel.mjs`, 120 BPM). Nunca música de terceros. Los efectos de
+Turbo (pasitos, ruedita, boing, caída) también son código (`pasos`, `rueda`, `boing`, `caida` en `reels.json`).
+
+**Voz (desde 2026-11-20, ElevenLabs Starter):** Debug narra y Turbo habla chillón. Flujo:
+1. Las líneas van en `src/reels/dialogos/<id>.json` (`quien`: `debug` o `turbo`).
+2. `node tools/voz.mjs decir <id>` genera los mp3 (se guardan en el repo porque cuestan créditos), los procesa (Turbo
+   +4 semitonos y 1.3× más rápido; Debug 1.1×) y escribe `<id>.tiempos.json` con la duración y el volumen por frame.
+3. En el reel, cada línea tiene su frame de inicio (`VOZ` en el .tsx). Las burbujas duran lo que dura el audio y las
+   bocas se mueven con el volumen. La música va al 30 % (`volMusica`).
+4. Las burbujas y los textos siguen en pantalla como subtítulos: mucha gente ve sin sonido.
+La key está en `apps/video-portada/.env` (fuera del repo). `node tools/voz.mjs creditos` dice cuánto queda.
 
 ## 3. Cómo se hace un reel nuevo
 
@@ -177,3 +186,6 @@ fecha. Esta sección es lo que más importa para trabajar solo más adelante: se
 - 2026-11-20 · 08-overfitting (debut de Turbo) · le encantó tal cual. Pidió dos cosas para lo que sigue:
   **sonidos para los movimientos de Turbo** y, si se puede, **voz** (ElevenLabs) → quiere que el personaje se sienta
   más vivo. La voz cambia la regla de «sin voz». Las burbujas se quedan como subtítulos.
+- 2026-11-20 · Voces (ElevenLabs, `tools/voz.mjs`, ids en `src/reels/voces.json`): **Debug = el narrador**, con voz
+  tranquila de maestro (muestra 1). Para Turbo **rechazó la voz grave**: la quiere **chillona** (aguda, como de
+  ardilla enojada). Lo grosero queda en lo que dice, no en lo grave de la voz.

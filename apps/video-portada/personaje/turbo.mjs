@@ -206,7 +206,7 @@ export const turboEspalda = (o = {}) => `<g id="turboEspalda">
   ${nuca()}
 </g>`;
 
-// ── Debug, el pato de hule. Marco 210×145, mira a la izquierda. ceja: 0 (normal) … 1 (bien levantada).
+// ── Debug, el pato de hule. Marco 210×145, mira a la izquierda. ceja: 0 (normal) … 1 (bien levantada); habla: 0…1 abre el pico.
 export const pato = (o = {}) => {
   const k = o.ceja ?? 0;
   return `<g id="debug">
@@ -215,7 +215,8 @@ export const pato = (o = {}) => {
   <ellipse cx="108" cy="96" rx="68" ry="34" fill="${C.pato}"/>
   <path d="M94 85 Q126 66 150 92 Q122 110 94 98 Z" fill="${C.patoOsc}"/>
   <circle cx="68" cy="46" r="32" fill="${C.pato}"/>
-  <path d="M42 40 Q18 42 8 51 Q22 60 44 57 Z" fill="${C.pico}"/>
+  <path d="M42 38 Q18 40 8 49 L44 50 Z" fill="${C.pico}"/>
+  <path d="M44 50 L9 50 Q22 60 44 58 Z" fill="#D9601C" transform="rotate(${-26 * (o.habla ?? 0)} 44 50)"/>
   <circle cx="59" cy="38" r="5" fill="#14141F"/><circle cx="61" cy="36" r="1.6" fill="#fff"/>
   <path d="M47 ${30 - 8 * k} L69 ${28 - 13 * k}" stroke="#14141F" stroke-width="3.5" stroke-linecap="round" opacity="${k > 0.02 ? 1 : 0}"/>
 </g>`;
