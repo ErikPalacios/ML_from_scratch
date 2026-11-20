@@ -150,6 +150,9 @@ fecha. Esta sección es lo que más importa para trabajar solo más adelante: se
   cian→morado, micrófono en los audífonos, la camiseta corta que deja ver la panza) y es **la referencia oficial**.
   Se rehízo en SVG por capas: `personaje/hamster-2d.mjs` → `hamster-2d.svg`. Lo aprobó tal cual.
 - 2026-11-19 · Nombre elegido: **Turbo** (entre Kernel, Turbo, Bit y Cachetes).
+- 2026-11-19 · Diseños de cuerpo entero: de frente (`turbo-cuerpo.mjs`) y de espaldas (`turbo-espalda.mjs`), en la
+  hoja `turbo-hoja.svg`. Pidió que **de espaldas se le vean unas nalguitas** redondas con su colita → le gusta el
+  humor tierno y un poco tonto del personaje (sirve para gags: Turbo se va corriendo, se agacha, mueve la colita).
 - Compañero propuesto: un **patito de hule** (*rubber duck debugging*) que sabe y explica; con burbujas de texto.
 - 2026-11-19 · Es **el que la riega**: comete el error que el espectador ya cometió. Alguien más (o el texto) explica
   lo correcto.

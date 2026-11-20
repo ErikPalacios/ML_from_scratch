@@ -48,9 +48,8 @@
   <g id="cuerpo">
     <ellipse cx="540" cy="478" rx="196" ry="62" fill="#18203F"/>
     <path d="M346 645 Q330 520 400 470 Q540 440 680 470 Q750 520 736 645 Z" fill="#222C52"/>
+
     <path d="M444 468 Q540 452 636 468 L641 612 Q540 624 440 612 Z" fill="#0B0F1F"/>
-    <path d="M442 606 Q540 622 640 606 L642 648 L440 648 Z" fill="#FBE3C4"/>
-    <ellipse cx="540" cy="632" rx="6" ry="3.5" fill="#D9A27A"/>
     <path d="M440 466 Q428 560 438 648" stroke="#2E3A6A" stroke-width="16" fill="none" stroke-linecap="round"/>
     <path d="M640 466 Q652 560 642 648" stroke="#2E3A6A" stroke-width="16" fill="none" stroke-linecap="round"/>
     <path d="M470 476 Q461 520 465 560" stroke="#C8CEE6" stroke-width="4" fill="none" stroke-linecap="round"/>
@@ -65,8 +64,12 @@
       <rect x="530" y="546" width="22" height="22" rx="3" fill="#EC6A3F"/>
       <rect x="530" y="570" width="22" height="22" rx="3" fill="#E8AE36"/>
     </g>
+
+    <path d="M442 606 Q540 622 640 606 L642 648 L440 648 Z" fill="#FBE3C4"/>
+    <ellipse cx="540" cy="632" rx="6" ry="3.5" fill="#D9A27A"/>
   </g>
 
+  
   <g id="cabeza">
     <g id="orejas">
       <ellipse cx="398" cy="196" rx="46" ry="48" fill="#B96A2E" transform="rotate(-18 398 196)"/><ellipse cx="402" cy="203" rx="29" ry="31" fill="#F2A3A8" transform="rotate(-18 402 203)"/>
@@ -103,6 +106,7 @@
       <ellipse cx="598" cy="402" rx="13" ry="9" fill="#1F2440"/>
     </g>
   </g>
+
 </g>
 
 <g id="escritorio">
