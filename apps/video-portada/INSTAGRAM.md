@@ -32,8 +32,13 @@ largo. Desde ahora cada pieza sigue este orden:
 3. **Cierre corto (2–5 s):** recién aquí aparece TrueML: «Esto y más en trueml.app», gratis, sin cuenta, en español.
 
 Además:
-- **Un personaje recurrente** que explica: **pendiente de definir con el usuario** (nombre, aspecto y voz en texto).
-  Mientras no exista, no se inventa uno: se pregunta.
+- **Un personaje recurrente:** **Turbo**, un **hámster programador** (aprobado el 2026-11-19). Trae sudadera azul marino,
+  camiseta negra corta con la T de TrueML que deja ver la panza, audífonos con micrófono, una energética y la
+  ruedita, y lo acompaña un patito de hule. Él es **el que la riega**. El pato (o el texto) explica lo correcto.
+  No hay voz: todo va en texto. El dibujo oficial es `personaje/hamster-2d.svg`, generado por
+  `personaje/hamster-2d.mjs`, con una capa con `id` para cada parte que se anima. Detalles en §8.
+  Se llama **Turbo** por ironía: corre muchísimo en su ruedita y no llega a ningún lado. El pato se llama **Debug**
+  (es una propuesta que falta confirmar).
 - **Se planea antes de producir:** primero el guion (gancho, 3–5 pasos y cierre) y el usuario lo aprueba. Después
   se hace el render.
 - **Se revisan los datos:** toda cifra o afirmación técnica se comprueba antes de ponerla en pantalla.
@@ -129,6 +134,26 @@ fecha. Esta sección es lo que más importa para trabajar solo más adelante: se
   (ElevenLabs). Eran ejemplos del tono, no ideas concretas.
   → La burla es para la situación (la que el espectador ya vivió), no para una persona ni para los principiantes. La
   burla sirve de gancho, y después viene la explicación: «lo que debiste responder».
+
+**El personaje (en definición):**
+- 2026-11-19 · El estereotipo de un **programador joven** con **un detalle muy contrastante** que lo haga único.
+  Cambio de planes el mismo día: **no es humano, es un animal súper tierno** (un perrito panzón o nalgón, u otro
+  animal original) con todo el estereotipo del programador encima. El contraste es lo tierno contra la sudadera, las
+  ojeras y la energética.
+- 2026-11-19 · Eligió un **hámster cachetón** (sudadera, audífonos, energética, ruedita junto al escritorio; guarda
+  bugs en los cachetes «para después»). El ajolote le gustó, pero lo descartó porque **encierra la marca en lo
+  mexicano** → el personaje y los chistes deben funcionar en cualquier país de habla hispana.
+- 2026-11-19 · Pidió que traiga **camiseta con la T de TrueML** (bajo la sudadera abierta). Aquí la marca sí encaja:
+  va en la ropa del personaje, no como anuncio.
+- 2026-11-19 · Probamos un 3D tipo figurita (three.js, `personaje/hamster-3d.html`). Después el usuario trajo su
+  propio diseño 2D plano (estilo vector, colores suaves, cuarto oscuro con monitores de código, teclado con luz
+  cian→morado, micrófono en los audífonos, la camiseta corta que deja ver la panza) y es **la referencia oficial**.
+  Se rehízo en SVG por capas: `personaje/hamster-2d.mjs` → `hamster-2d.svg`. Lo aprobó tal cual.
+- 2026-11-19 · Nombre elegido: **Turbo** (entre Kernel, Turbo, Bit y Cachetes).
+- Compañero propuesto: un **patito de hule** (*rubber duck debugging*) que sabe y explica; con burbujas de texto.
+- 2026-11-19 · Es **el que la riega**: comete el error que el espectador ya cometió. Alguien más (o el texto) explica
+  lo correcto.
+- 2026-11-19 · **Sin voz por ahora** (nada de ElevenLabs): todo con texto en pantalla.
 
 **Registro por pieza:**
 

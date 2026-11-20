@@ -1,0 +1,11 @@
+import { chromium } from 'playwright';
+const [,, html, out, w='1080', h='1350', view='front'] = process.argv;
+const b = await chromium.launch({ headless: true, executablePath: '/Users/erikpalacios/Library/Caches/ms-playwright/chromium-1248/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing', args: ['--use-angle=metal','--enable-gpu','--ignore-gpu-blocklist'] });
+const p = await b.newPage({ viewport: { width: +w, height: +h } });
+p.on('console', m => console.log('console:', m.text()));
+p.on('pageerror', e => console.log('error:', e.message));
+await p.goto(`file://${html}?w=${w}&h=${h}&view=${view}`);
+await p.waitForFunction(() => window.__listo === true, null, { timeout: 60000 });
+await p.waitForTimeout(300);
+await p.screenshot({ path: out });
+await b.close();

@@ -1,0 +1,182 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Hámster 3D</title>
+<style>html,body{margin:0;background:#0A0F22;overflow:hidden}canvas{display:block}</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script>
+</head><body>
+<script type="module">
+import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+const q = new URLSearchParams(location.search);
+const W = +(q.get('w') || 1080), H = +(q.get('h') || 1350);
+const VIEW = q.get('view') || 'front';
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1);
+renderer.setSize(W, H);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#0A0F22');
+scene.fog = new THREE.Fog('#0A0F22', 16, 30);
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environmentIntensity = 0.55;
+
+const camera = new THREE.PerspectiveCamera(30, W / H, 0.1, 100);
+if (VIEW === 'tres') camera.position.set(6.5, 3.2, 11.5); else if (VIEW === 'cara') camera.position.set(0.3, 1.9, 6.2); else camera.position.set(0.3, 2.4, 11.5);
+if (VIEW === 'cara') camera.lookAt(0, 1.3, 0); else camera.lookAt(0.2, 0.6, 0);
+
+// Luces: llave cálida, relleno frío, contraluces con los colores de TrueML.
+const key = new THREE.DirectionalLight('#fff1e0', 2.1);
+key.position.set(3, 6, 5); key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048); key.shadow.radius = 6; key.shadow.bias = -0.0004;
+Object.assign(key.shadow.camera, { left: -5, right: 5, top: 5, bottom: -5 });
+scene.add(key);
+const fill = new THREE.DirectionalLight('#9fb0ff', 0.7); fill.position.set(-5, 2, 4); scene.add(fill);
+const rimA = new THREE.PointLight('#7A69EE', 30, 12); rimA.position.set(-3, 3.5, -2.5); scene.add(rimA);
+const rimB = new THREE.PointLight('#3D5AFE', 25, 12); rimB.position.set(3.5, 3, -2.5); scene.add(rimB);
+scene.add(new THREE.HemisphereLight('#b8c4ff', '#1a1430', 0.35));
+
+// Materiales
+const fur = (c) => new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.75, sheen: 1, sheenRoughness: 0.5, sheenColor: new THREE.Color('#fff4e6') });
+const cloth = (c) => new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.92, sheen: 0.6, sheenRoughness: 0.8, sheenColor: new THREE.Color('#aab4ff') });
+const plastic = (c, r = 0.25) => new THREE.MeshPhysicalMaterial({ color: c, roughness: r, clearcoat: 1, clearcoatRoughness: 0.15 });
+const M = {
+  pelo: fur('#E3A15E'), peloOsc: fur('#C98245'), crema: fur('#EFD3B4'), rosa: fur('#F2A0A8'),
+  sudadera: cloth('#3A4470'), sudaderaOsc: cloth('#2C3560'), camiseta: cloth('#10162F'),
+  ojo: plastic('#0D0D18', 0.05), blanco: new THREE.MeshBasicMaterial({ color: '#ffffff' }),
+  nariz: plastic('#E07484', 0.3), diente: plastic('#FFFDF7', 0.2), ojera: fur('#6F5BD0'),
+  aud: plastic('#8FA2FF', 0.35), audOsc: plastic('#2A3466', 0.4),
+  laptop: new THREE.MeshPhysicalMaterial({ color: '#5E678C', metalness: 0.55, roughness: 0.35 }),
+  escritorio: new THREE.MeshStandardMaterial({ color: '#1B2450', roughness: 0.6 }),
+  lata: new THREE.MeshPhysicalMaterial({ color: '#17B386', metalness: 0.7, roughness: 0.3, clearcoat: 1 }),
+  metal: new THREE.MeshPhysicalMaterial({ color: '#D7DCEB', metalness: 1, roughness: 0.25 }),
+  pato: plastic('#FFC857', 0.18), patoOsc: plastic('#E8AE36', 0.2), pico: plastic('#EC6A3F', 0.2),
+  rueda: new THREE.MeshPhysicalMaterial({ color: '#3B4680', metalness: 0.5, roughness: 0.35 }),
+};
+const glass = (c) => new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.08, transmission: 0.55, thickness: 0.3, ior: 1.45, emissive: c, emissiveIntensity: 0.35, clearcoat: 1 });
+
+function mesh(geo, mat, pos = [0, 0, 0], scl = [1, 1, 1], rot = [0, 0, 0], parent = scene) {
+  const m = new THREE.Mesh(geo, mat);
+  m.position.set(...pos); m.scale.set(...scl); m.rotation.set(...rot);
+  m.castShadow = true; m.receiveShadow = true; parent.add(m); return m;
+}
+const S = (r = 1) => new THREE.SphereGeometry(r, 64, 48);
+
+// ── Escritorio
+mesh(new RoundedBoxGeometry(9, 0.35, 3.2, 6, 0.12), M.escritorio, [0.5, -0.78, 0.6]);
+const piso = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.ShadowMaterial({ opacity: 0.35 }));
+piso.rotation.x = -Math.PI / 2; piso.position.y = -0.6; piso.receiveShadow = true; scene.add(piso);
+
+// ── Hámster
+const h = new THREE.Group(); h.position.set(0, -0.1, 0); scene.add(h);
+// cuerpo con sudadera
+mesh(S(1), M.sudadera, [0, 0.35, 0], [1.18, 1.08, 1.0], [0, 0, 0], h);
+// camiseta (la sudadera abierta deja ver el pecho)
+mesh(S(1), M.camiseta, [0, 0.42, 0.42], [0.5, 0.72, 0.62], [0, 0, 0], h);
+// bordes de la sudadera abierta
+for (const s of [-1, 1]) mesh(new RoundedBoxGeometry(0.2, 1.05, 0.1, 3, 0.04), M.sudaderaOsc, [s * 0.5, 0.45, 0.88], [1, 1, 1], [0.28, s * 0.35, s * -0.1], h);
+// la T de vidrio en el pecho: tronco (datos, modelo, api) y barra (contenedor, orquestación, monitoreo)
+const tg = new THREE.Group(); tg.position.set(0, 0.5, 1.0); tg.rotation.x = -0.12; h.add(tg);
+const cubo = new RoundedBoxGeometry(0.15, 0.15, 0.08, 3, 0.03);
+[['#E8AE36', 0, -0.17], ['#EC6A3F', 0, 0], ['#17B386', 0, 0.17], ['#3D5AFE', -0.17, 0.34], ['#7A69EE', 0, 0.34], ['#8C95BD', 0.17, 0.34]]
+  .forEach(([c, x, y]) => mesh(cubo, glass(c), [x, y, 0], [1, 1, 1], [0, 0, 0], tg));
+// cordones de la capucha
+for (const s of [-1, 1]) {
+  mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.38, 8), cloth('#E9ECF7'), [s * 0.33, 0.78, 0.97], [1, 1, 1], [0.3, 0, 0], h);
+  mesh(S(0.04), M.metal, [s * 0.33, 0.6, 1.03], [1, 1.5, 1], [0, 0, 0], h);
+}
+// capucha detrás de la cabeza
+mesh(S(1), M.sudaderaOsc, [0, 1.62, -0.28], [1.22, 1.12, 0.95], [0, 0, 0], h);
+
+// cabeza
+const cab = new THREE.Group(); cab.position.set(0, 1.62, 0.12); cab.rotation.set(0.06, -0.08, 0.04); h.add(cab);
+mesh(S(1), M.pelo, [0, 0, 0], [1.12, 0.96, 0.98], [0, 0, 0], cab);
+// orejas
+for (const s of [-1, 1]) {
+  mesh(S(0.36), M.pelo, [s * 0.66, 0.8, -0.05], [1, 1, 0.42], [0, 0, s * -0.3], cab);
+  mesh(S(0.24), M.rosa, [s * 0.66, 0.8, 0.06], [1, 1, 0.3], [0, 0, s * -0.3], cab);
+}
+// cachetes inflados y hocico
+for (const s of [-1, 1]) mesh(S(0.45), M.crema, [s * 0.62, -0.34, 0.52], [1, 0.92, 0.9], [0, 0, 0], cab);
+mesh(S(0.4), M.crema, [0, -0.3, 0.72], [1, 0.82, 0.8], [0, 0, 0], cab);
+for (const s of [-1, 1]) mesh(S(0.15), new THREE.MeshPhysicalMaterial({ color: '#F4A3A8', roughness: 0.9, transparent: true, opacity: 0.75 }), [s * 0.7, -0.32, 0.9], [1.2, 0.6, 0.4], [0, s * 0.5, 0], cab);
+// ojos con brillo
+for (const s of [-1, 1]) {
+  mesh(S(0.16), M.ojo, [s * 0.38, 0.1, 0.84], [1, 1.08, 0.7], [0, 0, 0], cab);
+  mesh(S(0.05), M.blanco, [s * 0.38 + 0.05, 0.17, 0.95], [1, 1, 1], [0, 0, 0], cab);
+  mesh(S(0.022), M.blanco, [s * 0.38 - 0.04, 0.05, 0.96], [1, 1, 1], [0, 0, 0], cab);
+  // ojeras
+  mesh(new THREE.TorusGeometry(0.16, 0.026, 8, 32, Math.PI * 0.7), M.ojera, [s * 0.38, 0.06, 0.93], [1, 0.75, 1], [0.1, s * 0.3, Math.PI + Math.PI * 0.15], cab);
+}
+// nariz, boca, dientes
+mesh(S(0.075), M.nariz, [0, -0.1, 1.06], [1.25, 0.85, 0.9], [0, 0, 0], cab);
+for (const s of [-1, 1]) mesh(new THREE.TorusGeometry(0.07, 0.014, 8, 24, Math.PI), M.peloOsc, [s * 0.07, -0.24, 1.02], [1, 1, 1], [0, 0, Math.PI], cab);
+for (const s of [-1, 1]) mesh(new RoundedBoxGeometry(0.06, 0.1, 0.03, 2, 0.012), M.diente, [s * 0.032, -0.33, 1.01], [1, 1, 1], [-0.25, 0, 0], cab);
+// semillita en la comisura
+// audífonos
+mesh(new THREE.TorusGeometry(1.12, 0.07, 16, 64, Math.PI), M.aud, [0, 0.05, -0.02], [1.02, 1, 1], [0, 0, 0], cab);
+for (const s of [-1, 1]) {
+  mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.2, 40), M.aud, [s * 1.13, 0.02, -0.02], [1, 1, 1.15], [0, 0, Math.PI / 2], cab);
+  mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.06, 40), M.audOsc, [s * 1.25, 0.02, -0.02], [1, 1, 1.15], [0, 0, Math.PI / 2], cab);
+}
+
+// brazos hacia la laptop y patitas
+for (const s of [-1, 1]) {
+  mesh(new THREE.CapsuleGeometry(0.24, 0.55, 12, 24), M.sudadera, [s * 0.78, -0.02, 0.72], [1, 1, 1], [1.15, 0, s * 0.35], h);
+  mesh(S(0.19), M.pelo, [s * 0.62, -0.28, 1.25], [1.1, 0.75, 1.1], [0, 0, 0], h);
+}
+
+// ── Laptop
+const lap = new THREE.Group(); lap.position.set(0, -0.6, 1.25); lap.rotation.y = 0.12; scene.add(lap);
+mesh(new RoundedBoxGeometry(1.9, 0.06, 1.15, 3, 0.025), M.laptop, [0, 0.03, -0.05], [1, 1, 1], [0, 0, 0], lap);
+const tapa = new THREE.Group(); tapa.position.set(0, 0.06, 0.5); tapa.rotation.x = 0.28; lap.add(tapa);
+mesh(new RoundedBoxGeometry(1.9, 0.62, 0.05, 3, 0.025), M.laptop, [0, 0.31, 0], [1, 1, 1], [0, 0, 0], tapa);
+// stickers en la tapa (lado que ve la cámara)
+const st = (geo, c, x, y, rz = 0) => mesh(geo, plastic(c, 0.4), [x, y, 0.03], [1, 1, 1], [Math.PI / 2, 0, rz], tapa);
+st(new THREE.CylinderGeometry(0.12, 0.12, 0.01, 40), '#FFC857', -0.6, 0.36);
+st(new RoundedBoxGeometry(0.3, 0.01, 0.18, 2, 0.004), '#EC6A3F', -0.12, 0.18, 0.2);
+st(new THREE.CylinderGeometry(0.1, 0.1, 0.01, 6), '#17B386', 0.5, 0.42);
+st(new RoundedBoxGeometry(0.18, 0.01, 0.18, 2, 0.004), '#7A69EE', 0.62, 0.16, -0.3);
+st(new THREE.CylinderGeometry(0.07, 0.07, 0.01, 32), '#3D5AFE', 0.15, 0.45);
+// el resplandor de la pantalla le ilumina la cara
+const pantalla = new THREE.PointLight('#9fdcff', 6, 3.5); pantalla.position.set(0, 0.5, 1.0); scene.add(pantalla);
+
+// ── Energética
+const lata = new THREE.Group(); lata.position.set(-1.85, -0.6, 1.1); lata.rotation.y = 0.5; scene.add(lata);
+mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.95, 48), M.lata, [0, 0.48, 0], [1, 1, 1], [0, 0, 0], lata);
+mesh(new THREE.CylinderGeometry(0.24, 0.28, 0.08, 48), M.metal, [0, 0.99, 0], [1, 1, 1], [0, 0, 0], lata);
+const rayo = new THREE.Shape([[0.04, 0.2], [-0.1, -0.02], [0.0, -0.02], [-0.05, -0.2], [0.1, 0.04], [0.0, 0.04]].map(([x, y]) => new THREE.Vector2(x, y)));
+mesh(new THREE.ExtrudeGeometry(rayo, { depth: 0.03, bevelEnabled: false }), plastic('#FFC857', 0.3), [0, 0.5, 0.27], [1.3, 1.3, 1], [0, 0, 0], lata);
+
+// ── Pato de hule (Debug), mirando al hámster con la ceja arriba
+const pato = new THREE.Group(); pato.position.set(1.75, -0.6, 1.15); pato.rotation.y = -2.75; scene.add(pato);
+mesh(S(0.42), M.pato, [0, 0.33, 0], [1.25, 0.82, 1], [0, 0, 0], pato);
+mesh(S(0.2), M.pato, [-0.48, 0.48, 0], [1, 0.8, 0.6], [0, 0, 0.6], pato);
+mesh(S(0.22), M.patoOsc, [0.05, 0.35, 0.32], [1.1, 0.6, 0.4], [0, 0, 0.1], pato);
+mesh(S(0.27), M.pato, [0.36, 0.78, 0], [1, 1, 1], [0, 0, 0], pato);
+mesh(S(0.12), M.pico, [0.62, 0.72, 0], [1.3, 0.45, 0.9], [0, 0, -0.1], pato);
+for (const s of [-1, 1]) {
+  mesh(S(0.045), M.ojo, [0.53, 0.86, s * 0.14], [1, 1.2, 1], [0, 0, 0], pato);
+  mesh(new RoundedBoxGeometry(0.14, 0.03, 0.03, 2, 0.01), M.ojo, [0.53, 0.98 + (s > 0 ? 0.04 : 0), s * 0.15], [1, 1, 1], [0, 0, s > 0 ? 0.35 : -0.05], pato);
+}
+
+// ── Ruedita al fondo
+const rueda = new THREE.Group(); rueda.position.set(3.6, 1.0, -1.6); rueda.rotation.y = -0.45; scene.add(rueda);
+mesh(new THREE.TorusGeometry(1.25, 0.06, 16, 96), M.rueda, [0, 0, 0], [1, 1, 1], [0, 0, 0], rueda);
+mesh(new THREE.TorusGeometry(1.25, 0.06, 16, 96), M.rueda, [0, 0, -0.7], [1, 1, 1], [0, 0, 0], rueda);
+for (let i = 0; i < 28; i++) { const a = (i / 28) * Math.PI * 2; mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.7, 8), M.rueda, [Math.cos(a) * 1.25, Math.sin(a) * 1.25, -0.35], [1, 1, 1], [Math.PI / 2, 0, 0], rueda); }
+for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.25, 8), M.rueda, [Math.cos(a) * 0.62, Math.sin(a) * 0.62, -0.7], [1, 1, 1], [0, 0, a + Math.PI / 2], rueda); }
+mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.4, 24), M.metal, [0, 0, -0.85], [1, 1, 1], [Math.PI / 2, 0, 0], rueda);
+for (const s of [-1, 1]) mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.9, 12), M.rueda, [s * 0.5, -0.85, -1.0], [1, 1, 1], [0, 0, s * 0.3], rueda);
+
+renderer.render(scene, camera);
+window.__listo = true;
+</script></body></html>
