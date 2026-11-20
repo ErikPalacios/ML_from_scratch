@@ -1,0 +1,14 @@
+Cuando crees que el vibecoding es suficiente… Turbo entregó una API que ni leyó. 🐹
+
+Vibecoding es pedirle todo el código a la IA y aceptarlo sin leerlo. Funciona, hasta que en la entrevista te dicen «explícame esta línea». La de Turbo era «except Exception: pass»: si algo falla, la API se hace de la vista gorda y responde 200… con nada. No funcionaba: escondía los errores.
+
+La IA escribe el código, pero leerlo, depurarlo y explicarlo te toca a ti. Y en la entrevista en vivo no hay IA. Tres cosas que sí hay que saber:
+
+1. Leer el error de abajo hacia arriba. En un traceback de Python, la última línea dice qué falló (KeyError: 99) y la de arriba, dónde.
+2. Poder explicar cada línea. Si no sabes qué hace, no la entregues.
+3. Escribir un test. Tres líneas que piden un id que no existe y esperan un 404 habrían atrapado este bug antes de la entrevista.
+
+Leer, depurar y explicar, paso a paso, en trueml.app. Gratis · sin cuenta · en español.
+👉 Link en la bio
+
+#MachineLearning #IAenEspañol #Vibecoding #Python #Debugging #Testing #EntrevistaDeTrabajo #AprendeIA #Programación

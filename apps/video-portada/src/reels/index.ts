@@ -10,6 +10,7 @@ import { ReelHojas } from './Hojas';
 import { ReelOverfitting } from './Overfitting';
 import { ReelLaT } from './LaT';
 import { ReelPresume99 } from './Presume99';
+import { ReelVibecoding } from './Vibecoding';
 
 const lista: [string, React.FC<{ sonido?: boolean }>][] = [
   ['02-transformer', ReelTransformer],
@@ -21,5 +22,6 @@ const lista: [string, React.FC<{ sonido?: boolean }>][] = [
   ['08-overfitting', ReelOverfitting],
   ['09-la-t', ReelLaT],
   ['10-presume-99', ReelPresume99],
+  ['11-vibecoding', ReelVibecoding],
 ];
 export const REELS = lista.map(([id, componente]) => ({ id, componente, dur: duracion(id) }));
