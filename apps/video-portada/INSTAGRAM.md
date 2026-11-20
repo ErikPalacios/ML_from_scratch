@@ -45,6 +45,12 @@ Además:
 - **Las palabras:** español sencillo, con los términos técnicos en inglés cuando así se usan («embedding»,
   «batch»). Cada concepto se define la primera vez que aparece.
 
+## 1.1 El perfil (elegido el 2026-11-20)
+
+- **Nombre:** `TrueML · ML en español` · **Link:** https://trueml.app · **Categoría:** Educación.
+- **Bio (opción C, la que eligió el usuario):**
+  > Aprende machine learning de verdad: teoría, un proyecto completo y práctica de entrevistas. Gratis, sin cuenta, en español 👇
+
 ## 2. Formatos
 
 | Pieza | Tamaño | Duración | Dónde se hace |
@@ -214,3 +220,5 @@ fecha. Esta sección es lo que más importa para trabajar solo más adelante: se
     TheLadders 2018: ~7 s por CV, dataset de fraude con 0.17 %).
   - Para ahorrar créditos se pueden reusar los mp3 que ya dicen lo mismo. Los puntos suspensivos en las líneas de
     Turbo le meten ruidos raros a la voz: mejor evitarlos.
+- 2026-11-20 · **Bio del perfil:** entre tres opciones (una con Turbo y Debug, una burlona y una seria) eligió **la
+  seria**, que dice qué hay en trueml.app → los reels pueden ser chistosos, pero el perfil se presenta en serio.
