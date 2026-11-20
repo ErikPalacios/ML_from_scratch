@@ -1,0 +1,16 @@
+Te piden diseñar un sistema de recomendaciones y lo primero que dices es «un transformer gigante». 🐹 Turbo ya lo intentó.
+
+En una entrevista de diseño de sistemas de ML, el modelo va casi al final. Lo que esperan escuchar, en orden:
+
+1. El problema: ¿qué se recomienda?, ¿a cuántos usuarios?, ¿qué tan rápido debe responder?
+2. La métrica: ¿cómo sabes que funciona? Si solo cuentas clics, ganan los títulos tramposos (clickbait); por eso se mira también cuánto tiempo ven.
+3. Los datos: el historial de quién vio qué, qué terminó y qué le gustó.
+4. El modelo, empezando simple: «lo más visto» es la base que tienes que superar. Y el truco clásico: primero reduces millones de videos a unos cientos de candidatos (rápido), y luego ordenas solo esos con un modelo más fino (ranking).
+5. Cómo lo sirves y cómo lo vigilas: que responda a tiempo y que avise si la métrica baja.
+
+Lo de los dos pasos (candidatos y ranking) viene de un paper famoso de 2016 sobre las recomendaciones de YouTube, «Deep Neural Networks for YouTube Recommendations».
+
+Esta ronda de entrevista se practica en trueml.app (Ronda de Diseño ML). Gratis · sin cuenta · en español.
+👉 Link en la bio
+
+#MLSystemDesign #SystemDesign #EntrevistaTécnica #MachineLearning #IAenEspañol #SistemasDeRecomendación #MLEngineering #AprendeIA
