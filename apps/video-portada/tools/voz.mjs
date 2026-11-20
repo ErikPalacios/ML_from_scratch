@@ -104,7 +104,7 @@ if (cmd === 'creditos') {
   const tiempos = {};
   for (const l of dialogo.lineas) {
     const mp3 = join(dir, `${l.id}.mp3`), wav = join(dir, `${l.id}.wav`);
-    const tono = l.quien === 'turbo' ? 'asetrate=44100*1.25,aresample=44100,atempo=1.05,' : 'atempo=1.1,';
+    const tono = l.quien === 'turbo' ? 'asetrate=44100*1.25,aresample=44100,atempo=1.05,' : `atempo=${dialogo.velDebug ?? 1.1},`;
     execFileSync('ffmpeg', ['-loglevel', 'error', '-y', '-i', mp3, '-af', `${tono}silenceremove=start_periods=1:start_threshold=-45dB,areverse,silenceremove=start_periods=1:start_threshold=-45dB,areverse,loudnorm=I=-16:TP=-1.5`, '-ar', '44100', '-ac', '1', wav]);
     const pcm = execFileSync('ffmpeg', ['-loglevel', 'error', '-i', wav, '-f', 'f32le', '-ac', '1', '-ar', '44100', '-'], { maxBuffer: 1 << 28 });
     const x = new Float32Array(pcm.buffer, pcm.byteOffset, pcm.length / 4);

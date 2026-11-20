@@ -155,6 +155,34 @@
           { "t": "golpe", "f": 1431, "g": 0.8 }, { "t": "escala", "f": 1436, "paso": 5, "m": 12, "g": 0.6 }
         ]
       }
+    },
+    {
+      "id": "09-la-t",
+      "escenas": [
+        { "id": "gancho", "dur": 315 },
+        { "id": "restaurante", "dur": 150, "barrido": true },
+        { "id": "piezas", "dur": 810, "barrido": true },
+        { "id": "remate", "dur": 150, "barrido": true },
+        { "id": "cierre", "dur": 135, "barrido": true }
+      ],
+      "portada": 951,
+      "sonido": {
+        "drop": 315, "hat": 465,
+        "eventos": [
+          { "t": "escala", "f": 120, "paso": 4, "m": 12, "g": 0.45 },
+          { "t": "subida", "f": 285, "a": 315, "g": 0.4 },
+          { "t": "golpe", "f": 315, "g": 0.6 },
+          { "t": "pop", "f": 469, "m": 72, "g": 0.55 },
+          { "t": "pop", "f": 595, "m": 74, "g": 0.55 }, { "t": "boing", "f": 647, "g": 0.5 },
+          { "t": "pop", "f": 671, "m": 76, "g": 0.55 },
+          { "t": "pop", "f": 761, "m": 79, "g": 0.55 }, { "t": "golpe", "f": 941, "g": 0.7 },
+          { "t": "pop", "f": 979, "m": 81, "g": 0.55 }, { "t": "caida", "f": 1029, "g": 0.6 },
+          { "t": "pop", "f": 1121, "m": 84, "g": 0.55 },
+          { "t": "boing", "f": 1283, "g": 0.4 },
+          { "t": "pasos", "f": 1341, "a": 1425, "cada": 4, "g": 0.8 },
+          { "t": "rueda", "f": 1341, "a": 1425, "cada": 14 }
+        ]
+      }
     }
   ]
 }

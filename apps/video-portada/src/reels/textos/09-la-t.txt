@@ -1,0 +1,17 @@
+Tu modelo saca 95 %… ¿y ahora qué? Turbo cree que ya acabó. 🐹
+
+Saber entrenar un modelo es como saber cocinar un platillo: necesario, pero no es tener un restaurante. Para que alguien de verdad use tu modelo faltan cinco piezas más:
+
+1. Datos que sigan llegando, y limpios (no un CSV que bajaste una vez).
+2. El modelo: entrenarlo y evaluarlo. Esta ya la tienes.
+3. Una API (por ejemplo, con FastAPI): la puerta por la que otras apps le mandan datos y reciben la predicción.
+4. Un contenedor (Docker): una caja con el modelo y todo lo que necesita. Adiós al «en mi compu sí funciona».
+5. Orquestación (Kubernetes): muchas copias del servicio y, si una se cae, otra la reemplaza.
+6. Monitoreo (Prometheus y Grafana): el mundo cambia y el modelo empieza a fallar sin avisar. Alguien tiene que vigilarlo.
+
+Hay un paper de Google de 2015 (Hidden Technical Debt in Machine Learning Systems) con un dibujo famoso: el código del modelo es la cajita más pequeña de todo el sistema.
+
+Las seis piezas, paso a paso, en trueml.app. Gratis · sin cuenta · en español.
+👉 Link en la bio
+
+#MachineLearning #IAenEspañol #MLOps #Docker #Kubernetes #FastAPI #AprendeIA #InteligenciaArtificial #Programación

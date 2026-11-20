@@ -67,7 +67,7 @@ Turbo (pasitos, ruedita, boing, caída) también son código (`pasos`, `rueda`, 
 **Voz (desde 2026-11-20, ElevenLabs Starter):** Debug narra y Turbo habla chillón. Flujo:
 1. Las líneas van en `src/reels/dialogos/<id>.json` (`quien`: `debug` o `turbo`).
 2. `node tools/voz.mjs decir <id>` genera los mp3 (se guardan en el repo porque cuestan créditos), los procesa (Turbo
-   +4 semitonos y 1.3× más rápido; Debug 1.1×) y escribe `<id>.tiempos.json` con la duración y el volumen por frame.
+   +4 semitonos y 1.3× más rápido; Debug 1.1×, o lo que diga `velDebug` en el .json si el reel queda largo) y escribe `<id>.tiempos.json` con la duración y el volumen por frame.
 3. En el reel, cada línea tiene su frame de inicio (`VOZ` en el .tsx). Las burbujas duran lo que dura el audio y las
    bocas se mueven con el volumen. La música va al 30 % (`volMusica`).
 4. Las burbujas y los textos siguen en pantalla como subtítulos: mucha gente ve sin sonido.
@@ -130,6 +130,7 @@ Nada de «¡Descubre!», «¡No te lo pierdas!» ni tono de venta.
 - Evaluar con los datos de entrenamiento · «Cuando tu modelo saca 100 % a la primera» · un árbol sin límite de
   profundidad memoriza casi todo el entrenamiento · TrueML (Sensei).
 - (Hecho: 08 · overfitting / early stopping, el debut de Turbo.)
+- (Hecho: 09 · la T: entrenar el modelo es solo 1 de las 6 piezas; analogía del platillo y el restaurante.)
 
 ## 8. Gustos y humor del usuario (el registro que permite pasar de etapa)
 
@@ -189,3 +190,7 @@ fecha. Esta sección es lo que más importa para trabajar solo más adelante: se
 - 2026-11-20 · Voces (ElevenLabs, `tools/voz.mjs`, ids en `src/reels/voces.json`): **Debug = el narrador**, con voz
   tranquila de maestro (muestra 1). Para Turbo **rechazó la voz grave**: la quiere **chillona** (aguda, como de
   ardilla enojada). Lo grosero queda en lo que dice, no en lo grave de la voz.
+- 2026-11-20 · 09-la-t (entrenar es 1 pieza de 6; platillo vs. restaurante) · el usuario dio el tema y Claude propuso
+  tres ganchos; eligió el de «Cuando tu modelo saca 95 % y ya te crees ML Engineer» y lo aprobó **tal cual**, sin
+  cambios. Para que quepa (52 s) se recortaron frases de la voz y Debug fue a 1.15× → le gusta el formato «Cuando…»
+  con un remate tonto de Turbo (la ruedita: corre mucho y no llega).

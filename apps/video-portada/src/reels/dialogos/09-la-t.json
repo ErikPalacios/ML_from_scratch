@@ -1,0 +1,91 @@
+{
+  "nota": "Lo que se dice en el reel 09 (entrenar el modelo es solo una de las seis piezas de la T). «debug» es el narrador; «turbo» habla chillón. El texto es para la voz; lo que se lee en pantalla está en LaT.tsx. «velDebug» acelera la voz de Debug solo en este reel (por defecto 1.1).",
+  "lineas": [
+    {
+      "id": "n1",
+      "quien": "debug",
+      "texto": "Cuando tu modelo saca noventa y cinco por ciento, y ya te crees experto..."
+    },
+    {
+      "id": "t1",
+      "quien": "turbo",
+      "texto": "¡Noventa y cinco por ciento! ¡Contrátenme!"
+    },
+    {
+      "id": "d1",
+      "quien": "debug",
+      "texto": "Bien. ¿Y cómo lo usa alguien?"
+    },
+    {
+      "id": "t2",
+      "quien": "turbo",
+      "texto": "¿Le... le mando el notebook?"
+    },
+    {
+      "id": "n2",
+      "quien": "debug",
+      "texto": "Cocinar el platillo no es tener un restaurante. Entrenar es una pieza de seis."
+    },
+    {
+      "id": "n3",
+      "quien": "debug",
+      "texto": "Datos: que sigan llegando limpios, no un CSV de una vez."
+    },
+    {
+      "id": "n4",
+      "quien": "debug",
+      "texto": "Modelo: esto ya lo tienes."
+    },
+    {
+      "id": "t3",
+      "quien": "turbo",
+      "texto": "¡Obvio!"
+    },
+    {
+      "id": "n5",
+      "quien": "debug",
+      "texto": "API: la puerta para que otras apps lo usen."
+    },
+    {
+      "id": "n6",
+      "quien": "debug",
+      "texto": "Contenedor: una caja con todo lo que necesita. Adiós al «en mi compu sí funciona»."
+    },
+    {
+      "id": "t4",
+      "quien": "turbo",
+      "texto": "¡¿Qué?!"
+    },
+    {
+      "id": "n7",
+      "quien": "debug",
+      "texto": "Orquestación: muchas copias; si una se cae, otra la reemplaza."
+    },
+    {
+      "id": "n8",
+      "quien": "debug",
+      "texto": "Monitoreo: el mundo cambia, y tu modelo empieza a fallar sin avisar."
+    },
+    {
+      "id": "t5",
+      "quien": "turbo",
+      "texto": "¿Me faltan CINCO?"
+    },
+    {
+      "id": "d2",
+      "quien": "debug",
+      "texto": "Sí."
+    },
+    {
+      "id": "t6",
+      "quien": "turbo",
+      "texto": "¡Ya casi llego!"
+    },
+    {
+      "id": "n9",
+      "quien": "debug",
+      "texto": "Las seis, paso a paso, en tru eme ele punto app."
+    }
+  ],
+  "velDebug": 1.15
+}
