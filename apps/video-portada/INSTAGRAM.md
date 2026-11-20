@@ -122,8 +122,13 @@ fecha. Esta sección es lo que más importa para trabajar solo más adelante: se
 - Cifras que se recuerden y lenguaje sencillo, sin perder los conceptos.
 - Diseño TrueML (Dojo): el logo solo donde encaja, nunca forzado.
 
-**El humor:** por descubrir. (¿Ironía, juegos de palabras, memes de programadores, situaciones de entrevista,
-referencias mexicanas…? Se anota lo que funcione y lo que no.)
+**El humor:** se sigue descubriendo. Lo que ya se sabe:
+- 2026-11-19 · Le gustan los videos que **se burlan un poquito** de situaciones del gremio, en formato «Cuando…»:
+  «Fuiste a una entrevista y no pudiste responder nada (Kubernetes, Docker…)», «Cuando crees que el vibecoding es
+  suficiente». Se imagina **un monito** y a todos riéndose en un **ambiente negro**, o una escena actuada con voces
+  (ElevenLabs). Eran ejemplos del tono, no ideas concretas.
+  → La burla es para la situación (la que el espectador ya vivió), no para una persona ni para los principiantes. La
+  burla sirve de gancho, y después viene la explicación: «lo que debiste responder».
 
 **Registro por pieza:**
 
