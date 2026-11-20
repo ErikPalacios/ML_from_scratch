@@ -1,0 +1,19 @@
+{
+  "nota": "Lo que se dice en el reel 11 (el vibecoding no basta: la IA escribe el código, pero leerlo, depurarlo y explicarlo te toca a ti). «debug» es el narrador; «turbo» habla chillón. La IA no tiene voz: sus mensajes solo se leen. El texto es para la voz; lo que se lee en pantalla está en Vibecoding.tsx.",
+  "lineas": [
+    { "id": "n1", "quien": "debug", "texto": "Cuando crees que el vibecoding es suficiente..." },
+    { "id": "t1", "quien": "turbo", "texto": "¡Ni la leí, y funciona! ¡Contrátenme!" },
+    { "id": "n2", "quien": "debug", "texto": "En la entrevista: explícame esta línea." },
+    { "id": "t2", "quien": "turbo", "texto": "Eh... ¿es decoración?" },
+    { "id": "n3", "quien": "debug", "texto": "Se traga cualquier error en silencio. Tu API no funcionaba: escondía los errores." },
+    { "id": "t3", "quien": "turbo", "texto": "¡¿Qué?!" },
+    { "id": "n4", "quien": "debug", "texto": "Lo que debiste saber: la IA escribe el código, pero leerlo, depurarlo y explicarlo te toca a ti." },
+    { "id": "n5", "quien": "debug", "texto": "Uno: lee el error de abajo hacia arriba. La última línea dice qué falló." },
+    { "id": "n6", "quien": "debug", "texto": "Dos: si no puedes explicar una línea, no la entregues." },
+    { "id": "n7", "quien": "debug", "texto": "Tres: escribe un test. Tres líneas habrían atrapado este bug." },
+    { "id": "t4", "quien": "turbo", "texto": "¡Bah! ¡IA, arregla mi API!" },
+    { "id": "t5", "quien": "turbo", "texto": "¡Deja de pedir perdón!" },
+    { "id": "n8", "quien": "debug", "texto": "Leer, depurar y explicar, paso a paso, en tru eme ele punto app." }
+  ],
+  "velDebug": 1.15
+}
