@@ -141,6 +141,9 @@ Nada de «¡Descubre!», «¡No te lo pierdas!» ni tono de venta.
   (baseline y recall) · 11 · el vibecoding no basta (`except: pass`, traceback, un test) · 12 · diseño de sistemas, el
   modelo va casi al final · 13 · Docker vs Kubernetes en el CV (la caja y el timonel) · 14 · estimaciones, «muchos»
   servidores = 5 · 15 · el portafolio de 5 notebooks del Titanic.)
+- (Hecho, lote del 2026-11-21, una noticia y sus secuelas: 16 · llaves de API en el bundle (`VITE_`, 212 intentos a
+  `/.env`, prueba de 5 minutos) · Dojo · 17 · qué es un token y por qué te lo cobran (≈2 × parámetros por token) ·
+  Laboratorio Transformer · 18 · ViT, una foto = 196 palabras · Atlas.)
 
 ## 8. Gustos y humor del usuario (el registro que permite pasar de etapa)
 
@@ -222,3 +225,22 @@ fecha. Esta sección es lo que más importa para trabajar solo más adelante: se
     Turbo le meten ruidos raros a la voz: mejor evitarlos.
 - 2026-11-20 · **Bio del perfil:** entre tres opciones (una con Turbo y Debug, una burlona y una seria) eligió **la
   seria**, que dice qué hay en trueml.app → los reels pueden ser chistosos, pero el perfil se presenta en serio.
+- 2026-11-21 · **Lote 16–18, a partir de una noticia.** El usuario trajo un post viral: alguien que no es dev hizo
+  una app con IA, sus keys quedaron en el bundle por el prefijo `VITE_` y los bots ya pedían `/.env`. Pidió un reel
+  con la noticia y otros dos que inviten al Laboratorio Transformer y al Atlas, «que no parezca comercial: primero
+  información interesante, después la invitación», y dijo que sacar más de la misma noticia era mejor. Claude eligió
+  los ángulos. Hubo 3 sesiones en paralelo, con los renders en fila (`.claude/render.lock`), y el usuario pidió
+  juntarlos (todavía sin correcciones de fondo):
+  - 16-llaves-filtradas: el bundle explicado como un folleto que recibe cada visitante, y el gag de
+    `VITE_SUPER_SECRETA` («sigue empezando con VITE_»). Al final va la prueba de 5 minutos, para guardar. Las marcas
+    (OpenAI, Stripe, Resend) solo van en el texto. No se usó el «$88,982» del post porque no se puede verificar. Además
+    se corrigió la receta del post: buscar «sk-» no encuentra «sk_live_» → los datos de un post viral se verifican
+    antes de repetirlos. El cierre es el Dojo.
+  - 17-tokens: es secuela del 16, pero se entiende sola. El dato es el chiste: «hámster» = 3 tokens y «hamster» = 1,
+    así que Turbo se cambia el nombre. Las cifras van con su fuente en chiquito en pantalla (Kaplan 2020: ≈2N por
+    token; Petrov 2023: el español gasta ≈1.5× tokens). El cierre del Lab va solo en los últimos 7 s.
+  - 18-atlas-vit: la invitación a una app sin tono de anuncio. La cifra memorable sale del título del paper («una foto
+    = 196 palabras») y la foto es una selfie de Turbo cortada en cuadritos («¡Mi cara!»). El remate se amarra al 16
+    («¡Con mi key! Está en el frontend. ¿Te la paso?») en vez de repetir «¿Eso es un sí? No.».
+  - Patrón que funcionó: **una noticia → un reel principal + secuelas** que llevan el mismo hilo (la key) hacia una
+    herramienta distinta. Debug va a 1.2–1.25×, los tres reels duran 50 s y quedan unos 35k créditos de voz.
