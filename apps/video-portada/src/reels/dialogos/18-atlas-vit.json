@@ -1,0 +1,17 @@
+{
+  "nota": "Lo que se dice en el reel 18 (entrevista de AI Engineer: ¿cómo ve una imagen ViT? Una foto = 196 palabras). «debug» es el narrador; «turbo» habla chillón. El entrevistador no tiene voz: solo escribe en la videollamada. El texto es para la voz; lo que se lee en pantalla está en AtlasVit.tsx.",
+  "lineas": [
+    { "id": "n1", "quien": "debug", "texto": "Cuando toda tu IA es un request con tu key..." },
+    { "id": "t1", "quien": "turbo", "texto": "¡Fácil! ¡Le mando la imagen a la API!" },
+    { "id": "t2", "quien": "turbo", "texto": "¡Ella ve! ¡Yo no!" },
+    { "id": "n2", "quien": "debug", "texto": "Lo que debiste responder: ViT corta la foto en cuadritos de dieciséis por dieciséis." },
+    { "id": "n3", "quien": "debug", "texto": "Una foto de doscientos veinticuatro da catorce por catorce: ciento noventa y seis cuadritos." },
+    { "id": "n4", "quien": "debug", "texto": "Cada cuadrito se aplana en números, y una capa lo vuelve un vector: un token, como una palabra." },
+    { "id": "n5", "quien": "debug", "texto": "Más su posición, y un token extra que resume la imagen: ciento noventa y siete." },
+    { "id": "n6", "quien": "debug", "texto": "Y entran al mismo transformer que lee texto: una foto, ciento noventa y seis palabras." },
+    { "id": "t3", "quien": "turbo", "texto": "¡Ya entendí! ¡Mando ciento noventa y seis requests!" },
+    { "id": "t4", "quien": "turbo", "texto": "¡Con mi key! Está en el frontend. ¿Te la paso?" },
+    { "id": "n7", "quien": "debug", "texto": "ViT, CLIP, SAM y más, en el Atlas de tru eme ele." }
+  ],
+  "velDebug": 1.25
+}

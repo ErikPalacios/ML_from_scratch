@@ -1,0 +1,14 @@
+«¿Cómo ve una imagen un modelo como ViT?» «Le mando la imagen a la API. Ella ve.» Turbo, en su entrevista de AI Engineer. 🐹
+
+Lo que debió responder: ViT (Vision Transformer) no ve la foto entera. La corta en cuadritos de 16×16 pixeles. Una foto de 224×224 da 14×14 = 196 cuadritos.
+
+Cada cuadrito se aplana en una fila de números (16 · 16 · 3 colores = 768) y una capa lo convierte en un vector: un token, como una palabra en una frase. A cada uno se le suma su posición, para que el modelo sepa dónde iba, y al frente se pone un token extra, [CLS], que al final resume toda la imagen. Total: 197 tokens.
+
+Y de ahí, es el mismo transformer que se usa con texto. Por eso el paper original (Dosovitskiy et al., 2020) se llama «An Image is Worth 16x16 Words»: para ViT, una foto son 196 palabras. ViT-B/16 tiene 12 capas y unos 86 millones de parámetros.
+
+(Y no, tu API key no va en el frontend.)
+
+ViT, CLIP, SAM y más, con su diagrama, cada dimensión y la cuenta de parámetros, en el Atlas de Arquitecturas: atlas.trueml.app. Gratis · sin cuenta · en español.
+👉 Link en la bio
+
+#MachineLearning #IAenEspañol #VisionTransformer #ComputerVision #Transformers #DeepLearning #EntrevistaTech #AprendeIA
