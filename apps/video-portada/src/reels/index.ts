@@ -16,6 +16,7 @@ import { ReelDockerKubernetes } from './DockerKubernetes';
 import { ReelEstimaciones } from './Estimaciones';
 import { ReelPortafolio } from './Portafolio';
 import { ReelLlavesFiltradas } from './LlavesFiltradas';
+import { ReelTokens } from './Tokens';
 
 const lista: [string, React.FC<{ sonido?: boolean }>][] = [
   ['02-transformer', ReelTransformer],
@@ -33,5 +34,6 @@ const lista: [string, React.FC<{ sonido?: boolean }>][] = [
   ['14-estimaciones', ReelEstimaciones],
   ['15-portafolio', ReelPortafolio],
   ['16-llaves-filtradas', ReelLlavesFiltradas],
+  ['17-tokens', ReelTokens],
 ];
 export const REELS = lista.map(([id, componente]) => ({ id, componente, dur: duracion(id) }));

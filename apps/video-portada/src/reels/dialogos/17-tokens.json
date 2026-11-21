@@ -1,0 +1,61 @@
+{
+  "nota": "Lo que se dice en el reel 17 (qué es un token y por qué se cobra: cada token recorre todas las capas; ≈ 2 × parámetros operaciones por token). «debug» es el narrador; «turbo» habla chillón. El texto es para la voz; lo que se lee en pantalla está en Tokens.tsx. «efe efe ene» = FFN; «tru eme ele» = TrueML.",
+  "lineas": [
+    {
+      "id": "n1",
+      "quien": "debug",
+      "texto": "A Turbo le robaron su API key. Y la cuenta le llegó por token."
+    },
+    {
+      "id": "t1",
+      "quien": "turbo",
+      "texto": "¿Qué rayos es un token? ¡¿Y por qué lo pago?!"
+    },
+    {
+      "id": "n2",
+      "quien": "debug",
+      "texto": "Un token es un pedazo de texto. Hamster, en inglés: un token. Hámster, en español: tres."
+    },
+    {
+      "id": "t2",
+      "quien": "turbo",
+      "texto": "¡¿Yo cuesto tres?!"
+    },
+    {
+      "id": "n3",
+      "quien": "debug",
+      "texto": "Y el mismo texto, en español, sale como cincuenta por ciento más largo en tokens."
+    },
+    {
+      "id": "n4",
+      "quien": "debug",
+      "texto": "Porque el modelo escribe un token a la vez, y cada uno recorre todas las capas: atención, efe efe ene, una y otra vez."
+    },
+    {
+      "id": "n5",
+      "quien": "debug",
+      "texto": "Regla clásica: dos operaciones por parámetro. Con siete mil millones de parámetros, son catorce mil millones de operaciones por token."
+    },
+    {
+      "id": "t3",
+      "quien": "turbo",
+      "texto": "¡¿Por cada uno?!"
+    },
+    {
+      "id": "t4",
+      "quien": "turbo",
+      "texto": "¡Ya sé! ¡Me cambio el nombre a hamster!"
+    },
+    {
+      "id": "n6",
+      "quien": "debug",
+      "texto": "Mejor ponle un tope de gasto a tu key."
+    },
+    {
+      "id": "n7",
+      "quien": "debug",
+      "texto": "Cada una de esas operaciones, en tu navegador: el Laboratorio Transformer, en tru eme ele punto app."
+    }
+  ],
+  "velDebug": 1.2
+}
