@@ -29,7 +29,7 @@ const VOZ: Record<Voz, number> = {
 };
 // El entrevistador no habla: escribe en el chat de la videollamada.
 const PREGUNTA = 70; // escena 1
-const GRACIAS = 226, SALE = 258; // escena 5
+const GRACIAS = 232, SALE = 264; // escena 5
 
 const fin = (id: Voz) => VOZ[id] + TIEMPOS[id].frames;
 const vol = (id: Voz, f: number) => {

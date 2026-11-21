@@ -244,3 +244,9 @@ fecha. Esta sección es lo que más importa para trabajar solo más adelante: se
     («¡Con mi key! Está en el frontend. ¿Te la paso?») en vez de repetir «¿Eso es un sí? No.».
   - Patrón que funcionó: **una noticia → un reel principal + secuelas** que llevan el mismo hilo (la key) hacia una
     herramienta distinta. Debug va a 1.2–1.25×, los tres reels duran 50 s y quedan unos 35k créditos de voz.
+- 2026-11-21 · 18-atlas-vit · al escucharlo, al usuario **no le gustó que la voz dijera en español las palabras en
+  inglés** (request, key, token, transformer, frontend, ViT). Se regeneraron las líneas con la palabra escrita como
+  suena («ricuést», «qui», «tóquen», «transfórmer», «fróntend», «vit», «clip», «sam»; el reel 16 ya lo hacía con «vit
+  guion bajo» y «guit ignor»). En pantalla se escribe normal → **regla: en el `.json` de diálogos, toda palabra en
+  inglés va escrita como suena, desde el primer borrador.** Las siglas que se dicen como palabra, en minúsculas, para
+  que no las deletree.
