@@ -17,6 +17,7 @@ import { ReelEstimaciones } from './Estimaciones';
 import { ReelPortafolio } from './Portafolio';
 import { ReelLlavesFiltradas } from './LlavesFiltradas';
 import { ReelTokens } from './Tokens';
+import { ReelAtlasVit } from './AtlasVit';
 
 const lista: [string, React.FC<{ sonido?: boolean }>][] = [
   ['02-transformer', ReelTransformer],
@@ -35,5 +36,6 @@ const lista: [string, React.FC<{ sonido?: boolean }>][] = [
   ['15-portafolio', ReelPortafolio],
   ['16-llaves-filtradas', ReelLlavesFiltradas],
   ['17-tokens', ReelTokens],
+  ['18-atlas-vit', ReelAtlasVit],
 ];
 export const REELS = lista.map(([id, componente]) => ({ id, componente, dur: duracion(id) }));

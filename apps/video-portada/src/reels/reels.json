@@ -439,6 +439,32 @@
           { "t": "golpe", "f": 1290, "g": 0.8 }, { "t": "escala", "f": 1295, "paso": 5, "m": 12, "g": 0.6 }
         ]
       }
+    },
+    {
+      "id": "18-atlas-vit",
+      "escenas": [
+        { "id": "gancho", "dur": 270 },
+        { "id": "parches", "dur": 330, "barrido": true },
+        { "id": "tokens", "dur": 300, "barrido": true },
+        { "id": "palabras", "dur": 180, "barrido": true },
+        { "id": "remate", "dur": 285, "barrido": true },
+        { "id": "cierre", "dur": 135, "barrido": true }
+      ],
+      "portada": 560,
+      "sonido": {
+        "drop": 270, "hat": 600,
+        "eventos": [
+          { "t": "pop", "f": 70, "m": 72, "g": 0.5 }, { "t": "boing", "f": 206, "g": 0.45 },
+          { "t": "golpe", "f": 270, "g": 0.6 }, { "t": "tic", "f": 322, "g": 0.5 }, { "t": "tic", "f": 424, "g": 0.6 },
+          { "t": "escala", "f": 458, "paso": 4, "m": 12, "g": 0.45 }, { "t": "golpe", "f": 536, "g": 0.6 },
+          { "t": "golpe", "f": 600, "g": 0.6 }, { "t": "pop", "f": 640, "m": 72, "g": 0.5 }, { "t": "pop", "f": 686, "m": 76, "g": 0.5 },
+          { "t": "pop", "f": 780, "m": 79, "g": 0.5 }, { "t": "pop", "f": 818, "m": 84, "g": 0.55 }, { "t": "golpe", "f": 862, "g": 0.6 },
+          { "t": "golpe", "f": 900, "g": 0.6 }, { "t": "escala", "f": 992, "paso": 4, "m": 12, "g": 0.5 },
+          { "t": "golpe", "f": 1080, "g": 0.6 }, { "t": "subida", "f": 1108, "a": 1178, "g": 0.35 }, { "t": "boing", "f": 1188, "g": 0.45 },
+          { "t": "pop", "f": 1306, "m": 72, "g": 0.5 }, { "t": "caida", "f": 1338, "g": 0.5 },
+          { "t": "golpe", "f": 1365, "g": 0.7 }, { "t": "escala", "f": 1370, "paso": 5, "m": 12, "g": 0.6 }
+        ]
+      }
     }
   ]
 }
