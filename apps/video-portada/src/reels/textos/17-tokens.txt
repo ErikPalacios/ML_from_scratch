@@ -1,0 +1,12 @@
+¿Qué es un token y por qué te lo cobran? A Turbo le robaron la API key y la cuenta llegó «por token». 🐹
+
+Un token es un pedazo de texto: a veces una palabra entera, a veces un trozo. Con el tokenizador de un modelo muy usado, «hamster» es 1 token y «hámster» son 3 (h · ám · ster). En promedio, el mismo texto en español sale como 1.5 veces más largo en tokens que en inglés (Petrov et al., 2023).
+
+¿Y por qué se cobra por token? Porque el modelo escribe un token a la vez, y cada uno recorre todas las capas: atención, FFN, atención, FFN… La regla clásica (Kaplan et al., 2020): generar un token cuesta unas 2 operaciones por parámetro, una multiplicación y una suma por cada peso. En un modelo de 7 mil millones de parámetros, eso es ≈ 14 mil millones de operaciones por cada token.
+
+Por eso una key robada sale cara. Ponle un tope de gasto.
+
+En el Laboratorio Transformer ves cada una de esas operaciones con un transformer de verdad (uno chiquito, de 1 208 parámetros), en tu navegador. Gratis · sin cuenta · en español.
+👉 Link en la bio
+
+#MachineLearning #IAenEspañol #Tokens #LLM #Transformers #DeepLearning #AprendeIA #InteligenciaArtificial #APIKey
