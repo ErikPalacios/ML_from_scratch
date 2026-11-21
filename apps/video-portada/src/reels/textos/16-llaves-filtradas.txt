@@ -1,0 +1,19 @@
+Cuando lanzas tu app hecha con IA y crees que nadie la ve. 🐹🔑
+
+Un caso que se hizo viral: alguien hizo con IA una app de reservas, con pagos, correos y un chat. Antes de lanzarla, un amigo backend la revisó solo con el navegador. En los logs del servidor había 212 peticiones a /.env en 2 semanas. Nadie conocía la app todavía: eran bots, que prueban esa ruta en todos los sitios, todo el día.
+
+Ahí no estaba el .env. Pero las llaves sí estaban a la vista: en el JavaScript de la app. Piensa en tu app como un folleto que recibe cada visitante. En Vite, todo lo que empieza con VITE_ se imprime en ese folleto al hacer el build, a propósito. La guía de Vite lo dice claro: las variables VITE_ no deben llevar información sensible, como API keys. Ahí iban la llave del chat (OpenAI), la secreta de pagos (Stripe, la sk_live_) y la de correos (Resend). La IA las nombró así para que el chat funcionara desde el navegador. Funcionó.
+
+Que tu .env esté en el .gitignore cuida tu repo, no el folleto. Y renombrarla «VITE_SUPER_SECRETA» no ayuda: manda el prefijo.
+
+Lo que sí sirve:
+1. Rota las llaves. Borrarlas del código no basta si alguien ya las copió.
+2. Ponles un tope de gasto. Un tope corta; una alerta solo avisa.
+3. Que la llave viva en el servidor: el navegador le pide a tu servidor, tu servidor llama a la API, y el navegador nunca ve la llave.
+
+La prueba de 5 minutos (guárdala): haz el build y busca en la carpeta de salida (dist/ en Vite) «sk-», «sk_» y «key». Ojo: la de pagos empieza con sk_live_, con guion bajo, así que buscar solo «sk-» no la encuentra. Si sale alguna, rótala hoy.
+
+Llevar un proyecto a producción paso a paso está en el Dojo de trueml.app; en la estación de CI/CD, por ejemplo, el pipeline usa credenciales que duran horas en vez de llaves guardadas para siempre. Gratis · sin cuenta · en español.
+👉 Link en la bio
+
+#MachineLearning #IAenEspañol #Vibecoding #Ciberseguridad #APIKeys #Vite #DesarrolloWeb #AprendeIA #Programación

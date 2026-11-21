@@ -1,0 +1,76 @@
+{
+  "nota": "Lo que se dice en el reel 16 (las llaves que se filtran en el bundle: VITE_ es público por diseño, .gitignore cuida el repo y no el bundle, los bots prueban /.env; rotar, tope y servidor; la prueba de 5 minutos). «debug» es el narrador; «turbo» habla chillón. Pronunciación: «vit guion bajo» = VITE_, «guit ignor» = .gitignore. El texto es para la voz; lo que se lee en pantalla está en LlavesFiltradas.tsx.",
+  "lineas": [
+    {
+      "id": "n1",
+      "quien": "debug",
+      "texto": "Cuando lanzas tu app hecha con IA y crees que nadie la ve."
+    },
+    {
+      "id": "t1",
+      "quien": "turbo",
+      "texto": "¡Nadie conoce mi app! ¡Estoy a salvo!"
+    },
+    {
+      "id": "n2",
+      "quien": "debug",
+      "texto": "Caso viral: doscientos doce intentos de leer su punto env en dos semanas. Y nadie conocía la app."
+    },
+    {
+      "id": "t2",
+      "quien": "turbo",
+      "texto": "¡¿Quiénes son esos?!"
+    },
+    {
+      "id": "n3",
+      "quien": "debug",
+      "texto": "Bots. Y sus llaves estaban en otro lado."
+    },
+    {
+      "id": "n4",
+      "quien": "debug",
+      "texto": "Tu app es un folleto que recibe cada visitante. Lo que empieza con vit guion bajo va impreso ahí."
+    },
+    {
+      "id": "t3",
+      "quien": "turbo",
+      "texto": "¡Pero mi punto env está en el guit ignor!"
+    },
+    {
+      "id": "n5",
+      "quien": "debug",
+      "texto": "Eso cuida tu repo, no el folleto."
+    },
+    {
+      "id": "t4",
+      "quien": "turbo",
+      "texto": "¡Ya sé! ¡La llamo súper secreta!"
+    },
+    {
+      "id": "n6",
+      "quien": "debug",
+      "texto": "Sigue empezando con vit guion bajo."
+    },
+    {
+      "id": "t5",
+      "quien": "turbo",
+      "texto": "¡Nadie te preguntó, pato!"
+    },
+    {
+      "id": "n7",
+      "quien": "debug",
+      "texto": "Lo que sí sirve: rota las llaves, ponles un tope de gasto y muévelas al servidor."
+    },
+    {
+      "id": "n8",
+      "quien": "debug",
+      "texto": "Prueba de cinco minutos: haz el build y busca ese ka guion y key. Si sale, rótala."
+    },
+    {
+      "id": "n9",
+      "quien": "debug",
+      "texto": "Llevar tu proyecto a producción, paso a paso, en tru eme ele punto app."
+    }
+  ],
+  "velDebug": 1.2
+}
