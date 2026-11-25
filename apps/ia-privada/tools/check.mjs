@@ -1,12 +1,14 @@
 #!/usr/bin/env node
-// Revisa dist/ en Chrome headless (con tools/browser-check.mjs de la app ml-system-design):
+// Revisa dist/ de IA Privada en Chrome headless (con tools/browser-check.mjs de la app ml-system-design). Es el
+// chequeo de Sensei, sin el repaso y con las calculadoras:
 //   1. ninguna página se sale de ancho en celular (375), tablet (768 y 1024) ni en modo oscuro,
 //      tampoco con todas las tarjetas, respuestas y bloques «para ir más hondo» abiertos;
 //   2. el selector de tema funciona y se recuerda;
 //   2b. el globo de una palabra del glosario abre, dice su definición y se cierra con Escape;
-//   2c. el repaso: una tarjeta se voltea (Espacio), se califica (3) y su caja se guarda;
-//   3. el service worker se instala, guarda todas las páginas y las sirve sin conexión, el repaso incluido (una tarjeta
-//      se voltea y se califica también sin red).
+//   2c. cada calculadora con preajustes: elegir otro preajuste cambia sus resultados y su cuenta paso a paso, sin
+//      ningún «—» ni «undefined»;
+//   3. el service worker se instala, guarda todas las páginas y las sirve sin conexión, y una calculadora también
+//      funciona sin red.
 // Sirve dist/ con un servidor local que imita a Vercel (trailingSlash) y que puede "cortar la red".
 // Uso: npm run check   (arma dist/ y después corre esto)
 import { createServer } from 'node:http';
@@ -19,9 +21,12 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = join(ROOT, 'dist');
 const BC = join(ROOT, '..', 'ml-system-design', 'tools', 'browser-check.mjs');
 if (!existsSync(join(DIST, 'index.html'))) { console.error('[check] falta dist/: corre antes node tools/build.mjs'); process.exit(1); }
-// las páginas: la portada, el glosario y cada lección que existe
-const LECCIONES = readdirSync(join(ROOT, 'content', 'lecciones')).filter((f) => f.endsWith('.md')).map((f) => `/${f.slice(0, -3)}/`);
-const PAGES = ['/', '/glosario/', '/repaso/', '/que-sigue/', ...LECCIONES];
+// las páginas: la portada, el glosario, cada herramienta y cada lección que existen
+const md = (dir) => readdirSync(join(ROOT, 'content', dir)).filter((f) => f.endsWith('.md')).map((f) => f.slice(0, -3));
+const HERRAMIENTAS = md('herramientas').map((id) => `/herramientas/${id}/`);
+const LECCIONES = md('lecciones').map((id) => `/${id}/`);
+const PAGES = ['/', '/glosario/', ...HERRAMIENTAS, ...LECCIONES];
+const SITIO = JSON.parse(readFileSync(join(ROOT, 'content', 'sitio.json'), 'utf8'));
 const TYPES = { '.json': 'application/json', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
 
 let offline = false;
@@ -61,32 +66,26 @@ const OVERFLOW = `(async () => {
   return JSON.stringify({ title: document.title, a, b });
 })()`;
 
-// El repaso: con una lección elegida (?l=), «Empezar» muestra una tarjeta; Espacio la voltea; 3 («Fácil») la
-// califica, pasa a la siguiente y guarda la tarjeta en la caja 2. Corre en la página o, sin red, dentro de un iframe.
-const REPASO_FN = `async (doc, win) => {
+// Una calculadora con preajustes: elegir el siguiente preajuste cambia los resultados y la cuenta paso a paso.
+// Corre en la página o, sin red, dentro de un iframe.
+const CALC_FN = `async (doc, win) => {
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-  for (let i = 0; i < 50 && doc.querySelector('[data-rp-empezar]') && doc.querySelector('[data-rp-empezar]').disabled; i++) await wait(100);
-  const empezar = doc.querySelector('[data-rp-empezar]');
-  if (!empezar || empezar.disabled) return { ok: false, error: 'no cargaron las tarjetas', cuenta: doc.querySelector('[data-rp-cuenta]') && doc.querySelector('[data-rp-cuenta]').textContent };
-  empezar.click(); await wait(100);
-  const t1 = doc.querySelector('[data-rp-t]').textContent, pos1 = doc.querySelector('[data-rp-pos]').textContent;
-  const tecla = (k) => doc.dispatchEvent(new win.KeyboardEvent('keydown', { key: k, bubbles: true }));
-  tecla(' '); await wait(100);
-  const volteada = !doc.querySelector('[data-rp-dorso]').hidden && doc.querySelector('[data-rp-corto]').textContent.length > 10 && !doc.querySelector('[data-rp-notas]').hidden;
-  tecla('3'); await wait(100);
-  const pos2 = doc.querySelector('[data-rp-pos]').textContent;
-  let caja = null; try { const av = JSON.parse(win.localStorage.getItem('sensei-repaso')); caja = Object.values(av.c)[0][0]; } catch (e) {}
-  const ok = !!t1 && volteada && pos1 !== pos2 && caja === 2;
-  return { ok, t1, volteada, pos1, pos2, caja };
+  const fig = doc.querySelector('.cx-calc.is-viva [data-preajuste]') && doc.querySelector('.cx-calc.is-viva [data-preajuste]').closest('.cx-calc');
+  if (!fig) return { ok: !doc.querySelector('[data-preajuste]'), nota: 'sin calculadora con preajustes' };
+  const foto = () => [...fig.querySelectorAll('[data-salida], .cx-cuenta')].map((e) => e.textContent).join(' | ');
+  const antes = foto(), pre = fig.querySelector('[data-preajuste]');
+  pre.value = '1'; pre.dispatchEvent(new win.Event('change', { bubbles: true })); await wait(100);
+  const despues = foto(), malo = /—|undefined|NaN/.test(despues);
+  return { ok: antes !== despues && !malo, cambia: antes !== despues, malo, muestra: despues.slice(0, 160) };
 }`;
-const REPASO = `(async () => JSON.stringify(await (${REPASO_FN})(document, window)))()`;
+const CALC = `(async () => JSON.stringify(await (${CALC_FN})(document, window)))()`;
 
 const SW = `(async () => {
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   const reg = await Promise.race([navigator.serviceWorker.ready, wait(10000).then(() => null)]);
   if (!reg) return JSON.stringify({ error: 'el service worker no quedó listo' });
   for (let i = 0; i < 50 && !navigator.serviceWorker.controller; i++) await wait(100);
-  const name = (await caches.keys()).find((k) => k.startsWith('sensei-'));
+  const name = (await caches.keys()).find((k) => k.startsWith('ia-privada-'));
   const cached = name ? (await (await caches.open(name)).keys()).map((r) => new URL(r.url).pathname) : [];
   await fetch('/__offline');
   const results = {};
@@ -98,13 +97,14 @@ const SW = `(async () => {
     let title = null; try { title = f.contentDocument.title; } catch (e) {}
     results[p] = title;
   }
-  // el repaso sin red: carga sus tarjetas de la caché, voltea una y la califica
+  // una calculadora sin red
   const f = document.createElement('iframe');
   const loaded = new Promise((r) => { f.onload = r; });
-  f.src = '/repaso/?l=${LECCIONES[0].slice(1, -1)}'; document.body.appendChild(f);
+  f.src = '${HERRAMIENTAS[0]}'; document.body.appendChild(f);
   await Promise.race([loaded, wait(8000)]);
-  const repaso = await (${REPASO_FN})(f.contentDocument, f.contentWindow);
-  return JSON.stringify({ controller: !!navigator.serviceWorker.controller, cache: name, cached, offline: results, repaso });
+  await wait(500);
+  const calc = await (${CALC_FN})(f.contentDocument, f.contentWindow);
+  return JSON.stringify({ controller: !!navigator.serviceWorker.controller, cache: name, cached, offline: results, calc });
 })()`;
 
 // El selector de tema, con el sistema en oscuro: «Claro» pinta la paleta clara y se guarda, «Oscuro» la oscura y
@@ -113,7 +113,7 @@ const THEME = `(async () => {
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   const bg = () => getComputedStyle(document.body).backgroundColor;
   const lum = (c) => { const m = c.match(/\\d+(\\.\\d+)?/g).map(Number); return 0.2126 * m[0] + 0.7152 * m[1] + 0.0722 * m[2]; };
-  const pick = async (t) => { const b = document.querySelector('.tema [data-tema="' + t + '"]'); if (!b) return null; b.click(); await wait(120); return { bg: bg(), saved: localStorage.getItem('sensei-tema'), pressed: b.getAttribute('aria-pressed'), attr: document.documentElement.getAttribute('data-theme') }; };
+  const pick = async (t) => { const b = document.querySelector('.tema [data-tema="' + t + '"]'); if (!b) return null; b.click(); await wait(120); return { bg: bg(), saved: localStorage.getItem('${SITIO.clave}-tema'), pressed: b.getAttribute('aria-pressed'), attr: document.documentElement.getAttribute('data-theme') }; };
   const sys = bg();
   const light = await pick('light'), dark = await pick('dark'), auto = await pick('auto');
   if (!light) return JSON.stringify({ error: 'no hay selector de tema' });
@@ -186,12 +186,14 @@ for (const [label, args] of [['1024', ['--width', '1024', '--height', '800', '--
   }
 }
 for (const [label, args] of [['375', ['--width', '375', '--height', '812', '--mobile', '--light']], ['1024 oscuro', ['--width', '1024', '--height', '800', '--dark']]]) {
-  const v = await run(['--url', `${BASE}/repaso/?l=${LECCIONES[0].slice(1, -1)}`, '--wait', '1200', ...args], REPASO), ok = !!(v && v.ok);
-  if (!ok) bad++;
-  console.log(`${ok ? 'ok ' : 'MAL'} /repaso/        tarjeta ${label.padEnd(11)} ${v ? JSON.stringify(v) : 'sin resultado'}`);
+  for (const p of HERRAMIENTAS) {
+    const v = await run(['--url', BASE + p, '--wait', '1200', ...args], CALC), ok = !!(v && v.ok);
+    if (!ok) bad++;
+    console.log(`${ok ? 'ok ' : 'MAL'} ${p.padEnd(16)} calculadora ${label.padEnd(11)} ${v ? JSON.stringify(v) : 'sin resultado'}`);
+  }
 }
 const s = await run(['--url', BASE + '/', '--wait', '2500', '--width', '1024', '--height', '800', '--light'], SW);
-const swOk = s && s.controller && PAGES.every((p) => s.cached.includes(p)) && PAGES.slice(1).every((p) => s.offline[p] && s.offline[p].includes('Sensei')) && s.repaso && s.repaso.ok;
+const swOk = s && s.controller && PAGES.every((p) => s.cached.includes(p)) && PAGES.slice(1).every((p) => s.offline[p] && s.offline[p].includes(SITIO.nombre)) && s.calc && s.calc.ok;
 if (!swOk) bad++;
 console.log(`${swOk ? 'ok ' : 'MAL'} service worker: ${JSON.stringify(s)}`);
 server.close();

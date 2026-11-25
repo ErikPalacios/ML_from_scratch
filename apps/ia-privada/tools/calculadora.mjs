@@ -14,7 +14,7 @@
 // Las fórmulas son expresiones de JavaScript con los ids de arriba y las funciones de Math sin prefijo
 // (exp, log, log2, log10, sqrt, pow, min, max, abs, round, floor, ceil, sin, cos, PI, E).
 // Formatos: num (por omisión), int (miles con coma), pct (×100 y %), sci (notación científica), bytes (B/KB/MB/GB/TB
-// decimales), ms (ms o s), x (veces). «barra» dibuja una barra proporcional (para pct, sobre 100 %; para los demás,
+// decimales), ms (ms o s), x (veces), corto (hasta «decimales» decimales, 3 por omisión, sin ceros de sobra: 16 · 4.156). «barra» dibuja una barra proporcional (para pct, sobre 100 %; para los demás,
 // relativa a la salida más grande con barra).
 //
 // Lo que IA Privada le suma al formato de Sensei (una spec de Sensei funciona igual aquí):
@@ -29,7 +29,7 @@
 import { esc } from './md.mjs';
 
 const MATH = ['exp', 'log', 'log2', 'log10', 'sqrt', 'pow', 'min', 'max', 'abs', 'round', 'floor', 'ceil', 'sin', 'cos', 'PI', 'E'];
-const FORMATOS = new Set(['num', 'int', 'pct', 'sci', 'bytes', 'ms', 'x']);
+const FORMATOS = new Set(['num', 'int', 'pct', 'sci', 'bytes', 'ms', 'x', 'corto']);
 const ID = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 
 export function compilar(formula, nombres) {
@@ -56,6 +56,7 @@ export function formatear(x, formato = 'num', dec) {
     case 'bytes': { const u = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']; let k = 0, n = x; while (Math.abs(n) >= 1000 && k < u.length - 1) { n /= 1000; k++; } return `${fijo(n, dec ?? auto(n))} ${u[k]}`; }
     case 'ms': return Math.abs(x) >= 1000 ? `${fijo(x / 1000, dec ?? 2)} s` : `${fijo(x, dec ?? auto(x))} ms`;
     case 'x': return `${fijo(x, dec ?? auto(x))}×`;
+    case 'corto': return x.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: dec ?? 3 });
     default: return fijo(x, dec ?? auto(x));
   }
 }
@@ -139,8 +140,8 @@ const valorDe = (expr, v) => compilar(expr, Object.keys(v))(...Object.values(v))
 function cuentaHtml(cuenta, valores, inline) {
   const ts = trozos(cuenta);
   let k = 0;
-  const marcado = cuenta.replace(RE_TROZO, () => `\u0000${k++}\u0000`);
-  return inline(marcado).replace(/\u0000(\d+)\u0000/g, (_, i) => { const t = ts[Number(i)]; return `<span class="cx-t" data-t="${i}">${esc(formatear(valorDe(t.expr, valores), t.fmt, t.dec))}</span>`; });
+  const marcado = cuenta.replace(RE_TROZO, () => `\uE000${k++}\uE000`);
+  return inline(marcado).replace(/\uE000(\d+)\uE000/g, (_, i) => { const t = ts[Number(i)]; return `<span class="cx-t" data-t="${i}">${esc(formatear(valorDe(t.expr, valores), t.fmt, t.dec))}</span>`; });
 }
 
 // El HTML: los controles con su valor inicial y las salidas ya calculadas; la spec va en data-calc para app.js.

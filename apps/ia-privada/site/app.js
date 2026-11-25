@@ -158,6 +158,7 @@
     if (f === 'bytes') { var u = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'], k = 0, n = x; while (Math.abs(n) >= 1000 && k < u.length - 1) { n /= 1000; k++; } return fijo(n, d === null ? auto(n) : d) + ' ' + u[k]; }
     if (f === 'ms') return Math.abs(x) >= 1000 ? fijo(x / 1000, d === null ? 2 : d) + ' s' : fijo(x, d === null ? auto(x) : d) + ' ms';
     if (f === 'x') return fijo(x, d === null ? auto(x) : d) + '×';
+    if (f === 'corto') return x.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: d === null ? 3 : d });
     return fijo(x, d === null ? auto(x) : d);
   }
   function compilar(formula, nombres) {

@@ -258,7 +258,7 @@
       "formato": "bytes",
       "barra": true,
       "nota": "\\(W = (P − E) × bits ÷ 8 + E × 2\\) bytes",
-      "cuenta": "({{P|num|3}} − {{Et|num|3}}) mil millones × {{bits|num|3}} bits ÷ 8 + {{Et|num|3}} mil millones × 2 bytes = **{{W|bytes|2}}**"
+      "cuenta": "({{P|num|3}} − {{Et|num|3}}) mil millones × {{bits|corto}} bits ÷ 8 + {{Et|num|3}} mil millones × 2 bytes = **{{W|bytes|2}}**"
     },
     {
       "label": "2 · KV cache por token, \\(m_{token}\\)",
@@ -294,7 +294,7 @@
       "formula": "util",
       "formato": "bytes",
       "nota": "\\((1 − f) × n × VRAM\\)",
-      "cuenta": "(1 − {{f|num|2}}) × {{n|int}} × {{V|num|0}} GB = **{{util|bytes|2}}**"
+      "cuenta": "(1 − {{f|corto}}) × {{n|int}} × {{V|corto}} GB = **{{util|bytes|2}}**"
     },
     {
       "label": "¿Cabe?",
