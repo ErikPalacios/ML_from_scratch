@@ -36,7 +36,7 @@
           "g": 8,
           "d": 128
         },
-        "nota": "Alibaba, 4,022,468,096 parámetros. 151,936 tokens × 2,560 números, y la tabla de salida es la misma que la de entrada (una sola). Contexto: 32,768 tokens de origen y 131,072 con YaRN, según su ficha."
+        "nota": "Alibaba, 4,022,468,096 parámetros. 151,936 tokens × 2,560 números, y la tabla de salida es la misma que la de entrada (una sola). Contexto: 32,768 tokens de origen y 131,072 con YaRN, según su ficha (su config.json dice 40,960)."
       },
       {
         "label": "Qwen3 8B",
@@ -47,7 +47,7 @@
           "g": 8,
           "d": 128
         },
-        "nota": "Alibaba, 8,190,735,360 parámetros. 151,936 tokens × 4,096 números, dos tablas. Contexto: 32,768 tokens de origen y 131,072 con YaRN, según su ficha."
+        "nota": "Alibaba, 8,190,735,360 parámetros. 151,936 tokens × 4,096 números, dos tablas. Contexto: 32,768 tokens de origen y 131,072 con YaRN, según su ficha (su config.json dice 40,960)."
       },
       {
         "label": "Qwen3 32B",
@@ -58,7 +58,7 @@
           "g": 8,
           "d": 128
         },
-        "nota": "Alibaba, 32,762,123,264 parámetros. 151,936 tokens × 5,120 números, dos tablas. Contexto: 32,768 tokens de origen y 131,072 con YaRN, según su ficha."
+        "nota": "Alibaba, 32,762,123,264 parámetros. 151,936 tokens × 5,120 números, dos tablas. Contexto: 32,768 tokens de origen y 131,072 con YaRN, según su ficha (su config.json dice 40,960)."
       },
       {
         "label": "Qwen3 30B-A3B (MoE)",
@@ -119,7 +119,7 @@
         },
         {
           "valor": 4.15625,
-          "label": "INT4 de AWQ o GPTQ, grupos de 128 · ≈ 4.16 bits"
+          "label": "INT4 de AWQ, grupos de 128 · ≈ 4.16 bits"
         },
         {
           "valor": 4,
@@ -326,5 +326,5 @@
       "cuenta": "⌊{{max(0, libre)|bytes|2}} libres ÷ ({{u|int}} × {{mtok|int}} bytes)⌋ = **{{max(0, floor(libre / (u * mtok)))|int}} tokens**"
     }
   ],
-  "nota": "Prueba: con Llama 3.1 8B, cambia los pesos a INT4 de AWQ y mira cómo caben las 4 conversaciones. Después elige Llama 3.3 70B, pesos en FP8, 2 GPUs H100 SXM, programa de 5 GB y 2,250 tokens por conversación: caben 89. Sensei, con la cuenta corta \\(W = P × b\\), da 92; pon \\(E\\) en 0 y sale lo mismo. La diferencia son las tablas de tokens, que aquí se quedan en 16 bits."
+  "nota": "Prueba: con Llama 3.1 8B, cambia los pesos a INT4 de AWQ y mira cómo caben las 4 conversaciones. Después elige Llama 3.3 70B, pesos en FP8, 2 GPUs H100 SXM, programa de 5 GB y 2,250 tokens por conversación: caben 89, justo en el borde (89.99). Sensei, con la cuenta corta \\(W = P × b\\), da 92; pon \\(E\\) en 0 y sale lo mismo. La diferencia son las tablas de tokens, que aquí se quedan en 16 bits."
 }

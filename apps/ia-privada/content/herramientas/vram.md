@@ -34,14 +34,14 @@ Para que ocupen menos se usa la [[cuantizacion|cuantización]]: guardar cada pes
 
 Con 4 bits hay dos detalles que la cuenta corta no ve, y que esta calculadora sí cuenta:
 
-1. **La escala de cada grupo.** Un número de 4 bits solo puede tomar 16 valores. Para saber cuánto vale cada escalón, los pesos se agrupan (de 128 en 128, en AWQ y GPTQ) y cada grupo guarda su propia [[escala-por-grupo|escala]] en 16 bits, más un punto cero de 4 bits. Es como si cada cajón de un taller trajera su propia regla: el de tornillos mide en milímetros, el de vigas en metros. Eso suma (16 + 4) ÷ 128 ≈ 0.16 bits a cada peso: en vez de 4 bits, ≈ 4.16.
-2. **Las tablas de tokens.** Un LLM tiene dos [[tablas-de-tokens|tablas]] que traducen entre tokens y números, una de entrada y una de salida, con vocabulario × tamaño del vector parámetros cada una. Son grandes y los métodos de cuantización (AWQ, GPTQ, FP8) las dejan en 16 bits. En un modelo chico pesan mucho: en Llama 3.1 8B son el 13 % de los parámetros.
+1. **La escala de cada grupo.** Un número de 4 bits solo puede tomar 16 valores. Para saber cuánto vale cada escalón, los pesos se agrupan (de 128 en 128, en AWQ) y cada grupo guarda su propia [[escala-por-grupo|escala]] en 16 bits, más un punto cero de 4 bits. Es como si cada cajón de un taller trajera su propia regla: el de tornillos mide en milímetros, el de vigas en metros. Eso suma (16 + 4) ÷ 128 ≈ 0.16 bits a cada peso: en vez de 4 bits, ≈ 4.16. (Un GPTQ simétrico no guarda punto cero: ≈ 4.13.)
+2. **Las tablas de tokens.** Un LLM tiene dos [[tablas-de-tokens|tablas]] que traducen entre tokens y números, una de entrada y una de salida, con vocabulario × tamaño del vector parámetros cada una. Son grandes, y AWQ, GPTQ y FP8 normalmente cuantizan solo las capas lineales y las dejan fuera: en los modelos de ejemplo de esta página se quedan en 16 bits. En un modelo chico pesan mucho: en Llama 3.1 8B son el 13 % de los parámetros.
 
 :::formula Los pesos, \(W\)
 W = (P − E) × bits ÷ 8 + E × 2
 - P: los parámetros del modelo, en miles de millones
 - E: los parámetros de las tablas de tokens, en miles de millones (vocabulario × tamaño del vector, una o dos veces)
-- bits: los bits de cada peso cuantizado, con su escala: 16, 8, ≈ 4.16 en INT4 de AWQ o GPTQ
+- bits: los bits de cada peso cuantizado, con su escala: 16, 8, ≈ 4.16 en INT4 de AWQ
 - W: lo que ocupan los pesos, en GB (miles de millones de bytes)
 :::
 
@@ -92,7 +92,7 @@ Un KiB son 1,024 bytes. Las cuentas de memoria mezclan potencias de 2 (KiB, GiB)
 Si llenas un camión de mudanza con muebles hasta el techo, la puerta no cierra: también van las cobijas, las cuerdas y algo de espacio libre. En la GPU pasa lo mismo. El [[overhead]] tiene dos partes:
 
 - **El programa, \(M_{prog}\).** El contexto de CUDA, las librerías, la memoria de trabajo de cada paso (las activaciones) y los buffers del servidor. Del orden de 1 a 5 GB, según el servidor, el modelo y cuántas GPUs. La calculadora arranca en 2 GB, como el ejemplo de Sensei con una L4.
-- **El margen, \(f\).** Una parte de la VRAM que el servidor deja libre a propósito, para que un pico no lo tumbe. vLLM, el servidor de LLMs más usado para esto, por omisión usaba el 90 % de la memoria (\(f\) = 0.1) en su versión 0.10.2; en versiones más nuevas ese valor cambió. Revisa la documentación de la versión que uses.
+- **El margen, \(f\).** Una parte de la VRAM que el servidor deja libre a propósito, para que un pico no lo tumbe. vLLM, uno de los servidores de LLMs más usados, por omisión usaba el 90 % de la memoria (\(f\) = 0.1) en su versión 0.10.2; en versiones más nuevas ese valor cambió. Revisa la documentación de la versión que uses.
 
 :::ojo
 La mejor medida del overhead no es una fórmula: es lo que imprime el servidor al arrancar. vLLM dice cuánta memoria ocupan los pesos y cuántos tokens de KV cache le caben. Usa la calculadora para decidir qué comprar o rentar, y el arranque del servidor para confirmar.
@@ -141,10 +141,10 @@ Lo que esa suma no ve:
 - **Un [[moe|modelo MoE]] no se salva.** Aunque cada token use pocos expertos, en memoria van todos. Qwen3 30B-A3B pesa como un modelo de 30B, no como uno de 3B.
 
 :::cuenta Llama 3.3 70B en FP8, en 2 H100 SXM
-Pesos, \(W\) // \(P\) = 70.554, \(E\) = 2.101, 8 bits | (70.554 − 2.101) × 8 ÷ 8 + 2.101 × 2 | 72.66 GB
+Pesos, \(W\) // \(P\) = 70.554, \(E\) = 2.101, 8 bits | (70.554 − 2.101) × 8 ÷ 8 + 2.101 × 2 | 72.655 GB
 Lo que tienes, \(M_{útil}\) // 2 × 80 GB, \(f\) = 0.1 | 0.9 × 2 × 80 | 144 GB
 Por conversación, \(m_{conv}\) // 320 KiB por token, 2,250 tokens | 327,680 × 2,250 | 0.737 GB
-Caben, \(c\) // con \(M_{prog}\) = 5 GB | ⌊(144 − 72.66 − 5) ÷ 0.737⌋ | **89**
+Caben, \(c\) // con \(M_{prog}\) = 5 GB; justo en el borde | ⌊(144 − 72.655 − 5) ÷ 0.73728⌋ = ⌊89.99⌋ | **89**
 = Sensei, con la cuenta corta \(W = P × b\) (70.6 GB de pesos), llega a 92. La diferencia son las tablas de tokens en 16 bits: 2.1 GB menos de KV cache, 3 conversaciones menos.
 :::
 
@@ -211,7 +211,7 @@ Pesos: (32.762 − 1.556) × 4.156 ÷ 8 + 1.556 × 2 ≈ 16.21 + 3.11 ≈ 19.32 
 ? [medio] En el mismo despacho, ¿qué pasa si el KV cache se guarda en FP8 en vez de BF16?
 \(b_{kv}\) pasa de 2 a 1 byte: el KV cache se reduce a la mitad, 17.18 ÷ 2 ≈ 8.59 GB. Lo que necesitas baja a 19.32 + 8.59 + 2 ≈ 29.91 GB, el 69 % de la memoria útil, y caben ⌊(43.2 − 19.32 − 2) ÷ 1.074⌋ = **20 conversaciones** en vez de 10. El precio, como con los pesos, es algo de precisión que hay que medir.
 ? [reto] Con Llama 3.1 8B en BF16 en una L4 (21.6 GB útiles, 2 GB de programa), ¿cuál es el contexto más largo que cabe si llegan 4 conversaciones a la vez?
-Lo libre para KV cache: 21.6 − 16.06 − 2 = 3.54 GB. Cada token de las 4 conversaciones: 4 × 131,072 bytes = 524,288 bytes. Contexto: ⌊3,540,000,000 ÷ 524,288⌋ = **6,752 tokens**, lejos de los 131,072 que acepta el modelo.
+Lo libre para KV cache, con los números de la calculadora (\(P\) = 8.030, \(E\) = 1.051): 21.6 − 16.06 − 2 = 3.54 GB. Cada token de las 4 conversaciones: 4 × 131,072 bytes = 524,288 bytes. Contexto: ⌊3,540,000,000 ÷ 524,288⌋ = **6,752 tokens**, lejos de los 131,072 que acepta el modelo.
 :::
 
 ## Palabras que vas a oír {Words you'll hear}

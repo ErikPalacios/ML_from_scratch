@@ -55,7 +55,7 @@
       "termino": "Tablas de tokens",
       "en": "embedding table · LM head",
       "corto": "Las dos tablas de un LLM que traducen entre tokens y números: la de entrada convierte cada token en un vector y la de salida convierte el último vector en una puntuación para cada token del vocabulario. Tienen vocabulario × tamaño del vector parámetros cada una.",
-      "largo": "Son grandes porque el vocabulario lo es (128,256 tokens en Llama 3.1, 151,936 en Qwen3). Al cuantizar con AWQ, GPTQ o FP8 casi siempre se quedan en 16 bits: son sensibles a los errores y esos métodos las dejan fuera por omisión. GGUF, el formato de llama.cpp, sí las cuantiza. Algunos modelos usan la misma tabla para entrar y salir (la «atan», *tied*); entonces cuenta una sola vez.",
+      "largo": "Son grandes porque el vocabulario lo es (128,256 tokens en Llama 3.1, 151,936 en Qwen3). Al cuantizar con AWQ, GPTQ o FP8 casi siempre se quedan en 16 bits: esos métodos cuantizan solo las capas lineales y las dejan fuera. GGUF, el formato de llama.cpp, sí las cuantiza. Algunos modelos usan la misma tabla para entrar y salir (la «atan», *tied*); entonces cuenta una sola vez.",
       "analogia": "El diccionario de un intérprete: uno para pasar de palabras a ideas y otro para regresar. No se resumen, porque un error ahí cambia la palabra entera.",
       "ejemplo": "Llama 3.1 8B: 128,256 × 4,096 = 525,336,576 parámetros por tabla; con dos, ≈ 1.05 mil millones, el 13 % del modelo.",
       "sensei": "llms"
