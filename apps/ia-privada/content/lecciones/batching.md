@@ -7,12 +7,12 @@ sensei: llms, flops, latencia
 ---
 
 :::idea
-En el decode, la GPU pasa casi todo el tiempo **leyendo los pesos** de su memoria, no calculando. Si en cada lectura atiende a varias conversaciones a la vez (un **batch**), produce muchos más tokens casi por el mismo tiempo. Dos ideas hacen que eso funcione en un servidor de verdad: el **batching continuo**, que mete y saca conversaciones del batch en cada paso, y **PagedAttention**, que guarda el KV cache en bloques chicos para no desperdiciar memoria. Con las dos, el límite deja de ser el tiempo y pasa a ser la memoria.
+En el decode, la GPU pasa casi todo el tiempo **leyendo los pesos** de su memoria, no calculando. Si en cada lectura atiende a varias conversaciones a la vez (un **batch**), produce muchos más tokens casi por el mismo tiempo. Dos ideas hacen que eso funcione en un servidor de verdad: el **batching continuo**, que mete y saca conversaciones del batch en cada paso, y **PagedAttention**, que guarda el KV cache en bloques chicos para no desperdiciar memoria. Con las dos caben muchas más conversaciones en la misma GPU. Pero caber no es lo mismo que atenderlas bien: eso lo deciden además el ancho de banda y el cálculo del prefill.
 :::
 
 ## Una GPU sirviendo a una persona está casi ociosa {A GPU serving one person is almost idle}
 
-Esta lección sigue a un ejemplo ficticio, **el despacho**: un despacho de abogados en la Ciudad de México que quiere preguntarle a sus expedientes con un LLM sin que un solo documento salga de su red. Su candidato es **Qwen3 32B en INT4 de AWQ** (pesos de ≈ 19.32 GB) en **una NVIDIA L40S de 48 GB**. Cada pregunta trae ≈ 6,000 tokens de entrada (≈ 400 de instrucciones, la pregunta y cinco fragmentos de expediente) y la respuesta, ≈ 500. Se diseña para **8 conversaciones a la vez** y se quiere que cada persona vea al menos **20 tokens por segundo**.
+Esta lección sigue a un ejemplo ficticio, **el despacho**: un despacho de abogados en la Ciudad de México que quiere preguntarle a sus expedientes con un LLM sin que un solo documento salga de su red. Su modelo candidato es **Qwen3 32B en INT4 de AWQ** (pesos de ≈ 19.32 GB), y su primer candidato de GPU, elegido solo por memoria, es **una NVIDIA L40S de 48 GB**. Cada pregunta trae ≈ 6,000 tokens de entrada (≈ 400 de instrucciones, la pregunta y cinco fragmentos de expediente) y la respuesta, ≈ 500. Se diseña para **8 conversaciones a la vez**, y se quiere que cada persona vea al menos **20 tokens por segundo** y su primer token en **2 segundos** o menos. La cuenta de memoria dice que en la L40S caben esas 8. Esta lección explica por qué caben tantas, y al final por qué caber no basta.
 
 Antes de seguir, tres cosas que Sensei explica a fondo y aquí solo se recuerdan:
 
@@ -20,7 +20,7 @@ Antes de seguir, tres cosas que Sensei explica a fondo y aquí solo se recuerdan
 - Cada pasada lee de la [[vram|VRAM]] **todos** los [[pesos]] del modelo, y además el [[kv-cache|KV cache]] de la conversación: lo que el modelo recuerda de cada token anterior.
 - Una GPU tiene dos velocidades: cuántas operaciones hace por segundo (TFLOPS) y cuántos bytes lee por segundo de su memoria (GB/s). Cuál de las dos manda se decide con el *roofline*; lo ves en [Matrices y FLOPs](https://sensei.trueml.app/flops/).
 
-Con eso basta para ver el problema. Para escribir **un** token de una conversación del despacho, la L40S tiene que leer ≈ 19.32 GB de pesos más ≈ 1.6 GB de KV cache. A 864 GB/s, eso toma ≈ 24 ms. Las cuentas de ese token, en cambio, son ≈ 65.5 mil millones de operaciones: a 362 TFLOPS, ≈ 0.2 ms. **La GPU calcula durante menos del 1 % del paso.** El resto del tiempo espera a que lleguen los bytes.
+Con eso basta para ver el problema. Para escribir **un** token de una conversación del despacho, la L40S tiene que leer ≈ 19.32 GB de pesos más ≈ 1.6 GB de KV cache. A 864 GB/s, lo más que da su memoria, eso toma ≈ 24 ms. Las cuentas de ese token, en cambio, son ≈ 65.5 mil millones de operaciones: a 362 TFLOPS, su pico de cálculo, ≈ 0.2 ms. **La GPU calcula durante menos del 1 % del paso.** El resto del tiempo espera a que lleguen los bytes.
 
 :::analogia La cocina que espera al refrigerador
 Imagina una cocina con un chef rapidísimo y un refrigerador al fondo de un pasillo larguísimo. Para cada platillo, el chef tiene que ir por **todos** los ingredientes de la cocina (los pesos), aunque solo use una pizca de cada uno. Cocinar le toma segundos; ir y volver, minutos. Si ya que va al refrigerador cocina ocho platillos con cada ingrediente en vez de uno, el viaje es el mismo y sale con ocho veces más comida.
@@ -30,7 +30,7 @@ Dónde se rompe: cada comensal trae además **su propia** bolsa de ingredientes 
 
 ### Cuánto trabajo hay por cada byte
 
-La [[intensidad-aritmetica|intensidad aritmética]] de un cálculo es cuántas operaciones hace por cada byte que lee: FLOPs ÷ bytes. La GPU tiene su propio número: su **punto de quiebre** (*ridge point*), pico de FLOPs por segundo ÷ bytes por segundo. Si la intensidad del cálculo está por debajo del quiebre, la memoria no alcanza a alimentar a los núcleos y el cálculo está [[limitado-por-memoria|limitado por memoria]] (*memory-bound*). Si está arriba, manda el cálculo. Es la gráfica del [[roofline]].
+La [[intensidad-aritmetica|intensidad aritmética]] de un cálculo es cuántas operaciones hace por cada byte que lee: FLOPs ÷ bytes. La GPU tiene su propio número: su **punto de quiebre** (*ridge point*), pico de FLOPs por segundo ÷ bytes por segundo. Si la intensidad del cálculo está por debajo del quiebre, la memoria no alcanza a alimentar a los núcleos y el cálculo está limitado por memoria (*memory-bound*). Si está arriba, manda el cálculo. Es la gráfica del *roofline*: la intensidad a lo ancho, los FLOPS alcanzables a lo alto, una rampa que sube hasta el quiebre y un techo plano después.
 
 :::formula Intensidad del decode y punto de quiebre
 I = frac{2 × P × b}{W + b × K}
@@ -77,44 +77,49 @@ Si cuentas también esos FLOPs, el tope del despacho sube de ≈ 40 a ≈ 48. Si
 
 ## Un batch: el mismo paso, varias conversaciones {One batch: the same step, many conversations}
 
-Si el paso está limitado por memoria, su duración es casi exactamente los bytes que lee ÷ el ancho de banda. Un [[batch]] cambia cuántos tokens salen de cada paso, no cuántos pesos se leen. Es la misma cuenta de Sensei para una L4, ahora con los números del despacho y con el reloj del cálculo a la vista, para comprobar que de verdad no manda.
+Si el paso está limitado por memoria, su duración es casi exactamente los bytes que lee ÷ el ancho de banda. Un batch (lote: varias conversaciones calculadas en la misma pasada) cambia cuántos tokens salen de cada paso, no cuántos pesos se leen. Es la misma cuenta de Sensei para una L4, ahora con los números del despacho y con el reloj del cálculo a la vista, para comprobar que de verdad no manda.
+
+Un ajuste de realismo: ningún programa lee la memoria a todo su ancho de banda ni calcula a todo su pico. La **eficiencia** es la fracción que se logra de verdad. Para el despacho se suponen \(η_m\) = 0.7 de la memoria y \(η_c\) = 0.5 del cálculo; con ellas las cuentas de velocidad dejan de ser de techo y se acercan a lo que se mide.
 
 :::formula Un paso de decode con \(b\) conversaciones
-t_{mem} = frac{W + b × K}{B_W}
-t_{cálc} = frac{2 × P × b}{F}
+t_{mem} = frac{W + b × K}{η_m × B_W}
+t_{cálc} = frac{2 × P × b}{η_c × F}
 t_{paso} = max(t_{mem}, t_{cálc})
 v_{persona} = frac{1}{t_{paso}}
 v_{GPU} = frac{b}{t_{paso}}
 - t_{mem}: el reloj de la memoria, en segundos: lo que tarda en leer los bytes del paso
-- t_{cálc}: el reloj del cálculo, en segundos: lo que tarda en hacer los FLOPs del paso a su pico
-- t_{paso}: lo que dura el paso: el mayor de los dos relojes (lo mínimo posible; en la práctica, un poco más)
+- t_{cálc}: el reloj del cálculo, en segundos: lo que tarda en hacer los FLOPs del paso
+- η_m, η_c: las eficiencias de la memoria y del cálculo (0.7 y 0.5 en el despacho, supuestas)
+- t_{paso}: lo que dura el paso: el mayor de los dos relojes
 - v_{persona}: los tokens por segundo que ve cada persona: uno por paso
 - v_{GPU}: los tokens por segundo de toda la GPU
 - W, K, b, P, F, B_W: como en la fórmula de la intensidad
 :::
 
 :::cuenta El despacho, con 1 y con 8 conversaciones
+Memoria efectiva, \(η_m × B_W\) // \(η_m\) = 0.7 | 0.7 × 864 GB/s | 604.8 GB/s
+Cálculo efectivo, \(η_c × F\) // \(η_c\) = 0.5 | 0.5 × 362.05 TFLOPS | ≈ 181 TFLOPS
 Una conversación: bytes // \(W + b × K\) con \(b\) = 1 | 19.32 + 1.64 | 20.96 GB
-Una: reloj de la memoria, \(t_{mem}\) | 20.96 GB ÷ 864 GB/s | ≈ 24.3 ms
-Una: reloj del cálculo, \(t_{cálc}\) | 2 × 32.762 × 10⁹ ÷ 362.05 × 10¹² | ≈ 0.18 ms
-Una: tokens por segundo, \(v_{persona} = v_{GPU}\) | 1 ÷ 24.3 ms | ≈ 41
+Una: reloj de la memoria, \(t_{mem}\) | 20.96 GB ÷ 604.8 GB/s | ≈ 34.7 ms
+Una: reloj del cálculo, \(t_{cálc}\) | 2 × 32.762 × 10⁹ ÷ 181 × 10¹² | ≈ 0.36 ms
+Una: tokens por segundo, \(v_{persona} = v_{GPU}\) | 1 ÷ 34.7 ms | ≈ 28.9
 Ocho: bytes // \(b\) = 8, el diseño del despacho | 19.32 + 8 × 1.64 | 32.44 GB
-Ocho: reloj de la memoria, \(t_{mem}\) | 32.44 GB ÷ 864 GB/s | ≈ 37.5 ms
-Ocho: reloj del cálculo, \(t_{cálc}\) | 2 × 32.762 × 10⁹ × 8 ÷ 362.05 × 10¹² | ≈ 1.45 ms
-Ocho: cada persona, \(v_{persona}\) | 1 ÷ 37.5 ms | ≈ 26.6 tokens/s
-Ocho: toda la GPU, \(v_{GPU}\) | 8 ÷ 37.5 ms | ≈ 213 tokens/s
-= Con 8 a la vez, cada abogado ve ≈ 27 tokens por segundo (arriba de los 20 que pide el despacho) y la GPU da ≈ 5.2 veces más que con una sola. El paso solo se alargó ≈ 1.5 veces.
+Ocho: reloj de la memoria, \(t_{mem}\) | 32.44 GB ÷ 604.8 GB/s | ≈ 53.6 ms
+Ocho: reloj del cálculo, \(t_{cálc}\) | 2 × 32.762 × 10⁹ × 8 ÷ 181 × 10¹² | ≈ 2.9 ms
+Ocho: cada persona, \(v_{persona}\) | 1 ÷ 53.6 ms | ≈ 18.6 tokens/s
+Ocho: toda la GPU, \(v_{GPU}\) | 8 ÷ 53.6 ms | ≈ 149 tokens/s
+= Con 8 a la vez, la GPU da ≈ 5.2 veces más tokens que con una sola, y el paso solo se alargó ≈ 1.5 veces. Pero cada abogado ve ≈ 18.6 tokens por segundo: ya por debajo de los 20 que pide el despacho, y eso antes de contar los prefills.
 :::
 
-Detente en esa última línea. Con una conversación, la GPU produce ≈ 41 tokens por segundo y nada más. Con ocho, produce ≈ 213, porque los 19.32 GB de pesos se leen **una** vez por paso para las ocho. El costo de cada conversación extra es solo su KV cache: 1.64 GB más que leer, ≈ 1.9 ms más de paso.
+Detente en esa última línea. Con una conversación, la GPU produce ≈ 29 tokens por segundo y nada más. Con ocho, produce ≈ 149, porque los 19.32 GB de pesos se leen **una** vez por paso para las ocho. El costo de cada conversación extra es solo su KV cache: 1.64 GB más que leer, ≈ 2.7 ms más de paso.
 
-Son números de techo. El paso real dura algo más: ningún programa lee la memoria al 100 % de su ancho de banda, y hay más cosas que leer y escribir (las activaciones, por ejemplo). Las mediciones de Databricks y NVIDIA dicen lo mismo con otras palabras: con batches chicos, la velocidad de generación la predice el ancho de banda, no el pico de cálculo. Aquí la cuenta te da la **forma** de la relación; las cifras de verdad las da medir.
+Las eficiencias son supuestos, no mediciones: el paso real puede durar algo más o algo menos, y hay más cosas que leer y escribir (las activaciones, por ejemplo). Las mediciones de Databricks y NVIDIA dicen lo mismo con otras palabras: con batches chicos, la velocidad de generación la predice el ancho de banda, no el pico de cálculo. Aquí la cuenta te da la **forma** de la relación; las cifras de verdad las da medir.
 
 :::calculadora batching-paso
-Empieza con las 8 conversaciones del despacho. Baja a 1 y sube a 13: con 13 cada persona todavía ve ≈ 21 tokens por segundo, y es lo último que cabe en la VRAM con ese KV cache. Pasa de 13 y el veredicto de abajo dice que ya no caben.
+Empieza con las 8 conversaciones del despacho. Baja a 6: es lo más que aguanta con ≥ 20 tokens por segundo cada una. Sube a 13: todavía caben en la VRAM, pero cada persona ve ≈ 15. Pasa de 13 y el veredicto de abajo dice que ya no caben.
 :::
 
-La calculadora también responde una pregunta que el despacho se hace: **¿cuántas personas a la vez aguanta con al menos 20 tokens por segundo cada una?** Por velocidad, el paso puede durar hasta 50 ms, y eso deja 14 conversaciones. Por memoria, solo caben 13 de ≈ 6,250 tokens. **La memoria se acaba antes que la velocidad.** Es lo que pasa casi siempre, y por eso la segunda mitad de esta lección es sobre memoria.
+La calculadora también responde una pregunta que el despacho se hace: **¿cuántas personas a la vez aguanta con al menos 20 tokens por segundo cada una?** Por velocidad, el paso puede durar hasta 50 ms, y eso deja **6** conversaciones. Por memoria caben **13** de ≈ 6,250 tokens. Aquí **la velocidad se acaba antes que la memoria**, y eso que todavía no contamos los prefills (lo haces en la sección de chunked prefill). Con una GPU de más ancho de banda o con conversaciones más cortas pasa al revés y la memoria se acaba primero. En los dos casos, cuántas conversaciones caben es lo que el batching puede aprovechar: por eso la segunda mitad de esta lección es sobre memoria.
 
 ### La misma cuenta, en Python
 
@@ -122,11 +127,12 @@ La calculadora también responde una pregunta que el despacho se hace: **¿cuán
 W, P = 19.32e9, 32.762e9          # Qwen3 32B en INT4 de AWQ: bytes de pesos y parámetros
 K = 6250 * 262144                  # KV cache de una conversación a media respuesta, en bytes
 BW, F = 864e9, 362.05e12           # L40S: bytes/s de memoria y FLOPs/s densos en FP16
+em, ec = 0.7, 0.5                  # eficiencias supuestas: de la memoria y del cálculo
 
 print(f"{'b':>4}{'paso ms':>9}{'tok/s c/u':>11}{'tok/s GPU':>11}{'FLOPs/B':>9}  manda")
-for b in (1, 2, 4, 8, 13, 16, 64):
-    t_mem = (W + b * K) / BW       # leer pesos una vez y el KV de cada una
-    t_calc = 2 * P * b / F         # 2 FLOPs por parámetro por conversación
+for b in (1, 2, 4, 6, 8, 13, 64):
+    t_mem = (W + b * K) / (em * BW)    # leer pesos una vez y el KV de cada una
+    t_calc = 2 * P * b / (ec * F)      # 2 FLOPs por parámetro por conversación
     t = max(t_mem, t_calc)
     manda = "memoria" if t_mem >= t_calc else "cálculo"
     print(f"{b:>4}{t*1e3:>9.2f}{1/t:>11.1f}{b/t:>11.0f}{2*P*b/(W+b*K):>9.1f}  {manda}")
@@ -134,16 +140,16 @@ for b in (1, 2, 4, 8, 13, 16, 64):
 
 ```salida
    b  paso ms  tok/s c/u  tok/s GPU  FLOPs/B  manda
-   1    24.26       41.2         41      3.1  memoria
-   2    26.15       38.2         76      5.8  memoria
-   4    29.95       33.4        134     10.1  memoria
-   8    37.53       26.6        213     16.2  memoria
-  13    47.01       21.3        277     21.0  memoria
-  16    52.70       19.0        304     23.0  memoria
-  64   143.72        7.0        445     33.8  memoria
+   1    34.65       28.9         29      3.1  memoria
+   2    37.36       26.8         54      5.8  memoria
+   4    42.78       23.4         94     10.1  memoria
+   6    48.20       20.7        124     13.5  memoria
+   8    53.62       18.7        149     16.2  memoria
+  13    67.16       14.9        194     21.0  memoria
+  64   205.32        4.9        312     33.8  memoria
 ```
 
-Lee la tabla de arriba abajo. La columna de la GPU crece rápido al principio y luego se aplana: de 1 a 8 conversaciones se multiplica por 5; de 16 a 64, apenas por 1.5. La columna de cada persona baja todo el tiempo. Es el intercambio de siempre entre lo que produce el servidor y lo que ve cada usuario: con muchas conversaciones, la GPU rinde mucho y cada persona espera más. Cómo se ve esa curva cuando llegan usuarios de verdad, con sus tiempos al primer token (TTFT) y entre tokens (TPOT), lo ves a fondo en la lección de concurrencia. Aquí solo importa el mecanismo: **juntar conversaciones casi no cuesta porque los pesos se leen una vez**. (Las filas de 16 y 64 son de mentira: no caben en la VRAM. La tabla solo mira el tiempo.)
+Lee la tabla de arriba abajo. La columna de la GPU crece rápido al principio y luego se aplana: de 1 a 8 conversaciones se multiplica por 5; de 13 a 64, apenas por 1.6. La columna de cada persona baja todo el tiempo. Es el intercambio de siempre entre lo que produce el servidor y lo que ve cada usuario: con muchas conversaciones, la GPU rinde mucho y cada persona espera más. Cómo se ve esa curva cuando llegan usuarios de verdad, con sus tiempos al primer token (TTFT) y entre tokens (TPOT), lo ves a fondo en la lección de concurrencia. Aquí solo importa el mecanismo: **juntar conversaciones casi no cuesta porque los pesos se leen una vez**. (La fila de 64 es de mentira: no cabe en la VRAM. La tabla solo mira el tiempo.)
 
 ## Batching estático: esperar al más largo {Static batching: waiting for the longest}
 
@@ -406,7 +412,7 @@ Eso es la [[preemption]] (desalojo): el scheduler saca del batch una conversaci�
 - **Swap.** Copiar los bloques de esa conversación a la RAM de la CPU y, al retomarla, traerlos de vuelta. No se pierde trabajo, pero mover gigabytes entre la CPU y la GPU cuesta tiempo y ocupa RAM.
 - **Recompute.** Tirar sus bloques y, al retomarla, recalcular su KV cache desde el texto que ya tiene, con un prefill. Se repite trabajo, pero el prefill es justo la parte en que la GPU calcula rápido. **Es lo que vLLM hace por omisión**: su documentación dice que en el motor actual tiene menos costo extra que el swap.
 
-Para el despacho, recomputar una conversación que iba en 6,250 tokens es hacer otra vez un prefill de 6,250: a pico de cálculo, más de un segundo de GPU (lo calculas en la sección de chunked prefill).
+Para el despacho, recomputar una conversación que iba en 6,250 tokens es hacer otra vez un prefill de 6,250: ≈ 2.3 s de GPU con la eficiencia del despacho (lo calculas en la sección de chunked prefill).
 
 ### Qué ve el usuario
 
@@ -429,20 +435,24 @@ Hasta aquí casi todo ha sido decode. Pero en el despacho cada pregunta trae **6
 El prefill es lo opuesto al decode: procesa miles de tokens con una sola lectura de los pesos, así que su intensidad es altísima (≈ 20,000 FLOPs por byte en el despacho) y **manda el cálculo**. Un paso con un prefill entero dura lo que tardan sus cuentas.
 
 :::formula Lo que tarda un prefill
-t_{prefill} ≥ frac{2 × P × n}{F}
+t_{prefill} ≈ frac{2 × P × n}{η_c × F}
 - n: los tokens del prompt que se procesan en el paso
 - P, F: los parámetros del modelo y el pico de la GPU, en FLOPs por segundo
-- t_{prefill}: el tiempo mínimo del paso, en segundos (sin contar la atención ni la eficiencia real de la GPU, que lo alargan)
+- η_c: la eficiencia del cálculo (0.5 en el despacho, supuesta)
+- t_{prefill}: lo que dura el paso, en segundos (sin contar la atención, que lo alarga un poco)
 :::
 
 :::cuenta Un prefill de 6,000 tokens en la L40S
 FLOPs // \(P\) = 32.762 mil millones, \(n\) = 6,000 tokens | 2 × 32.762 × 10⁹ × 6,000 | ≈ 393 × 10¹²
-Tiempo mínimo, \(t_{prefill}\) // \(F\) = 362.05 TFLOPS | 393 × 10¹² ÷ 362.05 × 10¹² | **≥ 1.09 s** (DERIVADO)
-Un paso de decode normal, con 8 // de la sección del batch | (19.32 + 8 × 1.64) GB ÷ 864 GB/s | ≈ 37.5 ms
-= Si el prefill entra entero en un paso, las otras 7 conversaciones dejan de recibir tokens durante más de un segundo: unos 29 pasos de decode de golpe.
+Tiempo, \(t_{prefill}\) // \(η_c × F\) = 0.5 × 362.05 TFLOPS ≈ 181 TFLOPS | 393 × 10¹² ÷ 181 × 10¹² | **≈ 2.17 s** (DERIVADO)
+Un paso de decode normal, con 8 // de la sección del batch | (19.32 + 8 × 1.64) GB ÷ 604.8 GB/s | ≈ 53.6 ms
+Parte de la GPU que se va en prefills // en la hora pico llegan ≈ 0.21 preguntas por segundo | 0.21 × 2.17 s | ≈ 0.46
+= Un solo prefill ya pasa el objetivo de 2 s al primer token. Si entra entero en un paso, las otras 7 se quedan sin tokens ≈ 2.2 s, unos 40 pasos de decode. Y en la hora pico casi la mitad del tiempo de la GPU se va en prefills.
 :::
 
-Para la abogada que preguntó, ese segundo es su tiempo al primer token. Para las otras siete, es un tirón: su texto venía saliendo fluido y se detiene un segundo cada vez que alguien hace una pregunta nueva. En la hora pico del despacho llega una pregunta cada ≈ 5 segundos: tirones seguidos.
+Para la abogada que preguntó, esos ≈ 2.2 s son su tiempo al primer token, ya fuera del objetivo antes de que la pregunta haga fila. Para las otras siete, es un tirón: su texto venía saliendo fluido y se detiene más de dos segundos cada vez que alguien pregunta. En la hora pico llega una pregunta cada ≈ 5 segundos: tirones seguidos.
+
+Y la última fila de la cuenta es la que más pesa. Si ≈ 46 % del tiempo de la GPU se va en prefills, al decode le queda ≈ 54 %. Con 8 conversaciones, que en decode puro veían ≈ 18.6 tokens por segundo, cada persona ve en promedio ≈ 18.6 × 0.54 ≈ **10**. La memoria dice que en una L40S caben 8 conversaciones; el cálculo del prefill y el ancho de banda dicen que se atienden bien muchas menos. La herramienta de sizing, que cuenta todo esto con más cuidado, concluye que el despacho necesita **3 L40S**, y aun así el tiempo al primer token ronda los 2.4 s: con esta GPU el objetivo de 2 s no se cumple sin cambiar algo (una GPU con más FLOPs, menos fragmentos por pregunta o un objetivo más flojo). Esa decisión va en el caso del despacho; lo que toca aquí es que una pregunta no congele a las demás.
 
 ### Partirlo en trozos
 
@@ -450,8 +460,8 @@ La solución es el [[chunked-prefill|chunked prefill]] (prefill en trozos): no h
 
 :::cuenta El mismo prefill, en trozos de ≈ 2,041 tokens
 Trozos // 6,000 tokens; cada paso: 2,048 − 7 decodes | 2,041 + 2,041 + 1,918 | 3 pasos
-Cada paso con un trozo // a pico de cálculo, con \(n\) = 2,048 | 2 × 32.762 × 10⁹ × 2,048 ÷ 362.05 × 10¹² | ≈ 0.37 s
-= En vez de un tirón de más de 1 s, las demás reciben un token cada ≈ 0.37 s durante 3 pasos. Con trozos más chicos (512 tokens), cada tirón baja a ≈ 0.09 s, a cambio de que el prefill tarde más pasos.
+Cada paso con un trozo // \(n\) = 2,048 tokens, a 181 TFLOPS efectivos | 2 × 32.762 × 10⁹ × 2,048 ÷ 181 × 10¹² | ≈ 0.74 s
+= En vez de un tirón de ≈ 2.2 s, las demás reciben un token cada ≈ 0.74 s durante 3 pasos. Con trozos más chicos (512 tokens), cada tirón baja a ≈ 0.19 s, a cambio de que el prefill tarde más pasos.
 :::
 
 La documentación de vLLM lo dice como regla de afinación: valores chicos de `max_num_batched_tokens` (como 2,048) dan **mejor latencia entre tokens**, porque hay menos prefill frenando a los decodes; valores grandes dan **mejor tiempo al primer token**, porque cada prefill termina en menos pasos. No hay un valor correcto: es un intercambio, y lo decides con los objetivos del despacho (≤ 2 s al primer token, ≥ 20 tokens por segundo por persona) y midiendo.
@@ -485,7 +495,7 @@ El primer número son los tokens de KV cache que caben (bloques × tokens por bl
 
 Tres lecturas para el despacho:
 
-- **`max_num_seqs` = 256 no es su límite.** Con su memoria caben ≈ 13 conversaciones; el límite real es el KV cache, y lo pone el gestor de bloques, no esta perilla. Bajarla sirve para proteger la velocidad por persona: con 13, cada una ve ≈ 21 tokens por segundo; sin tope, el servidor metería todas las que le quepan.
+- **`max_num_seqs` = 256 no es su límite.** Con su memoria caben ≈ 13 conversaciones; el límite real es el KV cache, y lo pone el gestor de bloques, no esta perilla. Bajarla sirve para proteger la velocidad por persona: con 13 en decode, cada una vería ≈ 15 tokens por segundo; sin tope, el servidor metería todas las que le quepan.
 - **`gpu_memory_utilization` cambió entre versiones.** La herramienta de VRAM usa un margen del 10 % (el 0.9 de antes); la versión 0.34.0 usa otra regla. Lo que importa es fijar el valor a mano, anotarlo y confirmar con la línea de arranque cuánto KV cache quedó.
 - **El tamaño de bloque efectivo hay que verlo, no suponerlo.** Cambia entre versiones y según el backend de atención. Para lo que cuenta esta lección (el desperdicio por conversación) da casi igual: con 64 tokens, el último bloque desperdicia en promedio 32 tokens, 8 MiB, todavía menos del 1 %.
 
@@ -495,17 +505,17 @@ Estos valores son de vLLM 0.34.0 (publicada el 16 de noviembre de 2026) y **camb
 
 ## Errores comunes {Common mistakes}
 
-1. **Medir con una sola persona y multiplicar.** «Con una conversación da 41 tokens por segundo; para 8 personas necesito 8 GPUs». Falso: con 8 en batch, la misma GPU da ≈ 213 y cada persona ≈ 27. **Cómo evitarlo:** mide o calcula con el batch que vas a tener, \(t_{paso} = (W + b × K) ÷ B_W\).
+1. **Medir con una sola persona y multiplicar.** «Con una conversación da 29 tokens por segundo; para 8 personas necesito 8 GPUs». Falso: con 8 en batch, la misma GPU da ≈ 149 y cada persona ≈ 18.6 (con las eficiencias del despacho). **Cómo evitarlo:** calcula con el batch que vas a tener, \(t_{paso} = (W + b × K) ÷ (η_m × B_W)\), y luego mide.
 2. **Comprar TFLOPS para el decode.** Si el decode espera a la memoria, una GPU con el doble de cálculo y el mismo ancho de banda escribe casi igual de rápido. **Cómo evitarlo:** compara GB/s para el decode y TFLOPS para el prefill; mira de qué lado del quiebre estás.
 3. **Olvidar el KV cache en el tiempo del paso.** Con contextos de 6,000 tokens, ocho KV caches pesan ≈ 13 GB por paso, dos tercios de los pesos. **Cómo evitarlo:** suma \(b × K\) a los bytes, no solo los pesos.
 4. **Leer «Maximum concurrency» como el máximo de usuarios.** Es cuántas conversaciones **al tope de contexto** caben; con conversaciones más cortas caben más, y con usuarios que piensan entre pregunta y pregunta, muchos más usuarios registrados. **Cómo evitarlo:** divide los tokens de KV cache entre el largo **real** de tus conversaciones, y deja lo de usuarios para la lección de concurrencia.
 5. **Apagar el prefix caching «para que sea más simple».** En un sistema con instrucciones fijas y repreguntas, como el despacho, es tiempo de prefill y memoria regalados. **Cómo evitarlo:** déjalo prendido, pon las partes fijas del prompt **al principio**, siempre iguales y en el mismo orden (un espacio distinto cambia el hash).
 6. **Tratar la preemption como un error que se esconde.** Si aparece seguido, el servidor está repitiendo prefills y algunas personas ven respuestas congeladas. **Cómo evitarlo:** cuéntala en el monitoreo y, si es frecuente, baja `max_num_seqs` o consigue más memoria para el KV cache.
-7. **Copiar perillas de un blog de otra versión.** Los valores por omisión de vLLM han cambiado varias veces. **Cómo evitarlo:** fíjalos a mano, con la documentación de tu versión, y anota la versión junto a la configuración.
+7. **Confundir caber con atenderse bien.** «En la VRAM caben 13: la L40S alcanza para las 8 del despacho». La memoria dice cuántas caben; el ancho de banda y el cálculo del prefill, cuántas se atienden con la velocidad que pides. **Cómo evitarlo:** después de la cuenta de memoria, haz la de velocidad con eficiencias y con los prefills.
 
 ## En la vida real {In real life}
 
-**El despacho.** Qwen3 32B en INT4 de AWQ en una L40S. Con batching continuo y PagedAttention, la cuenta de techo dice que caben ≈ 13 conversaciones a media respuesta y que, con 8, cada abogado ve ≈ 27 tokens por segundo: el diseño de 8 a la vez cumple, con algo de holgura. Tres decisiones salen de esta lección: dejar prendido el prefix caching y poner las ≈ 400 tokens de instrucciones siempre iguales al principio; poner un tope de conversaciones a la vez (`max_num_seqs`) alrededor de 12 o 13, para que nadie baje de 20 tokens por segundo; y dejar el chunked prefill con trozos chicos, porque sus preguntas de 6,000 tokens frenarían a los demás. Ninguna de esas cifras se da por buena sin medir: la cuenta da el orden de magnitud y las pruebas de carga dan el número.
+**El despacho.** Qwen3 32B en INT4 de AWQ, con la L40S como primer candidato. Con PagedAttention, en su memoria caben ≈ 13 conversaciones a media respuesta, más de las 8 de diseño. Pero con las eficiencias supuestas, 8 en decode ya ven ≈ 18.6 tokens por segundo cada una, y los prefills de 6,000 tokens se comen casi la mitad de la GPU en la hora pico: **una L40S no basta**. La herramienta de sizing da 3, y aun así el primer token tarda ≈ 2.4 s. De esta lección salen tres decisiones que valen con cualquier número de GPUs: dejar prendido el prefix caching con las ≈ 400 tokens de instrucciones siempre iguales al principio (y aprovechar que la repregunta reutiliza la conversación entera); poner un tope de conversaciones por GPU (`max_num_seqs`) que proteja los 20 tokens por segundo; y dejar el chunked prefill con trozos chicos, para que las preguntas largas no congelen a los demás. Ninguna cifra se da por buena sin medir: la cuenta da el orden de magnitud y las pruebas de carga dan el número.
 
 **Una clínica con un asistente de notas médicas.** Supuesto del ejemplo: los médicos dictan notas cortas, el modelo las ordena en un formato fijo, con prompts de ≈ 800 tokens (500 de instrucciones y formato) y respuestas de ≈ 300. Aquí la reserva fija sería desastrosa: con un tope de 8,192 tokens, cada conversación usaría ≈ 13 % de lo reservado. Con bloques, caben ≈ 7 veces más conversaciones en la misma memoria, y como el 60 % de cada prompt es igual en todas, el prefix caching se ahorra más de la mitad de cada prefill. En esta clínica, PagedAttention es la diferencia entre comprar una GPU o varias.
 
@@ -524,16 +534,16 @@ Estos valores son de vLLM 0.34.0 (publicada el 16 de noviembre de 2026) y **camb
 \(u = sum n_i ÷ (b × max n_i)\) = (300 + 100 + 200) ÷ (3 × 300) = 600 ÷ 900 ≈ **66.7 %**. Un tercio de los lugares-paso lee los pesos para nadie.
 ? [facil] Las instrucciones del despacho son 400 tokens. Si el servidor usa bloques de 64 y solo guarda bloques llenos, ¿cuántos tokens de instrucciones se reutilizan con prefix caching?
 400 ÷ 64 = 6.25: **6 bloques llenos = 384 tokens** se reutilizan. Los últimos 16 tokens de instrucciones caen en un bloque que se completa con la pregunta, que cambia cada vez, así que se recalculan siempre. Con bloques de 16, los 400 se reutilizan.
-? [medio] Con la fórmula del paso, ¿cuántos tokens por segundo ve cada persona y cuántos da la GPU con 4 conversaciones del despacho (pesos de 19.32 GB, 1.64 GB de KV cada una, L40S)?
-Bytes: 19.32 + 4 × 1.64 = 25.88 GB. \(t_{mem}\) = 25.88 ÷ 864 ≈ **29.95 ms**; el cálculo, 2 × 32.762 × 10⁹ × 4 ÷ 362.05 × 10¹² ≈ 0.72 ms, no manda. Cada persona: 1 ÷ 29.95 ms ≈ **33.4 tokens/s**. La GPU: 4 ÷ 29.95 ms ≈ **134 tokens/s**.
+? [medio] Con la fórmula del paso, ¿cuántos tokens por segundo ve cada persona y cuántos da la GPU con 4 conversaciones del despacho (pesos de 19.32 GB, 1.64 GB de KV cada una, L40S, \(η_m\) = 0.7 y \(η_c\) = 0.5)?
+Bytes: 19.32 + 4 × 1.64 = 25.88 GB. \(t_{mem}\) = 25.88 ÷ (0.7 × 864) = 25.88 ÷ 604.8 ≈ **42.8 ms**; el cálculo, 2 × 32.762 × 10⁹ × 4 ÷ 181 × 10¹² ≈ 1.45 ms, no manda. Cada persona: 1 ÷ 42.8 ms ≈ **23.4 tokens/s**. La GPU: 4 ÷ 42.8 ms ≈ **93 tokens/s**.
 ? [medio] Supón que las conversaciones del despacho fueran más cortas: 2,000 tokens reales en promedio. Con 21.88 GB libres, 256 KiB por token y un tope de 8,192, ¿cuántas caben con reserva fija y cuántas con bloques de 16?
 Reserva fija: ⌊21.88 × 10⁹ ÷ (8,192 × 262,144)⌋ = **10**, igual que antes: la reserva no mira el largo real. Bloques: ⌈2,000 ÷ 16⌉ = 125 bloques = 2,000 tokens; ⌊21.88 × 10⁹ ÷ (2,000 × 262,144)⌋ = ⌊41.7⌋ = **41**. Cuatro veces más: cuanto más cortas las conversaciones frente al tope, más gana PagedAttention.
-? [medio] El despacho guarda su KV cache en FP8 (128 KiB por token en vez de 256). Con 8 conversaciones a media respuesta (6,250 tokens), ¿cuánto dura el paso y cuántos tokens por segundo ve cada persona?
-\(K\) = 6,250 × 131,072 ≈ 0.82 GB. Bytes: 19.32 + 8 × 0.82 ≈ 25.87 GB. \(t_{paso}\) ≈ 25.87 ÷ 864 ≈ **29.9 ms**, y cada persona ve ≈ **33.4 tokens/s** (antes, 26.6). Curioso: es lo mismo que 4 conversaciones en BF16, porque los bytes de KV por paso son los mismos. Además caben el doble en memoria. El precio es algo de precisión, que se mide.
-? [medio] El despacho quiere que nadie baje de 20 tokens por segundo. ¿Cuántas conversaciones a media respuesta aguanta la L40S por velocidad, y cuántas por memoria? ¿Cuál manda?
-Por velocidad: \(t_{paso}\) ≤ 1 ÷ 20 = 50 ms, así que \(W + b × K\) ≤ 0.05 s × 864 GB/s = 43.2 GB. Con \(K\) = 1.6384 GB: \(b\) ≤ (43.2 − 19.32) ÷ 1.6384 ≈ 14.6 → **14**. Por memoria: ⌊21.88 ÷ 1.6384⌋ = ⌊13.35⌋ = **13**. **Manda la memoria**, por poco. (Que 50 ms × 864 GB/s dé justo los 43.2 GB útiles de la L40S es una coincidencia de estos números.)
-? [reto] Un prefill de 6,000 tokens del despacho llega mientras 7 conversaciones están en decode. Compara, a pico de cálculo, (a) hacerlo entero en un paso y (b) con chunked prefill y un tope de 2,048 tokens por paso. ¿Cuánto esperan las 7 en cada caso, y cuándo recibe su primer token la nueva?
-(a) Un paso: 2 × 32.762 × 10⁹ × 6,000 ÷ 362.05 × 10¹² ≈ **1.09 s** sin tokens para las 7; la nueva tiene su primer token al terminar ese paso, ≈ 1.09 s. (b) Cada paso lleva 7 tokens de decode y 2,041 de prefill: trozos de 2,041, 2,041 y 1,918, **3 pasos** de ≈ 2 × 32.762 × 10⁹ × 2,048 ÷ 362.05 × 10¹² ≈ **0.37 s** cada uno (el último un poco menos). Las 7 reciben un token cada ≈ 0.37 s en vez de esperar 1.09 s seguidos. La nueva tiene su primer token al final del tercer paso: ≈ 1.1 s, casi lo mismo. El chunked prefill no hace más rápido el prefill: reparte la espera para que nadie sienta el tirón entero.
+? [medio] El despacho guarda su KV cache en FP8 (128 KiB por token en vez de 256). Con 8 conversaciones a media respuesta (6,250 tokens), ¿cuánto dura el paso y cuántos tokens por segundo ve cada persona (\(η_m\) = 0.7)?
+\(K\) = 6,250 × 131,072 ≈ 0.82 GB. Bytes: 19.32 + 8 × 0.82 ≈ 25.87 GB. \(t_{paso}\) ≈ 25.87 ÷ 604.8 ≈ **42.8 ms**, y cada persona ve ≈ **23.4 tokens/s** (antes, 18.6): en decode puro, de nuevo arriba de 20. Curioso: es lo mismo que 4 conversaciones en BF16, porque los bytes de KV por paso son los mismos. Además caben el doble en memoria. El precio es algo de precisión, que se mide.
+? [medio] El despacho quiere que nadie baje de 20 tokens por segundo. ¿Cuántas conversaciones a media respuesta aguanta la L40S por velocidad de decode (\(η_m\) = 0.7, sin contar prefills), y cuántas por memoria? ¿Cuál manda?
+Por velocidad: \(t_{paso}\) ≤ 1 ÷ 20 = 50 ms, así que \(W + b × K\) ≤ 0.05 s × 604.8 GB/s = 30.24 GB. Con \(K\) = 1.6384 GB: \(b\) ≤ (30.24 − 19.32) ÷ 1.6384 ≈ 6.7 → **6**. Por memoria: ⌊21.88 ÷ 1.6384⌋ = ⌊13.35⌋ = **13**. **Manda la velocidad**: caben 13, pero solo 6 se atienden a 20 tokens por segundo, y con los prefills, menos todavía.
+? [reto] Un prefill de 6,000 tokens del despacho llega mientras 7 conversaciones están en decode. Compara, con \(η_c\) = 0.5, (a) hacerlo entero en un paso y (b) con chunked prefill y un tope de 2,048 tokens por paso. ¿Cuánto esperan las 7 en cada caso, y cuándo recibe su primer token la nueva?
+(a) Un paso: 2 × 32.762 × 10⁹ × 6,000 ÷ (0.5 × 362.05 × 10¹²) ≈ **2.17 s** sin tokens para las 7; la nueva tiene su primer token al terminar ese paso, ≈ 2.2 s. (b) Cada paso lleva 7 tokens de decode y 2,041 de prefill: trozos de 2,041, 2,041 y 1,918, **3 pasos** de ≈ 2 × 32.762 × 10⁹ × 2,048 ÷ 181 × 10¹² ≈ **0.74 s** cada uno (el último un poco menos). Las 7 reciben un token cada ≈ 0.74 s en vez de esperar 2.2 s seguidos. La nueva tiene su primer token al final del tercer paso: ≈ 2.2 s, casi lo mismo, y fuera del objetivo de 2 s en los dos casos. El chunked prefill no hace más rápido el prefill: reparte la espera para que nadie sienta el tirón entero.
 ? [reto] El paper de PagedAttention usa OPT-13B en una A100 de 40 GB con 12 GB para el KV cache y 800 KB por token (2 × 5,120 × 40 × 2 bytes = 819,200 bytes). Reporta ≈ 15.7 mil lugares de tokens. (a) Comprueba ese número. (b) ¿Cuántas secuencias de 2,048 tokens caben reservando el máximo? (c) Si las conversaciones usaran 500 tokens en promedio (supuesto) y se guardaran en bloques de 16, ¿cuántas cabrían?
 (a) Con 12 GiB = 12 × 2³⁰ bytes: 12,884,901,888 ÷ 819,200 ≈ **15,729** lugares: el 15.7K del paper (sale con GiB, no con GB). (b) ⌊15,729 ÷ 2,048⌋ = ⌊7.68⌋ = **7 secuencias**: cada una reserva ≈ 1.6 GB. (c) ⌈500 ÷ 16⌉ = 32 bloques = 512 tokens; ⌊15,729 ÷ 512⌋ = ⌊30.7⌋ = **30 conversaciones**, más de 4 veces más. Es el tamaño de mejora que explica las cifras del paper.
 ? [reto] La línea de arranque de vLLM dice «GPU KV cache size: 83,456 tokens, Maximum concurrency for 8,192 tokens per request: 10.19x». El despacho la lee y concluye «solo podemos atender a 10 personas». Explica qué tiene de bueno y de malo esa conclusión, con números.
@@ -558,7 +568,7 @@ batch limitado-por-memoria intensidad-aritmetica roofline batching-estatico batc
 
 :::chequeo
 ? ¿Por qué con 8 conversaciones el paso de decode no tarda 8 veces más que con una?
-Porque el paso está limitado por memoria y lo que más se lee son los pesos, que se leen **una vez** para todas. Cada conversación extra solo suma su propio KV cache.
+Porque el paso está limitado por memoria (*memory-bound*) y lo que más se lee son los pesos, que se leen **una vez** para todas. Cada conversación extra solo suma su propio KV cache.
 ? ¿Qué es el punto de quiebre de una GPU y cuánto vale en la L40S?
 Pico de FLOPs por segundo ÷ bytes por segundo de memoria: la intensidad que necesita un cálculo para que mande el cálculo y no la memoria. En la L40S, 362.05 TFLOPS ÷ 864 GB/s ≈ 419 FLOPs por byte.
 ? ¿Qué hace el batching continuo que no hace el estático?
@@ -570,5 +580,5 @@ Porque las instrucciones son ≈ 400 tokens y la repregunta empieza con toda la 
 ? ¿Qué ve un usuario cuando su conversación sufre preemption con recompute?
 Su respuesta se congela unos segundos mientras otras usan la memoria; luego el servidor recalcula su KV cache con un prefill y la respuesta sigue igual.
 ? ¿Para qué sirve el chunked prefill, si no hace más rápido el prefill?
-Para repartir el prefill largo de una petición nueva en varios pasos, con el decode de las demás en cada uno, y que ninguna deje de recibir tokens durante más de un segundo.
+Para repartir el prefill largo de una petición nueva en varios pasos, con el decode de las demás en cada uno, y que ninguna deje de recibir tokens durante más de dos segundos seguidos.
 :::

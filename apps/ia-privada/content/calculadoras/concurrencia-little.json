@@ -1,6 +1,6 @@
 {
   "titulo": "¿Cuántas conversaciones a la vez? La ley de Little",
-  "intro": "Aplica \\(λ = frac{personas × preguntas}{horas × 3,600} × pico\\) y la [[ley-de-little|ley de Little]], \\(L = λ × W\\). Arranca con el despacho: 200 personas, 15 preguntas al día cada una, 10 horas, una hora pico de 2.5 veces el promedio y 27 s por respuesta.",
+  "intro": "Aplica \\(λ = frac{personas × preguntas}{horas × 3,600} × pico\\) y la ley de Little, \\(L = λ × W\\). Arranca con el despacho: 200 personas, 15 preguntas al día cada una, 10 horas, una hora pico de 2.5 veces el promedio y 27 s por respuesta.",
   "entradas": [
     { "id": "per", "label": "Personas que lo usan", "min": 1, "max": 100000, "paso": 1, "valor": 200, "tipo": "numero" },
     { "id": "q", "label": "Preguntas por persona al día", "min": 1, "max": 200, "paso": 1, "valor": 15 },

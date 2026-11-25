@@ -3,55 +3,309 @@
   "width": 78,
   "height": 62,
   "lanes": [
-    { "id": "todos", "label": "Lo que hay", "kind": "offline", "x": 0, "y": 0, "w": 78, "h": 12 },
-    { "id": "filtros", "label": "Filtros duros: sí o no", "kind": "monitor", "x": 0, "y": 13, "w": 78, "h": 16 },
-    { "id": "lista", "label": "Lo que queda", "kind": "neutral", "x": 0, "y": 30, "w": 78, "h": 14 },
-    { "id": "examen", "label": "Tu examen", "kind": "online", "x": 0, "y": 45, "w": 78, "h": 17 }
+    {
+      "id": "todos",
+      "label": "Lo que hay",
+      "kind": "offline",
+      "x": 0,
+      "y": 0,
+      "w": 78,
+      "h": 12
+    },
+    {
+      "id": "filtros",
+      "label": "Filtros duros: sí o no",
+      "kind": "monitor",
+      "x": 0,
+      "y": 13,
+      "w": 78,
+      "h": 16
+    },
+    {
+      "id": "lista",
+      "label": "Lo que queda",
+      "kind": "neutral",
+      "x": 0,
+      "y": 30,
+      "w": 78,
+      "h": 14
+    },
+    {
+      "id": "examen",
+      "label": "Tu examen",
+      "kind": "online",
+      "x": 0,
+      "y": 45,
+      "w": 78,
+      "h": 17
+    }
   ],
   "nodes": [
-    { "id": "catalogo", "label": "Modelos abiertos", "sub": "decenas de familias", "kind": "store", "x": 2, "y": 2, "w": 22, "h": 8,
-      "note": "Qwen, Gemma, Mistral, gpt-oss, DeepSeek, Llama, Phi, GLM, Kimi, OLMo… cada una con varios tamaños y variantes. A noviembre de 2026 salen versiones nuevas cada pocos meses: la lista cambia, el embudo no." },
-    { "id": "licencia", "label": "Licencia", "sub": "¿uso comercial?", "badge": "1", "kind": "monitor", "x": 2, "y": 17, "w": 17, "h": 9,
-      "note": "El primer filtro y el más barato: leer la licencia. Apache 2.0 y MIT permiten uso comercial sin condiciones raras; las licencias a medida (la de Llama, las marcadas «other») hay que leerlas con calma. Lo ves a fondo en la lección «Open weight, open source y licencias»." },
-    { "id": "memoria", "label": "Memoria", "sub": "1 L40S · 8 × 8,192", "badge": "2", "kind": "gpu", "x": 21, "y": 17, "w": 17, "h": 9,
-      "note": "Pesos + [[kv-cache|KV cache]] de 8 conversaciones de 8,192 tokens + 2 GB de programa, contra 43.2 GB útiles. Cuentan los parámetros **totales**: Mistral Small 4 tiene 6.5 B activos pero 119 B de pesos, y no cabe ni en 4 bits." },
-    { "id": "idioma", "label": "Idioma", "sub": "español", "badge": "3", "kind": "monitor", "x": 40, "y": 17, "w": 17, "h": 9,
-      "note": "¿El fabricante declara español, o al menos lo mide (MMMLU, que incluye español)? Phi-4 declara un solo idioma, inglés: sale aquí. Pasar este filtro no prueba que escriba buen español jurídico; eso lo dice el examen." },
-    { "id": "contexto", "label": "Contexto", "sub": "≥ 8,192 tokens", "badge": "4", "kind": "monitor", "x": 59, "y": 17, "w": 17, "h": 9,
-      "note": "El despacho necesita ≈ 6,500 tokens por pregunta (6,000 de entrada y 500 de respuesta) y un tope de 8,192. Casi todos los modelos de 2026 anuncian 128K o más, así que este filtro casi no descarta; Phi-4, con 16,384, pasaría justo." },
-    { "id": "fuera", "label": "Descartados", "sub": "Llama 3.3 70B, Small 4…", "kind": "external", "x": 2, "y": 33, "w": 20, "h": 8,
-      "note": "Lo que no pasa un filtro duro sale sin examen: ningún puntaje compensa una licencia que no permite el uso, o un modelo que no cabe. DeepSeek V4, Kimi K3.1 y GLM-5.3 son abiertos, pero pesan cientos de GB." },
-    { "id": "shortlist", "label": "Shortlist", "sub": "5 o 6 modelos", "kind": "queue", "x": 30, "y": 33, "w": 22, "h": 8,
-      "note": "Lo que pasó los cuatro filtros. Para el despacho: Qwen3 32B (el de referencia), Qwen3.6 27B, Qwen3.8 27B, Gemma 4 31B, gpt-oss-20b y Mistral Small 3.2 24B. Aquí los [[benchmark|benchmarks]] sirven para ordenar, no para decidir." },
-    { "id": "prueba", "label": "Examen propio", "sub": "150 preguntas reales", "badge": "5", "kind": "job", "x": 2, "y": 50, "w": 20, "h": 9,
-      "note": "Preguntas que hicieron abogados de verdad, sobre expedientes de verdad, con la respuesta que un abogado firmaría. Cada modelo de la shortlist responde las mismas, con la misma configuración con la que se va a servir." },
-    { "id": "ruido", "label": "¿Se distinguen?", "sub": "intervalo del 95 %", "badge": "6", "kind": "monitor", "x": 29, "y": 50, "w": 20, "h": 9,
-      "note": "Con 150 preguntas, un puntaje de 85 % trae ±5.7 puntos de ruido. Dos modelos a 2 o 3 puntos de distancia empatan: entonces deciden la velocidad, la memoria y lo que ya funciona." },
-    { "id": "elegido", "label": "El elegido", "sub": "y su suplente", "kind": "model", "x": 56, "y": 50, "w": 20, "h": 9,
-      "note": "Uno para servir y otro listo por si el primero falla en algo que el examen no vio. El examen se guarda: la próxima generación de modelos se mide con las mismas preguntas." }
+    {
+      "id": "catalogo",
+      "label": "Modelos abiertos",
+      "sub": "decenas de familias",
+      "kind": "store",
+      "x": 2,
+      "y": 2,
+      "w": 22,
+      "h": 8,
+      "note": "Qwen, Gemma, Mistral, gpt-oss, DeepSeek, Llama, Phi, GLM, Kimi, OLMo… cada una con varios tamaños y variantes. A noviembre de 2026 salen versiones nuevas cada pocos meses: la lista cambia, el embudo no."
+    },
+    {
+      "id": "licencia",
+      "label": "Licencia",
+      "sub": "¿uso comercial?",
+      "badge": "1",
+      "kind": "monitor",
+      "x": 2,
+      "y": 17,
+      "w": 17,
+      "h": 9,
+      "note": "El primer filtro y el más barato: leer la licencia. Apache 2.0 y MIT permiten uso comercial sin condiciones raras; las licencias a medida (la de Llama, las marcadas «other») hay que leerlas con calma. Lo ves a fondo en la lección «Open weight, open source y licencias»."
+    },
+    {
+      "id": "memoria",
+      "label": "Memoria",
+      "sub": "1 L40S · 8 × 8,192",
+      "badge": "2",
+      "kind": "gpu",
+      "x": 21,
+      "y": 17,
+      "w": 17,
+      "h": 9,
+      "note": "Pesos + [[kv-cache|KV cache]] de 8 conversaciones de 8,192 tokens + 2 GB de programa, contra 43.2 GB útiles. Cuentan los parámetros **totales**: Mistral Small 4 tiene 6.5 B activos pero 119 B de pesos, y no cabe ni en 4 bits. Ojo: este filtro dice si **cabe**. Con Qwen3 32B caben las 8 conversaciones, pero leer cada pregunta de 6,000 tokens ya tarda ≈ 2.2–2.4 s y atender bien a todas pide 3 L40S: la velocidad se cuenta aparte."
+    },
+    {
+      "id": "idioma",
+      "label": "Idioma",
+      "sub": "español",
+      "badge": "3",
+      "kind": "monitor",
+      "x": 40,
+      "y": 17,
+      "w": 17,
+      "h": 9,
+      "note": "¿El fabricante declara español, o al menos lo mide (MMMLU, que incluye español)? Phi-4 declara un solo idioma, inglés: sale aquí. Pasar este filtro no prueba que escriba buen español jurídico; eso lo dice el examen."
+    },
+    {
+      "id": "contexto",
+      "label": "Contexto",
+      "sub": "≥ 8,192 tokens",
+      "badge": "4",
+      "kind": "monitor",
+      "x": 59,
+      "y": 17,
+      "w": 17,
+      "h": 9,
+      "note": "El despacho necesita ≈ 6,500 tokens por pregunta (6,000 de entrada y 500 de respuesta) y un tope de 8,192. Casi todos los modelos de 2026 anuncian 128K o más, así que este filtro casi no descarta; Phi-4, con 16,384, pasaría justo."
+    },
+    {
+      "id": "fuera",
+      "label": "Descartados",
+      "sub": "Llama 3.3 70B, Small 4…",
+      "kind": "external",
+      "x": 2,
+      "y": 33,
+      "w": 20,
+      "h": 8,
+      "note": "Lo que no pasa un filtro duro sale sin examen: ningún puntaje compensa una licencia que no permite el uso, o un modelo que no cabe. DeepSeek V4, Kimi K3.1 y GLM-5.3 son abiertos, pero pesan cientos de GB."
+    },
+    {
+      "id": "shortlist",
+      "label": "Shortlist",
+      "sub": "5 o 6 modelos",
+      "kind": "queue",
+      "x": 30,
+      "y": 33,
+      "w": 22,
+      "h": 8,
+      "note": "Lo que pasó los cuatro filtros. Para el despacho: Qwen3 32B (el de referencia), Qwen3.6 27B, Qwen3.8 27B, Gemma 4 31B, gpt-oss-20b y Mistral Small 3.2 24B. Aquí los [[benchmark|benchmarks]] sirven para ordenar, no para decidir."
+    },
+    {
+      "id": "prueba",
+      "label": "Examen propio",
+      "sub": "150 preguntas reales",
+      "badge": "5",
+      "kind": "job",
+      "x": 2,
+      "y": 50,
+      "w": 20,
+      "h": 9,
+      "note": "Preguntas que hicieron abogados de verdad, sobre expedientes de verdad, con la respuesta que un abogado firmaría. Cada modelo de la shortlist responde las mismas, con la misma configuración con la que se va a servir."
+    },
+    {
+      "id": "ruido",
+      "label": "¿Se distinguen?",
+      "sub": "intervalo del 95 %",
+      "badge": "6",
+      "kind": "monitor",
+      "x": 29,
+      "y": 50,
+      "w": 20,
+      "h": 9,
+      "note": "Con 150 preguntas, un puntaje de 85 % trae ±5.7 puntos de ruido. Dos modelos a 2 o 3 puntos de distancia empatan: entonces deciden la velocidad, la memoria y lo que ya funciona."
+    },
+    {
+      "id": "elegido",
+      "label": "El elegido",
+      "sub": "y su suplente",
+      "kind": "model",
+      "x": 56,
+      "y": 50,
+      "w": 20,
+      "h": 9,
+      "note": "Uno para servir y otro listo por si el primero falla en algo que el examen no vio. El examen se guarda: la próxima generación de modelos se mide con las mismas preguntas."
+    }
   ],
   "edges": [
-    { "from": "catalogo", "to": "licencia", "kind": "offline", "fromSide": "b", "toSide": "t" },
-    { "from": "licencia", "to": "memoria", "kind": "neutral", "fromSide": "r", "toSide": "l" },
-    { "from": "memoria", "to": "idioma", "kind": "neutral", "fromSide": "r", "toSide": "l" },
-    { "from": "idioma", "to": "contexto", "kind": "neutral", "fromSide": "r", "toSide": "l" },
-    { "from": "licencia", "to": "fuera", "kind": "async", "dashed": true, "fromSide": "b", "toSide": "t", "label": "no pasa" },
-    { "from": "contexto", "to": "shortlist", "kind": "neutral", "fromSide": "b", "toSide": "r", "label": "pasa los 4" },
-    { "from": "shortlist", "to": "prueba", "kind": "online", "fromSide": "b", "toSide": "t" },
-    { "from": "prueba", "to": "ruido", "kind": "online", "fromSide": "r", "toSide": "l" },
-    { "from": "ruido", "to": "elegido", "kind": "online", "fromSide": "r", "toSide": "l" }
+    {
+      "from": "catalogo",
+      "to": "licencia",
+      "kind": "offline",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "licencia",
+      "to": "memoria",
+      "kind": "neutral",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "memoria",
+      "to": "idioma",
+      "kind": "neutral",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "idioma",
+      "to": "contexto",
+      "kind": "neutral",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "licencia",
+      "to": "fuera",
+      "kind": "async",
+      "dashed": true,
+      "fromSide": "b",
+      "toSide": "t",
+      "label": "no pasa"
+    },
+    {
+      "from": "contexto",
+      "to": "shortlist",
+      "kind": "neutral",
+      "fromSide": "b",
+      "toSide": "r",
+      "label": "pasa los 4"
+    },
+    {
+      "from": "shortlist",
+      "to": "prueba",
+      "kind": "online",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "prueba",
+      "to": "ruido",
+      "kind": "online",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "ruido",
+      "to": "elegido",
+      "kind": "online",
+      "fromSide": "r",
+      "toSide": "l"
+    }
   ],
   "flows": [
-    { "id": "despacho", "label": "El despacho elige modelo",
+    {
+      "id": "despacho",
+      "label": "El despacho elige modelo",
       "steps": [
-        { "nodes": ["catalogo"], "edges": [], "text": "El despacho (ficticio) parte de todo lo que hay a noviembre de 2026: decenas de familias abiertas, cada una con varios tamaños." },
-        { "nodes": ["licencia"], "edges": ["catalogo>licencia"], "text": "**Filtro 1, licencia.** Se queda con lo que permite uso comercial sin trampas. Apache 2.0 y MIT pasan directo; lo marcado «other» o a medida se lee antes." },
-        { "nodes": ["memoria"], "edges": ["licencia>memoria"], "text": "**Filtro 2, memoria.** Pesos + KV cache de 8 conversaciones de 8,192 tokens + 2 GB, en 43.2 GB útiles de una L40S. Llama 3.3 70B en 4 bits necesita ≈ 63 GB: fuera." },
-        { "nodes": ["idioma", "contexto"], "edges": ["memoria>idioma", "idioma>contexto"], "text": "**Filtros 3 y 4, idioma y contexto.** Español declarado o medido, y al menos 8,192 tokens. Casi todos pasan el de contexto; el de idioma saca a los que solo declaran inglés." },
-        { "nodes": ["fuera"], "edges": ["licencia>fuera"], "text": "Lo que cae en cualquier filtro sale sin examen. No importa su puntaje en un leaderboard." },
-        { "nodes": ["shortlist"], "edges": ["contexto>shortlist"], "text": "Queda una **shortlist** de 5 o 6 modelos. Sus benchmarks públicos sirven para ordenarla, nada más." },
-        { "nodes": ["prueba"], "edges": ["shortlist>prueba"], "text": "**El examen propio:** 150 preguntas reales de abogados, calificadas contra la respuesta que firmaría un abogado." },
-        { "nodes": ["ruido", "elegido"], "edges": ["prueba>ruido", "ruido>elegido"], "text": "Se comparan con su ruido. Si dos empatan, gana el más rápido o el que ya funciona. Sale un modelo y su suplente, y el examen queda guardado para la próxima generación." }
-      ] }
+        {
+          "nodes": [
+            "catalogo"
+          ],
+          "edges": [],
+          "text": "El despacho (ficticio) parte de todo lo que hay a noviembre de 2026: decenas de familias abiertas, cada una con varios tamaños."
+        },
+        {
+          "nodes": [
+            "licencia"
+          ],
+          "edges": [
+            "catalogo>licencia"
+          ],
+          "text": "**Filtro 1, licencia.** Se queda con lo que permite uso comercial sin trampas. Apache 2.0 y MIT pasan directo; lo marcado «other» o a medida se lee antes."
+        },
+        {
+          "nodes": [
+            "memoria"
+          ],
+          "edges": [
+            "licencia>memoria"
+          ],
+          "text": "**Filtro 2, memoria.** Pesos + KV cache de 8 conversaciones de 8,192 tokens + 2 GB, en 43.2 GB útiles de una L40S. Llama 3.3 70B en 4 bits necesita ≈ 63 GB: fuera."
+        },
+        {
+          "nodes": [
+            "idioma",
+            "contexto"
+          ],
+          "edges": [
+            "memoria>idioma",
+            "idioma>contexto"
+          ],
+          "text": "**Filtros 3 y 4, idioma y contexto.** Español declarado o medido, y al menos 8,192 tokens. Casi todos pasan el de contexto; el de idioma saca a los que solo declaran inglés."
+        },
+        {
+          "nodes": [
+            "fuera"
+          ],
+          "edges": [
+            "licencia>fuera"
+          ],
+          "text": "Lo que cae en cualquier filtro sale sin examen. No importa su puntaje en un leaderboard."
+        },
+        {
+          "nodes": [
+            "shortlist"
+          ],
+          "edges": [
+            "contexto>shortlist"
+          ],
+          "text": "Queda una **shortlist** de 5 o 6 modelos. Sus benchmarks públicos sirven para ordenarla, nada más."
+        },
+        {
+          "nodes": [
+            "prueba"
+          ],
+          "edges": [
+            "shortlist>prueba"
+          ],
+          "text": "**El examen propio:** 150 preguntas reales de abogados, calificadas contra la respuesta que firmaría un abogado."
+        },
+        {
+          "nodes": [
+            "ruido",
+            "elegido"
+          ],
+          "edges": [
+            "prueba>ruido",
+            "ruido>elegido"
+          ],
+          "text": "Se comparan con su ruido. Si dos empatan, gana el más rápido o el que ya funciona. Sale un modelo y su suplente, y el examen queda guardado para la próxima generación."
+        }
+      ]
+    }
   ]
 }

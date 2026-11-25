@@ -2,49 +2,15 @@
   "nota": "Los conceptos que presenta la lección «Concurrencia: la curva de usuarios contra latencia» (content/lecciones/concurrencia.md). «sensei»: la lección de Sensei donde se explica a fondo.",
   "terminos": [
     {
-      "id": "prefill",
-      "termino": "Prefill",
-      "en": "prefill",
-      "corto": "La primera fase de una respuesta: el modelo lee todos los tokens del prompt de una sola pasada, en paralelo, y llena el [[kv-cache|KV cache]]. Termina con el primer token.",
-      "largo": "Como todos los tokens del prompt ya existen, se procesan juntos: cada peso que llega de la memoria se usa para miles de tokens a la vez, así que el prefill está limitado por el cómputo de la GPU, no por su memoria. Cuesta ≈ 2 × parámetros × tokens operaciones. Con prompts largos, como los de un RAG, el prefill es lo que más pesa en el [[ttft|TTFT]].",
-      "analogia": "Leer de corrido el expediente completo antes de empezar a dictar la respuesta. **Dónde se rompe:** una persona lee línea por línea; la GPU lee todas las líneas al mismo tiempo.",
-      "ejemplo": "Qwen3 32B con 6,000 tokens de entrada: 2 × 32.76 mil millones × 6,000 ≈ 393 billones de operaciones, ≈ 1.1 s en una L40S al 100 % de su cómputo en FP16 y ≈ 1.8 s al 60 %.",
-      "ver": ["decode", "ttft"],
-      "leccion": "concurrencia",
-      "sensei": "llms"
-    },
-    {
-      "id": "decode",
-      "termino": "Decode",
-      "en": "decode",
-      "corto": "La segunda fase de una respuesta: el modelo escribe un token por paso, uno detrás de otro, porque cada token depende del anterior.",
-      "largo": "Cada paso tiene que leer todos los [[pesos]] y el [[kv-cache|KV cache]] de la conversación para calcular un solo token, así que lo que tarda es leer la memoria, no calcular. Si en el mismo paso van varias conversaciones, los pesos se leen una sola vez para todas: por eso juntar conversaciones casi no cuesta, hasta que el KV cache de todas pesa tanto como los pesos.",
-      "analogia": "Un dictado donde cada palabra depende de la anterior: no puedes escribir la décima sin la novena. **Dónde se rompe:** quien dicta no tiene que releer toda su biblioteca antes de cada palabra; el modelo, sí.",
-      "ejemplo": "Qwen3 32B en INT4 de AWQ en una L40S: (19.32 GB de pesos + 1.7 GB de KV) ÷ 864 GB/s ≈ 24 ms por paso con una sola conversación, ≈ 41 tokens por segundo como techo.",
-      "ver": ["prefill", "tpot"],
-      "leccion": "concurrencia",
-      "sensei": "llms"
-    },
-    {
-      "id": "ttft",
-      "termino": "TTFT (tiempo al primer token)",
-      "en": "time to first token",
-      "corto": "Lo que pasa desde que mandas la pregunta hasta que ves el primer token de la respuesta. Suma la espera en la fila del servidor, el [[prefill]] y la red.",
-      "largo": "Es la promesa de «el sistema me hizo caso». Con poca gente casi es solo el prefill; con mucha, lo que crece es la espera, porque las prefills de varias preguntas compiten por la misma GPU. Se promete en un percentil, no en promedio: el despacho del ejemplo promete TTFT ≤ 2 s en el p95.",
-      "analogia": "El tiempo entre que le haces una pregunta a alguien y que abre la boca para contestar. **Dónde se rompe:** una persona no tiene que esperar a que otras tres terminen de leer su expediente antes de empezar a pensar el tuyo.",
-      "ejemplo": "NVIDIA midió en una L40S con Llama 3.1 8B en FP8 y prompts de 1,000 tokens: 45 ms con 1 conversación a la vez, 618 ms con 25 y 5,047 ms con 250, cuando ya no cabían todas.",
-      "ver": ["tpot", "itl", "prefill"],
-      "leccion": "concurrencia",
-      "sensei": "llms"
-    },
-    {
       "id": "tpot",
       "termino": "TPOT (tiempo por token de salida)",
       "en": "time per output token",
       "corto": "El tiempo promedio entre token y token de una respuesta, sin contar el primero: (latencia total − TTFT) ÷ (tokens de salida − 1).",
-      "largo": "Se calcula una vez por respuesta y después se juntan las de todas las preguntas (así lo hace `vllm bench serve`). Su inverso son los tokens por segundo que recibe cada persona. Sube cuando hay más conversaciones a la vez, porque cada paso de [[decode]] tiene que leer el KV cache de todas.",
+      "largo": "Se calcula una vez por respuesta y después se juntan las de todas las preguntas (así lo hace `vllm bench serve`). Su inverso son los tokens por segundo que recibe cada persona. Sube cuando hay más conversaciones a la vez, porque cada paso de decode tiene que leer el KV cache de todas.",
       "ejemplo": "Una respuesta del despacho de 500 tokens que termina a los 27 s con TTFT de 2 s: (27 − 2) ÷ 499 ≈ 50 ms, o sea 20 tokens por segundo.",
-      "ver": ["itl", "ttft"],
+      "ver": [
+        "itl"
+      ],
       "leccion": "concurrencia",
       "sensei": "llms"
     },
@@ -55,7 +21,9 @@
       "corto": "El tiempo entre dos tokens consecutivos que llegan en streaming. Se mide intervalo por intervalo.",
       "largo": "Dos herramientas lo usan distinto: en vLLM el ITL junta **todos** los intervalos de todas las respuestas, así que deja ver los tirones (un token que tardó 400 ms porque entró la prefill de otra pregunta), mientras el [[tpot|TPOT]] es un promedio por respuesta. En la documentación de NVIDIA NIM, ITL y TPOT son lo mismo: el promedio sin el primer token. Lee siempre cómo lo define la herramienta.",
       "ejemplo": "Una respuesta con intervalos de 50, 50, 400 y 50 ms tiene un TPOT de 137.5 ms, pero su p50 de ITL es 50 ms y su peor ITL, 400.",
-      "ver": ["tpot"],
+      "ver": [
+        "tpot"
+      ],
       "leccion": "concurrencia"
     },
     {
@@ -66,21 +34,12 @@
       "largo": "Hay varias versiones y conviene decir cuál: de salida (solo los tokens escritos, la que usa NVIDIA en sus tablas), total (entrada más salida, que infla el número cuando los prompts son largos) y por persona (tokens de salida ÷ latencia de cada respuesta). Al subir la concurrencia, el total sube y el de cada persona baja.",
       "analogia": "Los litros por minuto de una regadera repartidos en varios grifos: el total sube al abrir más grifos, pero cada uno echa menos. **Dónde se rompe:** en una regadera el total nunca sube por abrir más; en una GPU sí, porque los pesos se leen una vez para todos.",
       "ejemplo": "L40S, Llama 3.1 8B en FP8: con 1 conversación, 71 tokens/s totales; con 100, 2,869 totales y 29 para cada persona.",
-      "ver": ["codo", "goodput"],
+      "ver": [
+        "codo",
+        "goodput"
+      ],
       "leccion": "concurrencia",
       "sensei": "latencia"
-    },
-    {
-      "id": "ley-de-little",
-      "termino": "Ley de Little",
-      "en": "Little's law",
-      "corto": "En cualquier sistema estable, lo que hay adentro en promedio es lo que llega por segundo por lo que dura cada uno: L = λ × W.",
-      "largo": "No pide nada de cómo llegan las peticiones ni de cuánto tarda cada una: solo que el sistema no se esté llenando sin fin. Sirve en los dos sentidos: de la tasa de preguntas a cuántas conversaciones a la vez necesitas, y de una prueba con concurrencia fija a cuántas peticiones por segundo atiende. Da el **promedio**; los picos se ven aparte.",
-      "analogia": "Si a una fonda entran 30 personas por hora y cada una se queda media hora, adentro hay 15 en promedio. **Dónde se rompe:** no te dice cuántas sillas hacen falta a la hora de la comida, cuando llegan juntas.",
-      "ejemplo": "El despacho en la hora pico: 0.21 preguntas por segundo × 27 s por respuesta ≈ 5.6 conversaciones a la vez, en promedio.",
-      "ver": ["concurrencia"],
-      "leccion": "concurrencia",
-      "sensei": "async"
     },
     {
       "id": "codo",
@@ -89,7 +48,10 @@
       "corto": "El punto de una curva de carga donde subir la gente ya casi no da más throughput y sí mucha más latencia.",
       "largo": "Antes del codo, cada conversación nueva suma tokens por segundo casi gratis. Después, el throughput se aplana porque algo se llenó (la memoria del KV cache, el ancho de banda o el cómputo) y lo que sobra se va a la fila: el TTFT crece sin cota. La capacidad útil está antes del codo, donde todavía se cumple la promesa.",
       "ejemplo": "L40S con Llama 3.1 8B en BF16: de 50 a 100 conversaciones a la vez el throughput sube de 1,226 a 1,613 tokens/s; de 100 a 200, solo a 1,619, mientras el TTFT pasa de 2.8 s a 64 s.",
-      "ver": ["throughput-de-tokens", "goodput"],
+      "ver": [
+        "throughput-de-tokens",
+        "goodput"
+      ],
       "leccion": "concurrencia",
       "sensei": "latencia"
     },
@@ -98,9 +60,11 @@
       "termino": "SLO (objetivo de nivel de servicio)",
       "en": "service level objective",
       "corto": "La promesa de servicio escrita en números medibles, con su percentil: por ejemplo, TTFT ≤ 2 s en el p95.",
-      "largo": "En un LLM que conversa hay dos promesas por respuesta: qué tan pronto empieza ([[ttft|TTFT]]) y qué tan rápido escribe ([[tpot|TPOT]]). Se escriben en percentiles altos (p95, p99) porque el promedio esconde a quien le fue mal. Un SLO es interno; el contrato con penalizaciones es otra cosa (un SLA), que se ve en una lección posterior.",
+      "largo": "En un LLM que conversa hay dos promesas por respuesta: qué tan pronto empieza (TTFT) y qué tan rápido escribe ([[tpot|TPOT]]). Se escriben en percentiles altos (p95, p99) porque el promedio esconde a quien le fue mal. Un SLO es interno; el contrato con penalizaciones es otra cosa (un SLA), que se ve en una lección posterior.",
       "ejemplo": "El despacho: TTFT ≤ 2 s en el p95 y ≥ 20 tokens por segundo por persona, o sea TPOT ≤ 50 ms.",
-      "ver": ["goodput"],
+      "ver": [
+        "goodput"
+      ],
       "leccion": "concurrencia",
       "sensei": "percentiles"
     },
@@ -112,7 +76,10 @@
       "largo": "DistServe (OSDI 2024) lo definió para LLMs como la tasa más alta de peticiones por GPU que se puede atender dentro de los objetivos de TTFT y de TPOT. `vllm bench serve --goodput` lo mide así: cuenta una petición como buena solo si cumple cada SLO que le das. Un servidor puede tener mucho throughput y casi cero goodput.",
       "analogia": "Las pizzas por hora que llegan calientes y a tiempo, no las que salen del horno. **Dónde se rompe:** una pizza fría todavía se come; una respuesta que tarda 60 s en empezar, muchas veces ya nadie la lee.",
       "ejemplo": "L40S con Llama 3.1 8B en BF16 y 200 conversaciones a la vez: 1,619 tokens/s de throughput, pero con TTFT de 64 s su goodput contra una promesa de 2 s es casi cero.",
-      "ver": ["slo", "throughput-de-tokens"],
+      "ver": [
+        "slo",
+        "throughput-de-tokens"
+      ],
       "leccion": "concurrencia",
       "sensei": "latencia"
     }

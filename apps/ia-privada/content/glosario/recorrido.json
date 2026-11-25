@@ -17,8 +17,8 @@
   {
     "id": "sizing", "termino": "Sizing (dimensionar)", "en": "sizing",
     "corto": "Calcular cuánto hardware hace falta: de cuántas personas y preguntas hay, a cuántas conversaciones atiende el servidor a la vez, y de ahí a cuánta memoria de GPU y cuáles GPUs.",
-    "largo": "La cuenta corta tiene tres pasos: preguntas al día, llegadas por segundo en la hora pico y conversaciones a la vez con la Ley de Little (llegadas por segundo × lo que dura cada una). Ese número de [[concurrencia|conversaciones a la vez]] entra a la cuenta de [[vram|VRAM]]. Un sizing a fondo agrega la velocidad: si la GPU escribe lo bastante rápido para todas.",
-    "ejemplo": "Despacho: 200 × 15 = 3,000 preguntas al día; 750 en la hora pico ≈ 0.21 por segundo; × 27 s ≈ 5.6 a la vez; se diseña para 8; caben en una L40S de 48 GB.",
+    "largo": "La cuenta corta tiene tres pasos: preguntas al día, llegadas por segundo en la hora pico y conversaciones a la vez con la Ley de Little (llegadas por segundo × lo que dura cada una). Ese número de [[concurrencia|conversaciones a la vez]] entra a la cuenta de [[vram|VRAM]], que dice cuántas caben. Un sizing completo agrega el cómputo y el ancho de banda, que dicen cuántas se atienden bien: casi siempre son menos.",
+    "ejemplo": "Despacho: 200 × 15 = 3,000 preguntas al día; 750 en la hora pico ≈ 0.21 por segundo; × 27 s ≈ 5.6 a la vez; se diseña para 8. Por memoria caben en una L40S de 48 GB, pero con el cómputo y el ancho de banda el sizing completo pide 3 L40S.",
     "ver": ["concurrencia", "vram"],
     "leccion": "recorrido"
   },
@@ -65,7 +65,7 @@
     "corto": "Las capas de software y hardware, una encima de otra, que hacen falta para que una persona le pregunte algo a un modelo en el servidor de su empresa.",
     "largo": "De abajo hacia arriba: el hardware (la GPU y su servidor), el sistema operativo y los drivers, el servidor de inferencia que carga el modelo y atiende a muchos a la vez, la API por donde se le pregunta, la aplicación (por ejemplo, un buscador con RAG que cita documentos) y los usuarios con sus permisos. Cada capa depende de la de abajo; una falla abajo tumba todo lo de arriba.",
     "analogia": "Es como un edificio: cimientos, estructura, instalaciones, oficinas y la gente. Se rompe en que en un edificio casi nunca cambias los cimientos, y aquí cambias el modelo o el servidor de inferencia cada pocos meses.",
-    "ejemplo": "Despacho: una L40S de 48 GB → Linux y el driver de NVIDIA → un servidor de inferencia con Qwen3 32B → una API compatible con OpenAI → la aplicación que busca en los expedientes → 200 abogados y asistentes.",
+    "ejemplo": "Despacho: GPUs L40S de 48 GB → Linux y el driver de NVIDIA → un servidor de inferencia con Qwen3 32B → una API compatible con OpenAI → la aplicación que busca en los expedientes → 200 abogados y asistentes.",
     "leccion": "recorrido"
   },
   {

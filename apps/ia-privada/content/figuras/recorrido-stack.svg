@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 516" role="img" aria-labelledby="f-recorrido-stack-t" class="f-svg" style="max-width:420px">
-<title id="f-recorrido-stack-t">El stack de IA privada del despacho, en seis capas, de arriba abajo, cada una con la lección donde se ve a fondo. 6, usuarios: 200 abogados y asistentes con sus permisos; lección de seguridad. 5, la aplicación con RAG: busca en los expedientes y cita la página; lección de RAG privado. 4, la API: compatible con OpenAI, con usuario y llave; lección del gateway. 3, servidor de inferencia: Qwen3 32B con 8 conversaciones a la vez; lecciones de batching y del laptop al servidor. 2, sistema y drivers: Linux, el driver de NVIDIA y CUDA; lección de seguridad y actualizaciones. 1, hardware: un servidor con una L40S de 48 GB; lecciones de comprar hardware y del cuarto. Cada capa se apoya en la de abajo: si falla el driver, no contesta nadie.</title>
+<title id="f-recorrido-stack-t">El stack de IA privada del despacho, en seis capas, de arriba abajo, cada una con la lección donde se ve a fondo. 6, usuarios: 200 abogados y asistentes con sus permisos; lección de seguridad. 5, la aplicación con RAG: busca en los expedientes y cita la página; lección de RAG privado. 4, la API: compatible con OpenAI, con usuario y llave; lección del gateway. 3, servidor de inferencia: Qwen3 32B con 8 conversaciones a la vez; lecciones de batching y del laptop al servidor. 2, sistema y drivers: Linux, el driver de NVIDIA y CUDA; lección de seguridad y actualizaciones. 1, hardware: GPUs L40S de 48 GB, 3 según el sizing completo; lecciones de comprar hardware y del cuarto. Cada capa se apoya en la de abajo: si falla el driver, no contesta nadie.</title>
 <rect class="f-card" x="10" y="10" width="340" height="496" rx="16"/>
 <text class="f-l" x="28" y="36">EL STACK DEL DESPACHO, DE ARRIBA ABAJO</text>
 <rect class="f-chip" x="28" y="50" width="304" height="62" rx="10"/>
@@ -30,7 +30,7 @@
 <rect class="f-chip" x="28" y="390" width="304" height="62" rx="10"/>
 <rect class="f-o" x="28" y="390" width="8" height="62" rx="4"/>
 <text class="f-l" x="46" y="409">1 · HARDWARE</text>
-<text class="f-s" x="46" y="428">Un servidor con una L40S de 48 GB</text>
+<text class="f-s" x="46" y="428">GPUs L40S de 48 GB (3 en el sizing)</text>
 <text class="f-l" x="46" y="445" style="opacity:.75">→ COMPRAR HARDWARE · EL CUARTO</text>
 <text class="f-s" x="28" y="474">Cada capa se apoya en la de abajo: si</text>
 <text class="f-s" x="28" y="492">falla el driver, no contesta nadie.</text>

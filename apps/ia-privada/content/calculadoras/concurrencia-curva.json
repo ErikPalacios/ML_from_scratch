@@ -1,6 +1,6 @@
 {
   "titulo": "La curva de tu GPU, con el modelo de juguete",
-  "intro": "Aplica \\(t_{paso} = max(frac{W + N × T × m}{e × A}, frac{2 × P × N}{F})\\): en cada paso de [[decode]] la GPU lee los pesos una vez y el [[kv-cache|KV cache]] de las \\(N\\) conversaciones, y sale un token para cada una. Arranca con el despacho: Qwen3 32B en INT4 de AWQ en una L40S, 8 conversaciones a la vez, cada una con 6,500 tokens en su KV (el final de la respuesta, el momento más lento). La lista de GPUs solo trae la VRAM: el ancho de banda \\(A\\) y los TFLOPS \\(F\\) se escriben a mano de la hoja de datos (L40S: 864 GB/s y 362.05 TFLOPS en FP16 denso).",
+  "intro": "Aplica \\(t_{paso} = max(frac{W + N × T × m}{η_m × A}, frac{2 × P × N}{η_c × F})\\) para el decode, \\(t_{pre} = frac{2 × P × T_{ent}}{η_c × F}\\) para el prefill, y reparte el tiempo de la GPU: la fracción \\(ρ_{pre} = λ × t_{pre}\\) se va en prefills y cada persona recibe \\((1 − ρ_{pre}) ÷ t_{paso}\\) tokens por segundo. Arranca con el despacho en una sola L40S: Qwen3 32B en INT4 de AWQ, 8 conversaciones de 6,500 tokens, 0.21 preguntas por segundo de 6,000 tokens. La lista de GPUs solo trae la VRAM: el ancho de banda \\(A\\) y los TFLOPS \\(F\\) se escriben a mano de la hoja de datos (L40S: 864 GB/s y 362.05 TFLOPS en FP16 denso).",
   "entradas": [
     { "id": "V", "label": "GPU (su VRAM sale de gpus.json)", "opciones": "gpus", "inicial": "l40s" },
     { "id": "A", "label": "Ancho de banda de esa GPU, \\(A\\), de su hoja de datos", "min": 100, "max": 10000, "paso": 1, "valor": 864, "unidad": "GB/s", "tipo": "numero" },
@@ -9,31 +9,40 @@
     { "id": "P", "label": "Parámetros del modelo, \\(P\\), en miles de millones", "min": 0.5, "max": 1000, "paso": 0.01, "valor": 32.76, "tipo": "numero" },
     { "id": "mk", "label": "KV cache por token, \\(m\\), en KiB (Qwen3 32B en BF16: 256)", "min": 4, "max": 1024, "paso": 1, "valor": 256, "tipo": "numero" },
     { "id": "T", "label": "Tokens en el KV de cada conversación, \\(T\\) (prompt más lo escrito)", "min": 100, "max": 131072, "paso": 100, "valor": 6500, "tipo": "numero" },
-    { "id": "N", "label": "Conversaciones a la vez, \\(N\\)", "min": 1, "max": 256, "paso": 1, "valor": 8 },
-    { "id": "e", "label": "Fracción del ancho de banda que de verdad se logra, \\(e\\) (1 = el ideal)", "min": 0.3, "max": 1, "paso": 0.01, "valor": 1 },
+    { "id": "N", "label": "Conversaciones a la vez en esta GPU, \\(N\\)", "min": 1, "max": 256, "paso": 1, "valor": 8 },
+    { "id": "em", "label": "Fracción del ancho de banda que se logra, \\(η_m\\)", "min": 0.3, "max": 1, "paso": 0.01, "valor": 0.7 },
+    { "id": "ec", "label": "Fracción del cómputo pico que se logra, \\(η_c\\)", "min": 0.2, "max": 1, "paso": 0.01, "valor": 0.5 },
+    { "id": "lam", "label": "Preguntas por segundo que llegan a esta GPU, \\(λ\\)", "min": 0, "max": 5, "paso": 0.001, "valor": 0.208, "tipo": "numero" },
+    { "id": "Te", "label": "Tokens de entrada de cada pregunta, \\(T_{ent}\\)", "min": 0, "max": 131072, "paso": 100, "valor": 6000, "tipo": "numero" },
     { "id": "obj", "label": "Promesa de velocidad por persona", "min": 1, "max": 100, "paso": 1, "valor": 20, "unidad": "tokens/s" },
+    { "id": "objt", "label": "Promesa de TTFT", "min": 0.1, "max": 30, "paso": 0.1, "valor": 2, "unidad": "s" },
     { "id": "prog", "label": "Programa que sirve el modelo, \\(M_{prog}\\)", "min": 0, "max": 20, "paso": 0.5, "valor": 2, "unidad": "GB" },
     { "id": "f", "label": "Margen que el servidor deja libre, \\(f\\)", "min": 0, "max": 0.5, "paso": 0.01, "valor": 0.1 }
   ],
   "calculos": [
     { "id": "kvb", "formula": "N * T * mk * 1024" },
     { "id": "lee", "formula": "Wg * 1e9 + kvb" },
-    { "id": "tmem", "formula": "lee / (e * A * 1e9)" },
-    { "id": "tcomp", "formula": "2 * P * 1e9 * N / (F * 1e12)" },
+    { "id": "tmem", "formula": "lee / (em * A * 1e9)" },
+    { "id": "tcomp", "formula": "2 * P * 1e9 * N / (ec * F * 1e12)" },
     { "id": "t", "formula": "max(tmem, tcomp)" },
+    { "id": "tpre", "formula": "2 * P * 1e9 * Te / (ec * F * 1e12)" },
+    { "id": "rho", "formula": "lam * tpre" },
+    { "id": "v", "formula": "max(0, 1 - rho) / t" },
     { "id": "util", "formula": "(1 - f) * V * 1e9" },
     { "id": "libre", "formula": "util - Wg * 1e9 - prog * 1e9" }
   ],
   "salidas": [
-    { "label": "1 · Bytes que se leen en cada paso", "formula": "lee", "formato": "bytes", "nota": "\\(W + N × T × m\\)", "cuenta": "{{Wg|corto}} GB de pesos + {{N|int}} × {{T|int}} tokens × {{mk|int}} KiB = {{Wg * 1e9|bytes|2}} + {{kvb|bytes|2}} = **{{lee|bytes|2}}**" },
-    { "label": "2 · Tiempo de leerlos", "formula": "tmem * 1000", "formato": "ms", "nota": "lo que manda casi siempre", "cuenta": "{{lee|bytes|2}} ÷ ({{e|corto}} × {{A|int}} GB/s) = **{{tmem * 1000|num|1}} ms**" },
-    { "label": "3 · Piso de cómputo", "formula": "tcomp * 1000", "formato": "ms", "nota": "\\(2 × P × N\\) FLOPs al pico de la GPU", "cuenta": "2 × {{P|corto}} mil millones × {{N|int}} ÷ {{F|corto}} TFLOPS = **{{tcomp * 1000|num|2}} ms**" },
-    { "label": "4 · Un paso de decode, \\(t_{paso}\\) (el TPOT)", "formula": "t * 1000", "formato": "ms", "cuenta": "el mayor de {{tmem * 1000|num|1}} ms y {{tcomp * 1000|num|2}} ms = **{{t * 1000|num|1}} ms**" },
-    { "label": "5 · Tokens por segundo de cada persona", "formula": "1 / t", "formato": "num", "decimales": 1, "barra": true, "cuenta": "1 ÷ {{t|num|4}} s = **{{1 / t|num|1}} tokens/s**" },
-    { "label": "6 · Tokens por segundo totales", "formula": "N / t", "formato": "int", "barra": true, "cuenta": "{{N|int}} ÷ {{t|num|4}} s = **{{N / t|int}} tokens/s**" },
-    { "label": "¿Cumple la promesa de velocidad?", "formula": "1 / t - obj", "veredicto": { "si": "Sí: cada persona recibe al menos lo prometido", "no": "No: cada persona recibe menos de lo prometido" }, "cuenta": "{{1 / t|num|1}} − {{obj|int}} = {{1 / t - obj|num|1}} tokens/s" },
+    { "label": "1 · Bytes que se leen en cada paso de decode", "formula": "lee", "formato": "bytes", "nota": "\\(W + N × T × m\\)", "cuenta": "{{Wg * 1e9|bytes|2}} de pesos + {{N|int}} × {{T|int}} tokens × {{mk|int}} KiB = {{Wg * 1e9|bytes|2}} + {{kvb|bytes|2}} = **{{lee|bytes|2}}**" },
+    { "label": "2 · Un paso de decode, \\(t_{paso}\\)", "formula": "t * 1000", "formato": "ms", "nota": "el mayor entre leer la memoria y el piso de cómputo", "cuenta": "leer: {{lee|bytes|2}} ÷ ({{em|corto}} × {{A|int}} GB/s) = {{tmem * 1000|num|1}} ms · cómputo: 2 × {{P|corto}} mil millones × {{N|int}} ÷ ({{ec|corto}} × {{F|corto}} TFLOPS) = {{tcomp * 1000|num|2}} ms → **{{t * 1000|num|1}} ms**" },
+    { "label": "3 · Velocidad por persona si no hubiera prefills", "formula": "1 / t", "formato": "num", "decimales": 1, "cuenta": "1 ÷ {{t|num|4}} s = **{{1 / t|num|1}} tokens/s**" },
+    { "label": "4 · Prefill de una pregunta, \\(t_{pre}\\) (el TTFT sin fila)", "formula": "tpre * 1000", "formato": "ms", "cuenta": "2 × {{P|corto}} mil millones × {{Te|int}} tokens ÷ ({{ec|corto}} × {{F|corto}} TFLOPS) = **{{tpre|num|2}} s**" },
+    { "label": "¿El prefill solo ya cabe en la promesa de TTFT?", "formula": "objt - tpre", "veredicto": { "si": "Sí, sin fila", "no": "No: ni una pregunta sola llega a tiempo" }, "cuenta": "{{objt|corto}} s − {{tpre|num|2}} s = {{objt - tpre|num|2}} s" },
+    { "label": "5 · Parte del tiempo de la GPU que se va en prefills, \\(ρ_{pre}\\)", "formula": "rho", "formato": "pct", "barra": true, "nota": "más de 100 %: las prefills solas ya no le caben", "cuenta": "{{lam|num|3}} preguntas/s × {{tpre|num|2}} s = **{{rho * 100|num|1}} %**" },
+    { "label": "6 · Tokens por segundo de cada persona", "formula": "v", "formato": "num", "decimales": 1, "barra": true, "cuenta": "(1 − {{rho|num|3}}) ÷ {{t|num|4}} s = **{{v|num|1}} tokens/s**" },
+    { "label": "7 · Tokens por segundo totales de esta GPU", "formula": "N * v", "formato": "int", "barra": true, "cuenta": "{{N|int}} × {{v|num|1}} = **{{N * v|int}} tokens/s**" },
+    { "label": "¿Cumple la promesa de velocidad?", "formula": "v - obj", "veredicto": { "si": "Sí: cada persona recibe al menos lo prometido", "no": "No: cada persona recibe menos de lo prometido" }, "cuenta": "{{v|num|1}} − {{obj|int}} = {{v - obj|num|1}} tokens/s" },
     { "label": "¿Cabe el KV de las \\(N\\) en la VRAM?", "formula": "libre - kvb", "veredicto": { "si": "Sí cabe", "no": "No cabe: las que sobran hacen fila" }, "cuenta": "(1 − {{f|corto}}) × {{V|corto}} GB − {{Wg|corto}} − {{prog|corto}} = {{libre|bytes|2}} libres, contra {{kvb|bytes|2}} de KV" },
     { "label": "Conversaciones de \\(T\\) tokens que caben", "formula": "max(0, floor(libre / (T * mk * 1024)))", "formato": "int", "cuenta": "⌊{{max(0, libre)|bytes|2}} ÷ ({{T|int}} × {{mk|int}} KiB)⌋ = **{{max(0, floor(libre / (T * mk * 1024)))|int}}**" }
   ],
-  "nota": "Prueba: baja \\(e\\) a 0.75, lo que NVIDIA deja ver en la parte fija de sus mediciones, y mira cómo el despacho queda justo en la raya de los 20 tokens por segundo. Cambia \\(m\\) a 128 (el KV cache en FP8) y recupera el margen. Sube \\(N\\) hasta que el KV ya no quepa. Para comparar con NIM: pesos 9.08 GB, \\(P\\) = 8.03, \\(m\\) = 128, \\(T\\) = 1,500 y \\(N\\) de 1 a 200."
+  "nota": "Prueba: con una L40S, baja \\(N\\) a 1 y mira que ni así llega a 20 tokens por segundo: casi la mitad del tiempo de la GPU se va en prefills. Ahora reparte el despacho en 3 L40S: \\(λ\\) = 0.069 y \\(N\\) = 3. Después prueba 4,000 tokens de entrada (3 fragmentos en vez de 5). Para comparar con NIM: \\(λ\\) = 0, \\(η_m\\) = 1, pesos 9.08 GB, \\(P\\) = 8.03, \\(m\\) = 128, \\(T\\) = 1,500 y \\(N\\) de 1 a 200."
 }

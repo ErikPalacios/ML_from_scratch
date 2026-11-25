@@ -16,7 +16,7 @@ En la herramienta de VRAM ya viste qué es un [[open-weight|modelo open weight]]
 
 Vamos a seguir un caso. **El despacho** es un ejemplo ficticio: un despacho de abogados en la Ciudad de México donde 200 abogados y asistentes quieren preguntarle a sus 30,000 expedientes con un LLM sin que un solo documento salga de su red. El modelo candidato es **Qwen3 32B**, con licencia Apache 2.0, y hay tres alternativas por evaluar: **Mistral Small 24B**, **Qwen3 30B-A3B** y **Llama 3.3 70B**.
 
-Cuando el equipo hace el sizing, pregunta «¿cabe en una L40S?». Esta lección agrega otra pregunta con el mismo peso: «¿nos deja la licencia usarlo así?». Las dos se contestan con el texto en la mano y con números.
+Cuando el equipo hace el sizing, pregunta «¿cuántas GPUs L40S hacen falta para atender a todos?». Esta lección agrega otra pregunta con el mismo peso: «¿nos deja la licencia usarlo así?». Las dos se contestan con el texto en la mano y con números.
 
 :::analogia La receta y el permiso
 Un modelo open weight es como una receta que alguien publica. Puedes cocinarla en tu casa cuantas veces quieras. Pero el autor puede haber escrito al pie: «si abres un restaurante con más de 700 sucursales, pídeme permiso» o «si la vendes, pon mi nombre en el menú».
