@@ -1,0 +1,273 @@
+{
+  "nota": "Precios por token de APIs de LLMs para la calculadora de TCO. US$ por millón de tokens, precio estándar (sin lote ni caché), del nivel más bajo cuando el precio sube con el contexto. Cada precio trae su fecha y su fuente: cambian seguido, revísalos antes de cotizar. Es un archivo de IA Privada: no son especificaciones de GPU (esas solo van en gpus.json de Sensei).",
+  "actualizado": "2026-11-25",
+  "moneda": "USD",
+  "apis": [
+    {
+      "id": "deepinfra-llama33-70b",
+      "proveedor": "DeepInfra",
+      "modelo": "Llama 3.3 70B Instruct (Turbo)",
+      "tipo": "open-weight-hospedado",
+      "usd_millon_entrada": 0.1,
+      "usd_millon_salida": 0.32,
+      "nota": "Nivel Flex a 0.8x del precio base para trabajos que pueden esperar; sin precio de caché listado.",
+      "fuente": {
+        "url": "https://deepinfra.com/pricing",
+        "consultado": "2026-11-25",
+        "fuente_tipo": "oficial"
+      }
+    },
+    {
+      "id": "fireworks-llama33-70b",
+      "proveedor": "Fireworks AI",
+      "modelo": "Llama 3.3 70B Instruct",
+      "tipo": "open-weight-hospedado",
+      "usd_millon_entrada": 0.9,
+      "usd_millon_salida": 0.9,
+      "nota": "Tarifa por tamaño (>16B parámetros), mismo precio entrada y salida; el modelo no aparece nombrado en la página, se deduce por tamaño. Lote 50% menos (según fireworks.ai/pricing).",
+      "fuente": {
+        "url": "https://docs.fireworks.ai/serverless/pricing",
+        "consultado": "2026-11-25",
+        "fuente_tipo": "oficial"
+      }
+    },
+    {
+      "id": "deepinfra-llama31-8b",
+      "proveedor": "DeepInfra",
+      "modelo": "Llama 3.1 8B Instruct (Turbo)",
+      "tipo": "open-weight-hospedado",
+      "usd_millon_entrada": 0.02,
+      "usd_millon_salida": 0.04,
+      "nota": "Nivel Flex a 0.8x; sin caché listado.",
+      "fuente": {
+        "url": "https://deepinfra.com/pricing",
+        "consultado": "2026-11-25",
+        "fuente_tipo": "oficial"
+      }
+    },
+    {
+      "id": "fireworks-llama31-8b",
+      "proveedor": "Fireworks AI",
+      "modelo": "Llama 3.1 8B Instruct",
+      "tipo": "open-weight-hospedado",
+      "usd_millon_entrada": 0.2,
+      "usd_millon_salida": 0.2,
+      "nota": "Tarifa por tamaño (4B-16B), igual entrada y salida; deducido por tamaño.",
+      "fuente": {
+        "url": "https://docs.fireworks.ai/serverless/pricing",
+        "consultado": "2026-11-25",
+        "fuente_tipo": "oficial"
+      }
+    },
+    {
+      "id": "deepinfra-qwen3-32b",
+      "proveedor": "DeepInfra",
+      "modelo": "Qwen3 32B",
+      "tipo": "open-weight-hospedado",
+      "usd_millon_entrada": 0.08,
+      "usd_millon_salida": 0.28,
+      "nota": "Nivel Flex a 0.8x; sin caché listado.",
+      "fuente": {
+        "url": "https://deepinfra.com/pricing",
+        "consultado": "2026-11-25",
+        "fuente_tipo": "oficial"
+      }
+    },
+    {
+      "id": "deepinfra-qwen3-30b-a3b",
+      "proveedor": "DeepInfra",
+      "modelo": "Qwen3 30B-A3B",
+      "tipo": "open-weight-hospedado",
+      "usd_millon_entrada": 0.12,
+      "usd_millon_salida": 0.5,
+      "nota": "MoE; nivel Flex a 0.8x.",
+      "fuente": {
+        "url": "https://deepinfra.com/pricing",
+        "consultado": "2026-11-25",
+        "fuente_tipo": "oficial"
+      }
+    },
+    {
+      "id": "deepinfra-qwen3-235b-a22b",
+      "proveedor": "DeepInfra",
+      "modelo": "Qwen3 235B-A22B (Instruct-2507)",
+      "tipo": "open-weight-hospedado",
+      "usd_millon_entrada": 0.09,
+      "usd_millon_salida": 0.55,
+      "nota": "MoE; variante Instruct-2507, la más cercana listada; nivel Flex a 0.8x.",
+      "fuente": {
+        "url": "https://deepinfra.com/pricing",
+        "consultado": "2026-11-25",
+        "fuente_tipo": "oficial"
+      }
+    },
+    {
+      "id": "together-gpt-oss-120b",
+      "proveedor": "Together AI",
+      "modelo": "gpt-oss-120b",
+      "tipo": "open-weight-hospedado",
+      "usd_millon_entrada": 0.15,
+      "usd_millon_salida": 0.6,
+      "nota": "La página muestra 0.15 como entrada (marcada «cached»), ambigua; la documentación de Together también lista 0.15/0.60. Sin valores de lote visibles.",
+      "fuente": {
+        "url": "https://docs.together.ai/docs/serverless-models",
+        "consultado": "2026-11-25",
+        "fuente_tipo": "oficial"
+      }
+    },
+    {
+      "id": "fireworks-gpt-oss-120b",
+      "proveedor": "Fireworks AI",
+      "modelo": "gpt-oss-120b",
+      "tipo": "open-weight-hospedado",
+      "usd_millon_entrada": 0.15,
+      "usd_millon_salida": 0.6,
+      "nota": "Caché de entrada 0.015; lote 50% menos; nivel Priority 0.18/0.72.",
+      "fuente": {
+        "url": "https://fireworks.ai/pricing",
+        "consultado": "2026-11-25",
+        "fuente_tipo": "oficial"
+      }
+    },
+    {
+      "id": "groq-gpt-oss-120b",
+      "proveedor": "Groq",
+      "modelo": "gpt-oss-120b",
+      "tipo": "open-weight-hospedado",
+      "usd_millon_entrada": 0.15,
+      "usd_millon_salida": 0.6,
+      "nota": "Página de modelos de Groq; descuentos de lote/caché en páginas aparte, no verificados aquí.",
+      "fuente": {
+        "url": "https://console.groq.com/docs/models",
+        "consultado": "2026-11-25",
+        "fuente_tipo": "oficial"
+      }
+    },
+    {
+      "id": "groq-gpt-oss-20b",
+      "proveedor": "Groq",
+      "modelo": "gpt-oss-20b",
+      "tipo": "open-weight-hospedado",
+      "usd_millon_entrada": 0.075,
+      "usd_millon_salida": 0.3,
+      "nota": "Descuentos de lote/caché en páginas aparte, no verificados aquí.",
+      "fuente": {
+        "url": "https://console.groq.com/docs/models",
+        "consultado": "2026-11-25",
+        "fuente_tipo": "oficial"
+      }
+    },
+    {
+      "id": "fireworks-gpt-oss-20b",
+      "proveedor": "Fireworks AI",
+      "modelo": "gpt-oss-20b",
+      "tipo": "open-weight-hospedado",
+      "usd_millon_entrada": 0.5,
+      "usd_millon_salida": 0.5,
+      "nota": "Tarifa por tamaño (MoE hasta 56B), igual entrada y salida; deducido por tamaño.",
+      "fuente": {
+        "url": "https://docs.fireworks.ai/serverless/pricing",
+        "consultado": "2026-11-25",
+        "fuente_tipo": "oficial"
+      }
+    },
+    {
+      "id": "deepinfra-mistral-small-24b",
+      "proveedor": "DeepInfra",
+      "modelo": "Mistral Small 24B Instruct 2501",
+      "tipo": "open-weight-hospedado",
+      "usd_millon_entrada": 0.05,
+      "usd_millon_salida": 0.08,
+      "nota": "Nivel Flex a 0.8x; sin caché listado.",
+      "fuente": {
+        "url": "https://deepinfra.com/pricing",
+        "consultado": "2026-11-25",
+        "fuente_tipo": "oficial"
+      }
+    },
+    {
+      "id": "openai-gpt-6-2-astra",
+      "proveedor": "OpenAI",
+      "modelo": "GPT-6.2 Astra (insignia)",
+      "tipo": "cerrado",
+      "usd_millon_entrada": 8,
+      "usd_millon_salida": 40,
+      "nota": "Estándar hasta 272K de contexto; sobre 272K: 16/60. Lote 4/20 (-50%). Entrada en caché 0.40.",
+      "fuente": {
+        "url": "https://developers.openai.com/api/docs/pricing",
+        "consultado": "2026-11-25",
+        "fuente_tipo": "oficial"
+      }
+    },
+    {
+      "id": "openai-gpt-5-4-mini",
+      "proveedor": "OpenAI",
+      "modelo": "GPT-5.4 Mini",
+      "tipo": "cerrado",
+      "usd_millon_entrada": 0.75,
+      "usd_millon_salida": 4.5,
+      "nota": "Sin niveles por contexto. Lote 0.375/2.25 (-50%). Caché 0.075. Existe además GPT-5.6 Luna más barato (0.20/1.20), no incluido.",
+      "fuente": {
+        "url": "https://developers.openai.com/api/docs/pricing",
+        "consultado": "2026-11-25",
+        "fuente_tipo": "oficial"
+      }
+    },
+    {
+      "id": "anthropic-haiku-5-5",
+      "proveedor": "Anthropic",
+      "modelo": "Claude Haiku 5.5",
+      "tipo": "cerrado",
+      "usd_millon_entrada": 0.1,
+      "usd_millon_salida": 0.5,
+      "nota": "Precio para prompts hasta 100K tokens; sobre 100K: 0.50/2.50. Lote 0.05/0.25. Lectura de caché 0.01. Inferencia solo-EE.UU. x1.1.",
+      "fuente": {
+        "url": "https://platform.claude.com/docs/en/about-claude/pricing",
+        "consultado": "2026-11-25",
+        "fuente_tipo": "oficial"
+      }
+    },
+    {
+      "id": "anthropic-sonnet-5-5",
+      "proveedor": "Anthropic",
+      "modelo": "Claude Sonnet 5.5",
+      "tipo": "cerrado",
+      "usd_millon_entrada": 2,
+      "usd_millon_salida": 10,
+      "nota": "Contexto de 1M al mismo precio. Lote 1/5 (-50%). Lectura de caché 0.10. Inferencia solo-EE.UU. x1.1. Tokenizador nuevo: ~30% más tokens que modelos 4.6 o previos.",
+      "fuente": {
+        "url": "https://platform.claude.com/docs/en/about-claude/pricing",
+        "consultado": "2026-11-25",
+        "fuente_tipo": "oficial"
+      }
+    },
+    {
+      "id": "google-gemini-3-8-flash",
+      "proveedor": "Google",
+      "modelo": "Gemini 3.8 Flash",
+      "tipo": "cerrado",
+      "usd_millon_entrada": 0.75,
+      "usd_millon_salida": 3.75,
+      "nota": "Precio único sin nivel por contexto; salida incluye tokens de razonamiento. Lote 0.375/1.875 (-50%). Sube a 1.50/7.50 el 2027-01-01.",
+      "fuente": {
+        "url": "https://aistudio.google.com/docs/pricing",
+        "consultado": "2026-11-25",
+        "fuente_tipo": "oficial"
+      }
+    },
+    {
+      "id": "google-gemini-3-1-pro-preview",
+      "proveedor": "Google",
+      "modelo": "Gemini 3.1 Pro Preview",
+      "tipo": "cerrado",
+      "usd_millon_entrada": 2,
+      "usd_millon_salida": 12,
+      "nota": "Nivel más bajo (<=200K tokens); sobre 200K: 4/18. Lote 1/6 (-50%). Modelo en vista previa; salida incluye razonamiento.",
+      "fuente": {
+        "url": "https://aistudio.google.com/docs/pricing",
+        "consultado": "2026-11-25",
+        "fuente_tipo": "oficial"
+      }
+    }
+  ]
+}

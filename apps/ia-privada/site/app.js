@@ -167,7 +167,13 @@
   }
   $$('.cx-calc[data-calc]').forEach(function (fig) {
     var spec; try { spec = JSON.parse(fig.getAttribute('data-calc')); } catch (e) { return; }
-    var ins = $$('[data-id]', fig), pre = fig.querySelector('[data-preajuste]'), preNota = fig.querySelector('[data-preajuste-nota]');
+    var ins = $$('[data-id]', fig), pres = $$('[data-preajuste]', fig);
+    var listas = spec.preajustes || [];   // una lista por selector: modelo, GPU, API…
+    function correr(v) {
+      spec.calculos.forEach(function (c) { var ks = Object.keys(v); v[c.id] = compilar(c.formula, ks).apply(null, ks.map(function (k) { return v[k]; })); });
+      var ks = Object.keys(v), vals = ks.map(function (k) { return v[k]; });
+      return function (f) { try { return compilar(f, ks).apply(null, vals); } catch (e) { return NaN; } };
+    }
     function recalcular() {
       var v = {};
       ins.forEach(function (i) {
@@ -178,9 +184,8 @@
         var paso = String(i.step || ''), dec = paso.indexOf('.') >= 0 ? paso.split('.')[1].length : 0;
         if (o) o.textContent = formatear(v[id], 'num', dec) + (e.unidad ? ' ' + e.unidad : '');
       });
-      spec.calculos.forEach(function (c) { var ks = Object.keys(v); v[c.id] = compilar(c.formula, ks).apply(null, ks.map(function (k) { return v[k]; })); });
-      var ks = Object.keys(v), vals = ks.map(function (k) { return v[k]; });
-      var evalua = function (f) { try { return compilar(f, ks).apply(null, vals); } catch (e) { return NaN; } };
+      var base = {}; Object.keys(v).forEach(function (k) { base[k] = v[k]; });
+      var evalua = correr(v);
       var ys = spec.salidas.map(function (s) { return evalua(s.formula); });
       var maxB = 1e-12;
       spec.salidas.forEach(function (s, k) { if (s.barra && s.formato !== 'pct' && isFinite(ys[k])) maxB = Math.max(maxB, Math.abs(ys[k])); });
@@ -195,19 +200,50 @@
           if (sp) sp.textContent = formatear(evalua(t.expr), t.fmt, t.dec);
         });
       });
+      // la tabla de «comparar»: una fila por opción de su lista, con los controles de ahora
+      var cm = spec.comparar, cuerpo = fig.querySelector('[data-comparar]');
+      if (cm && cuerpo && listas[cm.lista]) {
+        var sel = pres[cm.lista] ? parseInt(pres[cm.lista].value, 10) : -1;
+        var filas = listas[cm.lista].map(function (o, k) {
+          var w = {}; Object.keys(base).forEach(function (q) { w[q] = base[q]; });
+          Object.keys(o.valores).forEach(function (q) { w[q] = o.valores[q]; });
+          var ev = correr(w);
+          return { k: k, label: o.label, ys: cm.columnas.map(function (col) { return ev(col.formula); }) };
+        });
+        var sg = cm.desc ? -1 : 1;
+        if (cm.orden !== null && cm.orden !== undefined) filas.sort(function (a, b) { var x = sg * a.ys[cm.orden], y = sg * b.ys[cm.orden]; return (isFinite(x) ? x : Infinity) - (isFinite(y) ? y : Infinity); });
+        var trs = filas.map(function (f) {
+          var tr = document.createElement('tr'); tr.setAttribute('data-fila', f.k); if (f.k === sel) tr.className = 'is-sel';
+          var th = document.createElement('th'); th.scope = 'row'; th.textContent = f.label; tr.appendChild(th);
+          f.ys.forEach(function (y, j) { var td = document.createElement('td'); td.textContent = formatear(y, cm.columnas[j].formato, cm.columnas[j].decimales); tr.appendChild(td); });
+          return tr;
+        });
+        cuerpo.replaceChildren.apply(cuerpo, trs);
+      }
     }
     ins.forEach(function (i) {
-      var mover = function () { if (pre) { pre.value = '-1'; if (preNota) preNota.innerHTML = ''; } recalcular(); };
+      var mover = function () {
+        // mover un control a mano suelta solo las listas cuyo preajuste elegido ponía ese control
+        var id = i.getAttribute('data-id');
+        pres.forEach(function (pre) {
+          var j = parseInt(pre.getAttribute('data-preajuste'), 10) || 0, p = (listas[j] || [])[parseInt(pre.value, 10)];
+          if (p && Object.prototype.hasOwnProperty.call(p.valores, id)) { pre.value = '-1'; var n = fig.querySelector('[data-preajuste-nota="' + j + '"]'); if (n) n.innerHTML = ''; }
+        });
+        recalcular();
+      };
       i.addEventListener('input', mover);
       if (i.tagName === 'SELECT') i.addEventListener('change', mover);
     });
     // un preajuste pone varios controles de una vez y dice de dónde salen sus números
-    if (pre && spec.preajustes) pre.addEventListener('change', function () {
-      var p = spec.preajustes[parseInt(pre.value, 10)];
-      if (!p) return;
-      ins.forEach(function (i) { var id = i.getAttribute('data-id'); if (Object.prototype.hasOwnProperty.call(p.valores, id)) i.value = String(p.valores[id]); });
-      if (preNota) preNota.innerHTML = p.nota || '';
-      recalcular();
+    pres.forEach(function (pre) {
+      var j = parseInt(pre.getAttribute('data-preajuste'), 10) || 0;
+      pre.addEventListener('change', function () {
+        var p = (listas[j] || [])[parseInt(pre.value, 10)];
+        if (!p) return;
+        ins.forEach(function (i) { var id = i.getAttribute('data-id'); if (Object.prototype.hasOwnProperty.call(p.valores, id)) i.value = String(p.valores[id]); });
+        var n = fig.querySelector('[data-preajuste-nota="' + j + '"]'); if (n) n.innerHTML = p.nota || '';
+        recalcular();
+      });
     });
     fig.classList.add('is-viva');
   });

@@ -26,11 +26,24 @@
 //     {{expresión|formato|decimales}} se evalúa como una fórmula y se reescribe al mover los controles.
 //   en una salida, "veredicto": { "si": "Cabe", "no": "No cabe" }: en vez de un número dice «si» cuando la fórmula da
 //     0 o más y «no» cuando da menos de 0.
+//   "preajustes" también puede ser una lista de listas ([{ modelos }, { GPUs }]): cada una con su propio selector. El build
+//     llena una lista desde datos con "datos": "gpus" | "apis", "campos": { "B": "ancho_banda_gbs" } e "inicial": "<id>".
+//   "comparar": { "titulo": "…", "lista": 1, "columnas": [{ "label": "GPUs", "formula": "…", "formato": "int" }],
+//     "orden": 0, "nota": "…" }: una tabla con una fila por cada opción de esa lista de preajustes, recalculada con los
+//     controles del momento (todo lo demás igual, solo cambian los valores de esa opción). «orden» ordena de menor a mayor
+//     por esa columna (con "desc": true, de mayor a menor; los «—» al final).
 import { esc } from './md.mjs';
 
 const MATH = ['exp', 'log', 'log2', 'log10', 'sqrt', 'pow', 'min', 'max', 'abs', 'round', 'floor', 'ceil', 'sin', 'cos', 'PI', 'E'];
 const FORMATOS = new Set(['num', 'int', 'pct', 'sci', 'bytes', 'ms', 'x', 'corto']);
 const ID = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+
+// «preajustes» como lista de listas, aunque venga como una sola (el formato de la fase 1).
+export function listasDe(c) {
+  if (!c.preajustes) return [];
+  if (!Array.isArray(c.preajustes)) c.preajustes = [c.preajustes];
+  return c.preajustes;
+}
 
 export function compilar(formula, nombres) {
   // eslint-disable-next-line no-new-func
@@ -88,24 +101,27 @@ export function validar(c, id) {
     }
   }
   const porId = new Map((c.entradas || []).map((x) => [x.id, x]));
-  if (c.preajustes) {
-    const pa = c.preajustes;
-    if (!pa.label || !Array.isArray(pa.opciones) || !pa.opciones.length) e.push('«preajustes» necesita «label» y «opciones»');
-    else {
-      if (pa.inicial !== undefined && !pa.opciones[pa.inicial]) e.push('«preajustes.inicial» no es una opción');
-      for (const o of pa.opciones) {
-        if (!o.label || !o.valores) { e.push('cada preajuste necesita «label» y «valores»'); continue; }
-        for (const [k, v] of Object.entries(o.valores)) {
-          const x = porId.get(k);
-          if (!x) e.push(`preajuste «${o.label}»: «${k}» no es una entrada`);
-          else if (typeof v !== 'number' || v < x.min || v > x.max) e.push(`preajuste «${o.label}»: ${k} = ${v} fuera de [${x.min}, ${x.max}]`);
-          else if (x.tipo === 'opcion' && !x.opciones.some((q) => q.valor === v)) e.push(`preajuste «${o.label}»: ${k} = ${v} no es una opción`);
-        }
+  for (const pa of listasDe(c)) {
+    if (!pa.label || !Array.isArray(pa.opciones) || !pa.opciones.length) { e.push('cada lista de «preajustes» necesita «label» y «opciones»'); continue; }
+    if (pa.inicial !== undefined && !pa.opciones[pa.inicial]) e.push(`«${pa.label}»: «inicial» no es una opción`);
+    for (const o of pa.opciones) {
+      if (!o.label || !o.valores) { e.push('cada preajuste necesita «label» y «valores»'); continue; }
+      for (const [k, v] of Object.entries(o.valores)) {
+        const x = porId.get(k);
+        if (!x) e.push(`preajuste «${o.label}»: «${k}» no es una entrada`);
+        else if (typeof v !== 'number' || v < x.min || v > x.max) e.push(`preajuste «${o.label}»: ${k} = ${v} fuera de [${x.min}, ${x.max}]`);
+        else if (x.tipo === 'opcion' && !x.opciones.some((q) => q.valor === v)) e.push(`preajuste «${o.label}»: ${k} = ${v} no es una opción`);
       }
-      // el preajuste inicial tiene que coincidir con los valores iniciales: así la página sin JavaScript no se contradice
-      const ini = pa.opciones[pa.inicial ?? 0];
-      if (ini && ini.valores) for (const [k, v] of Object.entries(ini.valores)) if (porId.get(k) && porId.get(k).valor !== v) e.push(`el preajuste inicial pone ${k} = ${v}, pero su «valor» es ${porId.get(k).valor}`);
     }
+    // el preajuste inicial tiene que coincidir con los valores iniciales: así la página sin JavaScript no se contradice
+    const ini = pa.opciones[pa.inicial ?? 0];
+    if (ini && ini.valores) for (const [k, v] of Object.entries(ini.valores)) if (porId.get(k) && porId.get(k).valor !== v) e.push(`el preajuste inicial de «${pa.label}» pone ${k} = ${v}, pero su «valor» es ${porId.get(k).valor}`);
+  }
+  if (c.comparar) {
+    const cm = c.comparar;
+    if (!listasDe(c)[cm.lista]) e.push('«comparar.lista» no es una lista de preajustes');
+    if (!Array.isArray(cm.columnas) || !cm.columnas.length) e.push('«comparar» necesita «columnas»');
+    else for (const col of cm.columnas) { if (!col.label || !col.formula) e.push('cada columna de «comparar» necesita «label» y «formula»'); if (col.formato && !FORMATOS.has(col.formato)) e.push(`columna «${col.label}»: formato «${col.formato}»`); }
   }
   for (const s of c.salidas || []) {
     if (!s.label || !s.formula) e.push('cada salida necesita «label» y «formula»');
@@ -117,12 +133,13 @@ export function validar(c, id) {
     // probar con los valores iniciales y con los extremos de cada entrada
     const base = Object.fromEntries(c.entradas.map((x) => [x.id, x.valor]));
     const pruebas = [base, ...c.entradas.flatMap((x) => [{ ...base, [x.id]: x.min }, { ...base, [x.id]: x.max }]),
-      ...(c.preajustes ? c.preajustes.opciones.map((o) => ({ ...base, ...o.valores })) : [])];
+      ...listasDe(c).flatMap((pa) => pa.opciones.map((o) => ({ ...base, ...o.valores })))];
     for (const p of pruebas) {
       try {
         const r = evaluar(c, p);
         r.salidas.forEach((y, k) => { if (typeof y !== 'number' || Number.isNaN(y)) e.push(`salida «${c.salidas[k].label}» no da un número con ${JSON.stringify(p)}`); });
         for (const s of c.salidas) for (const t of trozos(s.cuenta)) { const y = valorDe(t.expr, r.valores); if (typeof y !== 'number' || Number.isNaN(y)) e.push(`salida «${s.label}»: {{${t.expr}}} no da un número con ${JSON.stringify(p)}`); }
+        for (const col of c.comparar?.columnas || []) { const y = valorDe(col.formula, r.valores); if (typeof y !== 'number' || Number.isNaN(y)) e.push(`columna «${col.label}» no da un número con ${JSON.stringify(p)}`); }
       } catch (err) { e.push(`una fórmula falla con ${JSON.stringify(p)}: ${err.message}`); break; }
     }
   }
@@ -161,15 +178,32 @@ export function dibujar(c, id, pie, inline) {
   const texto = (s, y) => (s.veredicto ? (y >= 0 ? s.veredicto.si : s.veredicto.no) : formatear(y, s.formato, s.decimales));
   const clase = (s, y) => (s.veredicto ? (y >= 0 ? ' cx-out--si' : ' cx-out--no') : '');
   const outs = c.salidas.map((s, k) => `<div class="cx-out${s.barra ? ' cx-out--barra' : ''}${s.veredicto ? ' cx-out--veredicto' : ''}${clase(s, salidas[k])}" data-caja="${k}"><span class="cx-out__l"><span>${inline(s.label)}</span>${s.nota ? `<small>${inline(s.nota)}</small>` : ''}</span><b class="cx-out__v" data-salida="${k}">${esc(texto(s, salidas[k]))}</b>${s.barra ? `<span class="cx-bar"><i data-barra="${k}" style="width:${ancho(s, salidas[k]).toFixed(1)}%"></i></span>` : ''}${s.cuenta ? `<span class="cx-cuenta" data-cuenta="${k}">${cuentaHtml(s.cuenta, valores, inline)}</span>` : ''}</div>`).join('');
-  const pa = c.preajustes, ini = pa ? (pa.inicial ?? 0) : 0;
-  const preajustes = pa ? `<div class="cx-pre"><label class="cx-in cx-in--opcion"><span class="cx-in__l">${inline(pa.label)}</span><select data-preajuste aria-label="${esc(pa.label)}">${pa.opciones.map((o, k) => `<option value="${k}"${k === ini ? ' selected' : ''}>${esc(o.label)}</option>`).join('')}<option value="-1">Otro (mueve los controles)</option></select></label>${pa.opciones.some((o) => o.nota) ? `<p class="cx-pre__nota" data-preajuste-nota>${pa.opciones[ini].nota ? inline(pa.opciones[ini].nota) : ''}</p>` : ''}</div>` : '';
+  const listas = listasDe(c);
+  const preajustes = listas.map((pa, j) => { const ini = pa.inicial ?? 0; return `<div class="cx-pre"><label class="cx-in cx-in--opcion"><span class="cx-in__l">${inline(pa.label)}</span><select data-preajuste="${j}" aria-label="${esc(pa.label.replace(/\\[()]/g, '').replace(/[*`[\]]/g, ''))}">${pa.opciones.map((o, k) => `<option value="${k}"${k === ini ? ' selected' : ''}>${esc(o.label)}</option>`).join('')}<option value="-1">Otro (mueve los controles)</option></select></label>${pa.opciones.some((o) => o.nota) ? `<p class="cx-pre__nota" data-preajuste-nota="${j}">${pa.opciones[ini].nota ? inline(pa.opciones[ini].nota) : ''}</p>` : ''}</div>`; }).join('');
+  const cm = c.comparar;
+  const tabla = cm ? `<div class="cx-cmp"><p class="cx-cmp__t">${inline(cm.titulo || 'Comparación')}</p><div class="cx-cmp__scroll"><table><thead><tr><th scope="col">${esc(listas[cm.lista].label.replace(/\s*\(.*$/, ''))}</th>${cm.columnas.map((col) => `<th scope="col">${inline(col.label)}</th>`).join('')}</tr></thead><tbody data-comparar>${filasComparar(c, valores).map((f) => `<tr data-fila="${f.k}"${f.k === (listas[cm.lista].inicial ?? 0) ? ' class="is-sel"' : ''}><th scope="row">${esc(f.label)}</th>${f.celdas.map((t) => `<td>${esc(t)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>${cm.nota ? `<p class="cx-cmp__nota">${inline(cm.nota)}</p>` : ''}</div>` : '';
   const spec = { entradas: c.entradas.map((x) => ({ id: x.id, unidad: x.unidad || '', paso: x.paso })), calculos: c.calculos || [],
     salidas: c.salidas.map((s) => ({ formula: s.formula, formato: s.formato || 'num', decimales: s.decimales, barra: !!s.barra, veredicto: s.veredicto || null, cuenta: trozos(s.cuenta) })),
-    preajustes: pa ? pa.opciones.map((o) => ({ valores: o.valores, nota: o.nota ? inline(o.nota) : '' })) : null };
+    preajustes: listas.map((pa) => pa.opciones.map((o) => ({ valores: o.valores, nota: o.nota ? inline(o.nota) : '', label: o.label }))),
+    comparar: cm ? { lista: cm.lista, orden: cm.orden ?? null, desc: !!cm.desc, columnas: cm.columnas.map((col) => ({ formula: col.formula, formato: col.formato || 'num', decimales: col.decimales })) } : null };
   return `<figure class="cx-calc" id="calc-${esc(id)}" data-calc="${esc(JSON.stringify(spec))}">
 <figcaption class="calc__head"><span class="calc__icon" aria-hidden="true">⇄</span><span class="calc__title">${inline(c.titulo)}</span><span class="calc__tag">Calculadora</span></figcaption>
-${c.intro ? `<p class="cx-intro">${inline(c.intro)}</p>` : ''}${preajustes}<div class="cx-ins">${entradas}</div><div class="cx-outs" aria-live="polite">${outs}</div>${c.nota ? `<p class="cx-nota">${inline(c.nota)}</p>` : ''}${pie ? `<p class="cx-pie">${pie}</p>` : ''}
+${c.intro ? `<p class="cx-intro">${inline(c.intro)}</p>` : ''}${preajustes}<div class="cx-ins">${entradas}</div><div class="cx-outs" aria-live="polite">${outs}</div>${tabla}${c.nota ? `<p class="cx-nota">${inline(c.nota)}</p>` : ''}${pie ? `<p class="cx-pie">${pie}</p>` : ''}
 </figure>`;
+}
+
+// Las filas de «comparar» con unos valores: cada opción de la lista pone sus valores sobre las entradas y se recalcula.
+export function filasComparar(c, valores) {
+  const cm = c.comparar, pa = listasDe(c)[cm.lista];
+  const entradas = Object.fromEntries(c.entradas.map((x) => [x.id, valores[x.id]]));
+  const filas = pa.opciones.map((o, k) => {
+    const v = evaluar({ ...c, salidas: [] }, { ...entradas, ...o.valores }).valores;
+    const ys = cm.columnas.map((col) => { try { return valorDe(col.formula, v); } catch { return NaN; } });
+    return { k, label: o.label, ys, celdas: ys.map((y, j) => formatear(y, cm.columnas[j].formato || 'num', cm.columnas[j].decimales)) };
+  });
+  const sg = cm.desc ? -1 : 1;
+  if (cm.orden !== undefined && cm.orden !== null) filas.sort((a, b) => { const x = sg * a.ys[cm.orden], y = sg * b.ys[cm.orden]; return (isFinite(x) ? x : Infinity) - (isFinite(y) ? y : Infinity); });
+  return filas;
 }
 
 const decimalesDe = (paso) => { const s = String(paso); return s.includes('.') ? s.split('.')[1].length : 0; };
