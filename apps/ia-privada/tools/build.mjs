@@ -213,7 +213,7 @@ function sidebar(actual) {
   const top = [['/', ICO.casa, 'Inicio', 'inicio'], ['/glosario/', ICO.libro, 'Glosario', 'glosario']]
     .map(([href, ico, t, id]) => `<a class="nav__item" href="${href}"${id === actual ? ' aria-current="page"' : ''}>${ico}<span>${t}</span>${id === 'glosario' ? `<span class="nav__count">${REALES().length}</span>` : '<span></span>'}</a>`).join('');
   return `<aside class="sidebar" id="sidebar" aria-label="Índice">
-  <div class="sidebar__head">${marcaLink(`TrueML · ${SITIO.subtitulo.toLowerCase()}`)}<button type="button" class="btn-ico sidebar__close" aria-label="Cerrar el índice" data-cajon="cerrar">${ICO.x}</button></div>
+  <div class="sidebar__head">${marcaLink(`TrueML · ${SITIO.subtitulo}`)}<button type="button" class="btn-ico sidebar__close" aria-label="Cerrar el índice" data-cajon="cerrar">${ICO.x}</button></div>
   <div class="side-search" role="search"><input type="search" placeholder="Buscar herramientas y conceptos…" aria-label="Buscar herramientas y conceptos" autocomplete="off" data-buscar-nav><kbd aria-hidden="true">/</kbd><ul class="side-res" hidden></ul></div>
   <nav class="nav"><div class="nav__top">${top}</div>${grupos}<div class="nav__top nav__fin"><a class="nav__item" href="/#casos">${ICO.calc}<span>Casos (próximamente)</span><span></span></a><a class="nav__item" href="${DOJO.url}">${ICO.dojo}<span>Dojo · rama ${esc(DOJO.nombre)}</span><span></span></a></div></nav>
   <div class="sidebar__foot">
@@ -411,7 +411,7 @@ function portada() {
   ${DOJO.sin_gpu ? `<p class="c-req">${esc(DOJO.sin_gpu.texto)}</p>` : ''}
   <div class="conecta"><a class="btn btn--2" href="${DOJO.url}">Abrir la rama en el Dojo →</a></div>
 </section>`;
-  return pagina({ path: '/', title: `${SITIO.nombre} · ${SITIO.subtitulo.toLowerCase()} · TrueML`, desc: SITIO.descripcion, actual: 'inicio', contenido, ancho: true });
+  return pagina({ path: '/', title: `${SITIO.nombre} · ${SITIO.subtitulo} · TrueML`, desc: SITIO.descripcion, actual: 'inicio', contenido, ancho: true });
 }
 
 // ================================================================ glosario
