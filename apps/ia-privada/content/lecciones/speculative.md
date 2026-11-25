@@ -479,6 +479,7 @@ par 40: una vuelta cada       35,333 tokens ·     0.93 vueltas en 32,768
 par 48: una vuelta cada      198,692 tokens ·     0.16 vueltas en 32,768
 par 63: una vuelta cada    5,063,256 tokens ·     0.01 vueltas en 32,768
 pares que no completan ni una vuelta en 32,768: 24
+temperatura de YaRN: raíz(1/t) = 0.1·ln(4) + 1 = 1.139
 ```
 
 Los pares rápidos distinguen el orden cercano: el par 0 da una vuelta cada 6 tokens, así que separa «el token de junto» del «de tres más allá». Los lentos distinguen lo lejano: el par 48 tarda casi 200 mil tokens en dar una vuelta. En el entrenamiento, los pares rápidos ya vieron **todos** sus ángulos miles de veces. Los lentos, no: **24 de los 64** no completaron ni una vuelta en 32,768 tokens. Si le das al modelo la posición 100,000, esos pares llegan a ángulos que el modelo nunca vio. Ahí está el problema.
@@ -585,7 +586,7 @@ map-reduce: 8 trozos de 5,431 tokens · total  55.9 s
   map  37.7 s (prefills 17.1 s) · reduce 18.2 s
 ```
 
-Los resúmenes intermedios de 400 tokens son un supuesto del ejemplo; el decode usa la cuenta de memoria (cuando la memoria manda) y el de los 8 trozos se hace junto, en un batch. Lee el resultado con cuidado. Map-reduce **no** es más rápido: ahorra ≈ 6 s de prefill y gasta más que eso escribiendo resúmenes intermedios. Lo que sí gana:
+Los resúmenes intermedios de 400 tokens son un supuesto del ejemplo; el decode usa la cuenta de memoria (cuando la memoria manda) y el de los 8 trozos se hace junto, en un batch. Lee el resultado con cuidado. Map-reduce **no** es más rápido: ahorra ≈ 7 s de prefill y gasta más que eso escribiendo resúmenes intermedios. Lo que sí gana:
 
 - **Cabe sin tocar nada.** Cada trozo pide 5,431 tokens y su resumen 400: entra en el tope de 8,192 del servidor de siempre, sin YaRN y sin apartar 10.8 GB de memoria para una sola petición.
 - **Cada trozo es corto**, y con 5 mil tokens no hay mucho «en medio» donde perderse.

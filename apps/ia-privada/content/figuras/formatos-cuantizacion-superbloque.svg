@@ -6,8 +6,8 @@
 <rect class="f-o" x="36.3" y="52" width="25.0" height="34" rx="2"/>
 <rect class="f-b" x="61.3" y="52" width="266.7" height="34" rx="2"/>
 <text class="f-s" x="194.7" y="74" text-anchor="middle" style="font-size:12px;font-weight:700;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">128 B · 256 pesos de 4 bits</text>
-<line x1="32.2" y1="86" x2="32.2" y2="100" class="f-linea"/>
-<line x1="48.8" y1="86" x2="48.8" y2="118" class="f-linea"/>
+<line x1="32.2" y1="86" x2="32.2" y2="98" class="f-linea"/>
+<line x1="48.8" y1="86" x2="48.8" y2="98" class="f-linea"/>
 <text class="f-s" x="28" y="112" style="font-size:12px">4 B: escala y mínimo del superbloque (FP16)</text>
 <text class="f-s" x="28" y="132" style="font-size:12px">12 B: 8 escalas y 8 mínimos de 6 bits</text>
 <text class="f-l" x="28" y="164">LOS 8 BLOQUES DE 32 PESOS</text>

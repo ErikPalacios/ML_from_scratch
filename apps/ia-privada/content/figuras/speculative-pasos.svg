@@ -3,11 +3,11 @@
 <rect class="f-card" x="10" y="10" width="340" height="332" rx="16"/>
 <text class="f-l" x="28" y="36">NORMAL: UN TOKEN POR LECTURA DE PESOS</text>
 <rect class="f-dark" x="28" y="50" width="96" height="32" rx="6"/>
-<text class="f-dark-t" x="76" y="70" text-anchor="middle" style="font-size:12px">pasada · 34.7 ms</text>
+<text class="f-dark-t" x="76" y="70" text-anchor="middle" style="font-size:10px">pasada · 34.7 ms</text>
 <rect class="f-dark" x="132" y="50" width="96" height="32" rx="6"/>
-<text class="f-dark-t" x="180" y="70" text-anchor="middle" style="font-size:12px">pasada · 34.7 ms</text>
+<text class="f-dark-t" x="180" y="70" text-anchor="middle" style="font-size:10px">pasada · 34.7 ms</text>
 <rect class="f-dark" x="236" y="50" width="96" height="32" rx="6"/>
-<text class="f-dark-t" x="284" y="70" text-anchor="middle" style="font-size:12px">pasada · 34.7 ms</text>
+<text class="f-dark-t" x="284" y="70" text-anchor="middle" style="font-size:10px">pasada · 34.7 ms</text>
 <rect class="f-b" x="52" y="90" width="48" height="24" rx="6"/>
 <text class="f-pill-t" x="76" y="107" text-anchor="middle" style="font-size:13px">la</text>
 <rect class="f-b" x="144" y="90" width="72" height="24" rx="6"/>
@@ -23,7 +23,7 @@
 <text class="f-s" x="62" y="244" text-anchor="middle" style="font-size:12px">borrador</text>
 <text class="f-s" x="62" y="258" text-anchor="middle" style="font-size:12px">3 × 1.7 ms</text>
 <rect class="f-dark" x="108" y="196" width="224" height="32" rx="6"/>
-<text class="f-dark-t" x="220" y="216" text-anchor="middle" style="font-size:12px">una pasada verifica 4 posiciones · 34.7 ms</text>
+<text class="f-dark-t" x="220" y="216" text-anchor="middle" style="font-size:10px">verifica 4 posiciones · 34.7 ms</text>
 <rect class="f-g" x="112" y="238" width="44" height="24" rx="6"/>
 <text class="f-pill-t" x="134" y="255" text-anchor="middle" style="font-size:13px">la ✓</text>
 <rect class="f-g" x="162" y="238" width="86" height="24" rx="6"/>
