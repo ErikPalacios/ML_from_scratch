@@ -1,8 +1,8 @@
 {
-  "nota": "El nombre, la dirección y los textos de la portada. «IA Privada» es el nombre de trabajo: cambiar el nombre de la app = cambiar «nombre» (y «corto») aquí. «url» cambia cuando tenga su subdominio en trueml.app.",
+  "nota": "El nombre, la dirección y los textos de la portada. «IA Privada» es el nombre de trabajo: cambiar el nombre de la app = cambiar «nombre» aquí. Su dirección es ia.trueml.app (desde el 2026-11-25); la vieja, ia-privada.vercel.app, redirige ahí (vercel.json).",
   "nombre": "IA Privada",
   "clave": "ia-privada",
-  "url": "https://ia-privada.vercel.app",
+  "url": "https://ia.trueml.app",
   "portada": "https://trueml.app",
   "sensei": "https://sensei.trueml.app",
   "repo": "https://github.com/ErikPalacios/ML_from_scratch",

@@ -27,4 +27,4 @@ Una calculadora toma las GPUs con `"opciones": "gpus"` y `"inicial": "<id de gpu
 
 ## Publicación
 
-Proyecto de Vercel `ia-privada`, conectado a Git, Root Directory `apps/ia-privada`: cada push a `main` lo publica en https://ia-privada.vercel.app. El subdominio de trueml.app se agrega cuando haya nombre final.
+Proyecto de Vercel `ia-privada`, conectado a Git, Root Directory `apps/ia-privada`: cada push a `main` lo publica en https://ia.trueml.app (la dirección vieja, ia-privada.vercel.app, redirige ahí con un 301).

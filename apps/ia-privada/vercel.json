@@ -5,6 +5,19 @@
   "buildCommand": "node tools/build.mjs",
   "outputDirectory": "dist",
   "trailingSlash": true,
+  "redirects": [
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "ia-privada.vercel.app"
+        }
+      ],
+      "destination": "https://ia.trueml.app/$1",
+      "permanent": true
+    }
+  ],
   "headers": [
     {
       "source": "/sw.js",
