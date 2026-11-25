@@ -5,10 +5,12 @@
    "termino": "Intensidad aritmética",
    "en": "arithmetic intensity",
    "corto": "Cuántas operaciones (FLOPs) hace un cálculo por cada byte que lee o escribe en la memoria.",
-   "largo": "Es propiedad del cálculo, no de la máquina. Se compara con el punto de quiebre de la GPU (pico de FLOPS ÷ ancho de banda): si es menor, el cálculo está limitado por memoria (*memory-bound*). En el decode, cada peso leído da 2 FLOPs por conversación del batch, así que la intensidad crece con el batch; el [[kv-cache|KV cache]] de cada conversación, que no se comparte, la frena.",
+   "largo": "Es propiedad del cálculo, no de la máquina. Se compara con el punto de quiebre de la GPU (pico de FLOPS ÷ [[ancho-de-banda|ancho de banda]]): si es menor, el cálculo está [[memory-bound|limitado por memoria]] (*memory-bound*). En el [[decode|decode]], cada peso leído da 2 FLOPs por conversación del [[batch|batch]], así que la intensidad crece con el batch; el [[kv-cache|KV cache]] de cada conversación, que no se comparte, la frena.",
    "ejemplo": "Qwen3 32B en INT4 con 1 conversación: 65.5 GFLOPs ÷ 20.96 GB ≈ 3.1 FLOPs por byte. El quiebre de la L40S es ≈ 419.",
    "ver": [
-    "batching-continuo"
+    "batching-continuo",
+    "roofline",
+    "memory-bound"
    ],
    "leccion": "batching",
    "sensei": "flops"
@@ -18,9 +20,9 @@
    "termino": "Batching estático",
    "en": "static batching",
    "corto": "Juntar varias peticiones en un batch y no tocarlo hasta que la más larga termine. Las que acaban antes dejan su lugar vacío.",
-   "largo": "Es la forma ingenua de servir un LLM en lotes: las respuestas tienen largos muy distintos, así que el batch dura lo que la más larga y los lugares de las cortas se desperdician. Las peticiones nuevas esperan afuera a que acabe la tanda.",
+   "largo": "Es la forma ingenua de servir un LLM en lotes: las respuestas tienen largos muy distintos, así que el [[batch|batch]] dura lo que la más larga y los lugares de las cortas se desperdician. Las peticiones nuevas esperan afuera a que acabe la tanda.",
    "analogia": "Un elevador que no abre la puerta hasta dejar al último pasajero en el piso 30, aunque los demás bajaron en el 2.",
-   "ejemplo": "Cuatro respuestas de 500, 200, 350 y 100 tokens: el batch dura 500 pasos y solo el 57.5 % de los lugares hace trabajo útil.",
+   "ejemplo": "Cuatro respuestas de 500, 200, 350 y 100 tokens: el [[batch|batch]] dura 500 pasos y solo el 57.5 % de los lugares hace trabajo útil.",
    "ver": [
     "batching-continuo"
    ],
@@ -45,8 +47,8 @@
    "termino": "Scheduler (planificador)",
    "en": "scheduler",
    "corto": "La parte del servidor de inferencia que, antes de cada paso, decide qué conversaciones entran al batch, cuáles salen y a cuál sacar si falta memoria.",
-   "largo": "Mira la fila de peticiones, los lugares del batch (`max_num_seqs` en vLLM), el presupuesto de tokens por paso (`max_num_batched_tokens`) y los [[bloque-kv|bloques]] libres del KV cache. En vLLM el orden por omisión es FCFS: la primera que llega, primero entra.",
-   "ejemplo": "Una abogada pregunta; en el siguiente paso, si hay bloques libres, su petición entra y hace su prefill junto con el decode de las otras 7.",
+   "largo": "Mira la fila de peticiones, los lugares del [[batch|batch]] (`max_num_seqs` en vLLM), el presupuesto de tokens por paso (`max_num_batched_tokens`) y los [[bloque-kv|bloques]] libres del KV cache. En vLLM el orden por omisión es FCFS: la primera que llega, primero entra.",
+   "ejemplo": "Una abogada pregunta; en el siguiente paso, si hay bloques libres, su petición entra y hace su [[prefill|prefill]] junto con el [[decode|decode]] de las otras 7.",
    "ver": [
     "batching-continuo",
     "preemption"
@@ -112,8 +114,8 @@
    "termino": "Prefix caching",
    "en": "prefix caching, automatic prefix caching (APC)",
    "corto": "Reutilizar los bloques de KV cache de un inicio de prompt que ya se calculó, en vez de volver a calcularlo y guardarlo para cada petición.",
-   "largo": "Cada bloque lleno se identifica con un hash de sus tokens y de todos los anteriores; si una petición nueva empieza igual, apunta a esos bloques y se salta su prefill. vLLM lo trae prendido por omisión y solo guarda bloques llenos. SGLang lo hace con un árbol (RadixAttention).",
-   "ejemplo": "Las ≈ 400 tokens de instrucciones del despacho son 25 bloques de 16: cada pregunta nueva se ahorra su prefill y ≈ 105 MB de KV cache.",
+   "largo": "Cada bloque lleno se identifica con un hash de sus tokens y de todos los anteriores; si una petición nueva empieza igual, apunta a esos bloques y se salta su [[prefill|prefill]]. vLLM lo trae prendido por omisión y solo guarda bloques llenos. SGLang lo hace con un árbol (RadixAttention).",
+   "ejemplo": "Las ≈ 400 tokens de instrucciones del despacho son 25 bloques de 16: cada pregunta nueva se ahorra su [[prefill|prefill]] y ≈ 105 MB de KV cache.",
    "ver": [
     "pagedattention",
     "copy-on-write"
@@ -138,7 +140,7 @@
    "termino": "Preemption (desalojo)",
    "en": "preemption",
    "corto": "Sacar del batch una conversación a medias porque ya no hay bloques de KV cache para todas, y retomarla después.",
-   "largo": "El paper de PagedAttention propuso dos formas: *swap*, copiar sus bloques a la RAM de la CPU y traerlos de vuelta, y *recompute*, tirarlos y recalcular su KV cache con un prefill al reanudar. vLLM usa recompute (en el scheduler de la versión 0.34.0 es el único modo). Para esa persona la respuesta se congela un rato; si pasa seguido, falta memoria o sobran conversaciones a la vez.",
+   "largo": "El paper de PagedAttention propuso dos formas: *swap*, copiar sus bloques a la RAM de la CPU y traerlos de vuelta, y *recompute*, tirarlos y recalcular su KV cache con un [[prefill|prefill]] al reanudar. vLLM usa recompute (en el scheduler de la versión 0.34.0 es el único modo). Para esa persona la respuesta se congela un rato; si pasa seguido, falta memoria o sobran conversaciones a la vez.",
    "ejemplo": "En vLLM 0.34.0, la línea de estadísticas que el servidor imprime cada 10 segundos suma «Preemptions: 3», y el contador `vllm:num_preemptions` sube.",
    "ver": [
     "scheduler",
@@ -151,8 +153,8 @@
    "termino": "Chunked prefill",
    "en": "chunked prefill",
    "corto": "Partir el prefill de un prompt largo en trozos que se hacen en varios pasos, junto con el decode de las demás conversaciones, para no frenarlas.",
-   "largo": "Un prefill de miles de tokens es un paso largo, limitado por cálculo, y mientras corre las demás conversaciones no reciben tokens. Con chunked prefill cada paso lleva a lo mucho un presupuesto de tokens (`max_num_batched_tokens` en vLLM): los decodes primero y un trozo de prefill con lo que sobre. Viene de SARATHI y Sarathi-Serve; en vLLM está prendido por omisión.",
-   "ejemplo": "Un prefill de 6,000 tokens del despacho tarda ≈ 2.2 s en una L40S (a la mitad de su pico de cálculo); en trozos de ≈ 2,000, las demás conversaciones reciben un token cada ≈ 0.74 s en vez de esperar más de dos segundos seguidos.",
+   "largo": "Un [[prefill|prefill]] de miles de tokens es un paso largo, limitado por cálculo, y mientras corre las demás conversaciones no reciben tokens. Con chunked prefill cada paso lleva a lo mucho un presupuesto de tokens (`max_num_batched_tokens` en vLLM): los decodes primero y un trozo de prefill con lo que sobre. Viene de SARATHI y Sarathi-Serve; en vLLM está prendido por omisión.",
+   "ejemplo": "Un [[prefill|prefill]] de 6,000 tokens del despacho tarda ≈ 2.2 s en una L40S (a la mitad de su [[pico-de-calculo|pico de cálculo]]); en trozos de ≈ 2,000, las demás conversaciones reciben un token cada ≈ 0.74 s en vez de esperar más de dos segundos seguidos.",
    "ver": [
     "scheduler",
     "batching-continuo"

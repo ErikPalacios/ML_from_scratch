@@ -17,8 +17,8 @@
   {
     "id": "sizing", "termino": "Sizing (dimensionar)", "en": "sizing",
     "corto": "Calcular cuánto hardware hace falta: de cuántas personas y preguntas hay, a cuántas conversaciones atiende el servidor a la vez, y de ahí a cuánta memoria de GPU y cuáles GPUs.",
-    "largo": "La cuenta corta tiene tres pasos: preguntas al día, llegadas por segundo en la hora pico y conversaciones a la vez con la Ley de Little (llegadas por segundo × lo que dura cada una). Ese número de [[concurrencia|conversaciones a la vez]] entra a la cuenta de [[vram|VRAM]], que dice cuántas caben. Un sizing completo agrega el cómputo y el ancho de banda, que dicen cuántas se atienden bien: casi siempre son menos.",
-    "ejemplo": "Despacho: 200 × 15 = 3,000 preguntas al día; 750 en la hora pico ≈ 0.21 por segundo; × 27 s ≈ 5.6 a la vez; se diseña para 8. Por memoria caben en una L40S de 48 GB, pero con el cómputo y el ancho de banda el sizing completo pide 3 L40S.",
+    "largo": "La cuenta corta tiene tres pasos: preguntas al día, llegadas por segundo en la hora pico y conversaciones a la vez con la [[ley-de-little|Ley de Little]] (llegadas por segundo × lo que dura cada una). Ese número de [[concurrencia|conversaciones a la vez]] entra a la cuenta de [[vram|VRAM]], que dice cuántas caben. Un sizing completo agrega el cómputo y el [[ancho-de-banda|ancho de banda]], que dicen cuántas se atienden bien: casi siempre son menos.",
+    "ejemplo": "Despacho: 200 × 15 = 3,000 preguntas al día; 750 en la hora pico ≈ 0.21 por segundo; × 27 s ≈ 5.6 a la vez; se diseña para 8. Por memoria caben en una L40S de 48 GB, pero con el cómputo y el [[ancho-de-banda|ancho de banda]] el sizing completo pide 3 L40S.",
     "ver": ["concurrencia", "vram"],
     "leccion": "recorrido"
   },
@@ -33,7 +33,7 @@
   {
     "id": "criterio-de-aceptacion", "termino": "Criterio de aceptación", "en": "acceptance criteria",
     "corto": "La regla con números, firmada antes de empezar, que dice cuándo el sistema sirve: qué tanto debe acertar, qué tan rápido debe contestar y con qué preguntas se mide.",
-    "largo": "Se escribe en descubrimiento y se mide en evals. Tiene dos partes: la calidad (por ejemplo, qué parte de un examen de preguntas reales contesta bien) y el servicio (tiempo al primer token y velocidad de escritura con la carga de diseño). Sin él, el piloto termina en opiniones; con él, en un sí o un no.",
+    "largo": "Se escribe en descubrimiento y se mide en evals. Tiene dos partes: la calidad (por ejemplo, qué parte de un examen de preguntas reales contesta bien) y el servicio ([[ttft|tiempo al primer token]] y velocidad de escritura con la carga de diseño). Sin él, el piloto termina en opiniones; con él, en un sí o un no.",
     "ejemplo": "Despacho: ≥ 85 % de 200 preguntas reales contestadas bien y con la cita correcta (170 o más), a lo más 2 % con una cita inventada (4 o menos), primer token en ≤ 2 s en el p95 y ≥ 20 tokens/s por persona con 8 conversaciones a la vez.",
     "leccion": "recorrido"
   },

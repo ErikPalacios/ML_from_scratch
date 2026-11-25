@@ -62,7 +62,7 @@
       "y": 17,
       "w": 17,
       "h": 9,
-      "note": "El primer filtro y el más barato: leer la licencia. Apache 2.0 y MIT permiten uso comercial sin condiciones raras; las licencias a medida (la de Llama, las marcadas «other») hay que leerlas con calma. Lo ves a fondo en la lección «Open weight, open source y licencias»."
+      "note": "El primer filtro y el más barato: leer la licencia. [[apache-2|Apache 2.0]] y MIT permiten uso comercial sin condiciones raras; las licencias a medida (la de Llama, las marcadas «other») hay que leerlas con calma. Lo ves a fondo en la lección «[Open weight, open source y licencias](/licencias/)»."
     },
     {
       "id": "memoria",

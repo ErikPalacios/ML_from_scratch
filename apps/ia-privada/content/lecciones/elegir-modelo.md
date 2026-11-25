@@ -10,7 +10,7 @@ sensei: llms, ruido
 No existe «el mejor modelo»: existe el mejor para tu tarea, tu licencia, tu GPU y tu idioma. Primero se descarta lo que no puede servir (filtros duros que se contestan con sí o no), después se ordena lo que queda con benchmarks leídos con su ruido, y al final decide un examen con preguntas de tu propia tarea. La lista de modelos cambia cada pocos meses; el método no.
 :::
 
-Esta lección sigue a **el despacho**, un ejemplo ficticio que usamos en toda la app: un despacho de abogados en la Ciudad de México con 200 abogados y asistentes que quiere preguntarle a sus 30,000 expedientes con un LLM sin que un solo documento salga de su red. Trabaja en español (con algunos contratos en inglés), y cada pregunta lleva ≈ 6,000 tokens de entrada y ≈ 500 de respuesta. Diseña para 8 conversaciones a la vez de hasta 8,192 tokens cada una, y quiere que el modelo empiece a contestar en ≤ 2 s y escriba al menos a 20 tokens por segundo para cada persona. Su candidato de hoy es **Qwen3 32B en INT4 de AWQ**. Por memoria, las 8 conversaciones caben en una GPU NVIDIA L40S de 48 GB: 38.50 GB de los 43.2 útiles, como calcula la [herramienta de VRAM](/herramientas/vram/). Pero caber no es atenderlas bien: leer los 6,000 tokens de una pregunta ya le toma a la L40S ≈ 2.2–2.4 s, y la cuenta completa de velocidad pide **3 L40S**. Esa diferencia entre «cabe» y «se atiende bien» va a pesar al elegir modelo.
+Esta lección sigue a **el despacho**, un ejemplo ficticio que usamos en toda la app: un despacho de abogados en la Ciudad de México con 200 abogados y asistentes que quiere preguntarle a sus 30,000 expedientes con un LLM sin que un solo documento salga de su red. Trabaja en español (con algunos contratos en inglés), y cada pregunta lleva ≈ 6,000 tokens de entrada y ≈ 500 de respuesta. Diseña para 8 conversaciones a la vez de hasta 8,192 tokens cada una, y quiere que el modelo [[ttft|empiece a contestar en ≤ 2 s]] y escriba al menos a 20 tokens por segundo para cada persona. Su candidato de hoy es **Qwen3 32B en INT4 de AWQ**. Por memoria, las 8 conversaciones caben en una GPU NVIDIA L40S de 48 GB: 38.50 GB de los 43.2 útiles, como calcula la [herramienta de VRAM](/herramientas/vram/). Pero caber no es atenderlas bien: leer los 6,000 tokens de una pregunta ya le toma a la L40S ≈ 2.2–2.4 s, y la cuenta completa de velocidad pide **3 L40S**. Esa diferencia entre «cabe» y «se atiende bien» va a pesar al elegir modelo.
 
 Ya sabes, de [Transformers y LLMs](https://sensei.trueml.app/llms/), qué es un token, qué son los [[pesos]], qué es una mezcla de expertos y cómo un modelo base se vuelve asistente. Aquí no se repite: se usa para **elegir**. Y de [Ruido, muestras y pruebas A/B](https://sensei.trueml.app/ruido/) basta recordar una idea: un porcentaje medido con pocas muestras se mueve mucho.
 
@@ -26,7 +26,7 @@ Para el despacho, «la tarea» es concreta: leer 5 fragmentos de expediente, con
 
 Hay cuatro restricciones que ningún puntaje compensa:
 
-- **La licencia.** Si no permite uso comercial, o pone condiciones que el despacho no puede cumplir, el modelo no existe para él, aunque sea el primero de todas las tablas.
+- **[[licencia-de-modelo|La licencia.]]** Si no permite uso comercial, o pone condiciones que el despacho no puede cumplir, el modelo no existe para él, aunque sea el primero de todas las tablas.
 - **La memoria.** Si los pesos más el [[kv-cache|KV cache]] de 8 conversaciones no caben en los 43.2 GB útiles de una L40S, el modelo no arranca, o atiende a menos personas de las que hacen falta. Y si caben, todavía falta ver qué tan rápido las atiende.
 - **El idioma.** Un modelo que se entrenó casi solo en inglés puede escribir un español torpe, o contestar en inglés a mitad de la respuesta.
 - **El [[contexto]].** Si no le caben los ≈ 6,500 tokens de una pregunta con su respuesta, no sirve.
@@ -49,7 +49,7 @@ Estas son las que importan a noviembre de 2026 para una empresa con una o pocas 
 
 | Familia | Fabricante | Licencia (de los modelos de esta lección) | Lo más nuevo que cabe en una GPU de 48 GB |
 |---|---|---|---|
-| Qwen | Alibaba | Apache 2.0 | Qwen3.8 27B (agosto de 2026); Qwen3.6 27B y 35B-A3B (abril de 2026) |
+| Qwen | Alibaba | [[apache-2\|Apache 2.0]] | Qwen3.8 27B (agosto de 2026); Qwen3.6 27B y 35B-A3B (abril de 2026) |
 | Gemma | Google | Apache 2.0 desde Gemma 4 (Gemma 3 tenía licencia propia) | Gemma 4 31B y 26B-A4B (marzo de 2026) y 12B (mayo de 2026) |
 | Mistral | Mistral AI | Apache 2.0 en Small y Ministral; «other» en Medium 3.5 y Large 4 | Ministral 3 14B (diciembre de 2025); Mistral Small 3.2 24B (junio de 2025) |
 | gpt-oss | OpenAI | Apache 2.0 | gpt-oss-20b (agosto de 2025) |
@@ -111,7 +111,7 @@ En una L40S, con 43.2 GB útiles, el techo práctico es un denso de ≈ 32 mil m
 
 ### Lo que cuesta en velocidad
 
-Cuando un LLM escribe, cada token nuevo obliga a leer de la memoria de la GPU todos los pesos que trabajan en ese token. Lo viste en [Transformers y LLMs](https://sensei.trueml.app/llms/): para una conversación sola, la velocidad tope la pone el **ancho de banda** de la memoria (cuántos GB por segundo puede leer la GPU), no la potencia de cálculo. Ningún programa aprovecha el 100 % de ese ancho de banda; las cuentas del despacho suponen el 70 %.
+Cuando un LLM [[decode|escribe]], cada token nuevo obliga a leer de la memoria de la GPU todos los pesos que trabajan en ese token. Lo viste en [Transformers y LLMs](https://sensei.trueml.app/llms/): para una conversación sola, [[memory-bound|la velocidad tope]] la pone el **[[ancho-de-banda|ancho de banda]]** de la memoria (cuántos GB por segundo puede leer la GPU), no la potencia de cálculo. Ningún programa aprovecha el 100 % de ese ancho de banda; las cuentas del despacho suponen [[eficiencia|el 70 %]].
 
 :::formula Velocidad tope de una conversación sola
 v_{tope} ≈ frac{η_m × B}{W_{activo}}
@@ -129,7 +129,7 @@ Contra el objetivo del despacho // 20 tokens/s por persona | 31.3 ÷ 20 | ≈ 1.
 = Una conversación sola va a ≈ 31 tokens por segundo: poco margen sobre los 20 que pide el despacho. El mismo modelo en BF16 (65.5 GB) ni cabe; en FP8 su techo bajaría a 604.8 ÷ 32.76 ≈ 18 tokens/s, por debajo del objetivo.
 :::
 
-¿Y con 8 conversaciones a la vez? El servidor lee los pesos **una vez** por paso y los usa para todas las conversaciones que van juntas; así atiende a varias personas casi al costo de una. Lo ves a fondo en la lección «Batching continuo y PagedAttention». Pero hay otro costo que crece con cada pregunta: antes de escribir, el modelo tiene que **leer** sus 6,000 tokens de entrada, y eso sí es cálculo puro, del orden de 2 operaciones por parámetro por token. En la L40S, con Qwen3 32B, esa lectura tarda ≈ 2.2–2.4 s por pregunta, y mientras la hace, las demás conversaciones escriben más lento. Por eso la cuenta completa del despacho pide 3 L40S, no 1. Para elegir modelo basta esto: **cada parámetro que trabaja por token es tiempo que pierdes, al leer la pregunta y al escribir la respuesta**.
+¿Y con 8 conversaciones a la vez? El servidor lee los pesos **una vez** por paso y los usa para todas las conversaciones [[batch|que van juntas]]; así atiende a varias personas casi al costo de una. Lo ves a fondo en la lección «[Batching continuo y PagedAttention](/batching/)». Pero hay otro costo que crece con cada pregunta: antes de escribir, el modelo tiene que **[[prefill|leer]]** sus 6,000 tokens de entrada, y eso sí es cálculo puro, del orden de 2 operaciones por parámetro por token. En la L40S, con Qwen3 32B, esa lectura tarda ≈ 2.2–2.4 s por pregunta, y mientras la hace, las demás conversaciones escriben más lento. Por eso la cuenta completa del despacho pide 3 L40S, no 1. Para elegir modelo basta esto: **cada parámetro que trabaja por token es tiempo que pierdes, al leer la pregunta y al escribir la respuesta**.
 
 ### Qué compra el tamaño
 
@@ -195,7 +195,7 @@ El pensamiento son tokens. Se escriben a la misma velocidad que la respuesta, y 
 t_{resp} = t_0 + frac{N_p}{v}
 t_{total} = t_0 + frac{N_p + N_r}{v}
 m_{extra} = N_p × m_{token}
-- t_0: el tiempo al primer token, en s (el objetivo del despacho: ≤ 2 s; con Qwen3 32B en la L40S, solo leer la pregunta ya toma ≈ 2.2–2.4 s)
+- t_0: el [[ttft|tiempo al primer token]], en s (el objetivo del despacho: ≤ 2 s; con Qwen3 32B en la L40S, solo leer la pregunta ya toma ≈ 2.2–2.4 s)
 - N_p: los tokens que el modelo piensa antes de contestar
 - N_r: los tokens de la respuesta (el despacho: ≈ 500)
 - v: la velocidad de escritura por persona, en tokens/s (el despacho: 20)
@@ -411,8 +411,8 @@ P_A = frac{1}{1 + 10^{−d/400}}
 :::
 
 :::cuenta Qué tan lejos está un modelo chico de la cima
-Un abierto de lo más alto // MiMo-V2.6-Pro, de Xiaomi: pesos con licencia MIT, ≈ 1,024 mil millones de parámetros; página del 22 de noviembre de 2026 | 1,481 | 1,481
-Un abierto chico // Granite 4.1 8B, de IBM, Apache 2.0 | 1,305 | 1,305
+Un abierto de lo más alto // MiMo-V2.6-Pro, de Xiaomi: pesos con [[licencia-mit\|licencia MIT]], ≈ 1,024 mil millones de parámetros; página del 22 de noviembre de 2026 | 1,481 | 1,481
+Un abierto chico // Granite 4.1 8B, de IBM, [[apache-2\|Apache 2.0]] | 1,305 | 1,305
 Diferencia, \(d\) | 1,481 − 1,305 | 176
 Probabilidad de que gane el de arriba, \(P_A\) | 1 ÷ (1 + 10^(−176/400)) | ≈ 73 %
 Con 100 puntos de diferencia | 1 ÷ (1 + 10^(−100/400)) | ≈ 64 %
@@ -457,7 +457,7 @@ Toca cada caja para ver qué pregunta hace, o usa «Recorrer» para seguir al de
 
 :::pasos
 1. Licencia
-Se queda con lo que permite uso comercial sin condiciones que el despacho no pueda cumplir. Apache 2.0 y MIT pasan directo. Llama tiene una licencia a medida que hay que leer, y lo marcado «other» (Mistral Medium 3.5, Mistral Large 4, Qwen3.8 Flash Next) también. Cómo se lee una licencia lo ves en la lección «Open weight, open source y licencias».
+Se queda con lo que permite uso comercial sin condiciones que el despacho no pueda cumplir. [[apache-2|Apache 2.0]] y [[licencia-mit|MIT]] pasan directo. Llama tiene una [[licencia-llama|licencia a medida]] que hay que leer, y lo marcado «other» (Mistral Medium 3.5, Mistral Large 4, Qwen3.8 Flash Next) también. Cómo se lee una licencia lo ves en la lección «[Open weight, open source y licencias](/licencias/)».
 2. Memoria
 Pesos en 4 bits + KV cache de 8 × 8,192 tokens + 2 GB, contra los 43.2 GB útiles de una L40S. Es la cuenta de la herramienta de VRAM, y saca a los que pesan de más aunque sean «Small». Ojo: este filtro dice si **cabe**, no si se atiende bien; eso lo dice la velocidad, más abajo.
 3. Idioma
@@ -509,7 +509,7 @@ Lo que no cambia: el examen se guarda. Cuando salga Qwen4 o Gemma 5, el despacho
 
 En los nombres vas a ver «Distill». La [[destilacion|destilación]] (*distillation*) es entrenar un modelo chico, el alumno, con las respuestas de uno grande, el maestro, para que imite lo que hace el grande a una fracción del costo de servirlo.
 
-El ejemplo más famoso es **DeepSeek-R1-Distill-Qwen-32B** (20 de enero de 2025). El maestro es DeepSeek-R1, un modelo de razonamiento de 671 mil millones de parámetros con 37 mil millones activos, con licencia MIT. El alumno es la base **Qwen2.5-32B** (no Qwen3), ajustada con muestras de preguntas, razonamientos y respuestas que escribió R1. Fue ajuste supervisado (SFT), sin aprendizaje por refuerzo. DeepSeek hizo seis así, de 1.5 a 70 mil millones, sobre bases de Qwen2.5 y Llama.
+El ejemplo más famoso es **DeepSeek-R1-Distill-Qwen-32B** (20 de enero de 2025). El maestro es DeepSeek-R1, un modelo de razonamiento de 671 mil millones de parámetros con 37 mil millones activos, con [[licencia-mit|licencia MIT]]. El alumno es la base **Qwen2.5-32B** (no Qwen3), ajustada con muestras de preguntas, razonamientos y respuestas que escribió R1. Fue ajuste supervisado (SFT), sin aprendizaje por refuerzo. DeepSeek hizo seis así, de 1.5 a 70 mil millones, sobre bases de Qwen2.5 y Llama.
 
 Sus resultados, en la tabla de DeepSeek (auto-reportado): 72.6 en AIME 2024, 94.3 en MATH-500 y 62.1 en GPQA Diamond, contra 63.6, 90.0 y 60.0 de o1-mini de OpenAI. Un modelo de 32B que cabía en una GPU parecía razonar como uno cerrado de frontera.
 
@@ -575,8 +575,8 @@ Memoria: en 4 bits sus pesos son ≈ 119.4 × 4.156 ÷ 8 ≈ **62.0 GB**, más q
 
 ## Lo que sigue {What comes next}
 
-- **«Open weight, open source y licencias»**, en este mismo módulo: el filtro 1 a fondo, cómo leer Apache 2.0, MIT, la licencia de Llama y las marcadas «other».
-- **«Batching continuo y PagedAttention»** y **«Concurrencia: la curva de usuarios contra latencia»**: cómo un servidor atiende varias conversaciones con una sola lectura de los pesos, y por qué la memoria dice cuántas caben pero el cálculo dice cuántas se atienden bien.
+- **«[Open weight, open source y licencias](/licencias/)»**, en este mismo módulo: el filtro 1 a fondo, cómo leer [[apache-2|Apache 2.0]], MIT, la [[licencia-llama|licencia de Llama]] y las marcadas «other».
+- **«[Batching continuo y PagedAttention](/batching/)»** y **«[Concurrencia: la curva de usuarios contra latencia](/concurrencia/)»**: cómo un servidor atiende varias conversaciones con una sola lectura de los pesos, y por qué la memoria dice cuántas caben pero el cálculo dice cuántas se atienden bien.
 - **«Formatos de cuantización en la práctica»**: qué se pierde de calidad al pasar de BF16 a los 4 bits con que se examinó cada candidato.
 - **«Demostrar que el modelo abierto sirve»**, en el módulo de evals: cómo se arma, se califica y se mantiene el examen propio de 200 preguntas.
 - En Sensei, [Transformers y LLMs](https://sensei.trueml.app/llms/) para el porqué del KV cache y de los expertos, y [Ruido, muestras y pruebas A/B](https://sensei.trueml.app/ruido/) para la prueba pareada y el diseño de una comparación.

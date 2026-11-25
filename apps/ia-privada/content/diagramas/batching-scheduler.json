@@ -12,15 +12,15 @@
     { "id": "api", "label": "API del servidor", "sub": "recibe y responde", "kind": "edge", "x": 30, "y": 4, "w": 18, "h": 8,
       "note": "La puerta del servidor de inferencia: recibe la pregunta, la convierte en tokens y devuelve los tokens de la respuesta en streaming." },
     { "id": "fila", "label": "Fila de espera", "sub": "peticiones sin lugar", "kind": "queue", "x": 58, "y": 4, "w": 18, "h": 8,
-      "note": "Las peticiones que llegaron pero todavía no entran al batch. En vLLM el orden por omisión es FCFS: la primera que llega es la primera que entra." },
+      "note": "Las peticiones que llegaron pero todavía no entran al [[batch|batch]]. En vLLM el orden por omisión es FCFS: la primera que llega es la primera que entra." },
     { "id": "gpu", "label": "Un paso del modelo", "sub": "pesos leídos una vez", "kind": "gpu", "x": 2, "y": 22, "w": 18, "h": 8,
-      "note": "Una pasada por la red con todas las conversaciones del batch: los [[pesos]] se leen una vez de la [[vram|VRAM]] y sale un token para cada una. Si una recién entró, en ese paso también se hace su prefill (o un trozo)." },
-    { "id": "scheduler", "label": "Scheduler", "sub": "arma el batch del paso", "kind": "service", "x": 30, "y": 22, "w": 18, "h": 8,
+      "note": "Una pasada por la red con todas las conversaciones del [[batch|batch]]: los [[pesos]] se leen una vez de la [[vram|VRAM]] y sale un token para cada una. Si una recién entró, en ese paso también se hace su [[prefill|prefill]] (o un trozo)." },
+    { "id": "scheduler", "label": "Scheduler", "sub": "arma el [[batch|batch]] del paso", "kind": "service", "x": 30, "y": 22, "w": 18, "h": 8,
       "note": "El [[scheduler]]: antes de **cada** paso decide qué conversaciones van. Mete las de la fila si hay lugar y memoria, y saca las que terminaron. Es el batching por iteración de Orca." },
     { "id": "kv", "label": "Bloques de KV cache", "sub": "en la VRAM", "kind": "store", "x": 58, "y": 22, "w": 18, "h": 8,
       "note": "La memoria de lo que recuerda cada conversación, el [[kv-cache|KV cache]], partida en bloques. Una petición solo entra si hay bloques libres para ella." },
     { "id": "termina", "label": "Una termina", "sub": "token de fin o tope", "kind": "job", "x": 30, "y": 40, "w": 18, "h": 8,
-      "note": "Una conversación termina cuando el modelo escribe su token de fin o llega al tope de tokens. Su lugar en el batch y sus bloques quedan libres para el siguiente paso." }
+      "note": "Una conversación termina cuando el modelo escribe su token de fin o llega al tope de tokens. Su lugar en el [[batch|batch]] y sus bloques quedan libres para el siguiente paso." }
   ],
   "edges": [
     { "from": "abogados", "to": "api", "kind": "online", "label": "pregunta", "fromSide": "r", "toSide": "l" },

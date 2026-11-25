@@ -1,6 +1,6 @@
 {
   "titulo": "Sizing en una servilleta",
-  "intro": "Aplica las tres ecuaciones de la sección: preguntas al día \\(Q = N × q\\), llegadas en el pico \\(λ = Q ÷ h × k ÷ 3,600\\) y conversaciones a la vez \\(u = λ × D\\) (la Ley de Little). Arranca con los números del despacho.",
+  "intro": "Aplica las tres ecuaciones de la sección: preguntas al día \\(Q = N × q\\), llegadas en el pico \\(λ = Q ÷ h × k ÷ 3,600\\) y conversaciones a la vez \\(u = λ × D\\) (la [[ley-de-little|Ley de Little]]). Arranca con los números del despacho.",
   "entradas": [
     { "id": "N", "label": "Personas que lo usan, \\(N\\)", "min": 1, "max": 5000, "paso": 1, "valor": 200, "tipo": "numero" },
     { "id": "q", "label": "Preguntas por persona al día, \\(q\\)", "min": 1, "max": 100, "paso": 1, "valor": 15 },
@@ -65,5 +65,5 @@
       "cuenta": "⌈{{u|num|2}} × {{m|corto}}⌉ = ⌈{{u * m|num|2}}⌉ = **{{ceil(u * m)|int}} conversaciones**"
     }
   ],
-  "nota": "Prueba: sube las personas a 300 y mira cuántas conversaciones de diseño salen. Después regresa a 200 y baja la duración a 22 s (respuestas escritas a 25 tokens/s): el mismo despacho necesita menos lugares a la vez. El margen \\(m\\) es un juicio; la lección «Concurrencia» lo hace con cuidado."
+  "nota": "Prueba: sube las personas a 300 y mira cuántas conversaciones de diseño salen. Después regresa a 200 y baja la duración a 22 s (respuestas escritas a 25 tokens/s): el mismo despacho necesita menos lugares a la vez. El margen \\(m\\) es un juicio; la lección «[Concurrencia](/concurrencia/)» lo hace con cuidado."
 }

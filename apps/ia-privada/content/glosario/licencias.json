@@ -7,7 +7,7 @@
     "ver": ["open-weight", "licencia-de-modelo"], "leccion": "licencias" },
   { "id": "licencia-de-modelo", "termino": "Licencia de un modelo", "en": "model license",
     "corto": "El permiso por escrito que acompaña a los pesos de un modelo: qué puedes hacer con él, con qué condiciones y cuándo se termina el permiso.",
-    "largo": "Toda licencia tiene tres partes: el permiso (usar, modificar, distribuir, vender), las condiciones (avisos, umbrales de usuarios o ingresos, [[politica-de-uso|política de uso]], nombre de los derivados) y la terminación (casi siempre, si incumples). La licencia de los pesos puede ser distinta de la del código del mismo repo. Es parte del sizing de un proyecto, igual que la [[vram|VRAM]]: un modelo que cabe pero que no puedes usar no sirve. La decisión final la revisa un abogado.",
+    "largo": "Toda licencia tiene tres partes: el permiso (usar, modificar, distribuir, vender), las condiciones (avisos, umbrales de usuarios o ingresos, [[politica-de-uso|política de uso]], nombre de los derivados) y la terminación (casi siempre, si incumples). La licencia de los pesos puede ser distinta de la del código del mismo repo. Es parte del [[sizing|sizing]] de un proyecto, igual que la [[vram|VRAM]]: un modelo que cabe pero que no puedes usar no sirve. La decisión final la revisa un abogado.",
     "ejemplo": "Qwen3 32B: Apache 2.0, sin umbrales. Llama 3.3 70B: Llama 3.3 Community License, con umbral de 700 millones de usuarios activos mensuales y «Built with Llama» al distribuir.",
     "ver": ["licencia-permisiva", "licencia-llama", "licencia-no-comercial"], "leccion": "licencias" },
   { "id": "licencia-permisiva", "termino": "Licencia permisiva", "en": "permissive license",
@@ -58,8 +58,8 @@
     "ver": ["modelo-derivado", "licencia-de-modelo"], "leccion": "licencias" },
   { "id": "modelo-derivado", "termino": "Modelo derivado", "en": "derivative model",
     "corto": "Un modelo que sale de otro: un fine-tune, un cuantizado, un destilado o un merge. Hereda la licencia del original; quien lo hace puede sumar condiciones, pero no quitarlas.",
-    "largo": "Un [[cuantizacion|cuantizado]] hereda todo: un GGUF de Llama sigue bajo la licencia de Llama. Un fine-tune hereda todo y puede sumar; con [[apache-2|Apache 2.0]], quien afina puede publicar sus cambios con otros términos. Un destilado depende de lo que diga la licencia del maestro sobre usar sus salidas (Llama pide que el nombre empiece con «Llama»). Un merge junta las condiciones de todos los modelos que fusiona. Las condiciones al final de una cadena son \\(C_n = C_0 + sum a_i\\), con cada \\(a_i\\) ≥ 0.",
+    "largo": "Un [[cuantizacion|cuantizado]] hereda todo: un GGUF de Llama sigue bajo la licencia de Llama. Un fine-tune hereda todo y puede sumar; con [[apache-2|Apache 2.0]], quien afina puede publicar sus cambios con otros términos. Un [[destilacion|destilado]] depende de lo que diga la licencia del maestro sobre usar sus salidas (Llama pide que el nombre empiece con «Llama»). Un merge junta las condiciones de todos los modelos que fusiona. Las condiciones al final de una cadena son \\(C_n = C_0 + sum a_i\\), con cada \\(a_i\\) ≥ 0.",
     "analogia": "Como una fotocopia de una fotocopia: puedes escribirle notas encima, pero el sello del original sigue ahí. Se rompe en que una fotocopia pierde calidad sin que nadie lo decida, y una licencia no se desgasta: viaja completa.",
     "ejemplo": "Llama 3.3 (5 condiciones) → fine-tune que pide citar al laboratorio (+1) → GGUF (+0): 6 condiciones para quien lo usa.",
-    "ver": ["licencia-llama", "model-card", "cuantizacion"], "leccion": "licencias" }
+    "ver": ["licencia-llama", "model-card", "cuantizacion", "destilacion"], "leccion": "licencias" }
 ]}

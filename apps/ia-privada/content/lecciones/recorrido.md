@@ -67,7 +67,7 @@ La lección práctica: prohibir sin dar una alternativa casi nunca funciona. Una
 
 ### 5. El costo predecible
 
-Una API cobra por token: si el uso se duplica, la factura se duplica. Un servidor propio cuesta casi lo mismo si se usa poco o mucho. Para una empresa con uso alto y parejo, eso puede salir más barato y, sobre todo, más fácil de presupuestar. En [Qué es la nube](https://sensei.trueml.app/nube/) viste esta decisión como comprar o rentar (CapEx contra OpEx); la cuenta completa, con depreciación y punto de equilibrio, es tema de la lección «TCO: API, nube o servidor propio».
+Una API cobra por token: si el uso se duplica, la factura se duplica. Un servidor propio cuesta casi lo mismo si se usa poco o mucho. Para una empresa con uso alto y parejo, eso puede salir más barato y, sobre todo, más fácil de presupuestar. En [Qué es la nube](https://sensei.trueml.app/nube/) viste esta decisión como comprar o rentar (CapEx contra OpEx); [[tco|la cuenta completa]], con [[depreciacion|depreciación]] y [[punto-de-equilibrio|punto de equilibrio]], es tema de la lección «TCO: API, nube o servidor propio».
 
 ### Cuándo NO conviene
 
@@ -158,7 +158,7 @@ El [[criterio-de-aceptacion|criterio de aceptación]] es la regla con números, 
 
 **El servicio.** Con la carga de diseño (8 conversaciones a la vez, como verás en la siguiente sección):
 
-- **Tiempo al primer token ≤ 2 s** en el p95: 95 de cada 100 preguntas ven la primera palabra en 2 segundos o menos. El p95 lo viste en [Promedios, medianas y percentiles](https://sensei.trueml.app/percentiles/).
+- **[[ttft|Tiempo al primer token]] ≤ 2 s** en el p95: 95 de cada 100 preguntas ven la primera palabra en 2 segundos o menos. El p95 lo viste en [Promedios, medianas y percentiles](https://sensei.trueml.app/percentiles/).
 - **≥ 20 tokens/s** por persona: más rápido de lo que se lee. Una respuesta de 500 tokens se escribe en 25 s o menos.
 
 :::ojo
@@ -180,7 +180,7 @@ Q = N × q
 - q: las preguntas de cada persona al día
 - Q: las preguntas al día
 - h: las horas de uso al día
-- k: el factor de la hora pico: cuántas veces el promedio por hora llega en la hora más cargada
+- k: el [[factor-de-pico|factor de la hora pico]]: cuántas veces el promedio por hora llega en la hora más cargada
 - 3,600: los segundos de una hora
 - λ: las llegadas (preguntas nuevas) por segundo en la hora pico; se lee «lambda»
 :::
@@ -195,9 +195,9 @@ Por segundo, \(λ\) // 3,600 s en una hora | 750 ÷ 3,600 | **≈ 0.21**
 
 ### De preguntas por segundo a conversaciones a la vez
 
-Una respuesta de LLM no es instantánea. Tiene dos partes: la espera hasta la primera palabra y la escritura, token por token. Al tiempo hasta la primera palabra se le dice TTFT (*time to first token*); a la escritura la mide su velocidad, en tokens por segundo. Las dos se ven a fondo en la lección «Concurrencia: la curva de usuarios contra latencia». Para la servilleta basta sumarlas en el peor caso aceptable del criterio.
+Una respuesta de LLM no es instantánea. Tiene dos partes: la espera hasta la primera palabra y la escritura, token por token. Al tiempo hasta la primera palabra se le dice [[ttft|TTFT]] (*time to first token*); a la escritura la mide su velocidad, en tokens por segundo. Las dos se ven a fondo en la lección «[Concurrencia: la curva de usuarios contra latencia](/concurrencia/)». Para la servilleta basta sumarlas en el peor caso aceptable del criterio.
 
-Y con eso entra la regla más útil de este oficio, la **Ley de Little**: lo que hay adentro de un sistema a la vez es lo que llega por segundo por lo que tarda cada uno en salir. Si a una cafetería entran 2 clientes por minuto y cada uno se queda 10 minutos, adentro hay ≈ 20. Su lección a fondo también es «Concurrencia».
+Y con eso entra la regla más útil de este oficio, la **[[ley-de-little|Ley de Little]]**: lo que hay adentro de un sistema a la vez es lo que llega por segundo por lo que tarda cada uno en salir. Si a una cafetería entran 2 clientes por minuto y cada uno se queda 10 minutos, adentro hay ≈ 20. Su lección a fondo también es «[Concurrencia](/concurrencia/)».
 
 :::formula Conversaciones a la vez
 D = t_{1} + frac{s}{v}
@@ -280,9 +280,9 @@ El sizing del despacho de un vistazo: de 200 personas a 8 conversaciones a la ve
 
 ### Lo que la servilleta no ve: el cómputo y el ancho de banda
 
-La servilleta solo mira memoria: dice cuántas conversaciones **caben**. Que se atiendan **bien** depende de otras dos cosas. Antes de escribir la primera palabra, el modelo tiene que leer completa la pregunta, con sus ≈ 6,000 tokens de fragmentos: a esa primera pasada se le dice *prefill*, y la limita el cómputo de la GPU (cuántas operaciones hace por segundo). Después escribe token por token, y cada token obliga a leer de la VRAM los pesos y el KV cache: eso lo limita el ancho de banda de la memoria (cuántos GB por segundo puede leer). Las operaciones de un modelo las contaste en [Matrices y FLOPs](https://sensei.trueml.app/flops/).
+La servilleta solo mira memoria: dice cuántas conversaciones **caben**. Que se atiendan **bien** depende de otras dos cosas. Antes de escribir la primera palabra, el modelo tiene que leer completa la pregunta, con sus ≈ 6,000 tokens de fragmentos: a esa primera pasada se le dice *[[prefill|prefill]]*, y la limita el cómputo de la GPU (cuántas operaciones hace por segundo). Después escribe token por token, y cada token obliga a leer de la VRAM los pesos y el KV cache: eso lo limita el [[ancho-de-banda|ancho de banda]] de la memoria (cuántos GB por segundo puede leer). Las operaciones de un modelo las contaste en [Matrices y FLOPs](https://sensei.trueml.app/flops/).
 
-La cuenta del prefill se hace a mano. Un modelo hace ≈ 2 operaciones por parámetro por cada token que lee (una multiplicación y una suma). A esas operaciones con decimales se les dice FLOPs, y la velocidad de una GPU se mide en TFLOPS: billones (10¹²) de operaciones por segundo. Una GPU real no alcanza su pico: la app supone que aprovecha la mitad de sus FLOPs (\(η_c\) = 0.5; \(η\) se lee «eta») y el 70 % de su ancho de banda (\(η_m\) = 0.7).
+La cuenta del prefill se hace a mano. Un modelo hace ≈ 2 operaciones por parámetro por cada token que lee (una multiplicación y una suma). A esas operaciones con decimales se les dice FLOPs, y la velocidad de una GPU se mide en TFLOPS: billones (10¹²) de operaciones por segundo. Una GPU real no alcanza su pico: la app supone que [[eficiencia|aprovecha la mitad de sus FLOPs]] (\(η_c\) = 0.5; \(η\) se lee «eta») y el 70 % de su ancho de banda (\(η_m\) = 0.7).
 
 :::formula El tiempo del prefill
 F = 2 × P × n_{in}
@@ -290,19 +290,19 @@ t_{prefill} = frac{F}{η_c × C}
 - P: los parámetros del modelo
 - n_{in}: los tokens de entrada de una pregunta
 - F: las operaciones del prefill, en FLOPs
-- C: el cómputo pico de la GPU, en FLOPs por segundo
+- C: el [[pico-de-calculo|cómputo pico]] de la GPU, en FLOPs por segundo
 - η_c: la parte de ese pico que se aprovecha de verdad (0.5)
 - t_{prefill}: lo que tarda en leer la pregunta, en s: la parte más grande del tiempo al primer token
 :::
 
 :::cuenta El prefill de una pregunta del despacho, en una L40S
 Operaciones, \(F\) // \(P\) = 32.76 mil millones (Qwen3 32B), \(n_{in}\) = 6,000 tokens | 2 × 32.76 × 10⁹ × 6,000 | ≈ 3.9 × 10¹⁴ FLOPs
-Cómputo útil // \(C\) = 362 TFLOPS en FP16 denso (con números de 16 bits y sin el truco que duplica la cifra de catálogo; archivo de GPUs), \(η_c\) = 0.5 | 0.5 × 362 × 10¹² | ≈ 1.81 × 10¹⁴ por s
+Cómputo útil // \(C\) = 362 TFLOPS en FP16 denso (con números de 16 bits y [[sparsity\|sin el truco que duplica la cifra de catálogo]]; archivo de GPUs), \(η_c\) = 0.5 | 0.5 × 362 × 10¹² | ≈ 1.81 × 10¹⁴ por s
 Tiempo, \(t_{prefill}\) | 3.9 × 10¹⁴ ÷ 1.81 × 10¹⁴ | **≈ 2.17 s**
-= Con una sola pregunta y la GPU libre, la primera palabra ya tarda más que los 2 s del objetivo. La herramienta de sizing, que cuenta todo lo demás, da ≈ 2.38 s.
+= Con una sola pregunta y la GPU libre, la primera palabra ya tarda más que los 2 s del objetivo. La [herramienta de sizing](/herramientas/sizing/), que cuenta todo lo demás, da ≈ 2.38 s.
 :::
 
-Y hay más: mientras la GPU hace el prefill de una pregunta nueva, las conversaciones que ya escriben se frenan. La cuenta completa de la herramienta de sizing (con cómputo y ancho de banda) dice que, con prefills de 6,000 tokens llegando, una L40S solo mantiene **2** conversaciones a ≥ 20 tokens/s. Para las ≈ 5.6 del despacho en promedio hacen falta **3 L40S** (5.6 ÷ 2, hacia arriba), y aun así el tiempo al primer token queda en ≈ 2.4 s: el objetivo de ≤ 2 s **no se cumple** con L40S. Y si se quiere que las 8 de diseño vayan todas a ≥ 20 tokens/s, como pide el criterio en la prueba de carga, la misma cuenta da 4 (8 ÷ 2). El detalle, con la curva de usuarios contra latencia, está en la lección «Concurrencia: la curva de usuarios contra latencia».
+Y hay más: mientras la GPU hace el prefill de una pregunta nueva, las conversaciones que [[decode|ya escriben]] se frenan. La cuenta completa de la [herramienta de sizing](/herramientas/sizing/) (con cómputo y ancho de banda) dice que, con prefills de 6,000 tokens llegando, una L40S solo mantiene **2** conversaciones a ≥ 20 tokens/s. Para las ≈ 5.6 del despacho en promedio hacen falta **3 L40S** (5.6 ÷ 2, hacia arriba), y aun así el tiempo al primer token queda en ≈ 2.4 s: el objetivo de ≤ 2 s **no se cumple** con L40S. Y si se quiere que las 8 de diseño vayan todas a ≥ 20 tokens/s, como pide el criterio en la prueba de carga, la misma cuenta da 4 (8 ÷ 2). El detalle, con la curva de usuarios contra latencia, está en la lección «Concurrencia: la curva de usuarios contra latencia».
 
 :::ojo
 La memoria dice cuántas **caben**; el cómputo y el ancho de banda, cuántas se atienden **bien**. «Caben 8 en 1 L40S» es cierto y no basta: con lo que pide el despacho, 1 L40S no alcanza.
@@ -310,7 +310,7 @@ La memoria dice cuántas **caben**; el cómputo y el ancho de banda, cuántas se
 
 Esto no es un error del proyecto: es el recorrido funcionando. El sizing encontró que lo que se pidió en descubrimiento no cabe en el hardware candidato, y toca **regresar** a descubrimiento a decidir con el cliente: una GPU con más cómputo, menos tokens de entrada (menos fragmentos por pregunta, o más cortos) o aflojar el objetivo de tiempo al primer token. Esa decisión, con su costo, se toma en el caso del despacho; aquí lo que importa es ver la vuelta.
 
-Qwen3 32B es el candidato, no la decisión: también se evaluarán Mistral Small 24B, Qwen3 30B-A3B (un modelo [[moe|MoE]], que usa solo una parte de sus parámetros en cada token) y Llama 3.3 70B. Cómo se eligen y qué licencia trae cada uno son las lecciones «Elegir un modelo para la tarea» y «Open weight, open source y licencias». Qwen3 32B, por ejemplo, viene con licencia Apache 2.0.
+Qwen3 32B es el candidato, no la decisión: también se evaluarán Mistral Small 24B, Qwen3 30B-A3B (un modelo [[moe|MoE]], que usa solo una parte de sus parámetros en cada token) y Llama 3.3 70B. Cómo se eligen y qué licencia trae cada uno son las lecciones «[Elegir un modelo para la tarea](/elegir-modelo/)» y «[Open weight, open source y licencias](/licencias/)». Qwen3 32B, por ejemplo, viene con licencia [[apache-2|Apache 2.0]].
 
 ## Compra: rentar primero, comprar después {Buying: rent first, buy later}
 
@@ -346,7 +346,7 @@ Las seis capas del despacho, con la lección donde se ve cada una a fondo.
 
 **2 · Sistema y drivers.** Linux, el driver de NVIDIA (el programa que deja al sistema operativo hablar con la GPU) y CUDA (la plataforma con que los programas usan la GPU), y casi siempre contenedores: paquetes que llevan un programa con todo lo que necesita, para que corra igual en cualquier máquina. Es la capa más frágil en actualizaciones: basta un driver que no corresponda con la versión de CUDA que espera el servidor de inferencia para que no arranque nada. Para el TI del despacho, que sabe de Windows, es la capa más nueva. Lección: «Seguridad: aislamiento, sin internet y actualizaciones».
 
-**3 · Servidor de inferencia.** *Inferencia* es usar un modelo ya entrenado para contestar. El servidor de inferencia es el programa que carga el modelo en la GPU y atiende a muchas conversaciones a la vez, juntándolas para aprovechar la GPU. Es el corazón técnico: decide cuántas caben y qué tan rápido va cada una. Lecciones: «Batching continuo y PagedAttention» y «Del laptop al servidor: llama.cpp, Ollama, vLLM, SGLang y TensorRT-LLM».
+**3 · Servidor de inferencia.** *Inferencia* es usar un modelo ya entrenado para contestar. El servidor de inferencia es el programa que carga el modelo en la GPU y atiende a muchas conversaciones a la vez, [[batch|juntándolas]] para aprovechar la GPU. Es el corazón técnico: decide cuántas caben y qué tan rápido va cada una. Lecciones: «[Batching continuo y PagedAttention](/batching/)» y «Del laptop al servidor: llama.cpp, Ollama, vLLM, SGLang y TensorRT-LLM».
 
 **4 · La API.** La ventanilla por donde los programas le preguntan al modelo. Se usa casi siempre una API compatible con la de OpenAI, para que cualquier herramienta que ya sepa hablar con OpenAI hable con el servidor propio. Delante va un *gateway* que pide usuario y llave, registra quién preguntó qué y reparte entre modelos. Lección: «Gateway, API compatible con OpenAI y varios modelos».
 
@@ -368,7 +368,7 @@ Las *evals* (evaluaciones) son las pruebas que dicen, con números, si el sistem
 
 Se le dan al sistema las **200 preguntas reales** del despacho, escritas por sus abogados con su respuesta correcta y su cita, y se cuenta cuántas contesta bien. Tres reglas:
 
-- **Preguntas del cliente, no de internet.** Un modelo puede brillar en un examen público y fallar con contratos mexicanos. Esos exámenes públicos, iguales para todos los modelos, se llaman *benchmarks*: sirven para elegir candidatos; el examen del despacho decide. Lo ves en «Elegir un modelo para la tarea».
+- **Preguntas del cliente, no de internet.** Un modelo puede brillar en un examen público y fallar con contratos mexicanos. Esos exámenes públicos, iguales para todos los modelos, se llaman *[[benchmark|benchmarks]]*: sirven para elegir candidatos; el examen del despacho decide. Lo ves en «[Elegir un modelo para la tarea](/elegir-modelo/)».
 - **Se evalúa el sistema completo**, búsqueda y modelo juntos. Si falla, hay que saber dónde: ¿no encontró el fragmento o lo encontró y contestó mal?
 - **El examen se guarda** y se repite con cada cambio. Es lo que en la lección «Demostrar que el modelo abierto sirve» se llama un *golden set*, junto con cómo se califica a escala.
 
@@ -378,7 +378,7 @@ Con 200 preguntas, un 85 % no es exacto: otra muestra de 200 podría dar unos pu
 
 Un modelo que contesta perfecto a una persona puede ser lento con ocho. La **prueba de carga** simula la hora pico: 8 conversaciones a la vez, cada una con ≈ 6,000 tokens de entrada y ≈ 500 de salida, y mide:
 
-- el **tiempo al primer token** de cada pregunta, contra **≤ 2 s en el p95**;
+- el **[[ttft|tiempo al primer token]]** de cada pregunta, contra **≤ 2 s en el p95**;
 - la **velocidad de escritura** de cada persona, contra **≥ 20 tokens/s**.
 
 Esto ya da una pista de cuánto trabaja la GPU: 8 personas a 20 tokens/s son 160 tokens por segundo de salida que debe sostener a la vez, mientras además lee los 6,000 tokens de cada pregunta nueva. Cómo se diseña una prueba de carga honesta (con prompts reales, sin trampas de calentamiento) es la lección «Pruebas de carga y benchmarks honestos».
@@ -391,7 +391,7 @@ Las dos pruebas se hacen **en el hardware de verdad**, o en uno igual. Una prueb
 
 El día 1 se instala. El [[operacion|día 2]] son todos los demás, y suele costar más horas que la instalación. La operación responde: ¿cómo sigue funcionando mañana, el mes que entra y dentro de un año?
 
-**Monitoreo.** Medir todo el tiempo lo que el criterio promete: tiempo al primer token, velocidad, errores, cuántas conversaciones hay a la vez, memoria y temperatura de la GPU. Y algo que la máquina no mide sola: si las respuestas siguen siendo buenas (por ejemplo, un botón de «esta cita está mal» que los abogados aprieten). Lección: «Observabilidad de GPUs e inferencia».
+**Monitoreo.** Medir todo el tiempo lo que el criterio promete: [[ttft|tiempo al primer token]], velocidad, errores, cuántas conversaciones hay a la vez, memoria y temperatura de la GPU. Y algo que la máquina no mide sola: si las respuestas siguen siendo buenas (por ejemplo, un botón de «esta cita está mal» que los abogados aprieten). Lección: «Observabilidad de GPUs e inferencia».
 
 **Actualizaciones.** Del modelo (sale Qwen nuevo), del servidor de inferencia (versión nueva, a veces con valores por omisión distintos), de los drivers y del sistema. Cada una se prueba primero contra el examen de 200 preguntas y la prueba de carga: esa es la flecha de regreso a evals del diagrama. Lección: «Seguridad: aislamiento, sin internet y actualizaciones».
 
@@ -414,12 +414,12 @@ La [[prueba-piloto|prueba piloto]] es una prueba corta, con fecha de fin, usuari
 | 1 | Cerrar descubrimiento, elegir a los 20 abogados, acordar con el abogado del despacho qué documentos entran al piloto | Hoja de descubrimiento y criterio de aceptación firmados |
 | 2 | Rentar la L40S, levantar el servidor y el primer RAG con una parte de los expedientes | El sistema contestando, todavía sin evaluar |
 | 3 | Los abogados escriben las 200 preguntas con su respuesta y su cita; se evalúan los candidatos | Tabla de calidad por modelo |
-| 4 | Prueba de carga con 8 a la vez; ajustar el servidor | TTFT p95 y tokens/s medidos |
+| 4 | Prueba de carga con 8 a la vez; ajustar el servidor | [[ttft\|TTFT]] p95 y tokens/s medidos |
 | 5–6 | Los 20 abogados lo usan en su trabajo diario; se registran quejas y preguntas reales | Preguntas por persona y tokens reales, medidos |
 | 7 | Rehacer el sizing con lo medido; cotizar el equipo | Informe: ¿pasa el criterio?, sizing final, cotización con fecha de entrega |
 | 8 | Decisión del despacho | Seguir y comprar, regresar o detener |
 
-La GPU se renta de la semana 2 a la 7: **6 semanas**. Para el piloto basta una L40S, aunque la operación completa pida 3: 20 abogados con el mismo uso son 20 × 15 ÷ 10 × 2.5 ÷ 3,600 × 27 ≈ 0.56 conversaciones a la vez, y lo que se mide es cuántas atiende bien cada GPU. En la misma GPU rentada se prueban las salidas que dejó abierta la vuelta del sizing, como pasar menos fragmentos por pregunta, y se ve si la calidad aguanta. ¿Cuánto cuesta? Depende de si se deja prendida todo el tiempo o solo en horario de oficina.
+La GPU se renta de la semana 2 a la 7: **6 semanas**. El piloto se corre en una sola L40S rentada, aunque la operación completa pida 3: 20 abogados con el mismo uso son 20 × 15 ÷ 10 × 2.5 ÷ 3,600 × 27 ≈ 0.56 conversaciones a la vez, y lo que se mide es cuántas atiende bien cada GPU. En la misma GPU rentada se prueban las salidas que dejó abierta la vuelta del sizing, como pasar menos fragmentos por pregunta, y se ve si la calidad aguanta. ¿Cuánto cuesta? Depende de si se deja prendida todo el tiempo o solo en horario de oficina.
 
 :::formula El costo de rentar la GPU del piloto
 C = H × p
@@ -487,7 +487,7 @@ Fíjate en dónde están las puertas: casi todas antes de la compra. Un proyecto
 ## Errores comunes {Common mistakes}
 
 1. **Empezar por el hardware.** «¿Qué GPU compro?» antes de saber la tarea, los usuarios y la latencia. **Cómo evitarlo:** no hables de GPUs hasta llenar la hoja de descubrimiento.
-2. **Dimensionar con usuarios registrados.** Diseñar para 200 a la vez cuando son 8. Compras 25 veces de más, o te asustas y cancelas. **Cómo evitarlo:** de personas a llegadas por segundo en la hora pico, y de ahí, con la Ley de Little, a conversaciones a la vez.
+2. **Dimensionar con usuarios registrados.** Diseñar para 200 a la vez cuando son 8. Compras 25 veces de más, o te asustas y cancelas. **Cómo evitarlo:** de personas a llegadas por segundo en la hora pico, y de ahí, con la [[ley-de-little|Ley de Little]], a conversaciones a la vez.
 3. **Un criterio de aceptación sin números, o escrito después.** «Que funcione bien» termina en opiniones; un 85 % fijado después de ver un 86 % no es un criterio. **Cómo evitarlo:** números firmados antes del piloto.
 4. **Creer que «cabe» es «sirve».** La VRAM dice si arranca, no si contesta rápido ni si contesta bien. **Cómo evitarlo:** la prueba de carga y el examen en el hardware de verdad.
 5. **Comprar antes de probar.** Con tiempos de entrega de semanas o meses, un equipo equivocado cuesta dinero y tiempo. **Cómo evitarlo:** rentar para el piloto y comprar con lo medido.
@@ -498,7 +498,7 @@ Fíjate en dónde están las puertas: casi todas antes de la compra. Un proyecto
 
 ### El despacho
 
-Ya lo recorriste completo: 200 personas, 3,000 preguntas al día, ≈ 0.21 por segundo en la hora pico, 8 conversaciones de diseño, Qwen3 32B en INT4 de AWQ que por memoria cabe en una L40S (38.50 de 43.2 GB útiles) pero que, por cómputo y ancho de banda, pide 3 L40S y aun así no llega a 2 s al primer token, un piloto de 8 semanas con 20 abogados y un examen de 200 preguntas. Lo que lo hace un buen primer proyecto: una tarea frecuente y medible, un volumen de unas cuantas GPUs (no un centro de datos) y una restricción clara (nada sale de la red). Lo que lo hace difícil: un equipo de TI que nunca ha operado una GPU. Su caso completo, con el costo, viene en la sección de casos.
+Ya lo recorriste completo: 200 personas, 3,000 preguntas al día, ≈ 0.21 por segundo en la hora pico, 8 conversaciones de diseño, Qwen3 32B en INT4 de AWQ que por memoria cabe en una L40S (38.50 de 43.2 GB útiles) pero que, por cómputo y [[ancho-de-banda|ancho de banda]], pide 3 L40S y aun así no llega a 2 s al primer token, un piloto de 8 semanas con 20 abogados y un examen de 200 preguntas. Lo que lo hace un buen primer proyecto: una tarea frecuente y medible, un volumen de unas cuantas GPUs (no un centro de datos) y una restricción clara (nada sale de la red). Lo que lo hace difícil: un equipo de TI que nunca ha operado una GPU. Su caso completo, con el costo, viene en la sección de casos.
 
 ### Una clínica
 
@@ -521,7 +521,7 @@ El recorrido no es nuevo. Así se compra un sistema de nómina, se instala un co
 - \(λ\) = 1,125 ÷ 3,600 ≈ **0.31 por segundo**.
 - \(u\) = 0.3125 × 27 ≈ **8.4 a la vez**; con margen de 1.4, ⌈11.8⌉ = 12 de diseño. Ya ni por memoria caben en una L40S con 8,192 tokens cada una (caben 10). Y por velocidad, si cada L40S atiende bien ≈ 2, para las 8.4 del promedio harían falta ≈ 5 (8.4 ÷ 2 = 4.2, hacia arriba), en vez de las 3 de hoy.
 
-? [facil] Ordena estas tareas en las seis etapas: a) medir el tiempo al primer token con 8 conversaciones; b) preguntar cuántas preguntas hace cada abogado al día; c) instalar el driver de NVIDIA; d) pedir la fecha de entrega por escrito; e) calcular las conversaciones a la vez; f) decidir quién contesta el teléfono cuando el servidor se cae.
+? [facil] Ordena estas tareas en las seis etapas: a) medir el [[ttft|tiempo al primer token]] con 8 conversaciones; b) preguntar cuántas preguntas hace cada abogado al día; c) instalar el driver de NVIDIA; d) pedir la fecha de entrega por escrito; e) calcular las conversaciones a la vez; f) decidir quién contesta el teléfono cuando el servidor se cae.
 b) descubrimiento · e) sizing · d) compra · c) despliegue · a) evals · f) operación.
 
 ? [facil] Una respuesta de 800 tokens, a 20 tokens por segundo, con 2 s al primer token. ¿Cuánto dura?
@@ -533,7 +533,7 @@ Necesita números, la muestra con que se mide y la carga: «Con un examen de 200
 ? [medio] El servidor resulta más rápido de lo planeado: escribe a 25 tokens/s, con el mismo 2 s al primer token. ¿Cuántas conversaciones a la vez tiene el despacho en promedio en su hora pico? ¿Por qué baja?
 - \(D\) = 2 + 500 ÷ 25 = 2 + 20 = 22 s.
 - \(u\) = 0.2083 × 22 ≈ **4.6**.
-- Baja porque cada conversación termina antes y deja su lugar libre más pronto. La Ley de Little lo dice: con las mismas llegadas, menos duración es menos gente adentro.
+- Baja porque cada conversación termina antes y deja su lugar libre más pronto. La [[ley-de-little|Ley de Little]] lo dice: con las mismas llegadas, menos duración es menos gente adentro.
 
 ? [medio] Para ahorrar, alguien propone rentar la GPU del piloto en el Community Cloud de RunPod, a US$0.79 por hora (máquinas de terceros), solo en horario de oficina las 6 semanas. ¿Cuánto cuesta y qué objeción le harías?
 - \(H\) = 10 h × 5 días × 6 semanas = 300 h; \(C\) = 300 × 0.79 = **US$237**, contra US$327 en Secure Cloud y US$558 en AWS por las mismas horas.
@@ -545,7 +545,7 @@ Necesita números, la muestra con que se mide y la carga: «Con un examen de 200
 - Total: 19.32 + 34.36 + 2 ≈ **55.68 GB**, contra 43.2 útiles: **no cabe**, faltan ≈ 12.5 GB.
 - Caben ⌊(43.2 − 19.32 − 2) ÷ 4.295⌋ = ⌊5.09⌋ = 5 conversaciones de ese tamaño. Opciones: acotar el contexto, una GPU más grande o dos. Es la puerta «no cabe: acotar».
 
-? [medio] Una de las salidas de la vuelta a descubrimiento: pasar 3 fragmentos de expediente por pregunta en vez de 5. ¿Cuántos tokens de entrada quedan, cuánto tarda el prefill en la L40S con la fórmula de la sección «Sizing» y qué hay que medir antes de aceptarlo?
+? [medio] Una de las salidas de la vuelta a descubrimiento: pasar 3 fragmentos de expediente por pregunta en vez de 5. ¿Cuántos tokens de entrada quedan, cuánto tarda el [[prefill|prefill]] en la L40S con la fórmula de la sección «Sizing» y qué hay que medir antes de aceptarlo?
 - Tokens de entrada: ≈ 400 de instrucciones + ≈ 100 de la pregunta + 3 × 1,000 = **3,500**.
 - \(F\) = 2 × 32.76 × 10⁹ × 3,500 ≈ 2.29 × 10¹⁴ FLOPs.
 - \(t_{prefill}\) = 2.29 × 10¹⁴ ÷ (0.5 × 362 × 10¹²) ≈ **1.27 s**: queda debajo de los 2 s del objetivo, con la GPU libre.
@@ -560,7 +560,7 @@ Necesita números, la muestra con que se mide y la carga: «Con un examen de 200
 - En la hora pico: 0.30 × 3,000 = 900 preguntas. El promedio por hora es 300, así que \(k\) = 900 ÷ 300 = **3**.
 - \(λ\) = 900 ÷ 3,600 = 0.25 por segundo; \(u\) = 0.25 × 27 = **6.75**.
 - De diseño: ⌈6.75 × 1.4⌉ = ⌈9.45⌉ = **10**.
-- Por memoria, una L40S guarda hasta 10 conversaciones de 8,192 tokens: caben justo, sin margen. Pero por velocidad cada L40S atiende bien ≈ 2: con 6.75 a la vez en promedio harían falta ≈ 4 (6.75 ÷ 2, hacia arriba) en vez de 3. Lo confirma la herramienta de sizing y, al final, la prueba de carga.
+- Por memoria, una L40S guarda hasta 10 conversaciones de 8,192 tokens: caben justo, sin margen. Pero por velocidad cada L40S atiende bien ≈ 2: con 6.75 a la vez en promedio harían falta ≈ 4 (6.75 ÷ 2, hacia arriba) en vez de 3. Lo confirma la [herramienta de sizing](/herramientas/sizing/) y, al final, la prueba de carga.
 
 ? [reto] El piloto termina: el modelo contesta bien el 78 % de las 200 preguntas, con 3 citas inventadas, y la prueba de carga pasa. ¿Pasa el criterio? ¿Qué harías, y qué no harías?
 - No pasa: la calidad pide ≥ 85 % (170), y 78 % son 156. Las citas inventadas (3, ≤ 4) y la carga sí pasan.
@@ -578,10 +578,10 @@ Necesita números, la muestra con que se mide y la carga: «Con un examen de 200
 
 Las lecciones de esta app, en orden, y qué toma cada una de esta:
 
-- **«Open weight, open source y licencias»**: qué se puede usar y bajo qué condiciones; la licencia Apache 2.0 de Qwen3 32B, y por qué la licencia es parte del descubrimiento (restricciones).
-- **«Elegir un modelo para la tarea»**: cómo se escogen los cuatro candidatos del despacho y por qué los benchmarks públicos no reemplazan el examen de 200 preguntas.
-- **«Batching continuo y PagedAttention»**: cómo el servidor de inferencia (capa 3) atiende 8 conversaciones a la vez en una GPU.
-- **«Concurrencia: la curva de usuarios contra latencia»**: el TTFT, la velocidad, la Ley de Little y el margen \(m\) de la servilleta, hechos con cuidado.
+- **«[Open weight, open source y licencias](/licencias/)»**: qué se puede usar y bajo qué condiciones; la licencia [[apache-2|Apache 2.0]] de Qwen3 32B, y por qué la licencia es parte del descubrimiento (restricciones).
+- **«[Elegir un modelo para la tarea](/elegir-modelo/)»**: cómo se escogen los cuatro candidatos del despacho y por qué los [[benchmark|benchmarks]] públicos no reemplazan el examen de 200 preguntas.
+- **«[Batching continuo y PagedAttention](/batching/)»**: cómo el servidor de inferencia (capa 3) atiende 8 conversaciones a la vez en una GPU.
+- **«[Concurrencia: la curva de usuarios contra latencia](/concurrencia/)»**: el [[ttft|TTFT]], la velocidad, la [[ley-de-little|Ley de Little]] y el margen \(m\) de la servilleta, hechos con cuidado.
 - **«Formatos de cuantización en la práctica»** y **«Speculative decoding y contexto largo»**: de dónde salen los 19.32 GB del INT4 de AWQ y cómo se estira el contexto.
 - **«Comprar hardware: de la workstation al rack»** y **«El cuarto: energía, enfriamiento y red»**: la etapa de compra y la capa 1.
 - **«De requisitos a hardware»** y **«Varias GPUs: tensor y pipeline parallel»**: el sizing a fondo, más allá de la servilleta.
@@ -591,7 +591,7 @@ Las lecciones de esta app, en orden, y qué toma cada una de esta:
 - **«Observabilidad de GPUs e inferencia»** y **«Seguridad: aislamiento, sin internet y actualizaciones»**: el día 2.
 - **«TCO: API, nube o servidor propio»** y **«Cotizar, proponer y dar soporte»**: el costo de verdad y cómo se vende.
 
-Las herramientas que acompañan el recorrido: [¿Cabe en la GPU?](/herramientas/vram/) ya está lista; «Velocidad», «Sizing», «TCO» y el «Catálogo de hardware» vienen después.
+Las herramientas que acompañan el recorrido: [¿Cabe en la GPU?](/herramientas/vram/), [Qué tan rápido contesta](/herramientas/velocidad/), [Cuántas GPUs hacen falta](/herramientas/sizing/), [API, nube o servidor propio](/herramientas/tco/) y el [Catálogo de hardware](/herramientas/catalogo/) ya están listas.
 
 De Sensei, si quieres repasar las bases: [El camino completo](https://sensei.trueml.app/camino-completo/), [Qué es la nube](https://sensei.trueml.app/nube/), [Datos personales y la ley](https://sensei.trueml.app/privacidad/) y [Máquinas, GPUs y cómo se cobran](https://sensei.trueml.app/maquinas/).
 
@@ -608,7 +608,7 @@ descubrimiento caso-de-uso criterio-de-aceptacion sizing prueba-piloto soberania
 Descubrimiento, sizing, compra, despliegue, evals y operación, con la vuelta de operación a evals en cada actualización.
 
 ? Por memoria caben 8 conversaciones en una L40S. ¿Por qué eso no basta?
-Porque la memoria dice cuántas caben, no cuántas se atienden bien. El prefill de 6,000 tokens tarda ≈ 2.2–2.4 s (ya pasa los 2 s del objetivo) y con los prefills cada L40S mantiene solo 2 a ≥ 20 tokens/s: el sizing completo pide 3 L40S y aun así no cumple el tiempo al primer token. Toca regresar a descubrimiento.
+Porque la memoria dice cuántas caben, no cuántas se atienden bien. El [[prefill|prefill]] de 6,000 tokens tarda ≈ 2.2–2.4 s (ya pasa los 2 s del objetivo) y con los prefills cada L40S mantiene solo 2 a ≥ 20 tokens/s: el sizing completo pide 3 L40S y aun así no cumple el [[ttft|tiempo al primer token]]. Toca regresar a descubrimiento.
 
 ? ¿Por qué el despacho diseña para 8 conversaciones y no para 200?
 Porque 200 son las personas registradas, no las que escriben a la vez. En la hora pico llegan ≈ 0.21 preguntas por segundo y cada una dura ≈ 27 s: ≈ 5.6 a la vez en promedio, y 8 con margen.

@@ -7,7 +7,7 @@ sensei: llms, privacidad
 ---
 
 :::idea
-Descargar un modelo no es lo mismo que poder usarlo para lo que quieras. Los pesos vienen con una **licencia**: un permiso con condiciones, que puede cambiar con el número de usuarios, con el negocio que hagas o con a quién se lo entregas. Por eso la licencia es parte del *sizing* (la cuenta de qué necesita el proyecto para funcionar), igual que la VRAM: un modelo que cabe en la GPU pero que la licencia no te deja usar no sirve.
+Descargar un modelo no es lo mismo que poder usarlo para lo que quieras. Los pesos vienen con una **licencia**: un permiso con condiciones, que puede cambiar con el número de usuarios, con el negocio que hagas o con a quién se lo entregas. Por eso la licencia es parte del *[[sizing|sizing]]* (la cuenta de qué necesita el proyecto para funcionar), igual que la VRAM: un modelo que cabe en la GPU pero que la licencia no te deja usar no sirve.
 :::
 
 ## La idea: la licencia también se dimensiona {The idea: the license is part of sizing}
@@ -16,7 +16,7 @@ En la herramienta de VRAM ya viste qué es un [[open-weight|modelo open weight]]
 
 Vamos a seguir un caso. **El despacho** es un ejemplo ficticio: un despacho de abogados en la Ciudad de México donde 200 abogados y asistentes quieren preguntarle a sus 30,000 expedientes con un LLM sin que un solo documento salga de su red. El modelo candidato es **Qwen3 32B**, con licencia Apache 2.0, y hay tres alternativas por evaluar: **Mistral Small 24B**, **Qwen3 30B-A3B** y **Llama 3.3 70B**.
 
-Cuando el equipo hace el sizing, pregunta «¿cuántas GPUs L40S hacen falta para atender a todos?». Esta lección agrega otra pregunta con el mismo peso: «¿nos deja la licencia usarlo así?». Las dos se contestan con el texto en la mano y con números.
+Cuando el equipo hace el [[sizing|sizing]], pregunta «¿cuántas GPUs L40S hacen falta para atender a todos?». Esta lección agrega otra pregunta con el mismo peso: «¿nos deja la licencia usarlo así?». Las dos se contestan con el texto en la mano y con números.
 
 :::analogia La receta y el permiso
 Un modelo open weight es como una receta que alguien publica. Puedes cocinarla en tu casa cuantas veces quieras. Pero el autor puede haber escrito al pie: «si abres un restaurante con más de 700 sucursales, pídeme permiso» o «si la vendes, pon mi nombre en el menú».
@@ -340,7 +340,7 @@ Un [[modelo-derivado]] es uno que sale de otro modelo. Casi todo lo que descarga
 
 - **Fine-tune** (ajuste fino): alguien siguió entrenando el modelo con sus ejemplos. Los pesos cambian. Lo ves en [Transformers y LLMs](https://sensei.trueml.app/llms/), en la sección de cómo se adapta un modelo.
 - **Cuantizado**: los mismos pesos guardados con menos bits ([[cuantizacion]]). Los formatos (GGUF, AWQ, GPTQ, FP8) los ves en la lección «Formatos de cuantización en la práctica».
-- **Destilado**: un modelo más chico entrenado para imitar las salidas de uno grande.
+- **[[destilacion|Destilado]]**: un modelo más chico entrenado para imitar las salidas de uno grande.
 - **Merge** (fusión): los pesos de dos o más modelos combinados en uno, sin volver a entrenar.
 
 La regla general: **un derivado hereda la licencia del original, y quien lo hace puede sumar condiciones, pero no quitarlas**. Si la licencia de la base no permite algo, ningún paso posterior lo permite.
@@ -443,7 +443,7 @@ Las seis preguntas, en orden, y a dónde te saca cada una. Los recorridos aplica
 | Puerta en Hugging Face | No | No | No | Sí, aprobación manual |
 | Si se entrega a otros | Copia, avisos, NOTICE | Copia, avisos, NOTICE | Copia, avisos, NOTICE | Copia del acuerdo, «Built with Llama», nombre de derivados |
 
-Los cuatro pasan. Lo que cambia es cuánto trabajo cuestan: los tres Apache 2.0 son casi automáticos; Llama 3.3 pide pedir acceso con tiempo y leer la política de uso contra el caso. Si los cuatro empatan en calidad y en memoria, la licencia inclina la balanza hacia los Apache. Esa comparación de calidad es tema de la lección «Elegir un modelo para la tarea».
+Los cuatro pasan. Lo que cambia es cuánto trabajo cuestan: los tres Apache 2.0 son casi automáticos; Llama 3.3 pide pedir acceso con tiempo y leer la política de uso contra el caso. Si los cuatro empatan en calidad y en memoria, la licencia inclina la balanza hacia los Apache. Esa comparación de calidad es tema de la lección «[Elegir un modelo para la tarea](/elegir-modelo/)».
 
 El mismo filtro, en un script que el equipo puede extender con más modelos:
 
@@ -541,7 +541,7 @@ Dónde termina el «uso interno» y empieza el «servicio a terceros» no siempr
 
 **Qué pasa:** el equipo descarga un modelo porque «es abierto» y lo pone en producción. Meses después, alguien lee que era de investigación.
 
-**Cómo evitarlo:** la licencia entra al sizing desde el día uno, con la lista de 10 minutos y una hoja de hallazgos por candidato.
+**Cómo evitarlo:** la licencia entra al [[sizing|sizing]] desde el día uno, con la lista de 10 minutos y una hoja de hallazgos por candidato.
 
 ### Confiar en la etiqueta de Hugging Face
 
@@ -613,14 +613,14 @@ Con \(C_n = C_0 + sum a_i\): la base es Llama 3.3 (\(C_0\) = 5). El primer fine-
 ? [reto] El despacho quiere abrir un portal para que sus 500 clientes (un supuesto del ejercicio) le hagan preguntas al modelo sobre sus propios expedientes, con Qwen3 32B. Un socio propone cambiar a Mistral Large 4 «porque es más grande». ¿Qué revisas en cada licencia y qué preguntas llevas al abogado?
 **Qwen3 32B** (Apache 2.0): no tiene umbrales ni cláusula de MaaS. Que los clientes usen el modelo desde un portal no cambia nada en la licencia; el despacho no entrega pesos. Lo que sí cambia: la LFPDPPP (los clientes ven datos y el portal es una nueva finalidad) y la responsabilidad por las respuestas.
 
-**Mistral Large 4** (MIT modificada): cualquier negocio de Model as a Service necesita licencia aparte, y el uso interno está exento. La pregunta para el abogado: un portal donde los clientes le preguntan al modelo sobre sus asuntos, ¿es uso interno del despacho, o es darle a terceros acceso al modelo con control sobre las entradas? Si fuera lo segundo, necesitaría un acuerdo con Mistral. (Aparte: un modelo de 1 billón de parámetros no cabe ni en las 3 L40S que pide el sizing del despacho, que suman 144 GB; solo sus pesos en INT4 serían ≈ 500 GB. Ese es otro problema, de sizing.)
+**Mistral Large 4** (MIT modificada): cualquier negocio de Model as a Service necesita licencia aparte, y el uso interno está exento. La pregunta para el abogado: un portal donde los clientes le preguntan al modelo sobre sus asuntos, ¿es uso interno del despacho, o es darle a terceros acceso al modelo con control sobre las entradas? Si fuera lo segundo, necesitaría un acuerdo con Mistral. (Aparte: un modelo de 1 billón de parámetros no cabe ni en las 3 L40S que pide el [[sizing|sizing]] del despacho, que suman 144 GB; solo sus pesos en INT4 serían ≈ 500 GB. Ese es otro problema, de sizing.)
 
 La hoja para el abogado: el texto de las dos licencias con la fecha de lectura, la sección de MaaS de Mistral, la descripción exacta del portal (quién entra, qué ve, si se cobra aparte) y los 500 usuarios.
 :::
 
 ## Lo que sigue {What comes next}
 
-La lección «Elegir un modelo para la tarea» toma los candidatos que pasaron esta revisión y los compara por familia, tamaño y benchmarks: la licencia filtra, la calidad decide. En «Formatos de cuantización en la práctica» verás cómo se hacen los GGUF y AWQ de los que aquí solo importaba que heredan la licencia. Y si quieres repasar cómo se adapta un modelo (fine-tuning, LoRA, RAG), está en [Transformers y LLMs](https://sensei.trueml.app/llms/); la ley de datos que rige lo que le metes, en [Datos personales y la ley](https://sensei.trueml.app/privacidad/).
+La lección «[Elegir un modelo para la tarea](/elegir-modelo/)» toma los candidatos que pasaron esta revisión y los compara por familia, tamaño y [[benchmark|benchmarks]]: la licencia filtra, la calidad decide. En «Formatos de cuantización en la práctica» verás cómo se hacen los GGUF y AWQ de los que aquí solo importaba que heredan la licencia. Y si quieres repasar cómo se adapta un modelo (fine-tuning, LoRA, RAG), está en [Transformers y LLMs](https://sensei.trueml.app/llms/); la ley de datos que rige lo que le metes, en [Datos personales y la ley](https://sensei.trueml.app/privacidad/).
 
 ## Palabras que vas a oír {Words you will hear}
 

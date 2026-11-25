@@ -1,6 +1,6 @@
 {
  "titulo": "Un paso de decode con varias conversaciones",
- "intro": "Aplica \\(t_{paso} = max(t_{mem}, t_{cálc})\\) con \\(t_{mem} = (W + b × K) ÷ (η_m × B_W)\\) y \\(t_{cálc} = 2 × P × b ÷ (η_c × F)\\). Solo el decode: los prefills no entran aquí. Arranca con el despacho: Qwen3 32B en INT4 de AWQ en una L40S, con 8 conversaciones a media respuesta (≈ 6,250 tokens cada una) y las eficiencias supuestas del despacho.",
+ "intro": "Aplica \\(t_{paso} = max(t_{mem}, t_{cálc})\\) con \\(t_{mem} = (W + b × K) ÷ (η_m × B_W)\\) y \\(t_{cálc} = 2 × P × b ÷ (η_c × F)\\). Solo el [[decode|decode]]: los prefills no entran aquí. Arranca con el despacho: Qwen3 32B en INT4 de AWQ en una L40S, con 8 conversaciones a media respuesta (≈ 6,250 tokens cada una) y las eficiencias supuestas del despacho.",
  "entradas": [
   {
    "id": "W",

@@ -6,8 +6,8 @@
       "termino": "TPOT (tiempo por token de salida)",
       "en": "time per output token",
       "corto": "El tiempo promedio entre token y token de una respuesta, sin contar el primero: (latencia total − TTFT) ÷ (tokens de salida − 1).",
-      "largo": "Se calcula una vez por respuesta y después se juntan las de todas las preguntas (así lo hace `vllm bench serve`). Su inverso son los tokens por segundo que recibe cada persona. Sube cuando hay más conversaciones a la vez, porque cada paso de decode tiene que leer el KV cache de todas.",
-      "ejemplo": "Una respuesta del despacho de 500 tokens que termina a los 27 s con TTFT de 2 s: (27 − 2) ÷ 499 ≈ 50 ms, o sea 20 tokens por segundo.",
+      "largo": "Se calcula una vez por respuesta y después se juntan las de todas las preguntas (así lo hace `vllm bench serve`). Su inverso son los tokens por segundo que recibe cada persona. Sube cuando hay más conversaciones a la vez, porque cada paso de [[decode|decode]] tiene que leer el KV cache de todas.",
+      "ejemplo": "Una respuesta del despacho de 500 tokens que termina a los 27 s con [[ttft|TTFT]] de 2 s: (27 − 2) ÷ 499 ≈ 50 ms, o sea 20 tokens por segundo.",
       "ver": [
         "itl"
       ],
@@ -19,7 +19,7 @@
       "termino": "ITL (latencia entre tokens)",
       "en": "inter-token latency",
       "corto": "El tiempo entre dos tokens consecutivos que llegan en streaming. Se mide intervalo por intervalo.",
-      "largo": "Dos herramientas lo usan distinto: en vLLM el ITL junta **todos** los intervalos de todas las respuestas, así que deja ver los tirones (un token que tardó 400 ms porque entró la prefill de otra pregunta), mientras el [[tpot|TPOT]] es un promedio por respuesta. En la documentación de NVIDIA NIM, ITL y TPOT son lo mismo: el promedio sin el primer token. Lee siempre cómo lo define la herramienta.",
+      "largo": "Dos herramientas lo usan distinto: en vLLM el ITL junta **todos** los intervalos de todas las respuestas, así que deja ver los tirones (un token que tardó 400 ms porque entró la [[prefill|prefill]] de otra pregunta), mientras el [[tpot|TPOT]] es un promedio por respuesta. En la documentación de NVIDIA NIM, ITL y TPOT son lo mismo: el promedio sin el primer token. Lee siempre cómo lo define la herramienta.",
       "ejemplo": "Una respuesta con intervalos de 50, 50, 400 y 50 ms tiene un TPOT de 137.5 ms, pero su p50 de ITL es 50 ms y su peor ITL, 400.",
       "ver": [
         "tpot"
@@ -46,8 +46,8 @@
       "termino": "Codo de la curva",
       "en": "knee",
       "corto": "El punto de una curva de carga donde subir la gente ya casi no da más throughput y sí mucha más latencia.",
-      "largo": "Antes del codo, cada conversación nueva suma tokens por segundo casi gratis. Después, el throughput se aplana porque algo se llenó (la memoria del KV cache, el ancho de banda o el cómputo) y lo que sobra se va a la fila: el TTFT se dispara. La capacidad útil está antes del codo, donde todavía se cumple la promesa.",
-      "ejemplo": "L40S con Llama 3.1 8B en BF16: de 50 a 100 conversaciones a la vez el throughput sube de 1,226 a 1,613 tokens/s; de 100 a 200, solo a 1,619, mientras el TTFT pasa de 2.8 s a 64 s.",
+      "largo": "Antes del codo, cada conversación nueva suma tokens por segundo casi gratis. Después, el throughput se aplana porque algo se llenó (la memoria del KV cache, el [[ancho-de-banda|ancho de banda]] o el cómputo) y lo que sobra se va a la fila: el [[ttft|TTFT]] se dispara. La capacidad útil está antes del codo, donde todavía se cumple la promesa.",
+      "ejemplo": "L40S con Llama 3.1 8B en BF16: de 50 a 100 conversaciones a la vez el throughput sube de 1,226 a 1,613 tokens/s; de 100 a 200, solo a 1,619, mientras el [[ttft|TTFT]] pasa de 2.8 s a 64 s.",
       "ver": [
         "throughput-de-tokens",
         "goodput"
@@ -60,8 +60,8 @@
       "termino": "SLO (objetivo de nivel de servicio)",
       "en": "service level objective",
       "corto": "La promesa de servicio escrita en números medibles, con su percentil: por ejemplo, TTFT ≤ 2 s en el p95.",
-      "largo": "En un LLM que conversa hay dos promesas por respuesta: qué tan pronto empieza (TTFT) y qué tan rápido escribe ([[tpot|TPOT]]). Se escriben en percentiles altos (p95, p99) porque el promedio esconde a quien le fue mal. Un SLO es interno; el contrato con penalizaciones es otra cosa (un SLA), que se ve en una lección posterior.",
-      "ejemplo": "El despacho: TTFT ≤ 2 s en el p95 y ≥ 20 tokens por segundo por persona, o sea TPOT ≤ 50 ms.",
+      "largo": "En un LLM que conversa hay dos promesas por respuesta: qué tan pronto empieza ([[ttft|TTFT]]) y qué tan rápido escribe ([[tpot|TPOT]]). Se escriben en percentiles altos (p95, p99) porque el promedio esconde a quien le fue mal. Un SLO es interno; el contrato con penalizaciones es otra cosa (un SLA), que se ve en una lección posterior.",
+      "ejemplo": "El despacho: [[ttft|TTFT]] ≤ 2 s en el p95 y ≥ 20 tokens por segundo por persona, o sea TPOT ≤ 50 ms.",
       "ver": [
         "goodput"
       ],
@@ -73,9 +73,9 @@
       "termino": "Goodput",
       "en": "goodput",
       "corto": "El throughput que sí cuenta: las peticiones por segundo que terminan cumpliendo **todas** sus promesas de latencia.",
-      "largo": "Hay dos versiones. En una prueba, `vllm bench serve --goodput` cuenta una petición como buena solo si cumple cada SLO que le das y reporta las buenas por segundo. Como medida de capacidad, DistServe (OSDI 2024) lo define como la tasa de llegada más alta, por GPU, a la que una fracción pedida de las peticiones (por ejemplo, 90 %) cumple sus objetivos de TTFT y de TPOT. Un servidor puede tener mucho throughput y casi cero goodput.",
+      "largo": "Hay dos versiones. En una prueba, `vllm bench serve --goodput` cuenta una petición como buena solo si cumple cada SLO que le das y reporta las buenas por segundo. Como medida de capacidad, DistServe (OSDI 2024) lo define como la tasa de llegada más alta, por GPU, a la que una fracción pedida de las peticiones (por ejemplo, 90 %) cumple sus objetivos de [[ttft|TTFT]] y de TPOT. Un servidor puede tener mucho throughput y casi cero goodput.",
       "analogia": "Las pizzas por hora que llegan calientes y a tiempo, no las que salen del horno. **Dónde se rompe:** una pizza fría todavía se come; una respuesta que tarda 60 s en empezar, muchas veces ya nadie la lee.",
-      "ejemplo": "L40S con Llama 3.1 8B en BF16 y 200 conversaciones a la vez: 1,619 tokens/s de throughput, pero con TTFT de 64 s su goodput contra una promesa de 2 s es casi cero.",
+      "ejemplo": "L40S con Llama 3.1 8B en BF16 y 200 conversaciones a la vez: 1,619 tokens/s de throughput, pero con [[ttft|TTFT]] de 64 s su goodput contra una promesa de 2 s es casi cero.",
       "ver": [
         "slo",
         "throughput-de-tokens"

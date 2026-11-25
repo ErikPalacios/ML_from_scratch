@@ -15,7 +15,7 @@
     { "id": "razona", "label": "Razonamiento", "sub": "piensa antes de contestar", "badge": "3", "kind": "model", "x": 6, "y": 30, "w": 24, "h": 8,
       "note": "El [[modelo-razonamiento]]: entrenado (con refuerzo, sobre todo) para escribir una cadena de pensamiento antes de la respuesta. Puede ser un modelo aparte («-Thinking»), un interruptor dentro del mismo modelo o niveles low, medium y high." },
     { "id": "maestro", "label": "DeepSeek-R1", "sub": "671 B · 37 B activos", "badge": "4", "kind": "model", "x": 44, "y": 17, "w": 26, "h": 8,
-      "note": "Un modelo de razonamiento enorme (enero de 2025, licencia MIT). Ninguna GPU de 48 GB lo carga, pero sirve de **maestro**: lo que escribe se puede usar para enseñarle a uno chico." },
+      "note": "Un modelo de razonamiento enorme (enero de 2025, [[licencia-mit|licencia MIT]]). Ninguna GPU de 48 GB lo carga, pero sirve de **maestro**: lo que escribe se puede usar para enseñarle a uno chico." },
     { "id": "muestras", "label": "Sus respuestas", "sub": "con todo y razonamiento", "kind": "store", "x": 44, "y": 44, "w": 26, "h": 8,
       "note": "Muestras generadas por R1: preguntas, la cadena de pensamiento y la respuesta. Son los datos de entrenamiento del alumno." },
     { "id": "destilado", "label": "R1-Distill-Qwen-32B", "sub": "SFT, sin RL", "badge": "5", "kind": "model", "x": 6, "y": 55, "w": 24, "h": 8,
