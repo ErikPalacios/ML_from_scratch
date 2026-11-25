@@ -1,0 +1,279 @@
+{
+ "titulo": "Bits efectivos por peso y tamaño del archivo",
+ "intro": "Aplica \\(b_{ef} = b + (b_s + b_z) ÷ G + S ÷ G_s\\) (el último término es la escala del superbloque de los k-quants) y \\(W = (P − E_{16}) × b_{ef} ÷ 8 + E_{16} × 2\\), donde \\(E_{16}\\) son los parámetros de las [[tablas-de-tokens|tablas de tokens]] que se quedan en 16 bits. Elige un formato o mueve los controles. Arranca con el AWQ del despacho: Qwen3 32B, 4 bits, grupos de 128 con escala y punto cero.",
+ "preajustes": {
+  "label": "Formato (los bits de cada pieza, de su documentación o su código)",
+  "inicial": 0,
+  "opciones": [
+   {
+    "label": "AWQ, grupos de 128 con punto cero",
+    "valores": {
+     "b": 4,
+     "sb": 16,
+     "zb": 4,
+     "G": 128,
+     "S": 0,
+     "Gs": 256,
+     "t": 1
+    },
+    "nota": "`Qwen/Qwen3-32B-AWQ`: escala FP16 y punto cero de 4 bits por grupo; tablas en 16 bits. El archivo real mide 19.33 GB."
+   },
+   {
+    "label": "GPTQ simétrico, grupos de 128 (W4A16)",
+    "valores": {
+     "b": 4,
+     "sb": 16,
+     "zb": 0,
+     "G": 128,
+     "S": 0,
+     "Gs": 256,
+     "t": 1
+    },
+    "nota": "Sin punto cero: la receta W4A16 de llm-compressor usa grupos de 128."
+   },
+   {
+    "label": "GGUF Q4_K puro (teórico)",
+    "valores": {
+     "b": 4,
+     "sb": 6,
+     "zb": 6,
+     "G": 32,
+     "S": 32,
+     "Gs": 256,
+     "t": 0
+    },
+    "nota": "Bloques de 32 con escala y mínimo de 6 bits; el superbloque de 256 guarda dos números FP16 (32 bits). En GGUF las tablas también se cuantizan. El Q4_K_M real de Qwen3 32B mide 19.76 GB porque mezcla tipos."
+   },
+   {
+    "label": "GGUF Q6_K",
+    "valores": {
+     "b": 6,
+     "sb": 8,
+     "zb": 0,
+     "G": 16,
+     "S": 16,
+     "Gs": 256,
+     "t": 0
+    },
+    "nota": "Bloques de 16 con escala de 8 bits; una escala FP16 por superbloque. El archivo oficial de Qwen3 32B mide 26.88 GB."
+   },
+   {
+    "label": "GGUF Q8_0",
+    "valores": {
+     "b": 8,
+     "sb": 16,
+     "zb": 0,
+     "G": 32,
+     "S": 0,
+     "Gs": 256,
+     "t": 0
+    },
+    "nota": "Bloques de 32 con una escala FP16. El archivo oficial de Qwen3 32B mide 34.82 GB."
+   },
+   {
+    "label": "FP8 por bloques de 128 × 128",
+    "valores": {
+     "b": 8,
+     "sb": 32,
+     "zb": 0,
+     "G": 16384,
+     "S": 0,
+     "Gs": 256,
+     "t": 1
+    },
+    "nota": "`Qwen/Qwen3-32B-FP8`: una escala cada 16,384 pesos (aquí se supone de 32 bits: casi no pesa) y tablas en 16 bits. El archivo real mide 34.33 GB."
+   },
+   {
+    "label": "NVFP4 (bloques de 16, escala E4M3)",
+    "valores": {
+     "b": 4,
+     "sb": 8,
+     "zb": 0,
+     "G": 16,
+     "S": 0,
+     "Gs": 256,
+     "t": 1
+    },
+    "nota": "Sin contar la escala FP32 por tensor, que no pesa. Supuesto: tablas en 16 bits."
+   },
+   {
+    "label": "MXFP4 (bloques de 32, escala E8M0)",
+    "valores": {
+     "b": 4,
+     "sb": 8,
+     "zb": 0,
+     "G": 32,
+     "S": 0,
+     "Gs": 256,
+     "t": 1
+    },
+    "nota": "El formato de los expertos de gpt-oss. Supuesto: tablas en 16 bits."
+   },
+   {
+    "label": "BF16, sin cuantizar",
+    "valores": {
+     "b": 16,
+     "sb": 0,
+     "zb": 0,
+     "G": 128,
+     "S": 0,
+     "Gs": 256,
+     "t": 1
+    },
+    "nota": "16 bits por peso y nada más: el original."
+   }
+  ]
+ },
+ "entradas": [
+  {
+   "id": "P",
+   "label": "Parámetros del modelo, \\(P\\), en miles de millones (Qwen3 32B: 32.762)",
+   "min": 0.1,
+   "max": 1000,
+   "paso": 0.001,
+   "valor": 32.762,
+   "tipo": "numero"
+  },
+  {
+   "id": "Et",
+   "label": "Parámetros de las tablas de tokens, \\(E\\), en miles de millones (Qwen3 32B: 1.556, dos tablas)",
+   "min": 0,
+   "max": 50,
+   "paso": 0.001,
+   "valor": 1.556,
+   "tipo": "numero"
+  },
+  {
+   "id": "b",
+   "label": "Bits de cada peso, \\(b\\)",
+   "min": 1,
+   "max": 16,
+   "paso": 1,
+   "valor": 4
+  },
+  {
+   "id": "sb",
+   "label": "Bits de la escala de cada grupo, \\(b_s\\)",
+   "min": 0,
+   "max": 32,
+   "paso": 1,
+   "valor": 16
+  },
+  {
+   "id": "zb",
+   "label": "Bits del punto cero (o mínimo) de cada grupo, \\(b_z\\)",
+   "min": 0,
+   "max": 16,
+   "paso": 1,
+   "valor": 4
+  },
+  {
+   "id": "G",
+   "label": "Pesos por grupo, \\(G\\)",
+   "min": 8,
+   "max": 16384,
+   "paso": 8,
+   "valor": 128,
+   "tipo": "numero"
+  },
+  {
+   "id": "S",
+   "label": "Bits de la escala del superbloque, \\(S\\) (0 si no hay)",
+   "min": 0,
+   "max": 64,
+   "paso": 1,
+   "valor": 0
+  },
+  {
+   "id": "Gs",
+   "label": "Pesos por superbloque, \\(G_s\\)",
+   "min": 64,
+   "max": 1024,
+   "paso": 64,
+   "valor": 256
+  },
+  {
+   "id": "t",
+   "label": "Tablas de tokens",
+   "tipo": "opcion",
+   "valor": 1,
+   "opciones": [
+    {
+     "valor": 1,
+     "label": "en 16 bits (AWQ, GPTQ, FP8)"
+    },
+    {
+     "valor": 0,
+     "label": "en el mismo formato (GGUF, aproximado)"
+    }
+   ]
+  },
+  {
+   "id": "V",
+   "label": "GPU, para ver cuánto queda (datos de gpus.json)",
+   "opciones": "gpus",
+   "inicial": "l40s"
+  }
+ ],
+ "calculos": [
+  {
+   "id": "bef",
+   "formula": "b + (sb + zb) / G + S / Gs"
+  },
+  {
+   "id": "E16",
+   "formula": "min(Et, P) * t"
+  },
+  {
+   "id": "W",
+   "formula": "((P - E16) * bef / 8 + E16 * 2) * 1e9"
+  },
+  {
+   "id": "libre",
+   "formula": "0.9 * V * 1e9 - 2e9 - W"
+  }
+ ],
+ "salidas": [
+  {
+   "label": "1 · Bits efectivos por peso, \\(b_{ef}\\)",
+   "formula": "bef",
+   "formato": "num",
+   "decimales": 3,
+   "cuenta": "{{b|int}} + ({{sb|int}} + {{zb|int}}) ÷ {{G|int}} + {{S|int}} ÷ {{Gs|int}} = **{{bef|num|3}} bits**"
+  },
+  {
+   "label": "2 · Tamaño de los pesos, \\(W\\)",
+   "formula": "W",
+   "formato": "bytes",
+   "decimales": 2,
+   "barra": true,
+   "cuenta": "({{P|corto}} − {{E16|corto}}) mil millones × {{bef|num|3}} ÷ 8 + {{E16|corto}} mil millones × 2 = **{{W|bytes|2}}**"
+  },
+  {
+   "label": "3 · Bits por parámetro de todo el archivo",
+   "formula": "W * 8 / (P * 1e9)",
+   "formato": "num",
+   "decimales": 2,
+   "nota": "\\(W × 8 ÷ P\\): con las tablas incluidas",
+   "cuenta": "{{W|bytes|2}} × 8 ÷ {{P|corto}} mil millones = **{{W * 8 / (P * 1e9)|num|2}}**"
+  },
+  {
+   "label": "4 · Contra BF16",
+   "formula": "P * 2e9 / W",
+   "formato": "x",
+   "decimales": 2,
+   "cuenta": "{{P * 2e9|bytes|2}} ÷ {{W|bytes|2}} = **{{P * 2e9 / W|num|2}} veces** más chico"
+  },
+  {
+   "label": "5 · ¿Caben los pesos en esa GPU?",
+   "formula": "libre",
+   "veredicto": {
+    "si": "Sí: sobra lugar para el KV cache",
+    "no": "No caben"
+   },
+   "nota": "con 10 % de margen y 2 GB de programa; el KV cache, en la [herramienta de VRAM](/herramientas/vram/)",
+   "cuenta": "0.9 × {{V|corto}} GB − 2 GB − {{W|bytes|2}} = **{{libre|bytes|2}}** para el KV cache"
+  }
+ ],
+ "nota": "La cuenta es de las piezas que declara cada formato; el archivo real suma encabezados y, en los GGUF «_M», tensores en tipos más grandes. Compara Q4_K puro (18.43 GB) con el Q4_K_M real (19.76 GB): la diferencia son esos tensores protegidos."
+}

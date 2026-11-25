@@ -1,0 +1,160 @@
+{
+ "terminos": [
+  {
+   "id": "gguf",
+   "termino": "GGUF",
+   "en": "GGUF",
+   "corto": "El formato de archivo de llama.cpp: un solo archivo con los pesos cuantizados y todo lo necesario para cargar el modelo (arquitectura, tokenizador, licencia, tipo de cuantización).",
+   "largo": "Sucedió a GGML, GGMF y GGJT. Guarda metadatos clave-valor y los tensores alineados para poder abrirlo con *mmap* (el sistema operativo lo lee del disco conforme se usa). Admite muchos tipos de cuantización: Q4_0 y Q8_0, los [[k-quant|k-quants]] (Q2_K a Q6_K), los i-quants (IQ2_XXS, IQ4_XS…) y tipos de punto flotante como F8_E4M3, MXFP4 y NVFP4. Lo leen llama.cpp y los programas construidos sobre él, como Ollama.",
+   "analogia": "Una maleta con todo adentro, incluidas las instrucciones para desempacarla. Dónde se rompe: la maleta solo la abre bien una familia de programas; otros servidores prefieren sus propias cajas.",
+   "ejemplo": "`Qwen3-32B-Q4_K_M.gguf` mide 19.76 GB, ≈ 4.83 bits por parámetro, con las tablas de tokens también cuantizadas.",
+   "ver": ["k-quant", "imatrix"],
+   "leccion": "formatos-cuantizacion"
+  },
+  {
+   "id": "k-quant",
+   "termino": "k-quant",
+   "en": "k-quant",
+   "corto": "Los tipos de cuantización de GGUF con superbloques de 256 pesos: cada bloque de 32 tiene su escala en pocos bits, y el superbloque guarda en FP16 cuánto vale un escalón de esas escalas.",
+   "largo": "Es cuantizar las escalas. En Q4_K, 8 bloques de 32 pesos de 4 bits guardan escala y mínimo en 6 bits, y el superbloque guarda dos números FP16: 144 bytes por 256 pesos, 4.5 bits por peso. Los nombres con _S, _M o _L son mezclas: la mayoría de los tensores en el tipo base y algunos sensibles en uno con más bits, por eso un Q4_K_M cuesta ≈ 4.9 bits por peso en promedio.",
+   "ejemplo": "Q4_K: 128 + 12 + 4 = 144 bytes por 256 pesos = 4.5 bpw. Q6_K: 210 bytes = 6.5625 bpw.",
+   "ver": ["gguf", "escala-por-grupo"],
+   "leccion": "formatos-cuantizacion"
+  },
+  {
+   "id": "imatrix",
+   "termino": "imatrix (matriz de importancia)",
+   "en": "importance matrix",
+   "corto": "Una estadística de qué tan grandes llegan las activaciones a cada peso, medida con un texto de calibración, que llama.cpp usa para cuantizar mejor los pesos que más importan.",
+   "largo": "Se calcula corriendo el modelo sobre un texto y se pasa a `llama-quantize --imatrix`. Es la misma intuición de [[awq|AWQ]]: un peso que multiplica activaciones grandes merece escalas más cuidadosas. Importa sobre todo por debajo de 4 bits, con los i-quants. Una discusión de contribuidores de llama.cpp encontró que funciona mejor con texto casi al azar que con un texto de un solo tema.",
+   "ejemplo": "Un GGUF en IQ3_M de un modelo de 32B se suele fabricar con imatrix; un Q8_0 casi no la necesita.",
+   "ver": ["gguf", "calibracion"],
+   "leccion": "formatos-cuantizacion"
+  },
+  {
+   "id": "gptq",
+   "termino": "GPTQ",
+   "en": "GPTQ",
+   "corto": "Un algoritmo de cuantización que, cada vez que redondea un peso, mueve los pesos que faltan de la misma capa para compensar el error, según cómo se mueven juntas sus entradas en datos de calibración.",
+   "largo": "Frantar y otros, ICLR 2023. Usa información de segundo orden (el Hessiano del error de la capa, que sale de los promedios de los productos de sus entradas) y recorre las columnas en el mismo orden para todas las filas, lo que lo hace miles de veces más barato que su antecesor OBQ. Cuantizó OPT-175B en 4.2 horas en una A100. Hoy se hace con llm-compressor (receta W4A16, grupos de 128) o GPTQModel, y se sirve en vLLM y SGLang, casi siempre con el kernel Marlin.",
+   "analogia": "Repartir una cuenta entre amigos redondeando a billetes: si a uno le cobras de menos, se lo cargas al siguiente para que el total cuadre. Dónde se rompe: GPTQ solo lo carga a los pesos cuyas entradas se parecen; si son independientes, no sirve moverlos.",
+   "ejemplo": "OPT-175B a 3 bits: con redondeo simple la perplejidad colapsa a 7,300; con GPTQ queda en 8.68, contra 8.34 del original.",
+   "ver": ["awq", "calibracion", "solo-pesos"],
+   "leccion": "formatos-cuantizacion"
+  },
+  {
+   "id": "awq",
+   "termino": "AWQ",
+   "en": "activation-aware weight quantization",
+   "corto": "Un algoritmo de cuantización que encuentra los pesos importantes por el tamaño de sus activaciones y los protege multiplicándolos por un factor antes de redondear (y dividiendo la activación entre lo mismo).",
+   "largo": "Lin y otros, mejor paper de MLSys 2024. Solo ≈ 0.1–1 % de los pesos son salientes. En vez de dejarlos en FP16, AWQ escala cada canal por \\(s = s_X^α\\) (con \\(s_X\\) el tamaño medio de su activación y \\(α\\) buscado en una rejilla), sin retropropagación. Necesita pocos datos de [[calibracion|calibración]] y es poco sensible a que no se parezcan al uso. La herramienta clásica, AutoAWQ, se archivó en mayo de 2025; hoy se hace con llm-compressor o GPTQModel.",
+   "analogia": "Escribir más grande lo que más se va a leer antes de sacarle fotocopia a baja resolución: el texto pierde la misma nitidez, pero lo importante sigue legible. Dónde se rompe: si agrandas demasiado una palabra, ya no cabe el resto del renglón (estira la escala del grupo).",
+   "ejemplo": "`Qwen/Qwen3-32B-AWQ`: 4 bits, grupos de 128 con punto cero, 19.32 GB.",
+   "ver": ["gptq", "outlier", "escala-por-grupo"],
+   "leccion": "formatos-cuantizacion"
+  },
+  {
+   "id": "fp8-dinamico",
+   "termino": "FP8 dinámico",
+   "en": "dynamic FP8",
+   "corto": "Cuantizar pesos y activaciones a FP8 calculando la escala de las activaciones en cada pasada, por token, en vez de fijarla antes con datos de calibración.",
+   "largo": "Es W8A8: las dos entradas de cada multiplicación en FP8, para usar los núcleos de FP8 de la GPU (Ada, Hopper, Blackwell). La receta FP8_DYNAMIC de llm-compressor usa escala estática por canal en los pesos y dinámica por token en las activaciones, sin calibrar. El FP8 **estático** mide la escala de las activaciones antes y la deja fija. Los checkpoints oficiales de Qwen3 usan bloques de 128 × 128 en los pesos y activaciones dinámicas.",
+   "ejemplo": "`Qwen/Qwen3-32B-FP8` pesa 34.33 GB y en una L40S multiplica con 733 TFLOPS de FP8 en vez de 362 de FP16.",
+   "ver": ["fp4", "kernel-de-cuantizacion"],
+   "leccion": "formatos-cuantizacion",
+   "sensei": "numeros-maquina"
+  },
+  {
+   "id": "fp4",
+   "termino": "FP4 (NVFP4 y MXFP4)",
+   "en": "FP4",
+   "corto": "Números de punto flotante de 4 bits (E2M1: signo, 2 de exponente, 1 de mantisa) con una escala por bloque. NVFP4 usa bloques de 16 con escala E4M3; MXFP4, bloques de 32 con escala potencia de 2.",
+   "largo": "NVFP4 (NVIDIA) cuesta ≈ 4.5 bits por valor y agrega una escala FP32 por tensor; MXFP4 (estándar abierto OCP) cuesta 4.25. El cálculo nativo en FP4 lo hacen los Tensor Cores de Blackwell; en otras GPUs vLLM corre esos checkpoints como solo pesos (W4A16). gpt-oss se publicó con sus pesos de expertos en MXFP4.",
+   "ejemplo": "NVFP4: 4 + 8 ÷ 16 = 4.5 bits. MXFP4: 4 + 8 ÷ 32 = 4.25 bits.",
+   "ver": ["fp8-dinamico"],
+   "leccion": "formatos-cuantizacion"
+  },
+  {
+   "id": "calibracion",
+   "termino": "Datos de calibración",
+   "en": "calibration data",
+   "corto": "Unos cuantos textos que se pasan por el modelo antes de cuantizarlo para medir cómo llegan las activaciones a cada capa y elegir mejor los números. No es la calibración de probabilidades.",
+   "largo": "[[gptq|GPTQ]] los usa para saber cómo se mueven juntas las entradas de cada capa; [[awq|AWQ]], para medir el tamaño de cada canal; la [[imatrix|imatrix]] de llama.cpp, para pesar cada peso; el FP8 estático, para fijar escalas. No se aprende nada nuevo: solo se miden rangos y promedios. Texto genérico suele funcionar bien. En Sensei la misma palabra nombra otra cosa: que una confianza de 90 % acierte 90 de cada 100.",
+   "ejemplo": "GPTQ en su paper: 128 pedazos de 2,048 tokens de un texto genérico (C4). llm-compressor recomienda 512 muestras; AWQ funciona con 16 secuencias.",
+   "ver": ["gptq", "awq", "imatrix"],
+   "leccion": "formatos-cuantizacion"
+  },
+  {
+   "id": "solo-pesos",
+   "termino": "Cuantización solo de pesos (W4A16)",
+   "en": "weight-only quantization",
+   "corto": "Guardar los pesos con pocos bits y dejar las activaciones en 16: los pesos se convierten a FP16 dentro del chip justo antes de multiplicar. Se escribe W4A16 (pesos de 4 bits, activaciones de 16).",
+   "largo": "Ahorra memoria y bytes leídos, que en el [[decode|decode]] es casi toda la velocidad. Pero la multiplicación sigue en FP16, así que no acelera lo que está limitado por el cálculo, como el [[prefill|prefill]] o los batches muy grandes. W8A8 (FP8 o INT8) cuantiza también las activaciones y sí usa núcleos más rápidos.",
+   "ejemplo": "El AWQ del despacho es W4A16: lee 19.32 GB por token en vez de 65.5, pero su prefill tarda lo mismo que en BF16.",
+   "ver": ["kernel-de-cuantizacion", "fp8-dinamico"],
+   "leccion": "formatos-cuantizacion"
+  },
+  {
+   "id": "kernel-de-cuantizacion",
+   "termino": "Kernel de cuantización",
+   "en": "quantized kernel",
+   "corto": "El programa de la GPU que lee pesos cuantizados, los convierte y multiplica. Un formato es rápido solo si hay un kernel bien hecho para tu GPU.",
+   "largo": "Para W4A16, Marlin (desde Ampere) da ≈ 4× sobre FP16 con batches de hasta 16–32 tokens; Machete hace lo mismo para Hopper. Para FP8 W8A8 hace falta una GPU con núcleos de FP8 (Ada, Hopper); en Ampere, vLLM corre FP8 como solo pesos. La tabla de compatibilidad de cada servidor dice qué método corre en qué generación de GPU (su *compute capability*).",
+   "analogia": "La cuadrilla que descarga las cajas de una mudanza: con el mismo tipo de caja, una con carrito tarda minutos y otra a mano, horas.",
+   "ejemplo": "En la L40S (Ada, capacidad 8.9) corren AWQ, GPTQ y FP8 W8A8; en una A100 (8.0), FP8 corre solo como pesos.",
+   "ver": ["solo-pesos", "fp8-dinamico"],
+   "leccion": "formatos-cuantizacion"
+  },
+  {
+   "id": "outlier",
+   "termino": "Valor atípico (outlier)",
+   "en": "outlier",
+   "corto": "Un peso o una activación mucho más grande que sus vecinos. Al cuantizar estira la escala del grupo y les quita resolución a todos los demás.",
+   "largo": "En los LLMs hay pocos pesos atípicos y, sobre todo, unos pocos canales de activación enormes. Las defensas: escalas por grupo chico (un atípico solo daña a su grupo), algoritmos que miran los datos ([[gptq|GPTQ]], [[awq|AWQ]]) y formatos con exponente, como FP8, que aguantan mejor el rango.",
+   "ejemplo": "Una fila de 1,024 pesos chicos con dos atípicos, en INT4: con una escala para toda la fila el error es 48 % del tamaño de los pesos; con grupos de 128, 16 %.",
+   "ver": ["escala-por-grupo", "awq"],
+   "leccion": "formatos-cuantizacion",
+   "sensei": "numeros-maquina"
+  },
+  {
+   "id": "perplejidad",
+   "termino": "Perplejidad",
+   "en": "perplexity (PPL)",
+   "corto": "Qué tan sorprendido está un modelo con un texto real: el exponencial del promedio de −ln de la probabilidad que le dio a cada token que de verdad seguía. Menos es mejor.",
+   "largo": "Se lee como «entre cuántos tokens duda el modelo en promedio». Es barata (basta un texto) y por eso todos los papers de cuantización la reportan, casi siempre en WikiText2. Su punto ciego: solo mira el token correcto, así que dos modelos pueden tener casi la misma perplejidad y elegir tokens distintos muy seguido. Para comparar versiones del mismo modelo, la [[divergencia-kl|divergencia KL]] ve más.",
+   "ejemplo": "LLaMA 3 8B: 6.233 en f16 y 6.407 en q4_K_M (+2.8 %), aunque el favorito cambia en ≈ 8 de cada 100 tokens.",
+   "ver": ["divergencia-kl", "flips"],
+   "leccion": "formatos-cuantizacion"
+  },
+  {
+   "id": "divergencia-kl",
+   "termino": "Divergencia KL",
+   "en": "Kullback-Leibler divergence",
+   "corto": "Una medida de qué tan distinta es la distribución de probabilidades del modelo cuantizado de la del original, token por token. Vale 0 si son idénticas.",
+   "largo": "\\(KL(p ‖ q) = sum p_k × ln(p_k ÷ q_k)\\), promediada sobre las posiciones de un texto. A diferencia de la [[perplejidad|perplejidad]], mira todos los tokens, no solo el correcto, y no necesita saber cuál era. Cuesta guardar las probabilidades del original (37 GiB para LLaMA 3 sobre WikiText-2). llama.cpp la reporta junto con el «mismo favorito» (*same top p*).",
+   "ejemplo": "LLaMA 3 8B: KL media de 0.0014 en q8_0, 0.031 en q4_K_M y 0.445 en q2_K.",
+   "ver": ["perplejidad", "flips"],
+   "leccion": "formatos-cuantizacion"
+  },
+  {
+   "id": "flips",
+   "termino": "Flips",
+   "en": "flips",
+   "corto": "Las preguntas de un examen cuya respuesta cambia al cuantizar: de bien a mal o de mal a bien. La exactitud solo ve la resta de las dos; los flips ven la suma.",
+   "largo": "Los propuso «Accuracy is Not All You Need» (Dutta y otros, 2024): una exactitud casi igual puede esconder muchas respuestas distintas, y los flips se mueven junto con la [[divergencia-kl|KL]]. Con un examen propio, contar los flips de bien a mal (\\(b\\)) y de mal a bien (\\(c\\)) da además una comparación pareada: la pérdida es \\((c − b) ÷ N\\) y su ruido del 95 %, \\(1.96 × sqrt{b + c} ÷ N\\).",
+   "ejemplo": "Llama 2 7B a 8 bits en MMLU: pierde 0.30 puntos pero cambia el 4.15 % de sus respuestas.",
+   "ver": ["error-estandar", "divergencia-kl"],
+   "leccion": "formatos-cuantizacion"
+  },
+  {
+   "id": "cuantizar-kv-cache",
+   "termino": "Cuantizar el KV cache",
+   "en": "KV cache quantization",
+   "corto": "Guardar las K y las V de cada token en 8 bits (o menos) en vez de 16: caben el doble de conversaciones y cada paso de decode lee la mitad de bytes de KV.",
+   "largo": "En vLLM se pide con `--kv-cache-dtype fp8` (con escalas de 1.0 si no se calibran; llm-compressor las calibra). En llama.cpp, con `-ctk` y `-ctv` (q8_0, q4_0, f8_e4m3…). Nadie publica tablas oficiales de cuánta calidad se pierde, y el error crece con el largo de la conversación: se mide con el examen propio y conversaciones del largo real.",
+   "ejemplo": "Qwen3 32B: 256 KiB por token en BF16; 8 conversaciones de 8,192 tokens ocupan 17.18 GB, y 8.59 GB en FP8.",
+   "ver": ["kv-cache"],
+   "leccion": "formatos-cuantizacion"
+  }
+ ]
+}

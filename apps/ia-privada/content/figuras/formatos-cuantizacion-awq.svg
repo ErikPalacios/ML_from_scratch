@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 380" role="img" aria-labelledby="f-formatos-cuantizacion-awq-t" class="f-svg" style="max-width:420px">
+<title id="f-formatos-cuantizacion-awq-t">El truco de AWQ en un canal con activaciones grandes. Sin escalar: un peso de 0.6 por una activación de 20 da 12; el redondeo mueve el peso hasta medio escalón, y ese error llega a la salida multiplicado por 20, hasta 10 escalones. Con s igual a 2: el peso se guarda como 1.2 y la activación se divide entre 2, a 10; el producto sigue siendo 12, el redondeo mueve el peso lo mismo, hasta medio escalón, pero llega a la salida multiplicado por 10, hasta 5 escalones: la mitad. Si s crece de más, el peso escalado se vuelve el más grande del grupo, el escalón crece y pierden los otros 127 pesos.</title>
+<rect class="f-card" x="10" y="10" width="340" height="360" rx="16"/>
+<text class="f-l" x="28" y="36">EL TRUCO DE AWQ EN UN CANAL</text>
+<text class="f-t" x="28" y="64" style="font-size:13px">Sin escalar</text>
+<rect class="f-b2" x="28" y="76" width="92" height="34" rx="6"/>
+<text class="f-s" x="74" y="98" text-anchor="middle" style="font-size:12px">peso 0.6</text>
+<text class="f-t" x="132" y="98" text-anchor="middle" style="font-size:13px">×</text>
+<rect class="f-o" x="144" y="76" width="92" height="34" rx="6"/>
+<text class="f-s" x="190" y="98" text-anchor="middle" style="font-size:12px">activación 20</text>
+<text class="f-t" x="248" y="98" text-anchor="middle" style="font-size:13px">=</text>
+<rect class="f-chip" x="260" y="76" width="72" height="34" rx="6"/>
+<text class="f-s" x="296" y="98" text-anchor="middle" style="font-size:12px">12</text>
+<text class="f-s" x="28" y="138" style="font-size:12px">el redondeo mueve el peso hasta ½ escalón</text>
+<text class="f-s" x="28" y="156" style="font-size:12px">y llega a la salida × 20: hasta 10 escalones</text>
+<text class="f-t" x="28" y="190" style="font-size:13px">Con s = 2</text>
+<rect class="f-b2" x="28" y="202" width="92" height="34" rx="6"/>
+<text class="f-s" x="74" y="224" text-anchor="middle" style="font-size:12px">peso × 2 = 1.2</text>
+<text class="f-t" x="132" y="224" text-anchor="middle" style="font-size:13px">×</text>
+<rect class="f-o" x="144" y="202" width="92" height="34" rx="6"/>
+<text class="f-s" x="190" y="224" text-anchor="middle" style="font-size:12px">act. ÷ 2 = 10</text>
+<text class="f-t" x="248" y="224" text-anchor="middle" style="font-size:13px">=</text>
+<rect class="f-chip" x="260" y="202" width="72" height="34" rx="6"/>
+<text class="f-s" x="296" y="224" text-anchor="middle" style="font-size:12px">12</text>
+<text class="f-s" x="28" y="264" style="font-size:12px">el redondeo lo mueve lo mismo: ½ escalón</text>
+<text class="f-s" x="28" y="282" style="font-size:12px;font-weight:700">pero llega × 10: hasta 5 escalones</text>
+<line x1="28" y1="298" x2="332" y2="298" class="f-linea"/>
+<text class="f-s" x="28" y="318" style="font-size:12px">Si s crece de más, el peso escalado se vuelve</text>
+<text class="f-s" x="28" y="336" style="font-size:12px">el más grande del grupo: el escalón crece</text>
+<text class="f-s" x="28" y="354" style="font-size:12px">y pierden los otros 127 pesos.</text>
+</svg>

@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 420" role="img" aria-labelledby="f-formatos-cuantizacion-superbloque-t" class="f-svg" style="max-width:420px">
+<title id="f-formatos-cuantizacion-superbloque-t">Un superbloque Q4_K de llama.cpp, dibujado a escala: 4 bytes con la escala y el mínimo del superbloque en FP16, 12 bytes con las escalas y los mínimos de sus 8 bloques en 6 bits cada uno, y 128 bytes con los 256 pesos de 4 bits. Son 144 bytes, 4.5 bits por peso. Abajo, los 8 bloques de 32 pesos, cada uno con su escala y su mínimo. Al final, la comparación: Q4_0 cuesta 4.5 bits con una escala por bloque; Q4_K, 4.5 con escala y mínimo; Q4_K_M, unos 4.89 medidos porque mezcla tipos; AWQ con grupos de 128, 4.156 más las tablas de tokens en 16 bits.</title>
+<rect class="f-card" x="10" y="10" width="340" height="400" rx="16"/>
+<text class="f-l" x="28" y="36">UN SUPERBLOQUE Q4_K · 144 BYTES, A ESCALA</text>
+<rect class="f-p" x="28" y="52" width="8.3" height="34" rx="2"/>
+<rect class="f-o" x="36.3" y="52" width="25.0" height="34" rx="2"/>
+<rect class="f-b" x="61.3" y="52" width="266.7" height="34" rx="2"/>
+<text class="f-s" x="194.7" y="74" text-anchor="middle" style="font-size:12px;font-weight:700;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">128 B · 256 pesos de 4 bits</text>
+<line x1="32.2" y1="86" x2="32.2" y2="100" class="f-linea"/>
+<line x1="48.8" y1="86" x2="48.8" y2="118" class="f-linea"/>
+<text class="f-s" x="28" y="112" style="font-size:12px">4 B: escala y mínimo del superbloque (FP16)</text>
+<text class="f-s" x="28" y="132" style="font-size:12px">12 B: 8 escalas y 8 mínimos de 6 bits</text>
+<text class="f-l" x="28" y="164">LOS 8 BLOQUES DE 32 PESOS</text>
+<rect class="f-o" x="30" y="174" width="30" height="7" rx="2"/>
+<rect class="f-b2" x="28" y="184" width="34" height="30" rx="4"/>
+<text class="f-s" x="45" y="204" text-anchor="middle" style="font-size:12px">32</text>
+<rect class="f-o" x="68" y="174" width="30" height="7" rx="2"/>
+<rect class="f-b2" x="66" y="184" width="34" height="30" rx="4"/>
+<text class="f-s" x="83" y="204" text-anchor="middle" style="font-size:12px">32</text>
+<rect class="f-o" x="106" y="174" width="30" height="7" rx="2"/>
+<rect class="f-b2" x="104" y="184" width="34" height="30" rx="4"/>
+<text class="f-s" x="121" y="204" text-anchor="middle" style="font-size:12px">32</text>
+<rect class="f-o" x="144" y="174" width="30" height="7" rx="2"/>
+<rect class="f-b2" x="142" y="184" width="34" height="30" rx="4"/>
+<text class="f-s" x="159" y="204" text-anchor="middle" style="font-size:12px">32</text>
+<rect class="f-o" x="182" y="174" width="30" height="7" rx="2"/>
+<rect class="f-b2" x="180" y="184" width="34" height="30" rx="4"/>
+<text class="f-s" x="197" y="204" text-anchor="middle" style="font-size:12px">32</text>
+<rect class="f-o" x="220" y="174" width="30" height="7" rx="2"/>
+<rect class="f-b2" x="218" y="184" width="34" height="30" rx="4"/>
+<text class="f-s" x="235" y="204" text-anchor="middle" style="font-size:12px">32</text>
+<rect class="f-o" x="258" y="174" width="30" height="7" rx="2"/>
+<rect class="f-b2" x="256" y="184" width="34" height="30" rx="4"/>
+<text class="f-s" x="273" y="204" text-anchor="middle" style="font-size:12px">32</text>
+<rect class="f-o" x="296" y="174" width="30" height="7" rx="2"/>
+<rect class="f-b2" x="294" y="184" width="34" height="30" rx="4"/>
+<text class="f-s" x="311" y="204" text-anchor="middle" style="font-size:12px">32</text>
+<text class="f-s" x="28" y="236" style="font-size:12px">cada bloque: su escala y su mínimo (naranja)</text>
+<text class="f-s" x="28" y="254" style="font-size:12px">en 6 bits; el superbloque dice cuánto vale</text>
+<text class="f-s" x="28" y="272" style="font-size:12px">un escalón de esas escalas</text>
+<text class="f-t" x="28" y="302" style="font-size:13px">144 × 8 ÷ 256 = 4.5 bits por peso</text>
+<line x1="28" y1="318" x2="332" y2="318" class="f-linea"/>
+<text class="f-t" x="28" y="340" style="font-size:12px">Q4_0</text>
+<text class="f-s" x="132" y="340" text-anchor="end" style="font-size:12px">4.5</text>
+<text class="f-s" x="144" y="340" style="font-size:12px">una escala por bloque de 32</text>
+<text class="f-t" x="28" y="358" style="font-size:12px">Q4_K</text>
+<text class="f-s" x="132" y="358" text-anchor="end" style="font-size:12px">4.5</text>
+<text class="f-s" x="144" y="358" style="font-size:12px">escala y mínimo por bloque</text>
+<text class="f-t" x="28" y="376" style="font-size:12px">Q4_K_M</text>
+<text class="f-s" x="132" y="376" text-anchor="end" style="font-size:12px">≈ 4.89</text>
+<text class="f-s" x="144" y="376" style="font-size:12px">medido: mezcla con Q6_K</text>
+<text class="f-t" x="28" y="394" style="font-size:12px">AWQ g128</text>
+<text class="f-s" x="132" y="394" text-anchor="end" style="font-size:12px">4.156</text>
+<text class="f-s" x="144" y="394" style="font-size:12px">más las tablas en 16 bits</text>
+</svg>
