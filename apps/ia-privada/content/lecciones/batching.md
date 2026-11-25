@@ -12,7 +12,7 @@ En el decode, la GPU pasa casi todo el tiempo **leyendo los pesos** de su memori
 
 ## Una GPU sirviendo a una persona está casi ociosa {A GPU serving one person is almost idle}
 
-Esta lección sigue a un ejemplo ficticio, **el despacho**: un despacho de abogados en la Ciudad de México que quiere preguntarle a sus expedientes con un LLM sin que un solo documento salga de su red. Su modelo candidato es **Qwen3 32B en INT4 de AWQ** (pesos de ≈ 19.32 GB), y su primer candidato de GPU, elegido solo por memoria, es **una NVIDIA L40S de 48 GB**. Cada pregunta trae ≈ 6,000 tokens de entrada (≈ 400 de instrucciones, la pregunta y cinco fragmentos de expediente) y la respuesta, ≈ 500. Se diseña para **8 conversaciones a la vez**, y se quiere que cada persona vea al menos **20 tokens por segundo** y su primer token en **2 segundos** o menos. La cuenta de memoria dice que en la L40S caben esas 8. Esta lección explica por qué caben tantas, y al final por qué caber no basta.
+Esta lección sigue a un ejemplo ficticio, **el despacho**: un despacho de abogados en la Ciudad de México que quiere preguntarle a sus expedientes con un LLM sin que un solo documento salga de su red. Su modelo candidato es **Qwen3 32B en [[cuantizacion|INT4 de AWQ]]** (sus pesos guardados en 4 bits: ≈ 19.32 GB), y su primer candidato de GPU, elegido solo por memoria, es **una NVIDIA L40S de 48 GB**. Cada pregunta trae ≈ 6,000 tokens de entrada (≈ 400 de instrucciones, la pregunta y cinco fragmentos de expediente) y la respuesta, ≈ 500. Se diseña para **8 conversaciones a la vez**, y se quiere que cada persona vea al menos **20 tokens por segundo** y su primer token en **2 segundos** o menos. La cuenta de memoria dice que en la L40S caben esas 8. Esta lección explica por qué caben tantas, y al final por qué caber no basta.
 
 Antes de seguir, tres cosas que Sensei explica a fondo y aquí solo se recuerdan:
 
@@ -30,7 +30,7 @@ Dónde se rompe: cada comensal trae además **su propia** bolsa de ingredientes 
 
 ### Cuánto trabajo hay por cada byte
 
-La [[intensidad-aritmetica|intensidad aritmética]] de un cálculo es cuántas operaciones hace por cada byte que lee: FLOPs ÷ bytes. La GPU tiene su propio número: su **punto de quiebre** (*ridge point*), pico de FLOPs por segundo ÷ bytes por segundo. Si la intensidad del cálculo está por debajo del quiebre, la memoria no alcanza a alimentar a los núcleos y el cálculo está limitado por memoria (*memory-bound*). Si está arriba, manda el cálculo. Es la gráfica del *roofline*: la intensidad a lo ancho, los FLOPS alcanzables a lo alto, una rampa que sube hasta el quiebre y un techo plano después.
+Un recordatorio de [Matrices y FLOPs](https://sensei.trueml.app/flops/), que lo explica a fondo. La [[intensidad-aritmetica|intensidad aritmética]] de un cálculo es cuántas operaciones hace por cada byte que lee: FLOPs ÷ bytes. La GPU tiene su propio número, su **punto de quiebre** (*ridge point*): pico de FLOPs por segundo ÷ bytes por segundo. Si la intensidad del cálculo está por debajo del quiebre, la memoria no alcanza a alimentar a los núcleos y el cálculo está limitado por memoria (*memory-bound*); si está arriba, manda el cálculo. La gráfica de las dos zonas es el *roofline*: una rampa que sube hasta el quiebre y un techo plano después. Lo nuevo aquí es aplicarlo al decode de un LLM con su KV cache.
 
 :::formula Intensidad del decode y punto de quiebre
 I = frac{2 × P × b}{W + b × K}
@@ -41,7 +41,7 @@ I_{q} = frac{F}{B_W}
 - W: los bytes de los pesos, que se leen una vez por paso
 - K: los bytes del KV cache que lee cada conversación en el paso
 - I: la intensidad del paso, en FLOPs por byte
-- F: el pico de la GPU, en FLOPs por segundo (densos, sin *sparsity*)
+- F: el pico de la GPU, en FLOPs por segundo (el denso: sin el truco de *sparsity* que duplica la cifra de la hoja de datos)
 - B_W: el ancho de banda de memoria de la GPU, en bytes por segundo
 - I_{q}: el punto de quiebre, en FLOPs por byte
 :::
@@ -49,12 +49,12 @@ I_{q} = frac{F}{B_W}
 La cuenta de FLOPs solo mira las capas lineales, que son casi todo el trabajo; la atención suma algo más y lo ves en el bloque de abajo.
 
 :::cuenta El despacho: ¿cuánta intensidad tiene un paso con una conversación?
-KV de una conversación, \(K\) // a media respuesta: ≈ 6,000 de entrada + 250 escritos; 256 KiB por token en BF16 | 6,250 × 262,144 bytes | ≈ 1.64 GB
+KV de una conversación, \(K\) // a media respuesta: ≈ 6,000 de entrada + 250 escritos; 256 KiB por token en BF16 (2 bytes por número), la cuenta de la herramienta de VRAM | 6,250 × 262,144 bytes | ≈ 1.64 GB
 Bytes del paso // \(W\) = 19.32 GB de pesos, \(b\) = 1 | 19.32 + 1 × 1.64 | ≈ 20.96 GB
 FLOPs del paso // \(P\) = 32.762 mil millones | 2 × 32.762 × 10⁹ × 1 | ≈ 65.5 × 10⁹
 Intensidad, \(I\) | 65.5 × 10⁹ ÷ 20.96 × 10⁹ | ≈ 3.1 FLOPs por byte
 Quiebre de la L40S, \(I_{q}\) // \(F\) = 362.05 TFLOPS en FP16, \(B_W\) = 864 GB/s | 362.05 × 10¹² ÷ 864 × 10⁹ | ≈ 419 FLOPs por byte (DERIVADO)
-= La intensidad está ≈ 135 veces por debajo del quiebre. El paso espera a la memoria casi todo el tiempo.
+= La intensidad está ≈ 134 veces por debajo del quiebre. El paso espera a la memoria casi todo el tiempo.
 :::
 
 Ojo con un detalle: con pesos en INT4 cada parámetro ocupa ≈ medio byte, así que la intensidad con una conversación es ≈ 3 y no ≈ 1 como en BF16. Cuantizar sube la intensidad, pero ni de cerca hasta 419.
@@ -65,19 +65,19 @@ El roofline de la L40S con cuatro puntos del despacho. Con 1 y con 8 conversacio
 
 ### Y si junto muchas, ¿cruzo el quiebre?
 
-Mira la fórmula de \(I\). Si solo existieran los pesos (\(K\) = 0), la intensidad crecería sin parar con \(b\), y con unas 120 conversaciones cruzarías el quiebre. Pero cada conversación suma su propio \(K\) a los bytes. Cuando \(b\) es muy grande, los pesos ya casi no pesan y la intensidad se acerca a \(2 × P ÷ K\): en el despacho, 65.5 × 10⁹ ÷ 1.64 × 10⁹ ≈ **40**. Nunca llega a 419.
+Mira la fórmula de \(I\). Si solo existieran los pesos (\(K\) = 0), la intensidad crecería sin parar con \(b\), y con unas 124 conversaciones cruzarías el quiebre. Pero cada conversación suma su propio \(K\) a los bytes. Cuando \(b\) es muy grande, los pesos ya casi no pesan y la intensidad se acerca a \(2 × P ÷ K\): en el despacho, 65.5 × 10⁹ ÷ 1.64 × 10⁹ ≈ **40**. Nunca llega a 419.
 
 Esa es la primera lección de este tema: **con contextos largos, el decode de un LLM grande está limitado por memoria casi siempre**, juntes a quien juntes. Lo que el batch sí consigue es que la misma lectura de los pesos sirva para más personas. Y eso, como vas a ver, es muchísimo.
 
 :::profundo La atención tiene su propia intensidad, y no mejora con el batch
-Las capas lineales usan los mismos pesos para todas las conversaciones: por eso el batch las ayuda. La atención es distinta. Cada conversación compara su token nuevo con **su propio** KV cache, que nadie más usa. En Qwen3 32B, por cada token del contexto y en cada uno de sus 64 bloques, las 64 cabezas de consulta hacen ≈ 4 × 128 operaciones contra un juego de K y V que comparten de a 8 ([[gqa|GQA]]). Eso da ≈ 2.1 millones de FLOPs por cada 256 KiB leídos: **≈ 8 FLOPs por byte**, con 1 conversación o con 100.
+Las capas lineales usan los mismos pesos para todas las conversaciones: por eso el batch las ayuda. La atención es distinta. Cada conversación compara su token nuevo con **su propio** KV cache, que nadie más usa. Qwen3 32B tiene 64 capas, y en cada capa 64 cabezas de consulta (*query heads*) de 128 números que comparten de a 8 un mismo juego de K y V ([[gqa|GQA]]); lo dice su `config.json`. Por cada token del contexto, cada cabeza hace dos productos punto de 128 números (uno con las K y otro con las V): 4 × 128 FLOPs. En todo el modelo son 4 × 128 × 64 cabezas × 64 capas ≈ 2.1 millones de FLOPs por los 256 KiB de K y V de ese token: **≈ 8 FLOPs por byte**, con 1 conversación o con 100.
 
 Si cuentas también esos FLOPs, el tope del despacho sube de ≈ 40 a ≈ 48. Sigue lejísimos de 419. Por eso las mejoras de la atención en los servidores modernos son, sobre todo, mejoras de **cómo se leen** esos bytes, no de cuántas cuentas se hacen.
 :::
 
 ## Un batch: el mismo paso, varias conversaciones {One batch: the same step, many conversations}
 
-Si el paso está limitado por memoria, su duración es casi exactamente los bytes que lee ÷ el ancho de banda. Un batch (lote: varias conversaciones calculadas en la misma pasada) cambia cuántos tokens salen de cada paso, no cuántos pesos se leen. Es la misma cuenta de Sensei para una L4, ahora con los números del despacho y con el reloj del cálculo a la vista, para comprobar que de verdad no manda.
+Si el paso está limitado por memoria, su duración es casi exactamente los bytes que lee ÷ el ancho de banda. Un batch (lote: varias conversaciones calculadas en la misma pasada) cambia cuántos tokens salen de cada paso, no cuántos pesos se leen. Es la cuenta que [Matrices y FLOPs](https://sensei.trueml.app/flops/) hace para una L4, ahora con los números del despacho y con el reloj del cálculo a la vista, para comprobar que de verdad no manda.
 
 Un ajuste de realismo: ningún programa lee la memoria a todo su ancho de banda ni calcula a todo su pico. La **eficiencia** es la fracción que se logra de verdad. Para el despacho se suponen \(η_m\) = 0.7 de la memoria y \(η_c\) = 0.5 del cálculo; con ellas las cuentas de velocidad dejan de ser de techo y se acercan a lo que se mide.
 
@@ -113,7 +113,7 @@ Ocho: toda la GPU, \(v_{GPU}\) | 8 ÷ 53.6 ms | ≈ 149 tokens/s
 
 Detente en esa última línea. Con una conversación, la GPU produce ≈ 29 tokens por segundo y nada más. Con ocho, produce ≈ 149, porque los 19.32 GB de pesos se leen **una** vez por paso para las ocho. El costo de cada conversación extra es solo su KV cache: 1.64 GB más que leer, ≈ 2.7 ms más de paso.
 
-Las eficiencias son supuestos, no mediciones: el paso real puede durar algo más o algo menos, y hay más cosas que leer y escribir (las activaciones, por ejemplo). Las mediciones de Databricks y NVIDIA dicen lo mismo con otras palabras: con batches chicos, la velocidad de generación la predice el ancho de banda, no el pico de cálculo. Aquí la cuenta te da la **forma** de la relación; las cifras de verdad las da medir.
+Las eficiencias son supuestos, no mediciones: el paso real puede durar algo más o algo menos, y hay más cosas que leer y escribir (las activaciones, los resultados intermedios de cada capa, por ejemplo). Las mediciones de Databricks y NVIDIA dicen lo mismo con otras palabras: con batches chicos, la velocidad de generación la predice el ancho de banda, no el pico de cálculo. Aquí la cuenta te da la **forma** de la relación; las cifras de verdad las da medir.
 
 :::calculadora batching-paso
 Empieza con las 8 conversaciones del despacho. Baja a 6: es lo más que aguanta con ≥ 20 tokens por segundo cada una. Sube a 13: todavía caben en la VRAM, pero cada persona ve ≈ 15. Pasa de 13 y el veredicto de abajo dice que ya no caben.
@@ -172,6 +172,7 @@ u = frac{sum_{i=1}^{b} n_i}{b × max(n_i)}
 - n_i: los tokens que escribe la respuesta \(i\) del batch
 - b: las conversaciones del batch
 - max(n_i): la respuesta más larga, que decide cuántos pasos dura el batch
+- b × max(n_i): los lugares-paso del batch; un lugar-paso es un lugar del batch durante un paso
 - u: la fracción de lugares-paso que hacen trabajo útil (1 = todos)
 :::
 
@@ -196,7 +197,7 @@ La regla es simple:
 2. Se miran los lugares libres y la memoria libre, y se meten conversaciones nuevas de la fila.
 3. Se corre el paso con las que quedaron: cada una recibe su token.
 
-Quien toma esas decisiones es el [[scheduler]] (planificador) del servidor de inferencia. No es un programa aparte: es un pedazo del servidor que corre entre paso y paso, en la CPU, y que tiene que ser rapidísimo, porque un paso dura decenas de milisegundos.
+Quien toma esas decisiones es el [[scheduler]] (planificador) del servidor de inferencia. No es un programa aparte: es un pedazo del servidor que corre en la CPU y arma el batch de cada paso. Tiene que ser rapidísimo, porque un paso dura decenas de milisegundos y la GPU no debe esperarlo.
 
 :::diagrama batching-scheduler
 Toca cada caja para ver por qué está ahí. El recorrido sigue a una petición del despacho: llega, entra en el siguiente paso sin esperar a nadie, y otra que termina libera su lugar.
@@ -216,7 +217,7 @@ Con batching continuo:
 - **Las peticiones nuevas entran en el siguiente paso**, no en la siguiente tanda: decenas de milisegundos de espera en vez de decenas de segundos.
 - **No hace falta un tope de espera para armar el batch.** El batch se arma solo, con lo que haya en cada paso.
 
-Las cifras publicadas son grandes. Orca reportó **36.9 veces** más throughput que FasterTransformer de NVIDIA a la misma latencia, con GPT-3 175B. Un artículo de Anyscale de 2023 midió hasta **23 veces** más throughput que el batching estático ingenuo de Hugging Face, con OPT-13B en una A100 de 40 GB; de eso, ≈ 8 veces salían solo del batching continuo y el resto de cuidar la memoria con vLLM. Son comparaciones contra líneas base débiles, en condiciones de cada paper: no esperes 36 veces en tu servidor. Pero la dirección es inequívoca, y hoy todos los servidores de LLMs serios lo hacen.
+Las cifras publicadas son grandes. Se miden en *throughput*: tokens o peticiones por segundo de todo el servidor. Orca reportó **36.9 veces** más throughput que FasterTransformer, la biblioteca de inferencia de NVIDIA de entonces, a la misma latencia y con GPT-3 175B. Un artículo de Anyscale de 2023 midió hasta **23 veces** más throughput que el batching estático ingenuo de Hugging Face, con OPT-13B (un modelo abierto de Meta de 13 mil millones de parámetros) en una A100 de 40 GB. De esas 23, ≈ 8 salían solo del batching continuo, y el resto de cuidar además la memoria con vLLM. Son comparaciones contra líneas base débiles, en condiciones de cada paper: no esperes 36 veces en tu servidor. Pero la dirección es inequívoca, y hoy todos los servidores de LLMs serios lo hacen.
 
 ### La misma idea, simulada
 
@@ -340,10 +341,10 @@ PagedAttention se inspira, a propósito, en la **memoria virtual** de los sistem
 :::analogia El estacionamiento sin lugares apartados
 Un estacionamiento que aparta 12 cajones seguidos a cada empresa, por si acaso, se llena con coches imaginarios. Uno donde cada coche toma el cajón libre que haya y una libreta anota dónde quedó cada uno se llena con coches de verdad. La libreta es la tabla de bloques.
 
-Dónde se rompe: en el sistema operativo, la traducción la hace el hardware (la MMU del procesador) sin que el programa se entere, y las páginas que no caben se mandan al disco solas. En la GPU no hay nada de eso: la traducción la hace a mano el kernel de atención, en cada paso, y tuvo que escribirse de nuevo para saltar de bloque en bloque. Saltar cuesta un poco: los bloques demasiado chicos (de 1 o 2 tokens) hacen que la GPU lea pedacitos dispersos y vaya más lento. Por eso el bloque no es de un token: el paper eligió 16 por ser «lo bastante grande para aprovechar la GPU y lo bastante chico para no desperdiciar mucho».
+Dónde se rompe: en el sistema operativo, la traducción la hace el hardware (la MMU del procesador) sin que el programa se entere, y las páginas que no caben se mandan al disco solas. En la GPU no hay nada de eso: la traducción la hace a mano el kernel de atención, en cada paso, y tuvo que escribirse de nuevo para saltar de bloque en bloque. Saltar cuesta: el paper midió que su kernel de atención tardaba 20–26 % más que el de FasterTransformer, que lee memoria continua (la atención es una parte del paso, así que el paso entero se alarga mucho menos). Y con bloques demasiado chicos, dice el paper, la GPU no aprovecha su paralelismo al leer el KV cache. Por eso el bloque no es de un token: el paper eligió 16 por ser «lo bastante grande para aprovechar la GPU y lo bastante chico para no desperdiciar mucho».
 :::
 
-Los resultados del paper, con OPT-13B en una A100 de 40 GB: vLLM sostuvo entre **1.7 y 2.7 veces** más peticiones por segundo que la mejor variante de Orca (una que conoce de antemano el largo de cada respuesta, cosa imposible en la vida real) y entre **2.7 y 8 veces** más que la variante que reserva el máximo, con latencias parecidas. En un momento dado, procesaba ≈ **2.2 veces** más peticiones a la vez que la mejor Orca. La mejora es mayor con secuencias más largas y modelos más grandes: justo el caso del despacho.
+Los resultados del paper, con conversaciones reales del dataset ShareGPT (charlas largas que la gente compartió de ChatGPT) y modelos OPT de 13 a 175 mil millones de parámetros: vLLM sostuvo entre **1.7 y 2.7 veces** más peticiones por segundo que la mejor variante de Orca (una que conoce de antemano el largo de cada respuesta, cosa imposible en la vida real) y entre **2.7 y 8 veces** más que la variante que reserva el máximo, con latencias parecidas. Como Orca no es público, los autores lo reimplementaron para comparar. Con OPT-13B en una A100 de 40 GB, vLLM procesaba a la vez ≈ **2.2 veces** más peticiones que la mejor Orca. La mejora es mayor con secuencias más largas y modelos más grandes: justo el caso del despacho.
 
 ## Compartir bloques: prefix caching y copy-on-write {Sharing blocks: prefix caching and copy-on-write} [extra]
 
@@ -353,7 +354,7 @@ Una vez que el KV cache está en bloques con una tabla, aparece un regalo: **dos
 
 Cada pregunta del despacho empieza con las mismas ≈ 400 tokens de instrucciones: quién es el asistente, que cite el expediente y la página, que no invente. Sin compartir, cada una de las 8 conversaciones calcula esas 400 en su prefill y las guarda en su KV cache.
 
-Con [[prefix-caching|prefix caching]] (en vLLM, *automatic prefix caching*), el servidor guarda los bloques ya calculados con una **llave**: un hash de los tokens del bloque y de **todos** los anteriores. Encadenar el hash con lo anterior importa: el mismo pedazo de texto en otra posición, o después de otro principio, tiene K y V distintos y no debe confundirse. Cuando llega una pregunta nueva, el servidor calcula las llaves de sus bloques y busca: si están, su tabla apunta a ellos y su prefill se salta esos tokens.
+Con [[prefix-caching|prefix caching]] (en vLLM, *automatic prefix caching*), el servidor guarda los bloques ya calculados con una **llave**: un hash de los tokens del bloque y de **todos** los anteriores. Un hash es un número corto que se calcula a partir de unos datos: los mismos datos dan siempre el mismo hash, y un solo token distinto da otro por completo. Encadenar el hash con lo anterior importa: el mismo pedazo de texto en otra posición, o después de otro principio, tiene K y V distintos y no debe confundirse. Cuando llega una pregunta nueva, el servidor calcula las llaves de sus bloques y busca: si están, su tabla apunta a ellos y su prefill se salta esos tokens.
 
 Dos detalles de vLLM, de su documentación: solo guarda **bloques llenos**, y cuando falta memoria tira primero los bloques guardados que llevan más tiempo sin usarse (LRU). En la versión 0.34.0 viene prendido por omisión.
 
@@ -387,16 +388,20 @@ bloques que ya estaban: 25 = 400 tokens sin prefill
 KV que no se duplica: 104.9 MB
 ```
 
-Para el despacho, el ahorro de las instrucciones es real pero chico: 400 de 6,000 tokens de prefill (≈ 7 %), y ≈ 105 MB por conversación, ≈ 0.84 GB entre las 8. Donde el prefix caching brilla es en la **repregunta**. La ficha del despacho deja lugar para una pregunta corta después de la primera respuesta, y esa segunda petición empieza con las ≈ 6,500 tokens de la primera conversación completa. Con prefix caching, su prefill solo calcula la repregunta: unas decenas de tokens en vez de 6,600. Es la diferencia entre esperar más de un segundo y casi nada.
+Para el despacho, el ahorro de las instrucciones es real pero chico: 400 de 6,000 tokens de prefill (≈ 7 %), y ≈ 105 MB de KV cache por conversación. Con 8 conversaciones a la vez se guarda una copia en vez de ocho: ≈ 0.73 GB menos (7 × 104.9 MB).
+
+Donde el prefix caching brilla es en la **repregunta**. La ficha del despacho deja lugar para una pregunta corta después de la primera respuesta, y esa segunda petición empieza repitiendo la primera: las ≈ 6,000 tokens de la primera pregunta, la respuesta de ≈ 500 y la repregunta de ≈ 100. Sin prefix caching, son ≈ 6,600 tokens de prefill: ≈ 2.4 s en la L40S con la eficiencia del despacho. Con prefix caching se saltan los bloques de la primera pregunta, y quedan ≈ 600 tokens: ≈ 0.2 s.
+
+¿Por qué no se salta también la respuesta, si sus bloques ya están calculados? Porque la plantilla de chat de Qwen3 la vuelve a escribir distinta al ponerla en el historial: le quita el bloque de razonamiento (`<think>…</think>`), que va al principio de cada respuesta de Qwen3 aunque esté vacío. Desde ese token, los hashes ya no coinciden. Y todo esto supone que los bloques siguen en la caché: si entre la respuesta y la repregunta hubo mucha carga, el servidor pudo haberlos tirado para hacer lugar.
 
 Un detalle que muerde: como solo se guardan bloques llenos, el tamaño de bloque importa. 400 tokens son exactamente 25 bloques de 16. Con bloques de 64, son 6 bloques llenos (384 tokens) y los últimos 16 se recalculan cada vez.
 
-SGLang, otro servidor, lleva la idea más lejos con *RadixAttention*: guarda los KV de prompts **y** respuestas en un árbol (un *radix tree*) con páginas de un solo token, para reutilizar cualquier prefijo común, y ordena las peticiones para aprovecharlo. Lo ves con los servidores en su propia lección.
+SGLang, otro servidor, lleva la idea más lejos con *RadixAttention*: guarda los KV de prompts **y** respuestas en un árbol (un *radix tree*), en su diseño original con páginas de un solo token, para reutilizar cualquier prefijo común, y ordena las peticiones para aprovecharlo. Lo ves con los servidores en su propia lección.
 
 :::profundo Copy-on-write: varias respuestas al mismo prompt
 A veces una sola petición pide **varias** respuestas al mismo prompt (*parallel sampling*), o el servidor explora varias continuaciones a la vez (*beam search*). Todas comparten el prompt, y PagedAttention lo aprovecha con [[copy-on-write]]: cada bloque físico lleva un **contador** de cuántas secuencias lo usan. Mientras solo se lee, nadie copia nada. Cuando una de las secuencias necesita escribir un token distinto en un bloque compartido (el último, a medio llenar), recibe una copia propia **de ese bloque** y su contador baja.
 
-Es exactamente lo que hace un sistema operativo cuando un proceso se duplica (*fork*): las páginas se comparten hasta que alguno escribe. El paper midió ahorros de memoria de 6.1–9.8 % (parallel sampling, prompts del dataset Alpaca) a 37.6–66.3 % (beam search), según la tarea; su introducción habla de «hasta 55 %». En el despacho no se piden varias respuestas por pregunta, así que aquí casi no aplica; en un asistente que propone tres redacciones de una cláusula, sí.
+Es exactamente lo que hace un sistema operativo cuando un proceso se duplica (*fork*): las páginas se comparten hasta que alguno escribe. El paper midió cuánta memoria se ahorra. Con instrucciones cortas (el dataset Alpaca): 6.1–9.8 % en parallel sampling y 37.6–55.2 % en beam search. Con las conversaciones largas de ShareGPT: 16.2–30.5 % y 44.3–66.3 %. En el despacho no se piden varias respuestas por pregunta, así que aquí casi no aplica; en un asistente que propone tres redacciones de una cláusula, sí.
 :::
 
 :::diagrama batching-memoria
@@ -407,22 +412,26 @@ El gestor de bloques reparte la memoria. Dos recorridos: una pregunta que reutil
 
 PagedAttention no reserva el futuro, y eso tiene un precio: el servidor puede quedarse sin bloques **a media respuesta**. Imagina 13 conversaciones del despacho en el batch, todas escribiendo. Cada 16 tokens, cada una pide un bloque. Si en ese paso no queda ninguno, alguien tiene que salir.
 
-Eso es la [[preemption]] (desalojo): el scheduler saca del batch una conversación que va a medias, libera sus bloques para que las demás sigan, y la retoma cuando vuelva a haber memoria. vLLM tiene dos formas de hacerlo:
+Eso es la [[preemption]] (desalojo): el scheduler saca del batch una conversación que va a medias, libera sus bloques para que las demás sigan, y la retoma cuando vuelva a haber memoria. En vLLM, con el orden por omisión (FCFS: la primera que llega, primero entra), sale la última que entró al batch. El paper de PagedAttention propuso dos formas de desalojar:
 
 - **Swap.** Copiar los bloques de esa conversación a la RAM de la CPU y, al retomarla, traerlos de vuelta. No se pierde trabajo, pero mover gigabytes entre la CPU y la GPU cuesta tiempo y ocupa RAM.
-- **Recompute.** Tirar sus bloques y, al retomarla, recalcular su KV cache desde el texto que ya tiene, con un prefill. Se repite trabajo, pero el prefill es justo la parte en que la GPU calcula rápido. **Es lo que vLLM hace por omisión**: su documentación dice que en el motor actual tiene menos costo extra que el swap.
+- **Recompute.** Tirar sus bloques y, al retomarla, recalcular su KV cache con un prefill. Los tokens que ya escribió se pegan al prompt y todo se recalcula de una vez, que es justo la parte en que la GPU calcula rápido. **Es lo que hace vLLM**: su documentación lo da como el modo del motor actual, con menos costo extra que el swap, y en el código del scheduler de la versión 0.34.0 es el único.
 
-Para el despacho, recomputar una conversación que iba en 6,250 tokens es hacer otra vez un prefill de 6,250: ≈ 2.3 s de GPU con la eficiencia del despacho (lo calculas en la sección de chunked prefill).
+Para el despacho, recomputar una conversación que iba en 6,250 tokens es hacer otra vez un prefill de 6,250: ≈ 2.3 s de GPU con la eficiencia del despacho (lo calculas en la sección de chunked prefill). Menos, si parte de sus bloques sigue en la caché de prefijos.
 
 ### Qué ve el usuario
 
-Para la persona cuya conversación salió, la respuesta **se congela**: los tokens dejan de llegar uno, dos o varios segundos, y luego siguen como si nada. No se pierde la respuesta ni sale distinta. Para las demás, nada cambia. En el registro del servidor aparece un aviso como este (de la documentación de vLLM):
+Para la persona cuya conversación salió, la respuesta **se congela**: los tokens dejan de llegar uno, dos o varios segundos, y luego siguen como si nada. No se pierde la respuesta. Para las demás, nada cambia.
+
+En vLLM 0.34.0 no sale un aviso por cada desalojo. Cada 10 segundos el servidor imprime una línea de estadísticas, y cuando hubo desalojos en ese lapso, la línea los cuenta (formato del código; los números son de ejemplo):
 
 ```
-Sequence group 0 is preempted by PreemptionMode.RECOMPUTE mode because there is not enough KV cache space.
+Avg prompt throughput: 1250.0 tokens/s, Avg generation throughput: 150.0 tokens/s, Running: 13 reqs, Waiting: 2 reqs, Preemptions: 3, GPU KV cache usage: 98.7%, Prefix cache hit rate: 41.0%
 ```
 
-Un aviso de vez en cuando en la hora pico es normal: es el servidor estirando la memoria al máximo. Muchos seguidos quieren decir que el servidor está metiendo más conversaciones de las que le caben, y cada preemption es trabajo repetido. Los remedios que da la documentación de vLLM: darle más memoria al KV cache (el parámetro `gpu_memory_utilization`), bajar el máximo de conversaciones a la vez (`max_num_seqs`) o de tokens por paso (`max_num_batched_tokens`), o repartir el modelo entre más GPUs (eso es la lección «Varias GPUs: tensor y pipeline parallel»).
+También lo cuenta en sus métricas, el contador `vllm:num_preemptions`. (La documentación todavía muestra un aviso del motor anterior, «Sequence group 0 is preempted by PreemptionMode.RECOMPUTE mode…»: si lo buscas en el registro de una versión reciente, no lo vas a encontrar.)
+
+Unos cuantos desalojos en la hora pico son normales: es el servidor estirando la memoria al máximo. Muchos seguidos quieren decir que el servidor está metiendo más conversaciones de las que le caben, y cada preemption es trabajo repetido. Los remedios que da la documentación de vLLM: darle más memoria al KV cache (el parámetro `gpu_memory_utilization`), bajar el máximo de conversaciones a la vez (`max_num_seqs`) o de tokens por paso (`max_num_batched_tokens`), o repartir el modelo entre más GPUs (eso es la lección «Varias GPUs: tensor y pipeline parallel»).
 
 :::ojo
 La preemption no es un error ni un mensaje que haya que apagar. Es la consecuencia directa de no reservar el máximo: a cambio de meter 13 conversaciones donde con reserva cabían 10, a veces una tiene que esperar. Si en el despacho aparece seguido, la respuesta no es «subir el límite», es medir: ¿cuántas conversaciones a la vez hay de verdad en la hora pico, y cuánto contexto traen?
@@ -456,7 +465,7 @@ Y la última fila de la cuenta es la que más pesa. Si ≈ 46 % del tiempo de la
 
 ### Partirlo en trozos
 
-La solución es el [[chunked-prefill|chunked prefill]] (prefill en trozos): no hacer el prefill entero en un paso, sino un **trozo** por paso, y en cada paso meter primero el decode de todas las demás. El tope de tokens por paso lo da el parámetro `max_num_batched_tokens`: en vLLM 0.34.0, en una GPU de menos de 70 GiB como la L40S, **2,048** por omisión en el servidor compatible con OpenAI. Si en el batch hay 7 conversaciones en decode, cada paso lleva sus 7 tokens y 2,041 del prefill nuevo.
+La solución es el [[chunked-prefill|chunked prefill]] (prefill en trozos): no hacer el prefill entero en un paso, sino un **trozo** por paso, y en cada paso meter primero el decode de todas las demás. El tope de tokens por paso lo da el parámetro `max_num_batched_tokens`: en vLLM 0.34.0, en una GPU de menos de 70 GiB como la L40S, **2,048** por omisión en el servidor compatible con OpenAI (el que se arranca con `vllm serve`). Si en el batch hay 7 conversaciones en decode, cada paso lleva sus 7 tokens y 2,041 del prefill nuevo.
 
 :::cuenta El mismo prefill, en trozos de ≈ 2,041 tokens
 Trozos // 6,000 tokens; cada paso: 2,048 − 7 decodes | 2,041 + 2,041 + 1,918 | 3 pasos
@@ -466,7 +475,7 @@ Cada paso con un trozo // \(n\) = 2,048 tokens, a 181 TFLOPS efectivos | 2 × 32
 
 La documentación de vLLM lo dice como regla de afinación: valores chicos de `max_num_batched_tokens` (como 2,048) dan **mejor latencia entre tokens**, porque hay menos prefill frenando a los decodes; valores grandes dan **mejor tiempo al primer token**, porque cada prefill termina en menos pasos. No hay un valor correcto: es un intercambio, y lo decides con los objetivos del despacho (≤ 2 s al primer token, ≥ 20 tokens por segundo por persona) y midiendo.
 
-Las cifras publicadas vienen de SARATHI (2023), que propuso armar lotes con un trozo de prefill y el resto decodes, y de Sarathi-Serve (OSDI 2024), que agregó planificar sin pausar nunca los decodes en curso (*stall-free scheduling*): con un objetivo de latencia de cola, Sarathi-Serve atendió **2.6 veces** más con Mistral-7B en una A100 que vLLM de entonces, y hasta **3.7 veces** con Yi-34B en dos A100. Hoy vLLM trae el chunked prefill **prendido por omisión** «cuando es posible».
+Las cifras publicadas vienen de SARATHI (2023), que propuso armar lotes con un trozo de prefill y el resto decodes, y de Sarathi-Serve (OSDI 2024), que agregó planificar sin pausar nunca los decodes en curso (*stall-free scheduling*): con un objetivo de latencia de cola (la de los peores casos, como el p99), Sarathi-Serve atendió **2.6 veces** más con Mistral-7B en una A100 que vLLM de entonces, y hasta **3.7 veces** con Yi-34B en dos A100. Hoy vLLM trae el chunked prefill **prendido por omisión** «cuando es posible».
 
 ## Lo que imprime el servidor y sus perillas {What the server prints and its knobs} [extra]
 
@@ -480,7 +489,7 @@ Al arrancar, vLLM mide la memoria, carga los pesos y reparte lo que sobra en blo
 GPU KV cache size: <tokens> tokens, Maximum concurrency for <max_model_len> tokens per request: <x>x
 ```
 
-El primer número son los tokens de KV cache que caben (bloques × tokens por bloque). El segundo es ese número dividido entre el contexto máximo por petición (`max_model_len`): cuántas conversaciones **al tope** caben a la vez. Para el despacho, con los 21.88 GB libres de la cuenta de la herramienta de VRAM, la línea diría algo como «83,456 tokens» y «10.19x» para 8,192 tokens por petición. Ojo con leer mal ese 10.19: no es el máximo de conversaciones. Es cuántas caben **si todas llegaran al tope**. Con PagedAttention, si las conversaciones reales usan menos, caben más, como viste (13 a media respuesta).
+El primer número son los tokens de KV cache que caben (bloques × tokens por bloque). El segundo es ese número dividido entre el contexto máximo por petición (`max_model_len`): cuántas conversaciones **al tope** caben a la vez. Para el despacho, con los 21.88 GB libres de la cuenta de la herramienta de VRAM (que deja 10 % de margen), la línea diría algo como «83,456 tokens» y «10.19x» para 8,192 tokens por petición. Con bloques de 16 o de 64 sale lo mismo: 5,216 bloques de 16 o 1,304 de 64. Ojo con leer mal ese 10.19: no es el máximo de conversaciones. Es cuántas caben **si todas llegaran al tope**. Con PagedAttention, si las conversaciones reales usan menos, caben más, como viste (13 a media respuesta).
 
 ### Las perillas
 
@@ -488,8 +497,8 @@ El primer número son los tokens de KV cache que caben (bloques × tokens por bl
 |---|---|---|
 | `max_num_seqs` | Cuántas conversaciones a lo mucho van en el batch | 256 en GPUs de menos de 70 GiB como la L40S (1,024 en H100 y H200) |
 | `max_num_batched_tokens` | Cuántos tokens a lo mucho procesa un paso, sumando decodes y trozos de prefill | 2,048 en el servidor en GPUs de menos de 70 GiB (8,192 en H100 y H200) |
-| `gpu_memory_utilization` | Qué parte de la VRAM puede usar vLLM; lo que sobre de pesos y programa va al KV cache | 1.0 con el KV cache extensible (lo usual en CUDA), 0.92 si no; antes era 0.9 |
-| `block_size` | Tokens por bloque de KV cache | 64 en la configuración; el backend de atención puede cambiarlo (el paper usaba 16) |
+| `gpu_memory_utilization` | Qué parte de la VRAM puede usar vLLM; lo que sobre de pesos y programa va al KV cache | 1.0 con el KV cache extensible (vLLM mide la memoria libre después de arrancar; es lo usual en GPUs de NVIDIA), 0.92 si no; en la 0.11.0 era 0.9 |
+| `block_size` | Tokens por bloque de KV cache | 64 en la configuración; el *backend* de atención (el kernel que vLLM elige para calcularla) puede cambiarlo. En la 0.11.0 era 16, como en el paper |
 | `enable_chunked_prefill` | Prefill en trozos | prendido |
 | `enable_prefix_caching` | Reutilizar bloques de prefijos | prendido |
 
@@ -497,7 +506,7 @@ Tres lecturas para el despacho:
 
 - **`max_num_seqs` = 256 no es su límite.** Con su memoria caben ≈ 13 conversaciones; el límite real es el KV cache, y lo pone el gestor de bloques, no esta perilla. Bajarla sirve para proteger la velocidad por persona: con 13 en decode, cada una vería ≈ 15 tokens por segundo; sin tope, el servidor metería todas las que le quepan.
 - **`gpu_memory_utilization` cambió entre versiones.** La herramienta de VRAM usa un margen del 10 % (el 0.9 de antes); la versión 0.34.0 usa otra regla. Lo que importa es fijar el valor a mano, anotarlo y confirmar con la línea de arranque cuánto KV cache quedó.
-- **El tamaño de bloque efectivo hay que verlo, no suponerlo.** Cambia entre versiones y según el backend de atención. Para lo que cuenta esta lección (el desperdicio por conversación) da casi igual: con 64 tokens, el último bloque desperdicia en promedio 32 tokens, 8 MiB, todavía menos del 1 %.
+- **El tamaño de bloque efectivo hay que verlo, no suponerlo.** Cambia entre versiones y según el backend de atención; si vLLM lo cambia, lo dice al arrancar («Setting kv cache block size to …»). Para lo que cuenta esta lección (el desperdicio por conversación) da casi igual: con 64 tokens, el último bloque desperdicia en promedio 32 tokens, 8 MiB, todavía menos del 1 %.
 
 :::ojo
 Estos valores son de vLLM 0.34.0 (publicada el 16 de noviembre de 2026) y **cambian entre versiones**: `gpu_memory_utilization`, `block_size` y los topes por omisión ya cambiaron antes. Antes de fijar algo, lee la documentación de la versión que vas a instalar y lo que imprime al arrancar.
@@ -515,7 +524,7 @@ Estos valores son de vLLM 0.34.0 (publicada el 16 de noviembre de 2026) y **camb
 
 ## En la vida real {In real life}
 
-**El despacho.** Qwen3 32B en INT4 de AWQ, con la L40S como primer candidato. Con PagedAttention, en su memoria caben ≈ 13 conversaciones a media respuesta, más de las 8 de diseño. Pero con las eficiencias supuestas, 8 en decode ya ven ≈ 18.6 tokens por segundo cada una, y los prefills de 6,000 tokens se comen casi la mitad de la GPU en la hora pico: **una L40S no basta**. La herramienta de sizing da 3, y aun así el primer token tarda ≈ 2.4 s. De esta lección salen tres decisiones que valen con cualquier número de GPUs: dejar prendido el prefix caching con las ≈ 400 tokens de instrucciones siempre iguales al principio (y aprovechar que la repregunta reutiliza la conversación entera); poner un tope de conversaciones por GPU (`max_num_seqs`) que proteja los 20 tokens por segundo; y dejar el chunked prefill con trozos chicos, para que las preguntas largas no congelen a los demás. Ninguna cifra se da por buena sin medir: la cuenta da el orden de magnitud y las pruebas de carga dan el número.
+**El despacho.** Qwen3 32B en INT4 de AWQ, con la L40S como primer candidato. Con PagedAttention, en su memoria caben ≈ 13 conversaciones a media respuesta, más de las 8 de diseño. Pero con las eficiencias supuestas, 8 en decode ya ven ≈ 18.6 tokens por segundo cada una, y los prefills de 6,000 tokens se comen casi la mitad de la GPU en la hora pico: **una L40S no basta**. La herramienta de sizing da 3, y aun así el primer token tarda ≈ 2.4 s. De esta lección salen tres decisiones que valen con cualquier número de GPUs: dejar prendido el prefix caching con las ≈ 400 tokens de instrucciones siempre iguales al principio (y aprovechar que la repregunta reutiliza las ≈ 6,000 tokens de la primera pregunta); poner un tope de conversaciones por GPU (`max_num_seqs`) que proteja los 20 tokens por segundo; y dejar el chunked prefill con trozos chicos, para que las preguntas largas no congelen a los demás. Ninguna cifra se da por buena sin medir: la cuenta da el orden de magnitud y las pruebas de carga dan el número.
 
 **Una clínica con un asistente de notas médicas.** Supuesto del ejemplo: los médicos dictan notas cortas, el modelo las ordena en un formato fijo, con prompts de ≈ 800 tokens (500 de instrucciones y formato) y respuestas de ≈ 300. Aquí la reserva fija sería desastrosa: con un tope de 8,192 tokens, cada conversación usaría ≈ 13 % de lo reservado. Con bloques, caben ≈ 7 veces más conversaciones en la misma memoria, y como el 60 % de cada prompt es igual en todas, el prefix caching se ahorra más de la mitad de cada prefill. En esta clínica, PagedAttention es la diferencia entre comprar una GPU o varias.
 
@@ -576,7 +585,7 @@ Decide quién va en el batch **antes de cada paso**: saca a las que terminaron y
 ? ¿Cuáles son las tres formas de fragmentación del KV cache, y cuál deja PagedAttention?
 Reservada (lugares para tokens futuros), interna (lo que sobra del máximo reservado) y externa (huecos entre reservas). PagedAttention solo deja el final del último bloque de cada conversación.
 ? ¿Por qué el prefix caching ahorra más en la repregunta del despacho que en sus instrucciones?
-Porque las instrucciones son ≈ 400 tokens y la repregunta empieza con toda la conversación anterior, ≈ 6,500 tokens: esos bloques ya están calculados y su prefill se salta.
+Porque las instrucciones son ≈ 400 tokens y la repregunta empieza con la primera pregunta entera, ≈ 6,000 tokens: esos bloques ya están calculados y su prefill se salta (≈ 2.4 s bajan a ≈ 0.2 s). La respuesta anterior no se reutiliza: la plantilla de chat la reescribe distinta en el historial.
 ? ¿Qué ve un usuario cuando su conversación sufre preemption con recompute?
 Su respuesta se congela unos segundos mientras otras usan la memoria; luego el servidor recalcula su KV cache con un prefill y la respuesta sigue igual.
 ? ¿Para qué sirve el chunked prefill, si no hace más rápido el prefill?

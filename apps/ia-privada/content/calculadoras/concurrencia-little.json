@@ -23,5 +23,5 @@
     { "label": "¿El promedio cabe en el diseño?", "formula": "c - L", "veredicto": { "si": "Sí, en promedio (los picos pasan de ahí)", "no": "No: ni el promedio cabe" }, "cuenta": "{{c|int}} − {{L|num|2}} = {{c - L|num|2}}" },
     { "label": "Personas con las que el promedio llegaría a \\(c\\)", "formula": "c / W / pk * h * 3600 / q", "formato": "int", "nota": "un techo, no un objetivo: ahí los picos ya hacen fila", "cuenta": "{{c|int}} ÷ {{W|int}} s ÷ {{pk|corto}} × {{h|int}} h × 3,600 ÷ {{q|int}} = **{{c / W / pk * h * 3600 / q|int}} personas**" }
   ],
-  "nota": "Prueba: duplica las personas a 400 y mira el promedio pasar de 8. Después deja 200 y sube la duración a 45 s, como si la GPU escribiera a 11 tokens por segundo: más lento también es más gente adentro."
+  "nota": "Prueba: duplica las personas a 400 y mira el promedio pasar de 8. Después deja 200 y sube la duración a 47 s, como si la GPU escribiera a 11 tokens por segundo (2 + 500 ÷ 11 ≈ 47): más lento también es más gente adentro."
 }

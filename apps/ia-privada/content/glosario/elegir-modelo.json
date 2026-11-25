@@ -3,7 +3,7 @@
   "terminos": [
     { "id": "familia-de-modelos", "termino": "Familia de modelos", "en": "model family",
       "corto": "Un grupo de modelos del mismo fabricante que comparten nombre, receta de entrenamiento y estilo de arquitectura, publicados en varios tamaños y versiones: Qwen, Gemma, Mistral, gpt-oss, Llama.",
-      "largo": "Dentro de una familia, el nombre dice la generación (Qwen3, Qwen3.6), el tamaño (27B), si es [[moe|MoE]] (A3B) y cómo se ajustó (Base, Instruct, Thinking). Una generación nueva puede cambiar mucho por dentro: desde Qwen3.5, la mayoría de los bloques de Qwen usan una atención lineal que casi no guarda [[kv-cache|KV cache]].",
+      "largo": "Dentro de una familia, el nombre dice la generación (Qwen3, Qwen3.6), el tamaño (27B), si es [[moe|MoE]] (A3B) y cómo se ajustó (Base, Instruct, Thinking). Una generación nueva puede cambiar mucho por dentro: desde Qwen3.5, tres de cada cuatro bloques de Qwen usan una atención lineal, que en vez de un [[kv-cache|KV cache]] que crece con cada token guarda un resumen de tamaño fijo por conversación.",
       "analogia": "Como los modelos de un fabricante de autos: el mismo apellido, varios tamaños de motor y un año en cada versión. Se rompe en que dos «años» seguidos de un LLM pueden ser máquinas distintas por dentro, no una mejora del mismo motor.",
       "ejemplo": "La familia Qwen de Alibaba, a noviembre de 2026: Qwen3 (abril de 2025), Qwen3.5 (febrero de 2026), Qwen3.6 (abril de 2026) y Qwen3.8 (agosto de 2026), cada una en tamaños de unos pocos miles de millones a cientos de miles de millones de parámetros.",
       "ver": ["modelo-base", "parametros-activos"], "leccion": "elegir-modelo" },
@@ -49,7 +49,7 @@
       "corto": "Cuando las preguntas de un examen público (o versiones parafraseadas o traducidas de ellas) se colaron en los datos de entrenamiento del modelo. El puntaje sube por memoria, no por habilidad.",
       "largo": "Es difícil de evitar: los modelos se entrenan con billones de tokens de internet, y los benchmarks están en internet. Los filtros que buscan frases idénticas no atrapan una pregunta reescrita. Se detecta con exámenes nuevos del mismo estilo: si el modelo cae al pasar al examen nuevo, había memorizado. Se mitiga con benchmarks que fechan o renuevan sus preguntas, como LiveCodeBench y LiveBench.",
       "analogia": "Como un alumno que consiguió el examen la noche anterior: saca 10, pero no sabe más. Se rompe en que el modelo no «hizo trampa» a propósito: nadie revisó línea por línea los billones de tokens con que lo entrenaron.",
-      "ejemplo": "Con 1,000 problemas nuevos del estilo de GSM8K, escritos a mano (GSM1k), algunos modelos cayeron hasta ≈ 8 puntos contra su puntaje en GSM8K (versión publicada del estudio, 2024).",
+      "ejemplo": "Con 1,205 problemas nuevos del estilo de GSM8K, escritos a mano (GSM1k), algunos modelos cayeron hasta ≈ 8 puntos contra su puntaje en GSM8K (versión publicada del estudio, 2024).",
       "ver": ["benchmark", "saturacion"], "leccion": "elegir-modelo" },
     { "id": "saturacion", "termino": "Benchmark saturado", "en": "saturated benchmark",
       "corto": "Un benchmark en el que los mejores modelos ya sacan casi el máximo, así que dejó de separarlos: las diferencias que quedan son del tamaño del ruido o de los errores del propio examen.",
@@ -64,7 +64,7 @@
       "ver": ["benchmark"], "leccion": "elegir-modelo" },
     { "id": "destilacion", "termino": "Destilación", "en": "distillation · knowledge distillation",
       "corto": "Entrenar un modelo chico (el alumno) con las respuestas de uno grande (el maestro), para que imite lo que hace el grande a una fracción del costo de servirlo.",
-      "largo": "En los LLMs de razonamiento, lo más común es ajustar un [[modelo-base]] chico con respuestas del maestro que incluyen su cadena de pensamiento (SFT). DeepSeek hizo así sus modelos «R1-Distill», sin aprendizaje por refuerzo. Qwen reporta que para Qwen3-8B destilar costó ≈ 1,800 horas de GPU contra ≈ 17,920 del refuerzo directo, y salió mejor en AIME 2024 (74.4 contra 67.6, auto-reportado).",
+      "largo": "En los LLMs de razonamiento, lo más común es ajustar un [[modelo-base]] chico con respuestas del maestro que incluyen su cadena de pensamiento (SFT). DeepSeek hizo así sus modelos «R1-Distill», sin aprendizaje por refuerzo. Qwen reporta que, partiendo del mismo Qwen3-8B a medio entrenar, seguir con destilación costó ≈ 1,800 horas de GPU contra ≈ 17,920 de seguir con refuerzo, y salió mejor en AIME 2024 (74.4 contra 67.6, auto-reportado, mayo de 2025).",
       "analogia": "Un aprendiz que copia la forma de trabajar del maestro sin haber pasado por los años de prueba y error. Se rompe en que el aprendiz no supera al maestro en lo que el maestro no le mostró, y hereda sus errores.",
       "ejemplo": "DeepSeek-R1-Distill-Qwen-32B: la base Qwen2.5-32B ajustada con muestras de DeepSeek-R1 (671 mil millones de parámetros, 37 mil millones activos).",
       "ver": ["modelo-razonamiento"], "leccion": "elegir-modelo" }

@@ -86,7 +86,7 @@
       "y": 17,
       "w": 17,
       "h": 9,
-      "note": "¿El fabricante declara español, o al menos lo mide (MMMLU, que incluye español)? Phi-4 declara un solo idioma, inglés: sale aquí. Pasar este filtro no prueba que escriba buen español jurídico; eso lo dice el examen."
+      "note": "¿El fabricante declara español, o al menos lo mide (MMMLU, que incluye español)? Phi-4 y Olmo 3 declaran un solo idioma, inglés: salen aquí. Pasar este filtro no prueba que escriba buen español jurídico; eso lo dice el examen."
     },
     {
       "id": "contexto",
@@ -98,7 +98,7 @@
       "y": 17,
       "w": 17,
       "h": 9,
-      "note": "El despacho necesita ≈ 6,500 tokens por pregunta (6,000 de entrada y 500 de respuesta) y un tope de 8,192. Casi todos los modelos de 2026 anuncian 128K o más, así que este filtro casi no descarta; Phi-4, con 16,384, pasaría justo."
+      "note": "El despacho necesita ≈ 6,500 tokens por pregunta (6,000 de entrada y 500 de respuesta) y un tope de 8,192. Casi todos los modelos de 2026 anuncian 128K o más, así que este filtro casi no descarta; hasta Phi-4, con 16,384, lo pasa (aunque ya salió por idioma)."
     },
     {
       "id": "fuera",

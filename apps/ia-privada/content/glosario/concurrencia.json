@@ -32,7 +32,7 @@
       "en": "token throughput",
       "corto": "Cuántos tokens produce el servidor por segundo, sumando a todas las personas. Es lo que mide el servidor; lo que siente cada persona es su propia velocidad.",
       "largo": "Hay varias versiones y conviene decir cuál: de salida (solo los tokens escritos, la que usa NVIDIA en sus tablas), total (entrada más salida, que infla el número cuando los prompts son largos) y por persona (tokens de salida ÷ latencia de cada respuesta). Al subir la concurrencia, el total sube y el de cada persona baja.",
-      "analogia": "Los litros por minuto de una regadera repartidos en varios grifos: el total sube al abrir más grifos, pero cada uno echa menos. **Dónde se rompe:** en una regadera el total nunca sube por abrir más; en una GPU sí, porque los pesos se leen una vez para todos.",
+      "analogia": "Los pasajeros que mueve un camión por hora: con veinte a bordo hace el mismo recorrido que con uno y mueve veinte veces más gente, pero cada parada para subir a alguien alarga el viaje de todos. **Dónde se rompe:** un camión lleno no anda más lento; una GPU con más conversaciones sí, porque en cada paso lee el KV cache de cada una.",
       "ejemplo": "L40S, Llama 3.1 8B en FP8: con 1 conversación, 71 tokens/s totales; con 100, 2,869 totales y 29 para cada persona.",
       "ver": [
         "codo",
@@ -46,7 +46,7 @@
       "termino": "Codo de la curva",
       "en": "knee",
       "corto": "El punto de una curva de carga donde subir la gente ya casi no da más throughput y sí mucha más latencia.",
-      "largo": "Antes del codo, cada conversación nueva suma tokens por segundo casi gratis. Después, el throughput se aplana porque algo se llenó (la memoria del KV cache, el ancho de banda o el cómputo) y lo que sobra se va a la fila: el TTFT crece sin cota. La capacidad útil está antes del codo, donde todavía se cumple la promesa.",
+      "largo": "Antes del codo, cada conversación nueva suma tokens por segundo casi gratis. Después, el throughput se aplana porque algo se llenó (la memoria del KV cache, el ancho de banda o el cómputo) y lo que sobra se va a la fila: el TTFT se dispara. La capacidad útil está antes del codo, donde todavía se cumple la promesa.",
       "ejemplo": "L40S con Llama 3.1 8B en BF16: de 50 a 100 conversaciones a la vez el throughput sube de 1,226 a 1,613 tokens/s; de 100 a 200, solo a 1,619, mientras el TTFT pasa de 2.8 s a 64 s.",
       "ver": [
         "throughput-de-tokens",
@@ -73,7 +73,7 @@
       "termino": "Goodput",
       "en": "goodput",
       "corto": "El throughput que sí cuenta: las peticiones por segundo que terminan cumpliendo **todas** sus promesas de latencia.",
-      "largo": "DistServe (OSDI 2024) lo definió para LLMs como la tasa más alta de peticiones por GPU que se puede atender dentro de los objetivos de TTFT y de TPOT. `vllm bench serve --goodput` lo mide así: cuenta una petición como buena solo si cumple cada SLO que le das. Un servidor puede tener mucho throughput y casi cero goodput.",
+      "largo": "Hay dos versiones. En una prueba, `vllm bench serve --goodput` cuenta una petición como buena solo si cumple cada SLO que le das y reporta las buenas por segundo. Como medida de capacidad, DistServe (OSDI 2024) lo define como la tasa de llegada más alta, por GPU, a la que una fracción pedida de las peticiones (por ejemplo, 90 %) cumple sus objetivos de TTFT y de TPOT. Un servidor puede tener mucho throughput y casi cero goodput.",
       "analogia": "Las pizzas por hora que llegan calientes y a tiempo, no las que salen del horno. **Dónde se rompe:** una pizza fría todavía se come; una respuesta que tarda 60 s en empezar, muchas veces ya nadie la lee.",
       "ejemplo": "L40S con Llama 3.1 8B en BF16 y 200 conversaciones a la vez: 1,619 tokens/s de throughput, pero con TTFT de 64 s su goodput contra una promesa de 2 s es casi cero.",
       "ver": [

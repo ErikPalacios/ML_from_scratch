@@ -7,7 +7,7 @@
     "opciones": [
       { "label": "AIME: 94.1 contra 89.2, 30 problemas", "valores": { "pA": 94.1, "nA": 30, "pB": 89.2, "nB": 30 }, "nota": "Qwen3.6 27B y Gemma 4 31B en AIME 2026, en la tabla de Qwen (auto-reportado, a noviembre de 2026). Con tan pocos problemas, la aproximación de campana se pasa de 100 %: el ruido es enorme de todos modos." },
       { "label": "200 preguntas: 86 contra 84", "valores": { "pA": 86, "nA": 200, "pB": 84, "nB": 200 }, "nota": "Un benchmark chico, del tamaño de muchos subconjuntos que se publican." },
-      { "label": "12,000 preguntas: 86.2 contra 85.2", "valores": { "pA": 86.2, "nA": 12000, "pB": 85.2, "nB": 12000 }, "nota": "Qwen3.6 27B y Qwen3.6 35B-A3B en MMLU-Pro (auto-reportado por Qwen), suponiendo un examen de ≈ 12,000 preguntas." },
+      { "label": "12,000 preguntas: 86.2 contra 85.2", "valores": { "pA": 86.2, "nA": 12000, "pB": 85.2, "nB": 12000 }, "nota": "Qwen3.6 27B y Qwen3.6 35B-A3B en MMLU-Pro (auto-reportado por Qwen, a noviembre de 2026). MMLU-Pro tiene 12,032 preguntas; aquí se redondea a 12,000." },
       { "label": "El examen del despacho: 88 contra 85, 200 preguntas", "valores": { "pA": 88, "nA": 200, "pB": 85, "nB": 200 }, "nota": "Supuesto del ejemplo: dos modelos de la shortlist en las 200 preguntas propias del despacho." }
     ]
   },

@@ -49,20 +49,20 @@ Estas son las que importan a noviembre de 2026 para una empresa con una o pocas 
 
 | Familia | Fabricante | Licencia (de los modelos de esta lección) | Lo más nuevo que cabe en una GPU de 48 GB |
 |---|---|---|---|
-| Qwen | Alibaba | Apache 2.0 | Qwen3.8 27B (agosto de 2026), Qwen3.6 27B y 35B-A3B (abril de 2026) |
-| Gemma | Google | Apache 2.0 desde Gemma 4 (Gemma 3 tenía licencia propia) | Gemma 4 31B y 26B-A4B (marzo de 2026) |
-| Mistral | Mistral AI | Apache 2.0 en Small; «other» en Medium 3.5 y Large 4 | Mistral Small 3.2 24B (junio de 2025) |
+| Qwen | Alibaba | Apache 2.0 | Qwen3.8 27B (agosto de 2026); Qwen3.6 27B y 35B-A3B (abril de 2026) |
+| Gemma | Google | Apache 2.0 desde Gemma 4 (Gemma 3 tenía licencia propia) | Gemma 4 31B y 26B-A4B (marzo de 2026) y 12B (mayo de 2026) |
+| Mistral | Mistral AI | Apache 2.0 en Small y Ministral; «other» en Medium 3.5 y Large 4 | Ministral 3 14B (diciembre de 2025); Mistral Small 3.2 24B (junio de 2025) |
 | gpt-oss | OpenAI | Apache 2.0 | gpt-oss-20b (agosto de 2025) |
-| Llama | Meta | Llama Community License, a medida | Llama 3.1 8B; Llama 4 Scout ya pesa 108.6 mil millones |
-| DeepSeek | DeepSeek | MIT | ninguno: V4 y V4.1 pesan cientos de GB |
-| Phi | Microsoft | MIT | Phi-4 14B (diciembre de 2024), contexto de 16,384 |
+| Llama | Meta | Llama Community License, a medida | Llama 3.2, hasta 11B (septiembre de 2024); Llama 4 Scout ya pesa 108.6 mil millones |
+| DeepSeek | DeepSeek | MIT | ninguno propio: V4 y V4.1 pesan cientos de GB; solo sus destilados sobre bases de Qwen y Llama |
+| Phi | Microsoft | MIT | Phi-4 14B (diciembre de 2024, contexto de 16,384) y sus variantes de razonamiento (2025 a enero de 2026) |
 | OLMo | Ai2 | Apache 2.0 | Olmo 3 32B Think (noviembre de 2025), con datos y código abiertos |
 
 Tres cosas que dice esta tabla:
 
 - **El panorama cambió mucho desde 2025.** Qwen3 32B, el modelo del despacho, salió en abril de 2025. Desde entonces Qwen publicó tres generaciones más. Sigue funcionando y está bien documentado, pero ya no es lo más nuevo.
-- **Llama se quedó quieto.** En el listado de Meta en Hugging Face, lo último es Llama 4, de abril de 2025. Los más grandes y nuevos (DeepSeek V4, Kimi K3.1, GLM-5.3) son abiertos, pero no caben en un servidor de una GPU.
-- **El tamaño útil para 24–48 GB** son densos de ≈ 24 a 32 mil millones de parámetros o mezclas de expertos de ≈ 20 a 36 mil millones con ≈ 3 a 4 mil millones activos.
+- **Llama se quedó quieto.** En el listado de Meta en Hugging Face, a noviembre de 2026, lo último es Llama 4, de abril de 2025. Los más grandes y nuevos (DeepSeek V4, Kimi K3.1, GLM-5.3) son abiertos, pero no caben en un servidor de una GPU.
+- **El tamaño útil para 24–48 GB** son densos de ≈ 24 a 32 mil millones de parámetros o mezclas de expertos de ≈ 20 a 36 mil millones con ≈ 3 a 4 mil millones activos. Una familia también tiene modelos más chicos (Ministral 3 14B, Gemma 4 12B): caben de sobra, y su examen dirá si les alcanza.
 
 ### Cómo leer un nombre
 
@@ -72,7 +72,7 @@ Los nombres parecen claves de inventario, pero casi todos siguen el mismo orden.
 Cada pieza del nombre contesta una pregunta distinta: de qué familia y generación es, cuánto ocupa, cuánto trabaja por token, cómo se ajustó y de qué fecha es la revisión.
 :::
 
-- **Familia y generación: Qwen3.** El número de generación no es una escala: Qwen3.6 no es «0.6 mejor» que Qwen3. Desde Qwen3.5, la mayoría de los bloques de Qwen usan una atención «lineal» que casi no guarda KV cache; es otra máquina por dentro.
+- **Familia y generación: Qwen3.** El número de generación no es una escala: Qwen3.6 no es «0.6 mejor» que Qwen3. Y puede cambiar la máquina por dentro: desde Qwen3.5, tres de cada cuatro bloques de Qwen usan una atención «lineal», que en vez de guardar un KV cache que crece con cada token guarda un resumen de tamaño fijo por conversación.
 - **Tamaño: 30B.** Parámetros totales, en miles de millones (*billions*). Es lo que decide la memoria.
 - **Activos: A3B.** Si aparece, es una mezcla de expertos ([[moe|MoE]]) y ese número son los [[parametros-activos|parámetros activos]] por token. Si no aparece, es un [[modelo-denso|modelo denso]]. Gemma escribe lo mismo como 26B-A4B; gpt-oss no lo pone en el nombre (gpt-oss-20b tiene 3.6 mil millones activos).
 - **Cómo se ajustó: Instruct.** «Base» es el modelo sin ajustar; «Instruct» (o «-it» en Gemma) sigue instrucciones; «Thinking» piensa antes de contestar. Si no dice nada, lee la ficha: Qwen3 32B es un solo modelo que hace las dos cosas con un interruptor.
@@ -152,7 +152,7 @@ Compara los dos Qwen3 de la misma fecha, abril de 2025, que el despacho tiene en
 
 :::cuenta Qwen3 32B (denso) contra Qwen3 30B-A3B (MoE), en 4 bits en una L40S
 Pesos en memoria // cuenta corta \(P × 4.16 ÷ 8\) con los totales: 32.76 y 30.53 | 17.0 contra 15.9 | casi iguales
-KV cache por token // de su config.json: 64 bloques × 8 juegos × 128 contra 48 × 4 × 128, × 2 × 2 bytes | 256 KiB contra 96 KiB | 2.7 veces menos
+KV cache por token // de su config.json: 64 bloques × 8 juegos × 128 contra 48 × 4 × 128, × 2 × 2 bytes; 1 KiB = 1,024 bytes | 256 KiB contra 96 KiB | 2.7 veces menos
 KV de 8 conversaciones de 8,192 tokens // KV por token × 65,536 tokens | 17.18 GB contra 6.44 GB | 10.7 GB libres de más
 Pesos leídos por token, \(W_{activo}\) // activos: 32.8 contra 3.3 mil millones, × 4.16 ÷ 8 | 17.0 GB contra 1.7 GB | 10 veces menos
 Techo de una conversación, \(v_{tope}\) // 0.7 × 864 GB/s ÷ \(W_{activo}\); el denso con su cuenta exacta de 19.32 GB | ≈ 31 contra ≈ 350 tokens/s | techos, no mediciones
@@ -163,7 +163,7 @@ Calidad // tablas del paper de Qwen3, con razonamiento: GPQA Diamond y AIME 2025
 
 El techo de ≈ 350 tokens/s del MoE es una cuenta, no una promesa: la tabla de salida en 16 bits, el KV cache y el propio programa se leen también en cada paso, y bajan ese número. Que el MoE sea varias veces más rápido para una conversación sola sí es lo esperable. Con muchas conversaciones a la vez, entre todas tocan casi todos los expertos, y la ventaja se achica.
 
-El caso extremo es **Mistral Small 4**: 119.4 mil millones en total y 6.5 mil millones activos. Trabaja como un modelo de 6.5B, pero en 4 bits sus pesos ocupan ≈ 62 GB. No cabe en una L40S. El nombre «Small» se refiere a la familia, no a tu GPU.
+El caso extremo es **Mistral Small 4**: 119.4 mil millones en total y 6.5 mil millones activos. Trabaja como un modelo de 6.5B, pero en 4 bits sus pesos ocupan ≈ 62 GB con la cuenta corta (≈ 64 con las tablas de tokens en 16 bits, como en la figura). No cabe en una L40S. El nombre «Small» se refiere a la familia, no a tu GPU.
 
 :::ojo
 «3B activos» no quiere decir «sabe como uno de 3B», ni «cabe como uno de 3B». Sabe parecido a un denso algo más chico que su total, cabe como su total y escribe como uno mucho más chico.
@@ -184,8 +184,8 @@ El camino de un modelo, de base a destilado. Toca cada caja o usa «Recorrer».
 En 2026 el razonamiento viene de tres formas:
 
 1. **Un modelo aparte.** Qwen3-30B-A3B-Instruct-2507 y Qwen3-30B-A3B-Thinking-2507 son dos archivos distintos.
-2. **Un interruptor en el mismo modelo.** Qwen3 32B y los Qwen3.5 a 3.8 se apagan con `enable_thinking=false`; Mistral Small 4 usa `reasoning_effort` (`none` o `high`); Gemma 4 se enciende con el token `<|think|>` al inicio del *system prompt*. Ojo: desde Qwen3.5, los Qwen **piensan por omisión**.
-3. **Solo razonamiento, con niveles.** gpt-oss tiene `Reasoning: low/medium/high`; Qwen3.8 27B, `reasoning_effort` xhigh, medium o low; DeepSeek V4.1 Flash, un esfuerzo de 1 a 100.
+2. **Un interruptor en el mismo modelo.** Qwen3 32B y los Qwen3.5 a 3.8 se apagan con `enable_thinking=false`; Mistral Small 4 usa `reasoning_effort` (`none` o `high`); Gemma 4 se enciende con el token `<|think|>` al inicio del *system prompt*. Ojo: los Qwen, desde Qwen3 (el del despacho incluido), **piensan por omisión**: si no lo apagas, piensa.
+3. **Niveles de esfuerzo.** gpt-oss no se puede apagar: siempre razona, con `Reasoning: low/medium/high`. Qwen3.8 27B, además de su interruptor, tiene `reasoning_effort` xhigh (el de omisión), medium o low; DeepSeek V4.1 Flash, un esfuerzo de 1 a 100.
 
 ### Lo que cuesta pensar
 
@@ -216,7 +216,7 @@ Tokens de la conversación // 6,000 de entrada + 1,500 + 500, contra el tope de 
 = Pensar 1,500 tokens convierte una respuesta de medio minuto en una de casi dos, y deja la conversación al borde del tope. Con 2,000 tokens pensados ya serían 8,500: no cabe.
 :::
 
-Y 1,500 tokens es poco. El paper de gpt-oss reporta que gpt-oss-20b usa **más de 20,000 tokens de pensamiento por problema, en promedio, en AIME**. A 20 tokens por segundo son 1,000 s, casi 17 minutos, antes de la primera palabra. Qwen recomienda, para las tareas complejas de Qwen3.5 y 3.6, permitir hasta 81,920 tokens de salida, y al menos 128K de contexto para no recortarles el pensamiento.
+Y 1,500 tokens es poco. El paper de gpt-oss (agosto de 2025) reporta que gpt-oss-20b usa **más de 20,000 tokens de pensamiento por problema, en promedio, en AIME**, el examen de matemáticas que ves en la sección de benchmarks. A 20 tokens por segundo son 1,000 s, casi 17 minutos, antes de la primera palabra. Para los problemas más difíciles de concurso, la ficha de Qwen3.6 recomienda permitir hasta 81,920 tokens de salida (32,768 para lo demás), y al menos 128K de contexto para no recortarle el pensamiento.
 
 :::calculadora elegir-modelo-razonamiento
 Mueve los tokens pensados y mira cómo crecen la espera y la memoria. Cambia el modelo para ver cuánto pesa cada token pensado en su KV cache.
@@ -231,7 +231,7 @@ Un [[benchmark]] es un examen público y fijo, con sus preguntas y su forma de c
 | Benchmark | Qué mide | Tamaño y forma |
 |---|---|---|
 | MMLU | Conocimiento general en 57 materias (historia, medicina, derecho, matemáticas…) | Opción múltiple, 4 opciones (2020) |
-| MMLU-Pro | Lo mismo, más difícil: preguntas de razonamiento y sin las triviales | 10 opciones; la precisión baja 16 a 33 puntos contra MMLU (2024) |
+| MMLU-Pro | Lo mismo, más difícil: preguntas de razonamiento y sin las triviales | 12,032 preguntas de 10 opciones; la precisión baja 16 a 33 puntos contra MMLU (2024) |
 | MMLU-Redux | 5,700 preguntas de MMLU revisadas a mano | Encontró errores en ≈ 6.5 % de MMLU (2024) |
 | MMMLU | MMLU traducido por personas a 14 idiomas, español incluido | La forma más común de medir otros idiomas en las fichas |
 | GPQA Diamond | Biología, física y química de nivel doctorado, «a prueba de Google» | Del set completo de 448: doctores 65 %, no expertos con internet 34 % (2023) |
@@ -239,9 +239,9 @@ Un [[benchmark]] es un examen público y fijo, con sus preguntas y su forma de c
 | HumanEval | Escribir una función que pase sus pruebas | Problemas de programación desde su descripción (2021) |
 | LiveCodeBench | Programación de concurso (LeetCode, AtCoder, Codeforces), con fecha | Preguntas fechadas para evitar contaminación (2024) |
 | MATH / MATH-500 | Matemáticas de competencia con solución paso a paso | 12,500 problemas; MATH-500 es un subconjunto (2021) |
-| AIME | El examen de invitación de la olimpiada de matemáticas de EE. UU. | Respuesta entera; muy pocos problemas por año |
-| LiveBench | Varias tareas con respuesta objetiva, preguntas renovadas cada mes | 18 tareas en 6 categorías (2024) |
-| RULER | Si el modelo usa de verdad el contexto que anuncia | Varias «agujas» escondidas en textos largos (2024) |
+| AIME | El examen por invitación que da el paso a la olimpiada de matemáticas de EE. UU. | Respuesta entera; solo 30 problemas por año (dos exámenes de 15) |
+| LiveBench | Varias tareas con respuesta objetiva, con preguntas nuevas cada mes | 18 tareas en 6 categorías (2024) |
+| RULER | Si el modelo usa de verdad el contexto que anuncia | Esconde datos, las «agujas», en textos largos y pide encontrarlos (2024) |
 | La Leaderboard, IberBench | Español (de España y Latinoamérica) y otras lenguas ibéricas | 66 y 101 conjuntos de datos (2025) |
 
 Para el despacho, ninguno mide exactamente su tarea. Los que más se acercan son IFEval (seguir instrucciones de formato, como «cita documento y página»), MMMLU y los de español (el idioma) y RULER (usar bien 6,000 tokens de fragmentos). AIME y LiveCodeBench miden cosas que el despacho no pide.
@@ -328,9 +328,9 @@ print("86.2 contra 85.2, 12,000 cada uno:", se_distinguen(0.862, 0.852, 12000, 1
 
 Lee las tres filas:
 
-- **AIME, 30 problemas.** El intervalo de 94.1 llega a 102.5 %, que no existe. Es la señal de que con tan pocas preguntas y tan cerca del 100 % la campana ya no aproxima bien; el intervalo real es asimétrico, pero igual de ancho. Lo importante: 94.1 contra 89.2 (Qwen3.6 27B contra Gemma 4 31B en la tabla de Qwen) **no se distingue**. AIME tiene muy pocos problemas por año; repetir varias veces cada problema baja el ruido del muestreo del modelo, pero no el de haber elegido solo esos problemas.
+- **AIME, 30 problemas.** El intervalo de 94.1 llega a 102.5 %, que no existe. Es la señal de que con tan pocas preguntas y tan cerca del 100 % la campana ya no aproxima bien; el intervalo real es asimétrico, pero igual de ancho. Lo importante: 94.1 contra 89.2 (Qwen3.6 27B contra Gemma 4 31B en la tabla de Qwen) **no se distingue**. AIME tiene solo 30 problemas por año; repetir varias veces cada problema baja el ruido del muestreo del modelo, pero no el de haber elegido solo esos problemas.
 - **200 preguntas.** Ni 2 puntos se distinguen.
-- **12,000 preguntas.** Con un examen del tamaño de MMLU-Pro, 1 punto ya es estadísticamente real. Pero «real» no quiere decir «importante»: es 1 punto en preguntas de opción múltiple que no son las del despacho.
+- **12,000 preguntas.** Con un examen del tamaño de MMLU-Pro (12,032), 1 punto ya es estadísticamente real. Pero «real» no quiere decir «importante»: es 1 punto en preguntas de opción múltiple que no son las del despacho.
 
 :::figura elegir-modelo-intervalos
 Los mismos 2 puntos de diferencia, medidos con tres tamaños de examen. Con 200 preguntas los intervalos casi se tapan; con 10,000 ya no se tocan.
@@ -380,17 +380,17 @@ La [[contaminacion|contaminación]] (*contamination*) es cuando las preguntas de
 
 Las pruebas con cifras:
 
-- **GSM1k (2024).** Unos investigadores escribieron a mano, sin LLMs, 1,000 problemas nuevos del estilo de GSM8K (aritmética de primaria en palabras). Algunos modelos cayeron **hasta ≈ 8 puntos** al pasar de GSM8K al set nuevo, según la versión publicada del estudio (la primera versión decía hasta 13). Los modelos de frontera casi no cayeron. Y la caída se relacionaba con qué tan probable era que el modelo «recitara» ejemplos de GSM8K.
+- **GSM1k (2024).** Unos investigadores escribieron a mano, sin usar ningún LLM, 1,205 problemas nuevos del estilo de GSM8K (aritmética de primaria en palabras). Algunos modelos cayeron **hasta ≈ 8 puntos** al pasar de GSM8K al set nuevo, según la versión publicada del estudio (la primera versión decía hasta 13). Los modelos de frontera casi no cayeron. Y la caída se relacionaba con qué tan probable era que el modelo «recitara» ejemplos de GSM8K.
 - **Parafrasear evade los filtros (2023).** Los fabricantes quitan de sus datos los textos idénticos a los benchmarks. Pero una pregunta reescrita o traducida pasa el filtro: con eso, un modelo de 13 mil millones de parámetros llegó a igualar a GPT-4 en MMLU, GSM8K y HumanEval.
-- **MMLU-CF (2024).** Microsoft armó una versión de MMLU sin contaminación, con preguntas cerradas. GPT-4o saca 73.4 % ahí (con 5 ejemplos en el prompt) y 71.9 % sin ejemplos.
+- **MMLU-CF (2024).** Microsoft armó un examen del estilo de MMLU pensado para no estar contaminado: preguntas de fuentes nuevas, filtradas, y un set de prueba que nunca se publicó. GPT-4o saca ahí 73.4 % (con 5 ejemplos en el prompt) y 71.9 % sin ejemplos; los autores lo leen como señal de que su examen es más difícil y más limpio.
 
-La defensa son los benchmarks **con fecha** o **renovados**: LiveCodeBench usa problemas publicados después de cierta fecha, y LiveBench cambia ≈ 1/6 de sus preguntas cada mes. LiveBench mismo dice que limita la contaminación, no que la elimina.
+La defensa son los benchmarks **con fecha** o **renovados**: LiveCodeBench usa problemas publicados después de cierta fecha, y LiveBench publica preguntas nuevas cada mes. LiveBench mismo dice que limita la contaminación, no que la elimina.
 
 ### Saturación: cuando todos sacan casi 100
 
 Un [[saturacion|benchmark saturado]] ya no separa a los buenos. MMLU es el caso clásico: gpt-oss-120b saca 90.0 (su paper), y la revisión a mano de MMLU-Redux encontró errores en ≈ 6.5 % de las preguntas de MMLU, y en 57 % de las de virología. Sobre ≈ 90 % ya se compite contra etiquetas mal puestas.
 
-En MMLU-Redux, Qwen3.6 27B saca 93.5 y Gemma 4 31B 93.7 (tabla de Qwen). Esa diferencia de 0.2 no dice nada. Por eso las fichas de 2026 casi no reportan MMLU clásico y se movieron a MMLU-Pro, GPQA y pruebas de agentes, que en uno o dos años se saturarán también.
+En MMLU-Redux, Qwen3.6 27B saca 93.5 y Gemma 4 31B 93.7 (tabla de Qwen). Esa diferencia de 0.2 no dice nada. Por eso las fichas de 2026 casi no reportan MMLU clásico y se movieron a MMLU-Pro, GPQA y pruebas de agentes (el modelo usa herramientas por su cuenta para terminar una tarea), que también se saturarán.
 
 :::analogia El examen que circula
 Un examen de admisión que lleva años circulando en fotocopias: los alumnos sacan cada vez más, pero no saben más. La universidad lo cambia (un benchmark nuevo), y el ciclo vuelve a empezar.
@@ -411,12 +411,12 @@ P_A = frac{1}{1 + 10^{−d/400}}
 :::
 
 :::cuenta Qué tan lejos está un modelo chico de la cima
-Arriba de los que parecen abiertos // MiMo-V2.6-Pro, en la página del 22 de noviembre de 2026 | 1,481 | 1,481
-Un modelo chico // Granite 4.1 8B | 1,305 | 1,305
+Un abierto de lo más alto // MiMo-V2.6-Pro, de Xiaomi: pesos con licencia MIT, ≈ 1,024 mil millones de parámetros; página del 22 de noviembre de 2026 | 1,481 | 1,481
+Un abierto chico // Granite 4.1 8B, de IBM, Apache 2.0 | 1,305 | 1,305
 Diferencia, \(d\) | 1,481 − 1,305 | 176
 Probabilidad de que gane el de arriba, \(P_A\) | 1 ÷ (1 + 10^(−176/400)) | ≈ 73 %
 Con 100 puntos de diferencia | 1 ÷ (1 + 10^(−100/400)) | ≈ 64 %
-= Incluso 176 puntos de diferencia significan que el de abajo gana más de 1 de cada 4 duelos. Y ninguno de los modelos de la cima cabe en una GPU de 48 GB.
+= Incluso 176 puntos de diferencia significan que el de abajo gana más de 1 de cada 4 duelos. Y ninguno de los modelos de la cima cabe en una GPU de 48 GB: los primeros lugares (hasta 1,527) son modelos cerrados de Google y Anthropic, y MiMo, aun en 4 bits, ocupa más de 10 veces los 43.2 GB útiles de la L40S.
 :::
 
 Es un buen termómetro de lo que prefiere la gente en general. Para elegir el modelo del despacho tiene cuatro sesgos:
@@ -461,11 +461,11 @@ Se queda con lo que permite uso comercial sin condiciones que el despacho no pue
 2. Memoria
 Pesos en 4 bits + KV cache de 8 × 8,192 tokens + 2 GB, contra los 43.2 GB útiles de una L40S. Es la cuenta de la herramienta de VRAM, y saca a los que pesan de más aunque sean «Small». Ojo: este filtro dice si **cabe**, no si se atiende bien; eso lo dice la velocidad, más abajo.
 3. Idioma
-Español declarado por el fabricante, o al menos medido (MMMLU incluye español). Phi-4 declara solo inglés y sale aquí.
+Español declarado por el fabricante, o al menos medido (MMMLU incluye español). Phi-4 y Olmo 3 declaran solo inglés y salen aquí.
 4. Contexto
 Al menos 8,192 tokens. Casi todos pasan: los modelos de 2026 anuncian 128K o más.
 5. Shortlist y examen
-Lo que queda se ordena con benchmarks leídos con su ruido, y se examina con las 200 preguntas del despacho.
+Lo que queda es la lista corta (*shortlist*) de candidatos. Se ordena con benchmarks leídos con su ruido, y se examina con las 200 preguntas del despacho.
 :::
 
 ### El filtro de memoria, con números
@@ -482,24 +482,24 @@ Lo que pasa los cuatro filtros:
 
 | Modelo (a noviembre de 2026) | Pesos en 4 bits | KV de 8 × 8,192 | Total aprox. | Leer 6,000 tokens en la L40S | Español |
 |---|---|---|---|---|---|
-| Qwen3 32B (la referencia) | 19.32 GB (exacta) | 17.18 GB | 38.50 GB | ≈ 2.2 s | 119 lenguas declaradas (paper de Qwen3) |
-| Qwen3.6 27B | ≈ 14.4 GB + tablas | 4.29 GB + un estado fijo | ≈ 21 GB | ≈ 1.8 s | no lo declara; mide MMMLU |
-| Qwen3.8 27B | igual que 3.6 | igual que 3.6 | ≈ 21 GB | ≈ 1.8 s | no lo declara |
-| Gemma 4 31B | ≈ 16.3 GB + tablas | del orden de 12 GB (estimación) | ≈ 30 GB | ≈ 2.0 s | 140+ en preentrenamiento, 35+ soportados |
-| gpt-oss-20b | ≈ 13–14 GB (MXFP4, como se publica) | 1.61 GB + 3 MB fijos | ≈ 17 GB | ≈ 0.2 s | no lista; MMMLU en español 81.2 (nivel high) |
-| Mistral Small 3.2 24B | ≈ 12.5 GB + tablas | 10.74 GB | ≈ 25 GB | ≈ 1.6 s | 24 idiomas declarados en su ficha |
+| Qwen3 32B (la referencia) | 19.32 GB | 17.18 GB | 38.50 GB | ≈ 2.2 s | 119 lenguas y dialectos en su preentrenamiento (paper de Qwen3) |
+| Qwen3.6 27B | ≈ 18.2 GB | 4.29 GB + ≈ 1.2 GB de estado fijo | ≈ 26 GB | ≈ 1.8 s | no lo declara; mide MMMLU |
+| Qwen3.8 27B | igual que 3.6 | igual que 3.6 | ≈ 26 GB | ≈ 1.8 s | no lo declara |
+| Gemma 4 31B | ≈ 18.3 GB | ≈ 9 a 12 GB (estimación) | ≈ 30 a 32 GB | ≈ 2.0 s | 140+ en preentrenamiento, 35+ soportados |
+| gpt-oss-20b | ≈ 13.8 GB (en MXFP4, como se publica) | 1.61 GB + ≈ 25 MB fijos | ≈ 17 GB | ≈ 0.2 s | no lista; MMMLU en español 81.2 (nivel high) |
+| Mistral Small 3.2 24B | ≈ 14.5 GB | 10.74 GB | ≈ 27 GB | ≈ 1.6 s | 24 idiomas declarados, español incluido |
 
-La columna de lectura es la cuenta corta de cálculo: 2 × parámetros activos × 6,000 tokens, entre el 50 % de los ≈ 362 billones de operaciones por segundo de la L40S; no cuenta la atención ni la cola, así que la real sale algo más alta (para Qwen3 32B, la cuenta completa da ≈ 2.4 s). Todas las cifras con «≈» son cuentas, no mediciones; antes de comprar se confirman con la herramienta de VRAM y arrancando el servidor. El KV de Qwen3.6 sale de sus 16 bloques de atención completa (64 KiB por token): sus otros 48 bloques guardan un estado fijo por conversación que esta cuenta no incluye. El de Gemma 4 mezcla bloques globales y de ventana, y la cifra es una estimación a confirmar. Qwen3 30B-A3B y Qwen3.6 35B-A3B también pasan; el despacho los guarda para una segunda ronda si la velocidad aprieta.
+Los pesos salen con el mismo método de la herramienta de VRAM: 4.156 bits por peso y las tablas de tokens en 16 bits (las de Qwen3.6 son grandes: 248,320 tokens × 5,120 números, dos tablas, ≈ 5.1 GB solas). gpt-oss-20b se publica ya con sus expertos en MXFP4, un formato de 4 bits, y se usa tal cual: sus archivos pesan 13.8 GB. El total suma pesos + KV + 2 GB de programa. La columna de lectura es la cuenta corta de cálculo: 2 × parámetros activos × 6,000 tokens, entre el 50 % de los ≈ 362 billones de operaciones por segundo de la L40S; no cuenta la atención ni la cola, así que la real sale algo más alta (para Qwen3 32B, la cuenta completa da ≈ 2.4 s). Todas las cifras con «≈» son cuentas, no mediciones; antes de comprar se confirman con la herramienta de VRAM y arrancando el servidor. El KV de Qwen3.6 sale de sus 16 bloques de atención completa (64 KiB por token); sus otros 48 bloques guardan un resumen fijo de ≈ 154 MB por conversación (cuenta con su config.json, en 32 bits como pide), ≈ 1.2 GB las 8. El de Gemma 4 mezcla 10 bloques globales con 50 de ventana, que solo recuerdan los últimos 1,024 tokens; la cifra depende de si guarda K y V por separado en los globales, y es una estimación a confirmar. Qwen3 30B-A3B y Qwen3.6 35B-A3B también pasan; el despacho los guarda para una segunda ronda si la velocidad aprieta.
 
 ### ¿Por qué no cambiar ya a Qwen3.6 27B?
 
 En la tabla de Qwen, Qwen3.6 27B le gana por mucho a Qwen3 32B: 87.8 contra 68.4 en GPQA Diamond, por ejemplo. ¿Por qué el despacho no cambia y ya? Por cinco razones, todas de esta lección:
 
 1. **Son números de otro examen.** GPQA mide química y física de doctorado; AIME, olimpiada de matemáticas. El despacho pregunta por contratos en español.
-2. **Son números con el razonamiento encendido.** El despacho lo sirve apagado, porque pensar no le cabe en 8,192 tokens ni en 20 tokens por segundo. Y los Qwen3.6 piensan por omisión: hay que apagarlos y medirlos así.
+2. **Son números con el razonamiento encendido.** El despacho lo sirve apagado, porque pensar no le cabe en 8,192 tokens ni en 20 tokens por segundo. Y los dos Qwen piensan por omisión: hay que apagarlos y medirlos así.
 3. **Son auto-reportados.** Y en tablas distintas a las de Qwen3 32B, que se midió un año antes, con otras versiones de los benchmarks.
 4. **Entre los nuevos, las diferencias son de ruido.** 94.1 contra 89.2 en AIME (30 problemas) no distingue a Qwen3.6 27B de Gemma 4 31B.
-5. **Hay ventajas que sí se miden en casa.** Qwen3.6 27B lee la pregunta en ≈ 1.8 s contra ≈ 2.2 de Qwen3 32B: con el de referencia, el despacho ni siquiera llega a su objetivo de 2 s. Y su KV es de 64 KiB por token contra 256 de Qwen3 32B. Con la misma memoria, el despacho podría dar contextos 4 veces más largos: 8 conversaciones de 32,768 tokens ocuparían los mismos 17.18 GB de KV que hoy ocupan las de 8,192. Eso cambia qué cabe en el prompt, y vale la pena medirlo.
+5. **Hay ventajas que sí se miden en casa.** Qwen3.6 27B lee la pregunta en ≈ 1.8 s contra ≈ 2.2 de Qwen3 32B: con el de referencia, el despacho ni siquiera llega a su objetivo de 2 s. Y su KV es de 64 KiB por token contra 256 de Qwen3 32B. Con la misma memoria, el despacho podría dar contextos 4 veces más largos: 8 conversaciones de 32,768 tokens ocuparían los mismos 17.18 GB de KV que hoy ocupan las de 8,192 (más ≈ 1.2 GB de su resumen fijo). Eso cambia qué cabe en el prompt, y vale la pena medirlo.
 
 Así que el despacho no cambia de modelo por un puntaje: **mete a Qwen3 32B en su propio examen, junto a los cinco nuevos**, con la misma configuración con que los serviría. Si uno nuevo gana por más del ruido (≈ 7 puntos con 200 preguntas), cambia. Si empatan, mira la velocidad y la memoria (con los nuevos, probablemente a favor del cambio, y quizá con menos de 3 L40S), y lo decide con números suyos. Y si Qwen3 32B gana en su tarea, se queda, aunque «haya salido hace año y medio».
 
@@ -509,11 +509,11 @@ Lo que no cambia: el examen se guarda. Cuando salga Qwen4 o Gemma 5, el despacho
 
 En los nombres vas a ver «Distill». La [[destilacion|destilación]] (*distillation*) es entrenar un modelo chico, el alumno, con las respuestas de uno grande, el maestro, para que imite lo que hace el grande a una fracción del costo de servirlo.
 
-El ejemplo más famoso es **DeepSeek-R1-Distill-Qwen-32B** (enero de 2025). El maestro es DeepSeek-R1, un modelo de razonamiento de 671 mil millones de parámetros con 37 mil millones activos, con licencia MIT. El alumno es la base **Qwen2.5-32B** (no Qwen3), ajustada con muestras de preguntas, razonamientos y respuestas que escribió R1. Fue ajuste supervisado (SFT), sin aprendizaje por refuerzo. DeepSeek hizo seis así, de 1.5 a 70 mil millones, sobre bases de Qwen2.5 y Llama.
+El ejemplo más famoso es **DeepSeek-R1-Distill-Qwen-32B** (20 de enero de 2025). El maestro es DeepSeek-R1, un modelo de razonamiento de 671 mil millones de parámetros con 37 mil millones activos, con licencia MIT. El alumno es la base **Qwen2.5-32B** (no Qwen3), ajustada con muestras de preguntas, razonamientos y respuestas que escribió R1. Fue ajuste supervisado (SFT), sin aprendizaje por refuerzo. DeepSeek hizo seis así, de 1.5 a 70 mil millones, sobre bases de Qwen2.5 y Llama.
 
 Sus resultados, en la tabla de DeepSeek (auto-reportado): 72.6 en AIME 2024, 94.3 en MATH-500 y 62.1 en GPQA Diamond, contra 63.6, 90.0 y 60.0 de o1-mini de OpenAI. Un modelo de 32B que cabía en una GPU parecía razonar como uno cerrado de frontera.
 
-¿Por qué funciona tan bien? Porque aprender de un maestro es más barato que descubrir por prueba y error. Qwen lo midió en su paper de Qwen3: para Qwen3-8B, destilar de sus modelos grandes costó ≈ 1,800 horas de GPU y dio 74.4 en AIME 2024; el aprendizaje por refuerzo directo costó ≈ 17,920 horas, casi 10 veces más, y dio 67.6. Qwen3 30B-A3B y los densos de 0.6 a 14B se hicieron así; Qwen3 32B no (se entrenó con refuerzo directo).
+¿Por qué funciona tan bien? Porque aprender de un maestro es más barato que descubrir por prueba y error. Qwen lo midió en su paper de Qwen3 (mayo de 2025): partiendo del mismo Qwen3-8B a medio entrenar, seguir con destilación de sus modelos grandes costó ≈ 1,800 horas de GPU y dio 74.4 en AIME 2024; seguir con aprendizaje por refuerzo costó ≈ 17,920 horas, casi 10 veces más, y dio 67.6. Qwen3 30B-A3B y los densos de 0.6 a 14B se hicieron así; Qwen3 32B no (se entrenó con refuerzo directo).
 
 Para elegir, dos lecciones:
 
@@ -564,11 +564,11 @@ Por conversación: \(m_{extra}\) = 3,000 × 262,144 bytes ≈ **786 MB**. Las 8:
 ? [medio] En un leaderboard por votos, el modelo A tiene 50 puntos más que el B. ¿Qué tan seguido gana A un duelo?
 \(P_A = 1 ÷ (1 + 10^{−50/400})\) = 1 ÷ (1 + 10^{−0.125}) ≈ 1 ÷ (1 + 0.750) ≈ **57 %**. Gana poco más de la mitad: 50 puntos es una diferencia chica, y aún menos si las preguntas de quienes votan no se parecen a las tuyas.
 ? [medio] Un modelo saca 92 % en GSM8K y 84 % en un set nuevo de problemas del mismo estilo, escritos a mano. Otro saca 90 % y 89 %. ¿Qué te dice esto?
-El primero cae 8 puntos al pasar al set nuevo; el segundo, 1. Con sets de ≈ 1,000 problemas, el ruido de una diferencia es de ≈ ±3 puntos, así que la caída de 8 no es azar: lo más probable es que el primero esté **contaminado** (vio GSM8K o versiones de él al entrenar). El segundo es el que de verdad resuelve problemas nuevos, aunque saque menos en el benchmark famoso.
+El primero cae 8 puntos al pasar al set nuevo; el segundo, 1. Con sets de ≈ 1,200 a 1,300 problemas (los de GSM1k y GSM8K), el ruido de esa diferencia es de ≈ ±2.5 puntos, así que la caída de 8 no es azar: lo más probable es que el primero esté **contaminado** (vio GSM8K o versiones de él al entrenar). El segundo es el que de verdad resuelve problemas nuevos, aunque saque menos en el benchmark famoso.
 ? [reto] El despacho compara dos candidatos que sacan 88 % y 85 % en su examen. ¿Cuántas preguntas haría falta (las mismas para los dos) para distinguir esos 3 puntos? Y con sus 200 preguntas, ¿qué diferencia mínima distinguiría, más o menos?
-Despeja \(n\) de \(p_A − p_B = 1.96 × sqrt{(p_A(1 − p_A) + p_B(1 − p_B)) ÷ n}\): \(n = 1.96^2 × (0.88 × 0.12 + 0.85 × 0.15) ÷ 0.03^2\) = 3.8416 × (0.1056 + 0.1275) ÷ 0.0009 ≈ **995 preguntas**. Con \(n\) = 200 y \(p\) ≈ 0.86 para los dos: \(1.96 × sqrt{2 × 0.86 × 0.14 ÷ 150}\) ≈ 0.068, o sea **≈ 7 puntos**. Conclusión: el examen de 200 preguntas descarta a los que fallan y encuentra diferencias grandes; entre dos que están a 3 puntos, deciden la velocidad, la memoria o una comparación pregunta por pregunta.
+Despeja \(n\) de \(p_A − p_B = 1.96 × sqrt{(p_A(1 − p_A) + p_B(1 − p_B)) ÷ n}\): \(n = 1.96^2 × (0.88 × 0.12 + 0.85 × 0.15) ÷ 0.03^2\) = 3.8416 × (0.1056 + 0.1275) ÷ 0.0009 ≈ **995 preguntas**. Con \(n\) = 200 y \(p\) ≈ 0.86 para los dos: \(1.96 × sqrt{2 × 0.86 × 0.14 ÷ 200}\) ≈ 0.068, o sea **≈ 7 puntos**. Conclusión: el examen de 200 preguntas descarta a los que fallan y encuentra diferencias grandes; entre dos que están a 3 puntos, deciden la velocidad, la memoria o una comparación pregunta por pregunta.
 ? [reto] El despacho quiere subir el tope a 32,768 tokens por conversación, con las mismas 8 conversaciones. ¿Cuánto KV cache necesitaría con Qwen3 32B (256 KiB por token) y con Qwen3.6 27B (64 KiB por token en sus bloques de atención completa)? ¿Cuál cabe en 43.2 GB?
-Tokens a la vez: 8 × 32,768 = 262,144. Qwen3 32B: 262,144 × 262,144 bytes ≈ **68.7 GB** de KV; con 19.32 de pesos y 2 de programa son ≈ 90 GB: **no cabe**, ni de lejos. Qwen3.6 27B: 262,144 × 65,536 bytes ≈ **17.2 GB**, lo mismo que hoy ocupa Qwen3 32B con 8,192; con ≈ 14.4 GB de pesos (más sus tablas) y 2 de programa son ≈ 34 GB más el estado fijo de sus bloques lineales: **cabría**, a confirmar arrancando el servidor. La arquitectura nueva cambia qué contexto puedes dar con la misma GPU.
+Tokens a la vez: 8 × 32,768 = 262,144. Qwen3 32B: 262,144 × 262,144 bytes ≈ **68.7 GB** de KV; con 19.32 de pesos y 2 de programa son ≈ 90 GB: **no cabe**, ni de lejos. Qwen3.6 27B: 262,144 × 65,536 bytes ≈ **17.2 GB**, lo mismo que hoy ocupa Qwen3 32B con 8,192. Con ≈ 18.2 GB de pesos, ≈ 1.2 GB del resumen fijo de sus bloques lineales (no crece con el contexto) y 2 de programa: 18.2 + 17.2 + 1.2 + 2 ≈ **38.6 GB**, menos que 43.2: **cabría**, a confirmar arrancando el servidor. La arquitectura nueva cambia qué contexto puedes dar con la misma GPU.
 ? [reto] Explica con números por qué Mistral Small 4 (119.4 mil millones totales, 6.5 activos) sale del embudo del despacho aunque «trabaje como uno chico».
 Memoria: en 4 bits sus pesos son ≈ 119.4 × 4.156 ÷ 8 ≈ **62.0 GB**, más que los 43.2 GB útiles de la L40S, antes de contar un solo byte de KV cache o de programa. Sale en el filtro 2. Sus 6.5 mil millones activos sí lo harían rápido por token, pero la memoria se paga con los totales: ninguna velocidad compensa un modelo que no arranca.
 :::

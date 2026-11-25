@@ -12,7 +12,7 @@
     { "id": "scheduler", "label": "Scheduler", "sub": "¿entra en este paso?", "kind": "service", "x": 30, "y": 4, "w": 18, "h": 8,
       "note": "El [[scheduler]] solo admite la petición si el gestor de bloques puede darle memoria. Si a media respuesta ya no hay, decide a quién sacar." },
     { "id": "cpu", "label": "RAM de la CPU", "sub": "solo si hay swap", "kind": "store", "x": 58, "y": 4, "w": 18, "h": 8,
-      "note": "Una memoria más grande y mucho más lenta que la [[vram|VRAM]]. Con *swap*, los bloques de una conversación sacada esperan aquí. vLLM, por omisión, no la usa: recalcula." },
+      "note": "Una memoria más grande y mucho más lenta que la [[vram|VRAM]]. Con *swap*, los bloques de una conversación sacada esperan aquí. vLLM no la usa para esto: recalcula." },
     { "id": "prefijos", "label": "Caché de prefijos", "sub": "hash → bloque", "kind": "store", "x": 2, "y": 22, "w": 20, "h": 8,
       "note": "El índice del [[prefix-caching|prefix caching]]: a cada bloque **lleno** le corresponde un hash de sus tokens y de todos los anteriores. Si una petición nueva empieza igual, reutiliza esos bloques." },
     { "id": "gestor", "label": "Gestor de bloques", "sub": "una tabla por conversación", "kind": "service", "x": 30, "y": 22, "w": 18, "h": 8,
@@ -40,9 +40,9 @@
     { "id": "preempcion", "label": "No hay bloques: preemption",
       "steps": [
         { "nodes": ["vram", "libres"], "edges": [], "text": "Las conversaciones crecen un token por paso y cada 16 tokens piden un bloque nuevo. Llega un paso en que la lista de libres está **vacía**." },
-        { "nodes": ["scheduler", "gestor"], "edges": ["scheduler>gestor"], "text": "El scheduler elige una conversación para sacar (normalmente, la que entró al último) y el gestor devuelve sus bloques a la lista." },
-        { "nodes": ["vram", "cpu"], "edges": ["vram>cpu"], "text": "Con *swap*, sus bloques se copiarían a la RAM de la CPU. Con *recompute*, lo que vLLM hace por omisión, se tiran: cuando vuelva a entrar, se recalcula su KV cache con un prefill." },
-        { "nodes": ["scheduler"], "edges": [], "text": "Para esa persona, la respuesta **se congela** unos momentos y luego sigue. En el registro del servidor aparece un aviso de preemption: señal de que faltó memoria." }
+        { "nodes": ["scheduler", "gestor"], "edges": ["scheduler>gestor"], "text": "El scheduler elige una conversación para sacar (en vLLM, con el orden FCFS, la última que entró al batch) y el gestor devuelve sus bloques a la lista." },
+        { "nodes": ["vram", "cpu"], "edges": ["vram>cpu"], "text": "Con *swap*, sus bloques se copiarían a la RAM de la CPU. Con *recompute*, lo que hace vLLM, se tiran: cuando vuelva a entrar, se recalcula su KV cache con un prefill." },
+        { "nodes": ["scheduler"], "edges": [], "text": "Para esa persona, la respuesta **se congela** unos momentos y luego sigue. El servidor suma un desalojo a su contador de preemptions (en su línea de estadísticas y en sus métricas): señal de que faltó memoria." }
       ] }
   ]
 }

@@ -14,7 +14,7 @@
     { "id": "fila", "label": "Fila", "sub": "espera su turno", "kind": "queue", "x": 30, "y": 6, "w": 18, "h": 8,
       "note": "Si la GPU está ocupada con el prefill de otra pregunta, o si no cabe su KV cache, esta espera aquí. Ese tiempo entra completo en el TTFT." },
     { "id": "prefill", "label": "Prefill", "sub": "lee 6,000 tokens", "kind": "gpu", "x": 30, "y": 22, "w": 18, "h": 8,
-      "note": "El prefill lee todo el prompt de una pasada y llena su [[kv-cache|KV cache]]. Con Qwen3 32B y 6,000 tokens son ≈ 393 billones de operaciones: ≈ 2.2 s en una L40S, si logra la mitad de su cómputo pico (η_c = 0.5)." },
+      "note": "El prefill lee todo el prompt de una pasada y llena su [[kv-cache|KV cache]]. Con Qwen3 32B y 6,000 tokens son ≈ 393 billones (3.93 × 10¹⁴) de operaciones: ≈ 2.2 s en una L40S, si logra la mitad de su cómputo pico (η_c = 0.5)." },
     { "id": "decode", "label": "Decode", "sub": "un token por paso", "kind": "gpu", "x": 57, "y": 22, "w": 19, "h": 8,
       "note": "El decode: un paso por token, compartido con las demás conversaciones del lote. Lo que tarda cada paso es lo que la persona ve entre token y token." },
     { "id": "kv", "label": "KV cache", "sub": "crece con cada token", "kind": "store", "x": 57, "y": 37, "w": 19, "h": 8,

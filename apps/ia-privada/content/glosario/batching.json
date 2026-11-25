@@ -73,7 +73,7 @@
    "termino": "Bloque de KV cache",
    "en": "KV block, page",
    "corto": "Un pedazo de memoria que guarda el K y el V de un número fijo de tokens (16 en el paper de PagedAttention). Es la unidad en que se reparte el KV cache.",
-   "largo": "Una conversación ocupa ⌈tokens ÷ tamaño de bloque⌉ bloques. Bloques más grandes aprovechan mejor la GPU; más chicos desperdician menos al final. En vLLM se fija con `block_size`, y su valor por omisión ha cambiado entre versiones.",
+   "largo": "Una conversación ocupa ⌈tokens ÷ tamaño de bloque⌉ bloques. Bloques más grandes aprovechan mejor la GPU; más chicos desperdician menos al final. En vLLM se fija con `block_size`, y su valor por omisión ha cambiado entre versiones: 16 en la 0.11.0, 64 en la configuración de la 0.34.0 (el backend de atención puede cambiarlo).",
    "ejemplo": "Qwen3 32B en BF16: un bloque de 16 tokens ocupa 16 × 256 KiB = 4 MiB; una conversación de 8,192 tokens usa 512 bloques.",
    "ver": [
     "pagedattention",
@@ -138,8 +138,8 @@
    "termino": "Preemption (desalojo)",
    "en": "preemption",
    "corto": "Sacar del batch una conversación a medias porque ya no hay bloques de KV cache para todas, y retomarla después.",
-   "largo": "Hay dos formas: *swap*, copiar sus bloques a la RAM de la CPU y traerlos de vuelta, y *recompute*, tirarlos y recalcular su KV cache con un prefill al reanudar. vLLM usa recompute por omisión. Para esa persona la respuesta se congela un rato; si pasa seguido, falta memoria o sobran conversaciones a la vez.",
-   "ejemplo": "vLLM avisa: «Sequence group 0 is preempted by PreemptionMode.RECOMPUTE mode because there is not enough KV cache space.»",
+   "largo": "El paper de PagedAttention propuso dos formas: *swap*, copiar sus bloques a la RAM de la CPU y traerlos de vuelta, y *recompute*, tirarlos y recalcular su KV cache con un prefill al reanudar. vLLM usa recompute (en el scheduler de la versión 0.34.0 es el único modo). Para esa persona la respuesta se congela un rato; si pasa seguido, falta memoria o sobran conversaciones a la vez.",
+   "ejemplo": "En vLLM 0.34.0, la línea de estadísticas que el servidor imprime cada 10 segundos suma «Preemptions: 3», y el contador `vllm:num_preemptions` sube.",
    "ver": [
     "scheduler",
     "pagedattention"
