@@ -166,6 +166,8 @@ Opcional, después: las estaciones 10–12 del RAG (Docker, índice nuevo sin co
 
 **Medido (fase 1, 2026-11-25):** esqueleto, calculadora de VRAM, revisión de hechos y deploy subieron la ventana de 5 horas de 1 % a 7 % y el límite semanal total de 82 % a 83 %; Fable no se usó. Código en Opus esfuerzo medio; la verificación de modelos y la revisión de hechos, en Sonnet.
 
+**Medido (fase 2, 2026-11-25):** calculadoras de velocidad, sizing y TCO, catálogo, investigación de precios, especificaciones y benchmarks (3 subagentes Sonnet), revisión de hechos (Sonnet, 3 graves y 11 menores, todas corregidas) y deploy: la ventana de 5 horas pasó de 9 % a 55 % y el límite semanal total de 83 % a 89 %; Fable no se usó. Esas cifras incluyen a la sesión de la fase 3, que corrió en paralelo, así que la fase 2 sola costó menos. El motor de calculadoras ganó varias listas de preajustes llenadas desde datos (`"datos": "gpus" | "apis"`), la tabla `comparar` y `sin_valor`; el catálogo es el bloque `:::catalogo`. Los precios por token viven en content/datos/apis.json; los servidores con precio, en apps/sensei/content/datos/equipos.json (sync.mjs lo copia).
+
 **Costo estimado:** ≈ 24 lecciones a 1.4–3.5 % del límite semanal cada una (lo medido en Sensei) son ≈ 35–85 % de una semana, repartido entre varias. Las herramientas, los casos y las estaciones se miden al terminar cada fase, igual que en Sensei.
 
 ## 8. Presupuesto: límites, reinicios y cómo aprovecharlos
