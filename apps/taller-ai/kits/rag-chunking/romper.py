@@ -34,7 +34,7 @@ RESPALDO = TALLER / "respaldo"
 def editar_config(clave: str, valor: str) -> None:
     """Cambia una línea de config.yaml («clave: valor»), sin perder los comentarios."""
     s = CONFIG.read_text()
-    s2 = re.sub(rf"(?m)^(\s*{clave}:\s*)(\S+)", lambda m: m.group(1) + valor, s, count=1)
+    s2 = re.sub(rf'(?m)^(\s*{clave}:\s*)("[^"]*"|\S+)', lambda m: m.group(1) + valor, s, count=1)
     if s2 == s:
         raise SystemExit(f"no encontré {clave} en config.yaml")
     CONFIG.write_text(s2)
@@ -82,6 +82,24 @@ def acl_perdida(_e: dict) -> None:
     job()
 
 
+def prefijo_perdido(_e: dict) -> None:
+    editar_config("prefijo", '""')
+    job()
+
+
+def texto_truncado(_e: dict) -> None:
+    from mundo.comun import sha256
+
+    c = leer_json(ALMACEN / "catalogo.json")
+    p = ALMACEN / "texto" / f"{c['drive:d20']['hash']}.json"
+    t = leer_json(p)
+    corte = t["texto"].index("## Devoluciones")          # el parser nuevo se quedó a la mitad del manual
+    t |= {"texto": t["texto"][:corte].rstrip(), "parser": "v2"}
+    t["sha256_texto"] = sha256(t["texto"].encode())
+    escribir_json(p, t)
+    job()
+
+
 def hash_ignorado(_e: dict) -> None:
     editar_config("incremental", "false")
     job(2)
@@ -104,6 +122,14 @@ FALLAS = {
         tipo="config", titulo="El job de chunking tarda lo mismo aunque nada cambie", aplicar=hash_ignorado,
         historia="Alguien apagó el incremental para depurar un documento y el cambio se fue a producción. Nada se ve roto: los chunks salen iguales que antes.",
         explica="config.yaml quedó con incremental: false. Cada corrida vuelve a partir todos los documentos aunque su sha256_texto y la huella sean los mismos: los chunks salen idénticos, pero en C11 cada chunk partido de nuevo es un embedding que se vuelve a pagar (≈ 1.5 M de documentos cada hora en vez de los pocos que cambiaron). Se ve con python verificar.py incremental (la última corrida partió todo y nada había cambiado) y en chunks/corridas/ (rechunkeados lleno, sin_cambios en 0). Arreglo: incremental vuelve a true y python pipeline/chunkear.py. Para depurar un documento está --doc, que no apaga nada."),
+    "prefijo-perdido": dict(
+        tipo="config", titulo="Las búsquedas empeoraron sin que nadie tocara el chunker", aplicar=prefijo_perdido,
+        historia="En una limpieza de config.yaml alguien quitó el «passage: » porque «ensucia el texto de los chunks». El job volvió a partir todo y terminó bien.",
+        explica="config.yaml quedó con modelo.prefijo: \"\". e5 se entrenó con «passage: » delante de cada pasaje y «query: » delante de cada pregunta; sin el prefijo, sus vectores ya no quedan donde el modelo espera y la búsqueda empeora (su ficha en Hugging Face lo advierte). Además, cada chunk cuenta 3 tokens menos de los que verá el modelo cuando se le ponga el prefijo. Como el modelo entra en la huella, el job volvió a partir todo. Se ve con python verificar.py tokens (contar() ya no da lo que ve el modelo) y tamano («tokens» no es lo que cuenta el modelo). Arreglo: modelo.prefijo vuelve a \"passage: \" y python pipeline/chunkear.py. El prefijo no es parte del texto del chunk: es cómo se le presenta al modelo."),
+    "texto-truncado": dict(
+        tipo="infra", titulo="El asistente dice que el manual no habla de pagos", aplicar=texto_truncado,
+        historia="La ingestión estrenó un parser nuevo (v2) y volvió a parsear el «Manual del vendedor». Desde ayer, «¿cuándo me pagan?» no encuentra nada en el manual.",
+        explica="El parser v2 de la estación 1 se quedó a la mitad del manual: el texto nuevo termina en «Envíos» y su sha256_texto es otro, así que tu chunking hizo lo correcto (vio texto nuevo y volvió a partir). El problema viene de antes: perdimos devoluciones, pagos, preguntas frecuentes y sanciones. Se ve con python verificar.py docs (se perdió texto al partir, comparado con la verdad del mundo) y en la última corrida (rechunkeados: drive:d20). No se arregla en chunks/: se arregla la ingestión. Arreglo: la ingestión vuelve a parsear con el parser bueno (python mundo/crear.py --reingestar hace de ella) y python pipeline/chunkear.py. Una alarma útil en C11: un documento cuyo texto se encoge a la mitad de un día para otro."),
 }
 
 

@@ -27,8 +27,9 @@ def poner(dia: int) -> dict:
     (ALMACEN / "texto").mkdir(parents=True, exist_ok=True)
     for r in c.values():
         p = ENTRADA / "texto" / f"{r['hash']}.json"
-        if p.exists() and not (ALMACEN / "texto" / p.name).exists():
-            shutil.copy(p, ALMACEN / "texto" / p.name)
+        destino = ALMACEN / "texto" / p.name
+        if p.exists() and (not destino.exists() or destino.read_bytes() != p.read_bytes()):
+            shutil.copy(p, destino)      # también repara un texto que alguien cambió: la entrada manda
     escribir_json(ALMACEN / "catalogo.json", c)
     return c
 

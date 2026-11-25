@@ -11,8 +11,9 @@ Contrato:
   Cada chunk: {"chunk_id": "<doc_id>#<orden con 3 dígitos>", "doc_id", "orden" (desde 0), "ruta", "texto",
   "tokens", "traslape", "acl", "titulo", "url", "version"}. Un chunk es de un solo documento y lleva la ACL de su
   documento tal cual (las cláusulas del catálogo).
-- huella(): los primeros 12 caracteres del sha256 de CHUNKER y de la sección chunking de config.yaml. Si cambia
-  cómo se parte, cambia la huella y se vuelve a partir todo.
+- huella(): los primeros 12 caracteres del sha256 de CHUNKER y de las secciones modelo y chunking de config.yaml (el
+  modelo cuenta: otro prefijo u otro tokenizer cambian cuántos tokens tiene cada chunk). Si cambia cómo se parte,
+  cambia la huella y se vuelve a partir todo.
 - Paso 7, incremental (si config incremental es true): un documento cuyo archivo ya tiene el mismo sha256_texto, el
   mismo título y la misma huella no se vuelve a partir (el título cuenta porque va en la ruta, dentro del texto de
   cada chunk). Si además tiene la misma ACL, url y versión, cuenta como sin_cambios; si cambió alguna (un permiso
@@ -38,7 +39,7 @@ META = ("acl", "titulo", "url", "version")
 
 
 def huella() -> str:
-    return sha256(json.dumps({"chunker": CHUNKER, "chunking": config()["chunking"]}, sort_keys=True).encode())[:12]
+    return sha256(json.dumps({"chunker": CHUNKER, "modelo": config()["modelo"], "chunking": config()["chunking"]}, sort_keys=True).encode())[:12]
 
 
 def chunkear_doc(doc_id: str, r: dict, t: dict, hu: str) -> dict:

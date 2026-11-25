@@ -51,6 +51,19 @@ paso "hash corrida" sh -c "python -c \"import json, glob; x = json.load(open(sor
 paso "hash arreglo" sh -c "$(declare -f cfg); cfg incremental false true && python pipeline/chunkear.py"
 paso "hash cerrar" python romper.py --verificar
 
+# 5 · prefijo perdido
+paso "pre romper" python romper.py --mostrar --falla prefijo-perdido
+paso "pre verificar" python verificar.py tokens tamano
+paso "pre arreglo" sh -c "$(declare -f cfg); cfg prefijo '\"\"' '\"passage: \"' && python pipeline/chunkear.py"
+paso "pre cerrar" python romper.py --verificar
+
+# 6 · texto truncado
+paso "tru romper" python romper.py --mostrar --falla texto-truncado
+paso "tru verificar" python verificar.py docs
+paso "tru corrida" sh -c "python -c \"import json, glob; x = json.load(open(sorted(glob.glob('chunks/corridas/*.json'))[-1])); print('rechunkeados:', x['rechunkeados']); d = json.load(open('chunks/docs/drive__d20.json')); print(len(d['chunks']), 'chunks ·', [c['ruta'][-1] for c in d['chunks']])\""
+paso "tru arreglo" sh -c "python mundo/crear.py --reingestar && python pipeline/chunkear.py"
+paso "tru cerrar" python romper.py --verificar
+
 # restaurar
 paso "rest romper" python romper.py
 paso "rest restaurar" python romper.py --restaurar
