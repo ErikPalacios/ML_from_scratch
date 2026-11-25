@@ -130,7 +130,7 @@
       "id": "modelo",
       "dato": "Modelo candidato",
       "valor": "Qwen3 32B en INT4 de AWQ",
-      "nota": "Licencia Apache 2.0. Pesos ≈ 19.32 GB (la cuenta de la herramienta de VRAM). Alternativas a evaluar: Mistral Small 24B, Qwen3 30B-A3B (MoE) y Llama 3.3 70B."
+      "nota": "Licencia Apache 2.0. Pesos ≈ 19.32 GB (la cuenta de la herramienta de VRAM). Alternativas a evaluar: Mistral Small 3.2 24B, Qwen3 30B-A3B (MoE) y Llama 3.3 70B."
     },
     {
       "id": "gpu",
@@ -180,6 +180,12 @@
       "valor": "≈ 1.4",
       "unidad": "veces",
       "nota": "8 conversaciones de diseño ÷ 5.6 en promedio en la hora pico."
+    },
+    {
+      "id": "razonamiento",
+      "dato": "Razonamiento (thinking)",
+      "valor": "apagado",
+      "nota": "Qwen3 32B piensa por omisión; el despacho lo apaga con enable_thinking=false para no gastar tokens ni segundos antes de cada respuesta (la lección «Elegir un modelo»)."
     }
   ]
 }

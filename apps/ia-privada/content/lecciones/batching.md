@@ -429,7 +429,7 @@ En vLLM 0.34.0 no sale un aviso por cada desalojo. Cada 10 segundos el servidor 
 Avg prompt throughput: 1250.0 tokens/s, Avg generation throughput: 150.0 tokens/s, Running: 13 reqs, Waiting: 2 reqs, Preemptions: 3, GPU KV cache usage: 98.7%, Prefix cache hit rate: 41.0%
 ```
 
-También lo cuenta en sus métricas, el contador `vllm:num_preemptions`. (La documentación todavía muestra un aviso del motor anterior, «Sequence group 0 is preempted by PreemptionMode.RECOMPUTE mode…»: si lo buscas en el registro de una versión reciente, no lo vas a encontrar.)
+También lo cuenta en sus métricas, el contador `vllm:num_preemptions`. (La documentación todavía muestra un aviso del motor anterior, «Sequence group 0 is preempted by PreemptionMode.RECOMPUTE mode…»: en el código de la 0.34.0 ya no existe, así que no lo busques en su registro.)
 
 Unos cuantos desalojos en la hora pico son normales: es el servidor estirando la memoria al máximo. Muchos seguidos quieren decir que el servidor está metiendo más conversaciones de las que le caben, y cada preemption es trabajo repetido. Los remedios que da la documentación de vLLM: darle más memoria al KV cache (el parámetro `gpu_memory_utilization`), bajar el máximo de conversaciones a la vez (`max_num_seqs`) o de tokens por paso (`max_num_batched_tokens`), o repartir el modelo entre más GPUs (eso es la lección «Varias GPUs: tensor y pipeline parallel»).
 
