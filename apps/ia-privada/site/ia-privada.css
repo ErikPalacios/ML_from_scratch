@@ -703,3 +703,16 @@ a.tl:hover { box-shadow: 0 0 0 2px var(--accent); }
 .mod__sensei .lbl { display: block; margin-bottom: 2px; }
 .tl small { display: block; font: 500 12.5px/1.4 var(--sans); color: var(--muted); margin-top: 2px; }
 .tls--dojo .tl { grid-template-columns: 28px minmax(0, 1fr) auto; }
+
+/* ---- fase 2: la tabla «comparar» de una calculadora (una fila por GPU, recalculada en vivo) */
+.cx-cmp { margin: 12px 16px 4px; }
+.cx-cmp__t { margin: 0 0 6px; font: 700 13.5px/1.4 var(--sans); color: var(--accent-ink); }
+.cx-cmp__scroll { overflow-x: auto; border-radius: 12px; background: var(--surface); box-shadow: inset 0 0 0 1px var(--rule); -webkit-overflow-scrolling: touch; }
+.cx-cmp table { width: 100%; border-collapse: collapse; font: 13px/1.35 var(--sans); font-variant-numeric: tabular-nums; }
+.cx-cmp th, .cx-cmp td { padding: 7px 10px; text-align: right; white-space: nowrap; box-shadow: inset 0 -1px 0 var(--rule); }
+.cx-cmp thead th { font-weight: 700; color: var(--muted); font-size: 12px; white-space: normal; vertical-align: bottom; }
+.cx-cmp tbody th { text-align: left; font-weight: 600; color: var(--ink); white-space: normal; min-width: 150px; }
+.cx-cmp td { font-family: var(--mono); color: var(--ink-2); }
+.cx-cmp tr:last-child th, .cx-cmp tr:last-child td { box-shadow: none; }
+.cx-cmp tr.is-sel th, .cx-cmp tr.is-sel td { background: var(--accent-soft); color: var(--ink); }
+.cx-cmp__nota { margin: 6px 0 0; font: 12.5px/1.5 var(--sans); color: var(--muted); }
