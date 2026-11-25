@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 460" role="img" aria-labelledby="f-batching-bloques-t" class="f-svg" style="max-width:420px">
 <title id="f-batching-bloques-t">PagedAttention con bloques de 16 tokens. Arriba, dos conversaciones vistas como las ve el modelo: la A tiene 42 tokens en tres bloques lógicos (16, 16 y 10), la B tiene 21 tokens en dos (16 y 5). En medio, la tabla de bloques de cada una dice dónde está cada bloque lógico en la memoria: A va a los bloques físicos 7, 1 y 12; B, a los 3 y 9. Abajo, la memoria del KV cache de la GPU como 16 bloques físicos: los de A y B están salteados y el resto está libre. Solo el último bloque de cada conversación tiene lugares vacíos: 6 en A y 11 en B.</title>
 <rect class="f-card" x="10" y="10" width="340" height="440" rx="16"/>
-<text class="f-l" x="28" y="36">LO QUE VE EL MODELO: BLOQUES LÓGICOS</text>
+<text class="f-l" x="28" y="36">LO QUE VE EL MODELO</text>
 <text class="f-t" x="28" y="66" style="font-size:13px">A</text>
 <rect class="f-chip" x="48" y="48" width="52" height="34" rx="5"/>
 <rect class="f-b" x="48" y="48" width="52.0" height="34" rx="5"/>
@@ -47,8 +47,9 @@
 <text class="f-s" x="240" y="179" style="font-size:12px">L1 → físico</text>
 <rect class="f-o" x="306" y="168" width="18" height="14" rx="3"/>
 <text class="f-s" x="315" y="179" text-anchor="middle" style="font-size:12px;font-weight:700;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">9</text>
-<text class="f-s" x="28" y="160" style="font-size:12px">Los bloques lógicos son seguidos;</text>
-<text class="f-s" x="28" y="176" style="font-size:12px">los físicos pueden estar en cualquier parte.</text>
+<text class="f-s" x="28" y="150" style="font-size:12px">Los bloques lógicos son</text>
+<text class="f-s" x="28" y="166" style="font-size:12px">seguidos; los físicos pueden</text>
+<text class="f-s" x="28" y="182" style="font-size:12px">estar en cualquier parte.</text>
 <line x1="28" y1="200" x2="332" y2="200" style="stroke:var(--tm-line);stroke-width:1"/>
 <text class="f-l" x="28" y="224">LA VRAM DEL KV CACHE: BLOQUES FÍSICOS</text>
 <rect x="28" y="236" width="70" height="36" rx="5" style="fill:none;stroke:var(--tm-ink3);stroke-width:1.2;stroke-dasharray:4 3"/>
