@@ -7,7 +7,7 @@ sensei: llms, privacidad
 ---
 
 :::idea
-Descargar un modelo no es lo mismo que poder usarlo para lo que quieras. Los pesos vienen con una **licencia**: un permiso con condiciones, que puede cambiar con el número de usuarios, con el negocio que hagas o con a quién se lo entregas. Por eso la licencia es parte del sizing, igual que la VRAM: un modelo que cabe en la GPU pero que la licencia no te deja usar no sirve.
+Descargar un modelo no es lo mismo que poder usarlo para lo que quieras. Los pesos vienen con una **licencia**: un permiso con condiciones, que puede cambiar con el número de usuarios, con el negocio que hagas o con a quién se lo entregas. Por eso la licencia es parte del *sizing* (la cuenta de qué necesita el proyecto para funcionar), igual que la VRAM: un modelo que cabe en la GPU pero que la licencia no te deja usar no sirve.
 :::
 
 ## La idea: la licencia también se dimensiona {The idea: the license is part of sizing}
@@ -31,7 +31,7 @@ Una empresa que corre un modelo en su red ya evitó un riesgo: que sus datos via
 - **Usarlo fuera del permiso.** Si el despacho usa un modelo cuya licencia no permite uso comercial, su proyecto tiene un problema legal desde el primer día, aunque nadie se entere hasta una auditoría o una venta de la empresa.
 - **Entregarlo mal.** Si un integrador instala el modelo en las oficinas de 20 clientes, está **distribuyendo** el modelo, y muchas licencias piden cosas concretas al distribuir.
 
-Las dos se evitan en la etapa de elegir modelo, cuando cambiar de candidato todavía es barato. Después de comprar el hardware, armar los evals y capacitar a la gente, cambiar de modelo por la licencia cuesta semanas.
+Las dos se evitan en la etapa de elegir modelo, cuando cambiar de candidato todavía es barato. Después de comprar el hardware, armar las pruebas de calidad y capacitar a la gente, cambiar de modelo por la licencia cuesta semanas.
 
 :::ojo Nada de esto es asesoría legal
 Esta lección te enseña a **leer** una licencia y a llegar con las preguntas correctas. La decisión final sobre si una empresa puede usar un modelo la revisa un abogado, con el texto vigente de la licencia el día que se decide. Las licencias cambian de una versión a otra del mismo modelo.
@@ -47,7 +47,7 @@ Los archivos de un repositorio de modelo, agrupados por lo que son. Los pesos oc
 
 Cada grupo tiene un trabajo:
 
-- **Los pesos** (`*.safetensors`). Los números que el modelo aprendió, partidos en varios archivos de pocos GB para que se descarguen por partes. *safetensors* es un formato de archivo para guardar tensores (tablas de números) que solo guarda datos, sin código que se ejecute al abrirlo. El índice dice qué parte guarda cada tensor.
+- **Los pesos** (`*.safetensors`). Los números que el modelo aprendió, partidos en archivos de unos 4 GB para que se descarguen por partes: Qwen3 32B trae 17, ≈ 65 GB en total. *safetensors* es un formato de archivo para guardar tensores (tablas de números) que solo guarda datos, sin código que se ejecute al abrirlo. El índice dice qué parte guarda cada tensor.
 - **La configuración** (`config.json`). La arquitectura: cuántos bloques, cuántas cabezas de atención, el tamaño del vocabulario. De aquí salen los números de la calculadora de VRAM.
 - **El tokenizer.** Cómo el texto se vuelve tokens y la **plantilla de chat**, el formato con que se marcan los turnos de una conversación. Lo ves a fondo en [Transformers y LLMs](https://sensei.trueml.app/llms/).
 - **Lo legal**: `LICENSE` y `README.md`.
@@ -56,11 +56,13 @@ Cada grupo tiene un trabajo:
 
 `LICENSE` es el texto completo de la licencia. Es el que cuenta. Hugging Face también muestra una etiqueta en la página del modelo (por ejemplo `license: apache-2.0`), pero la etiqueta la escribe quien sube el modelo y es una pista, no el contrato. Cuando la etiqueta dice `other` o algo como `modified-mit`, es obligatorio leer el texto.
 
+Algunos repos ni siquiera traen el archivo. Los de Mistral Small 3, 3.1 y 3.2, por ejemplo, solo declaran `apache-2.0` en la model card (revisado en noviembre de 2026). Ahí manda el texto estándar de la licencia que nombran: guarda una copia con la fecha en que lo revisaste.
+
 ### README.md: la model card
 
 El `README.md` de un repo de modelo se llama **[[model-card|model card]]** (ficha del modelo). Es la hoja técnica: para qué se hizo el modelo, con qué datos se entrenó (a grandes rasgos), qué evaluaciones tiene, qué limitaciones conoce el autor y, casi siempre, la licencia en el encabezado.
 
-La model card no es la licencia, pero ayuda a leerla. Si dice «este modelo es un fine-tune de Llama 3.3 70B», ya sabes que la licencia de Llama viene en el paquete, aunque el repo diga otra cosa en la etiqueta. Si dice «para investigación», es una señal para revisar con cuidado.
+La model card no es la licencia, pero ayuda a leerla. Si dice «este modelo es un fine-tune de Llama 3.3 70B» (una versión que alguien siguió entrenando con sus propios ejemplos; lo vemos en la sección de derivados), ya sabes que la licencia de Llama viene en el paquete, aunque el repo diga otra cosa en la etiqueta. Si dice «para investigación», es una señal para revisar con cuidado.
 
 :::nota Otros archivos que pueden traer reglas
 Algunos repos traen archivos aparte: `USE_POLICY.md` (la política de uso, en Llama), `NOTICE` (avisos que hay que conservar, en Apache 2.0) o `LICENSE-MODEL` separado de la licencia del código (en DeepSeek V3). Antes de concluir, lista todos los archivos de texto del repo.
@@ -104,7 +106,7 @@ En su validación de 2024, la OSI encontró que cumplían **OLMo** (de AI2, el A
 El caso más útil hoy es **OLMo**. Olmo 3 (7B y 32B, noviembre de 2025) y Olmo 3.1 32B (diciembre de 2025) publican pesos, datos de entrenamiento (el conjunto se llama Dolma 3) y código, con los pesos bajo Apache 2.0. Si alguien te pide «open source de verdad», ese es el ejemplo.
 
 :::nota ¿Y Llama 3.3 o Qwen3?
-La OSI no ha publicado un veredicto sobre Llama 3 o 4, Qwen3, gpt-oss o Gemma 4. Lo que sí se puede decir: Llama 2 no cumplía en la validación de 2024, y la licencia de Llama no está entre las aprobadas por la OSI. Qwen3 usa Apache 2.0, que sí está aprobada, pero eso no basta: también faltarían el código de entrenamiento y la información de los datos.
+La OSI no ha publicado un veredicto sobre Llama 3 o 4, Qwen3, gpt-oss o Gemma 4. Lo que sí se puede decir: Llama 2 no cumplía en la validación de 2024, y la OSI escribió en su blog que la licencia de Llama, también la de las versiones 3.x, no es open source, porque limita el uso comercial de algunos usuarios y prohíbe ciertos fines en su política de uso. Qwen3 usa Apache 2.0, que sí está aprobada, pero eso no basta: también faltarían el código de entrenamiento y la información de los datos.
 :::
 
 ### Por qué al despacho le importa poco (y al investigador mucho)
@@ -151,7 +153,7 @@ Una [[licencia-permisiva]] te deja hacer casi todo, incluso usarlo en un product
 
 ### Apache 2.0
 
-[[apache-2|Apache 2.0]] es la licencia de Qwen3 (los densos de 0.6B a 32B y los MoE 30B-A3B y 235B-A22B), de Mistral Small 3.1 y 3.2, de gpt-oss de OpenAI, de IBM Granite 4, de Gemma 4 y de OLMo. Es la del candidato del despacho.
+[[apache-2|Apache 2.0]] es la licencia de Qwen3 (los densos de 0.6B a 32B y los [[moe|MoE]] 30B-A3B y 235B-A22B), de Mistral Small 3.1 y 3.2, de gpt-oss de OpenAI, de IBM Granite 4, de Gemma 4 y de OLMo. Es la del candidato del despacho.
 
 Lo que **permite**: usar, copiar, modificar y distribuir, también con fines comerciales.
 
@@ -159,7 +161,7 @@ Lo que **pide** al distribuir (sección 4 del texto):
 
 - Entregar una copia de la licencia.
 - Marcar los archivos que modificaste.
-- Conservar los avisos de copyright, de patentes y de atribución.
+- Conservar los avisos de copyright (derechos de autor), de patentes y de atribución (quién hizo qué).
 - Si el original trae un archivo **NOTICE**, incluir sus avisos.
 
 Lo que **da de más**: una **concesión de patentes** explícita (sección 3). Cada persona que contribuyó al trabajo te da permiso de usar sus patentes que lo cubran. Y trae un freno: si demandas alegando que la obra infringe una patente, esa licencia de patentes se termina para ti.
@@ -174,9 +176,9 @@ Dónde se rompe: la concesión solo cubre las patentes de quienes contribuyeron 
 
 ### MIT
 
-La [[licencia-mit|licencia MIT]] es todavía más corta. La usan Phi-4 de Microsoft, DeepSeek R1 y las versiones de DeepSeek desde V3-0324 hasta V4, y GLM-4.6.
+La [[licencia-mit|licencia MIT]] es todavía más corta. La usan Phi-4 de Microsoft, DeepSeek R1 y las versiones de DeepSeek desde V3-0324 hasta V4, y GLM-4.6 (de Z.AI).
 
-Permite usar, copiar, modificar, fusionar, publicar, distribuir, sublicenciar y vender. Su única condición: incluir el aviso de copyright y el texto del permiso en las copias o en las partes sustanciales. No tiene concesión de patentes explícita ni archivo NOTICE.
+Permite usar, copiar, modificar, fusionar, publicar, distribuir, sublicenciar (darle tú el permiso a otros) y vender. Su única condición: incluir el aviso de copyright y el texto del permiso en las copias o en las partes sustanciales. No tiene concesión de patentes explícita ni archivo NOTICE.
 
 ### Las dos, lado a lado
 
@@ -200,11 +202,11 @@ Una licencia propia la escribe la empresa que publica el modelo, a su medida. Ca
 
 ### La licencia de Llama
 
-La [[licencia-llama|licencia de Llama]] (Llama Community License) acompaña a Llama 3.1 (julio de 2024), 3.3 (diciembre de 2024) y 4 (abril de 2025). Llama 3.3 70B es una de las alternativas del despacho. Te da una licencia mundial, no exclusiva y sin regalías: puedes usarlo comercialmente sin pagarle a Meta. Con estas condiciones:
+La [[licencia-llama|licencia de Llama]] (Llama Community License) acompaña a Llama 3.1 (julio de 2024), 3.2, 3.3 (diciembre de 2024) y 4 (abril de 2025); cada versión trae su propio texto, casi igual. Llama 3.3 70B es una de las alternativas del despacho. Te da una licencia mundial, no exclusiva y sin regalías: puedes usarlo comercialmente sin pagarle a Meta. Con estas condiciones:
 
-- **El umbral de 700 millones.** Si en la fecha de lanzamiento de esa versión de Llama, tus productos (o los de tus afiliadas) tuvieron más de 700 millones de usuarios activos mensuales en el mes anterior, tienes que pedirle licencia a Meta. Meta puede negarla a su sola discreción, y sin ella no puedes usar los derechos de la licencia.
-- **«Built with Llama».** Si distribuyes el modelo, un derivado o un producto que los contenga, tienes que dar una copia del acuerdo y mostrar «Built with Llama» en el sitio, la interfaz, el blog, la página de «acerca de» o la documentación.
-- **El nombre de los derivados.** Si usas Llama, o sus **salidas**, para crear, entrenar o afinar un modelo que distribuyes, el nombre de ese modelo tiene que empezar con «Llama».
+- **El umbral de 700 millones.** Si en la fecha de lanzamiento de esa versión de Llama, tus productos (o los de tus afiliadas, las empresas de tu mismo grupo) tuvieron más de 700 millones de usuarios activos mensuales en el mes anterior, tienes que pedirle licencia a Meta. Meta puede negarla a su sola discreción, y sin ella no puedes usar los derechos de la licencia.
+- **«Built with Llama».** Si distribuyes o pones a disposición (*make available*) el modelo, un derivado o un producto o servicio que los contenga, tienes que dar una copia del acuerdo y mostrar «Built with Llama» en el sitio, la interfaz, el blog, la página de «acerca de» o la documentación. Las copias que entregues llevan además un archivo «Notice» con la línea de atribución que dicta la licencia.
+- **El nombre de los derivados.** Si usas Llama, o sus **salidas**, para crear, entrenar o afinar un modelo que distribuyes o pones a disposición, el nombre de ese modelo tiene que empezar con «Llama».
 - **La política de uso aceptable.** La licencia la incorpora por referencia: incumplirla es incumplir la licencia. También pide cumplir las leyes, incluidas las de comercio exterior.
 - **Terminación.** Meta puede terminar la licencia si la incumples, y tienes que borrar los materiales. Si demandas a Meta alegando que Llama infringe tu propiedad intelectual, tus licencias se terminan.
 
@@ -258,14 +260,14 @@ Google es el ejemplo de por qué la licencia se revisa **por versión**, no por 
 
 ### Las MIT modificadas de 2026 y la cláusula de Model as a Service
 
-Los modelos más grandes de 2026 trajeron un tipo nuevo de condición. Su licencia empieza como MIT y agrega una cláusula de **[[model-as-a-service|Model as a Service]]** (MaaS): el negocio de darle a terceros acceso al modelo por una API, cobrando, con control sobre lo que entra y sale. Si haces eso, y a veces solo si pasas de cierto ingreso, necesitas un acuerdo aparte.
+Varios modelos grandes de 2026 trajeron un tipo nuevo de condición. Su licencia empieza como MIT y agrega una cláusula de **[[model-as-a-service|Model as a Service]]** (MaaS): el negocio de darle a terceros acceso al modelo por una API, cobrando, con control sobre lo que entra y sale. Si haces eso, y a veces solo si pasas de cierto ingreso, necesitas un acuerdo aparte.
 
 | Modelo (2026) | Cláusula de MaaS | ¿Uso interno? |
 |---|---|---|
-| Mistral Large 4 | Cualquier negocio de MaaS necesita licencia comercial aparte, sin umbral | Exento |
-| Qwen3.8-Max | MaaS o asistente de trabajo con IA con más de US$50 millones en 12 meses | Exento |
-| Qwen3.8-Flash-Next | Cualquier MaaS o asistente de trabajo con IA comercial | Exento |
-| Kimi K3 | MaaS con más de US$20 millones en 12 meses | Exento |
+| Mistral Large 4 (Mistral) | Cualquier negocio de MaaS necesita licencia comercial aparte, sin umbral | Exento |
+| Qwen3.8-Max (Alibaba) | MaaS o asistente de trabajo con IA con más de US$50 millones en 12 meses | Exento |
+| Qwen3.8-Flash-Next (Alibaba) | Cualquier MaaS o asistente de trabajo con IA comercial | Exento |
+| Kimi K3 (Moonshot AI) | MaaS con más de US$20 millones en 12 meses | Exento |
 | Muse Spark Open (Meta) | MaaS con más de US$20 millones de ingresos brutos en 12 meses | Exento |
 
 La columna de la derecha es la clave. Estas licencias dicen, en su propio texto, que el **uso interno** de la empresa queda fuera de la cláusula. Tiene lógica: el autor quiere cobrarle a quien le hace competencia vendiendo su modelo como servicio, no al despacho que lo usa para sus propios expedientes.
@@ -283,7 +285,7 @@ Una [[licencia-no-comercial]] te deja descargar y probar el modelo, pero no usar
 Ejemplos reales:
 
 - **Qwen2.5 3B** usa la *Qwen Research License*: solo investigación y evaluación; el uso comercial pide licencia aparte. Los demás tamaños de Qwen2.5 son Apache, salvo **Qwen2.5 72B**, que usa la *Qwen License*: comercial permitido hasta 100 millones de usuarios activos mensuales.
-- **Mistral Large 2** (noviembre de 2024) usa la *Mistral Research License*: uso comercial solo con licencia aparte.
+- **Mistral Large 2** (julio de 2024, con una versión de noviembre) usa la *Mistral Research License*: uso comercial solo con licencia aparte.
 - **Codestral 22B** (mayo de 2024) usa la *Mistral AI Non-Production License*: nada de producción.
 - **Cohere Command A** (marzo de 2025) usa CC BY-NC 4.0, una licencia de Creative Commons cuyo «NC» quiere decir *non-commercial*.
 
@@ -295,7 +297,7 @@ Una licencia no comercial no se vuelve comercial porque el uso sea interno. El d
 
 ### Las condiciones que se heredan: DeepSeek V3 original
 
-Hay licencias que permiten uso comercial, pero te obligan a **pasar** sus restricciones a cualquiera que reciba un derivado tuyo. Son de un estilo llamado OpenRAIL: el autor quiere que sus reglas de uso viajen con el modelo, no solo que se queden contigo.
+Hay licencias que permiten uso comercial, pero te obligan a **pasar** sus restricciones de uso a cualquiera que reciba un derivado tuyo. Se parecen a las **OpenRAIL** (*Open Responsible AI License*), una familia de licencias de modelos hecha para eso: el autor quiere que sus reglas de uso viajen con el modelo, no solo que se queden contigo.
 
 El caso que más confunde es DeepSeek:
 
@@ -313,12 +315,12 @@ La aprobación puede ser:
 - **Automática:** aceptas y descargas en el momento.
 - **Manual:** una persona del autor revisa tu solicitud y decide.
 
-El autor puede revocar el acceso en cualquier momento, sin aviso. Para descargar desde un script necesitas un token de tu cuenta.
+El autor puede revocar el acceso en cualquier momento, sin aviso. Para descargar desde un script necesitas una clave de acceso de tu cuenta, que Hugging Face llama *token* (no tiene nada que ver con los tokens del texto).
 
 Estado al 25 de noviembre de 2026: Llama 3.1, 3.3 y 4, Gemma 3 y Muse Spark Open son gated con aprobación manual; Qwen3.8-Flash-Next y Cohere Command A, gated automáticos; y Qwen3, Mistral, DeepSeek, gpt-oss, Phi-4, OLMo y Gemma 4, sin puerta.
 
 :::ojo La puerta no es la licencia
-Que un modelo no tenga puerta no quiere decir que su licencia sea libre, y que la tenga no quiere decir que sea restrictiva. Gemma 3 y Llama tienen puerta manual y permiten uso comercial; los modelos recientes de Mistral, Qwen y DeepSeek no tienen puerta, y esas mismas empresas publicaron otros modelos con licencias de investigación o de no producción. La puerta es un control de acceso; la licencia sigue valiendo con o sin ella.
+Que un modelo no tenga puerta no quiere decir que su licencia sea libre, y que la tenga no quiere decir que sea restrictiva. Gemma 3 y Llama tienen puerta manual y permiten uso comercial. Y al revés: Qwen2.5 3B, que es de investigación, y Codestral 22B, de no producción, se descargan sin puerta (revisado el 25 de noviembre de 2026). La puerta es un control de acceso; la licencia sigue valiendo con o sin ella.
 :::
 
 ### Lo que la puerta le cambia al proyecto
@@ -363,7 +365,7 @@ C_n = C_0 + sum_{i=1}^{n} a_i
 :::
 
 :::cuenta Contar las condiciones de un Llama afinado y cuantizado
-Condiciones de Llama 3.3, \(C_0\) // copia del acuerdo, «Built with Llama», nombre de los derivados, política de uso, umbral de 700 millones | 5 | 5
+Condiciones de Llama 3.3, \(C_0\) // copia del acuerdo (con su «Notice»), «Built with Llama», nombre de los derivados, política de uso, umbral de 700 millones | 5 | 5
 Fine-tune de un laboratorio, \(a_1\) // supuesto: pide citar su trabajo | 1 | 1
 Cuantizado a GGUF por otra persona, \(a_2\) // no agrega nada | 0 | 0
 Condiciones al final, \(C_2\) // \(C_0 + a_1 + a_2\) | 5 + 1 + 0 | **6**
@@ -434,7 +436,7 @@ Las seis preguntas, en orden, y a dónde te saca cada una. Los recorridos aplica
 
 | | Qwen3 32B | Mistral Small 24B | Qwen3 30B-A3B | Llama 3.3 70B |
 |---|---|---|---|---|
-| Licencia | Apache 2.0 | Apache 2.0 (3.1 y 3.2) | Apache 2.0 | Llama 3.3 Community |
+| Licencia | Apache 2.0 | Apache 2.0 (3, 3.1 y 3.2) | Apache 2.0 | Llama 3.3 Community |
 | Uso comercial | Sí | Sí | Sí | Sí |
 | Umbrales | Ninguno | Ninguno | Ninguno | 700 M de MAU; el despacho tiene 200 |
 | Política de uso aparte | No | No | No | Sí, hay que leerla |
@@ -492,7 +494,7 @@ Casi todas las condiciones que viste se activan con una palabra: **distribuir**.
 El despacho descarga Qwen3 32B, lo corre en su servidor y sus 200 personas le preguntan por la red interna. Nadie de fuera recibe los pesos ni usa el modelo. Eso es **uso interno**:
 
 - Con Apache 2.0 o MIT, las condiciones de entrega no se activan: no le entrega copias a nadie.
-- Con Llama 3.3, «Built with Llama» y la copia del acuerdo aplican al distribuir; la política de uso y el umbral aplican siempre.
+- Con Llama 3.3, «Built with Llama» y la copia del acuerdo aplican al distribuir o poner a disposición el modelo o un producto que lo contenga; la política de uso y el umbral aplican siempre. Si una herramienta interna cuenta como «poner a disposición» es pregunta para el abogado; mostrar «Built with Llama» en la documentación interna cuesta poco y la cierra.
 - Con las MIT modificadas de 2026, el uso interno queda fuera de la cláusula de MaaS por texto expreso.
 
 ### El integrador que instala en 20 despachos
@@ -500,11 +502,11 @@ El despacho descarga Qwen3 32B, lo corre en su servidor y sus 200 personas le pr
 Ahora un integrador (una empresa que arma e instala sistemas para otros) vende el mismo sistema a 20 despachos y lo instala en el servidor de cada uno. Cada instalación entrega una copia de los pesos a otra empresa: **distribuye** 20 veces.
 
 - Con Apache 2.0: en cada entrega va copia de la licencia, los avisos y el NOTICE si existe, y marca de los archivos que cambió.
-- Con Llama 3.3: copia del acuerdo y «Built with Llama» visible en cada sistema. Si afinó el modelo, el nombre empieza con «Llama». Y los 20 despachos, que reciben el modelo dentro de un producto terminado, no tienen que preocuparse por el umbral de 700 millones: la licencia lo aclara para quien recibe un derivado así.
+- Con Llama 3.3: copia del acuerdo y «Built with Llama» visible en cada sistema. Si afinó el modelo, el nombre empieza con «Llama». Y los 20 despachos, que reciben el modelo dentro de un producto terminado, no tienen que preocuparse por el umbral de 700 millones: la licencia lo aclara para quien recibe Llama, o un derivado, como parte de un producto terminado.
 
 ### El integrador que lo hospeda y vende acceso
 
-Tercera variante: el integrador no instala nada en los despachos. Corre el modelo en su propio centro de datos y les vende acceso por una API, a una cuota mensual. Ya no entrega pesos, así que no distribuye en el sentido de arriba. Pero ahora hace **Model as a Service**, y ahí despiertan las cláusulas de 2026.
+Tercera variante: el integrador no instala nada en los despachos. Corre el modelo en su propio centro de datos y les vende acceso por una API, a una cuota mensual. Ya no entrega pesos, así que no distribuye en el sentido de arriba. Pero ahora hace **Model as a Service**, y ahí despiertan las cláusulas de 2026. Y si el modelo fuera Llama, «Built with Llama» seguiría aplicando: la licencia también cuenta poner a disposición un servicio que lo contenga.
 
 :::formula Lo que factura un negocio de Model as a Service
 R = n × p × 12
@@ -527,7 +529,7 @@ Contra Mistral Large 4 // sin umbral: cualquier negocio de MaaS | — | necesita
 |---|---|---|---|
 | Despacho, en su red | No | No | Uso comercial, política de uso |
 | Integrador, instala en 20 despachos | Sí, 20 veces | No | Obligaciones de entrega en cada instalación |
-| Integrador, hospeda y vende acceso | No entrega pesos | Sí | Cláusulas de MaaS y sus umbrales |
+| Integrador, hospeda y vende acceso | No entrega pesos | Sí | Cláusulas de MaaS y sus umbrales; con Llama, «Built with Llama» |
 
 :::ojo Pregúntale al abogado por tu caso exacto
 Dónde termina el «uso interno» y empieza el «servicio a terceros» no siempre es obvio: un despacho que deja a sus clientes hacerle preguntas al modelo desde un portal, ¿usa el modelo internamente o lo ofrece como servicio? Cada licencia lo define con sus palabras. Ese es exactamente el tipo de pregunta que se lleva al abogado con el texto en la mano.
@@ -579,11 +581,11 @@ El despacho, el ejemplo ficticio de esta lección, tiene 200 abogados y asistent
 
 ### Una clínica
 
-Una clínica con 40 médicos (números supuestos) quiere resumir notas clínicas en su red. Un proveedor le propone Gemma 3 27B. La revisión encuentra los Gemma Terms of Use: uso comercial permitido, pero Google se reserva restringir el uso si cree que se violan los términos, y si la clínica algún día le entrega un derivado a otra clínica, tiene que pasar las restricciones de uso en su propio contrato. Además, las notas son datos personales sensibles: la LFPDPPP pide consentimiento expreso y por escrito para tratarlos, y eso la licencia ni lo toca. La clínica compara con Gemma 4 31B, que es Apache 2.0, y pide que la evaluación de calidad incluya a los dos.
+Una clínica con 40 médicos (números supuestos) quiere resumir notas clínicas en su red. Un proveedor le propone Gemma 3 27B. La revisión encuentra los Gemma Terms of Use: uso comercial permitido, pero Google se reserva restringir el uso si cree que se violan los términos, y si la clínica algún día le entrega un derivado a otra clínica, tiene que pasar las restricciones de uso en su propio contrato. Además, las notas son datos personales sensibles: la LFPDPPP pide, por regla general, consentimiento expreso y por escrito para tratarlos, y eso la licencia ni lo toca. La clínica compara con Gemma 4 31B, que es Apache 2.0, y pide que la evaluación de calidad incluya a los dos.
 
 ### Un integrador que revende
 
-Un integrador quiere vender «asistente legal privado» a 20 despachos. Con Llama 3.3 instalado en cada uno, distribuye 20 veces: copia del acuerdo y «Built with Llama» visible en cada sistema, y si afina el modelo con sentencias, el nombre empieza con «Llama». Con Qwen3 32B, copia de Apache 2.0, avisos y NOTICE. Si en vez de instalar decide hospedar el modelo y vender acceso, revisa las cláusulas de MaaS: con Qwen3 no hay; con Mistral Large 4 necesitaría licencia aparte desde el primer cliente. Su decisión de producto (instalar o hospedar) cambia qué licencias le convienen.
+Un integrador quiere vender «asistente legal privado» a 20 despachos. Con Llama 3.3 instalado en cada uno, distribuye 20 veces: copia del acuerdo y «Built with Llama» visible en cada sistema, y si afina el modelo con sentencias, el nombre empieza con «Llama». Con Qwen3 32B, copia de Apache 2.0, avisos y NOTICE. Si en vez de instalar decide hospedar el modelo y vender acceso, con Llama sigue mostrando «Built with Llama» y además revisa las cláusulas de MaaS: con Qwen3 no hay; con Mistral Large 4 necesitaría licencia aparte desde el primer cliente. Su decisión de producto (instalar o hospedar) cambia qué licencias le convienen.
 
 ## Ejercicios {Exercises}
 
@@ -597,7 +599,7 @@ Con \(k = U_{lic} ÷ U\): 700,000,000 ÷ 1,500 ≈ **466,667 veces**. La cláusu
 ? [facil] ¿Qué tres cosas pide la Open Source AI Definition 1.0 de la OSI, además de las libertades de usar, estudiar, modificar y compartir?
 Información de los datos de entrenamiento (suficiente para que una persona capacitada construya un sistema sustancialmente equivalente), el código completo (procesar datos, entrenar, validar e inferir) y los parámetros (los pesos). No exige publicar todos los datos: los que no se pueden compartir se describen en detalle.
 ? [facil] Un modelo no tiene puerta en Hugging Face. ¿Quiere decir que su licencia permite uso comercial?
-**No.** La puerta es un control de acceso y la licencia es aparte: hay que leerla siempre. Las dos cosas van por separado también al revés: Gemma 3 tiene puerta con aprobación manual y su licencia sí permite uso comercial.
+**No.** La puerta es un control de acceso y la licencia es aparte: hay que leerla siempre. Qwen2.5 3B, por ejemplo, no tiene puerta y su licencia es solo de investigación. Las dos cosas van por separado también al revés: Gemma 3 tiene puerta con aprobación manual y su licencia sí permite uso comercial.
 ? [medio] El despacho encuentra un GGUF de Llama 3.3 70B subido por otra persona, sin archivo LICENSE. ¿Qué licencia tiene y qué tendría que revisar antes de usarlo?
 Un cuantizado hereda la licencia de la base: es la **Llama 3.3 Community License**, aunque el repo no la traiga. Con \(C_n = C_0 + sum a_i\), tiene al menos las 5 condiciones de Llama, más las que agregue quien lo subió (\(a_1\)), si dice alguna en la model card. Antes de usarlo: confirmar en la model card de qué modelo exacto sale, revisar que no sea un fine-tune con condiciones extra, y preferir descargar el original del repo de Meta (con su puerta) o cuantizarlo en casa, para saber exactamente qué pesos se corren.
 ? [medio] Un fine-tune de Qwen3 32B publicado por un laboratorio dice `license: cc-by-nc-4.0`. Qwen3 es Apache 2.0. ¿Puede el despacho usarlo en producción?
@@ -611,7 +613,7 @@ Con \(C_n = C_0 + sum a_i\): la base es Llama 3.3 (\(C_0\) = 5). El primer fine-
 ? [reto] El despacho quiere abrir un portal para que sus 500 clientes (un supuesto del ejercicio) le hagan preguntas al modelo sobre sus propios expedientes, con Qwen3 32B. Un socio propone cambiar a Mistral Large 4 «porque es más grande». ¿Qué revisas en cada licencia y qué preguntas llevas al abogado?
 **Qwen3 32B** (Apache 2.0): no tiene umbrales ni cláusula de MaaS. Que los clientes usen el modelo desde un portal no cambia nada en la licencia; el despacho no entrega pesos. Lo que sí cambia: la LFPDPPP (los clientes ven datos y el portal es una nueva finalidad) y la responsabilidad por las respuestas.
 
-**Mistral Large 4** (MIT modificada): cualquier negocio de Model as a Service necesita licencia aparte, y el uso interno está exento. La pregunta para el abogado: un portal donde los clientes le preguntan al modelo sobre sus asuntos, ¿es uso interno del despacho, o es darle a terceros acceso al modelo con control sobre las entradas? Si fuera lo segundo, necesitaría un acuerdo con Mistral. (Aparte: un modelo de 1 billón de parámetros no cabe en una L40S; ese es otro problema, de sizing.)
+**Mistral Large 4** (MIT modificada): cualquier negocio de Model as a Service necesita licencia aparte, y el uso interno está exento. La pregunta para el abogado: un portal donde los clientes le preguntan al modelo sobre sus asuntos, ¿es uso interno del despacho, o es darle a terceros acceso al modelo con control sobre las entradas? Si fuera lo segundo, necesitaría un acuerdo con Mistral. (Aparte: un modelo de 1 billón de parámetros no cabe ni en las 3 L40S que pide el sizing del despacho, que suman 144 GB; solo sus pesos en INT4 serían ≈ 500 GB. Ese es otro problema, de sizing.)
 
 La hoja para el abogado: el texto de las dos licencias con la fecha de lectura, la sección de MaaS de Mistral, la descripción exacta del portal (quién entra, qué ve, si se cobra aparte) y los 500 usuarios.
 :::
@@ -634,7 +636,7 @@ Intenta responder en tu cabeza antes de abrir cada respuesta.
 
 :::chequeo
 ? ¿Cuál es la diferencia entre open weight y open source según la OSI?
-Open weight es que puedes descargar los pesos, con la licencia que sea. Open source, según la Open Source AI Definition 1.0 (octubre de 2024), pide además el código completo para entrenar e inferir y la información detallada de los datos, todo con términos que permitan usar, estudiar, modificar y compartir. OLMo cumple; Llama no.
+Open weight es que puedes descargar los pesos, con la licencia que sea. Open source, según la Open Source AI Definition 1.0 (octubre de 2024), pide además el código completo para entrenar e inferir y la información detallada de los datos, todo con términos que permitan usar, estudiar, modificar y compartir. OLMo cumplía en la validación de 2024; Llama 2 no, y la OSI dice que la licencia de Llama 3.x tampoco es open source.
 ? ¿Qué da Apache 2.0 que MIT no da de forma explícita?
 Una concesión de patentes: los contribuyentes te dan permiso de usar sus patentes que cubren el trabajo, y lo pierdes si demandas alegando que la obra infringe una patente. Apache 2.0 también pide marcar los archivos modificados y conservar el NOTICE.
 ? ¿A quién le alcanza el umbral de 700 millones de la licencia de Llama, y cuándo se cuenta?

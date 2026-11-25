@@ -7,26 +7,26 @@
 <rect class="f-off" x="24" y="92" width="72" height="24" rx="6"/><text class="f-s" x="60" y="109" text-anchor="middle">✗ pesos</text>
 <rect class="f-off" x="103" y="92" width="72" height="24" rx="6"/><text class="f-s" x="139" y="109" text-anchor="middle">✗ código</text>
 <rect class="f-off" x="182" y="92" width="72" height="24" rx="6"/><text class="f-s" x="218" y="109" text-anchor="middle">✗ datos</text>
-<rect class="f-off" x="261" y="92" width="72" height="24" rx="6"/><text class="f-s" x="297" y="109" text-anchor="middle">✗ OSI</text>
+<rect class="f-off" x="261" y="92" width="82" height="24" rx="6"/><text class="f-s" x="302" y="109" text-anchor="middle">✗ licencia</text>
 <text class="f-t" x="24" y="148">Open weight, licencia propia</text>
 <text class="f-s" x="24" y="166">Llama 3.3 70B</text>
 <rect class="f-g" x="24" y="176" width="72" height="24" rx="6"/><text class="f-s" x="60" y="193" text-anchor="middle" style="font-weight:700">✓ pesos</text>
 <rect class="f-off" x="103" y="176" width="72" height="24" rx="6"/><text class="f-s" x="139" y="193" text-anchor="middle">✗ código</text>
 <rect class="f-off" x="182" y="176" width="72" height="24" rx="6"/><text class="f-s" x="218" y="193" text-anchor="middle">✗ datos</text>
-<rect class="f-off" x="261" y="176" width="72" height="24" rx="6"/><text class="f-s" x="297" y="193" text-anchor="middle">✗ OSI</text>
+<rect class="f-off" x="261" y="176" width="82" height="24" rx="6"/><text class="f-s" x="302" y="193" text-anchor="middle">✗ licencia</text>
 <text class="f-t" x="24" y="232">Open weight, licencia permisiva</text>
 <text class="f-s" x="24" y="250">Qwen3 32B, con Apache 2.0</text>
 <rect class="f-g" x="24" y="260" width="72" height="24" rx="6"/><text class="f-s" x="60" y="277" text-anchor="middle" style="font-weight:700">✓ pesos</text>
 <rect class="f-off" x="103" y="260" width="72" height="24" rx="6"/><text class="f-s" x="139" y="277" text-anchor="middle">✗ código</text>
 <rect class="f-off" x="182" y="260" width="72" height="24" rx="6"/><text class="f-s" x="218" y="277" text-anchor="middle">✗ datos</text>
-<rect class="f-g" x="261" y="260" width="72" height="24" rx="6"/><text class="f-s" x="297" y="277" text-anchor="middle" style="font-weight:700">✓ OSI</text>
+<rect class="f-g" x="261" y="260" width="82" height="24" rx="6"/><text class="f-s" x="302" y="277" text-anchor="middle" style="font-weight:700">✓ licencia</text>
 <text class="f-t" x="24" y="316">Open source (definición OSI)</text>
 <text class="f-s" x="24" y="334">OLMo 3, de AI2</text>
 <rect class="f-g" x="24" y="344" width="72" height="24" rx="6"/><text class="f-s" x="60" y="361" text-anchor="middle" style="font-weight:700">✓ pesos</text>
 <rect class="f-g" x="103" y="344" width="72" height="24" rx="6"/><text class="f-s" x="139" y="361" text-anchor="middle" style="font-weight:700">✓ código</text>
 <rect class="f-g" x="182" y="344" width="72" height="24" rx="6"/><text class="f-s" x="218" y="361" text-anchor="middle" style="font-weight:700">✓ datos</text>
-<rect class="f-g" x="261" y="344" width="72" height="24" rx="6"/><text class="f-s" x="297" y="361" text-anchor="middle" style="font-weight:700">✓ OSI</text>
+<rect class="f-g" x="261" y="344" width="82" height="24" rx="6"/><text class="f-s" x="302" y="361" text-anchor="middle" style="font-weight:700">✓ licencia</text>
 <text class="f-s" x="24" y="398">código = el de entrenamiento · datos = la</text>
-<text class="f-s" x="24" y="416">información de los datos · OSI = licencia</text>
+<text class="f-s" x="24" y="416">información de los datos · licencia = una</text>
 <text class="f-s" x="24" y="434">aprobada por la Open Source Initiative</text>
 </svg>

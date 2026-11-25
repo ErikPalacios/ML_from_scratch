@@ -6,7 +6,7 @@
     "inicial": 0,
     "opciones": [
       { "label": "Llama 3.3 70B · Llama 3.3 Community License", "valores": { "Um": 700000000, "Rq": -2 },
-        "nota": "Umbral de 700 millones de usuarios activos mensuales, contados en el mes anterior a la fecha de lanzamiento de la versión. Arriba de eso hay que pedirle licencia a Meta, que puede negarla. Sin cláusula de MaaS. Las demás condiciones (copia del acuerdo, «Built with Llama», nombre de los derivados, política de uso) aplican siempre." },
+        "nota": "Umbral de 700 millones de usuarios activos mensuales, contados en el mes anterior a la fecha de lanzamiento de la versión. Arriba de eso hay que pedirle licencia a Meta, que puede negarla. Sin cláusula de MaaS. Las demás condiciones siguen aparte: la política de uso, siempre; copia del acuerdo, «Built with Llama» y nombre de los derivados, al distribuir o poner a disposición." },
       { "label": "Qwen3 32B · Apache 2.0", "valores": { "Um": 0, "Rq": -2 },
         "nota": "Sin umbral de usuarios y sin cláusula de MaaS. Solo las condiciones de Apache 2.0: copia de la licencia, marcar los archivos que cambiaste y conservar los avisos y el NOTICE." },
       { "label": "Qwen2.5 72B · Qwen License", "valores": { "Um": 100000000, "Rq": -2 },

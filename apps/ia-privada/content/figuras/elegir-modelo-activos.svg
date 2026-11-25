@@ -13,7 +13,7 @@
 <text class="f-t" x="28" y="188" style="font-size:13px">gpt-oss-20b</text><text class="f-s" x="28" y="204" style="font-size:12px">MoE · ≈ 13–14 GB</text>
 <rect class="f-b2" x="140" y="178" width="33" height="11" rx="3"/><text class="f-s" x="179" y="188" style="font-size:12px">20.9</text>
 <rect class="f-o" x="140" y="193" width="6" height="11" rx="2"/><text class="f-s" x="152" y="203" style="font-size:12px">3.6</text>
-<text class="f-t" x="28" y="236" style="font-size:13px">Gemma 4 26B-A4B</text><text class="f-s" x="28" y="252" style="font-size:12px">MoE · ≈ 13 GB</text>
+<text class="f-t" x="28" y="236" style="font-size:12px">Gemma 4 26B-A4B</text><text class="f-s" x="28" y="252" style="font-size:12px">MoE · ≈ 13 GB</text>
 <rect class="f-b2" x="140" y="226" width="40" height="11" rx="3"/><text class="f-s" x="186" y="236" style="font-size:12px">25.2</text>
 <rect class="f-o" x="140" y="241" width="6" height="11" rx="2"/><text class="f-s" x="152" y="251" style="font-size:12px">3.8</text>
 <text class="f-t" x="28" y="284" style="font-size:13px">Mistral Small 4</text><text class="f-s" x="28" y="300" style="font-size:12px">MoE · ≈ 62 GB</text>

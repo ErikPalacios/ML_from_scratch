@@ -124,7 +124,7 @@
       "dato": "Conversaciones a la vez, de diseño",
       "valor": "8",
       "unidad": "conversaciones",
-      "nota": "Ley de Little en la hora pico: 0.21/s × 27 s ≈ 5.6 en promedio; se diseña para 8 por los picos dentro de la hora pico."
+      "nota": "Ley de Little en la hora pico: 0.21/s × 27 s ≈ 5.6 en promedio. Con llegadas al azar (Poisson, media 5.6), 8 a la vez cubren ≈ 88 % del tiempo de la hora pico; en el peor momento típico llegan a ≈ 14 y las demás esperan en fila. 8 es el número de diseño de la memoria, no un tope de lo que llega."
     },
     {
       "id": "modelo",

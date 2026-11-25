@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 524" role="img" aria-labelledby="f-licencias-carpeta-t" class="f-svg" style="max-width:420px">
-<title id="f-licencias-carpeta-t">Los archivos de un repositorio de Hugging Face, como el de Qwen3 32B, agrupados en cuatro partes. Lo legal: LICENSE, la licencia completa, y README.md, la model card con para qué sirve el modelo, sus datos y sus límites. Cómo está armado: config.json, la arquitectura, y generation_config.json, los valores por omisión al generar. El tokenizer: tokenizer.json, vocab.json y merges.txt, que convierten texto en tokens, y tokenizer_config.json, con la plantilla de chat. Los pesos: varios archivos .safetensors de pocos GB cada uno y un índice que dice qué parte guarda cada tensor. Solo LICENSE y la model card dicen qué se permite hacer.</title>
+<title id="f-licencias-carpeta-t">Los archivos de un repositorio de Hugging Face, como el de Qwen3 32B, agrupados en cuatro partes. Lo legal: LICENSE, la licencia completa, y README.md, la model card con para qué sirve el modelo, sus datos y sus límites. Cómo está armado: config.json, la arquitectura, y generation_config.json, los valores por omisión al generar. El tokenizer: tokenizer.json, vocab.json y merges.txt, que convierten texto en tokens, y tokenizer_config.json, con la plantilla de chat. Los pesos: 17 archivos .safetensors de unos 3.9 GB cada uno y un índice que dice qué parte guarda cada tensor. Solo LICENSE y la model card dicen qué se permite hacer (en otros repos también puede haber USE_POLICY o NOTICE).</title>
 <rect class="f-card" x="10" y="10" width="340" height="504" rx="16"/>
 <text class="f-l" x="26" y="36">UN REPO DE HUGGING FACE · Qwen/Qwen3-32B</text>
 <text class="f-l" x="26" y="64">LO LEGAL · QUÉ PUEDES HACER</text>
@@ -25,8 +25,8 @@
 <text class="f-s" x="40" y="368">Ajustes y la plantilla de chat</text>
 <text class="f-l" x="26" y="400">LOS PESOS · CASI TODOS LOS GB</text>
 <rect class="f-g" x="24" y="410" width="6" height="34" rx="3"/>
-<text x="40" y="424" style="fill:var(--ink);font:700 12px var(--mono)">model-00001-of-000NN.safetensors …</text>
-<text class="f-s" x="40" y="440">Los pesos, en partes de pocos GB</text>
+<text x="40" y="424" style="fill:var(--ink);font:700 12px var(--mono)">model-00001-of-00017.safetensors …</text>
+<text class="f-s" x="40" y="440">Los pesos: 17 partes de ≈ 3.9 GB</text>
 <rect class="f-g" x="24" y="450" width="6" height="34" rx="3"/>
 <text x="40" y="464" style="fill:var(--ink);font:700 12px var(--mono)">model.safetensors.index.json</text>
 <text class="f-s" x="40" y="480">Qué parte guarda cada tensor</text>

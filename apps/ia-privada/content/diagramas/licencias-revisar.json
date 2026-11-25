@@ -50,7 +50,7 @@
       ] },
     { "id": "mistral", "label": "Mistral Small 24B",
       "steps": [
-        { "nodes": ["q1", "q2"], "edges": ["q1>q2"], "text": "Repo oficial de Mistral. Las versiones 3.1 y 3.2, de 24B, son **Apache 2.0**. Revisa la versión exacta: otros modelos de Mistral (Codestral, Large 2) tienen licencias que no permiten producción." },
+        { "nodes": ["q1", "q2"], "edges": ["q1>q2"], "text": "Repo oficial de Mistral. Las versiones 3, 3.1 y 3.2, de 24B, son **Apache 2.0**. Su repo no trae archivo LICENSE: la licencia se declara en la model card y se lee el texto estándar. Revisa la versión exacta: otros modelos de Mistral (Codestral, Large 2) tienen licencias que no permiten producción." },
         { "nodes": ["q3", "q4", "q5", "q6", "fin"], "edges": ["q2>q3", "q3>q4", "q4>q5", "q5>q6", "q6>fin"], "text": "Mismo camino que Qwen3 32B: comercial, sin umbrales, obligaciones de Apache 2.0. Al abogado." }
       ] },
     { "id": "qwen30", "label": "Qwen3 30B-A3B",
