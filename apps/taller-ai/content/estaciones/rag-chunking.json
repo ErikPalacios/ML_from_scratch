@@ -815,9 +815,9 @@
   "fallas": [
     {
       "id": "chunks-gigantes",
-      "titulo": "El asistente ya no encuentra las preguntas frecuentes del manual",
+      "titulo": "«¿Cuánto cuesta mandar a Zacatecas?» ya no encuentra la tabla de tarifas",
       "tipo": "config",
-      "historia": "Alguien leyó que «más contexto por chunk da mejores respuestas» y subió el tamaño en un PR chiquito. Los chunks se ven bien en el log; las preguntas sobre el final del manual dejaron de encontrar nada.",
+      "historia": "Alguien leyó que «más contexto por chunk da mejores respuestas» y subió el tamaño en un PR chiquito. Los chunks se ven bien en el log; las preguntas por los estados del final de la tabla de tarifas dejaron de encontrar nada.",
       "sintoma": "<code>verificar.py</code> marca <code>tamano</code> (un chunk de 871 tokens, más que los 512 del modelo) y <code>traslape</code> (las preguntas frecuentes ya no tienen corte).",
       "hipotesis": [
         "El manual cambió y perdió esa sección.",

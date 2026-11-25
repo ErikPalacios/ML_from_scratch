@@ -358,8 +358,8 @@ def falla(id_, titulo, tipo, historia, sintoma, hipotesis, confirma, arreglo, co
 
 
 e["fallas"] = [
-    falla("chunks-gigantes", "El asistente ya no encuentra las preguntas frecuentes del manual", "config",
-          "Alguien leyó que «más contexto por chunk da mejores respuestas» y subió el tamaño en un PR chiquito. Los chunks se ven bien en el log; las preguntas sobre el final del manual dejaron de encontrar nada.",
+    falla("chunks-gigantes", "«¿Cuánto cuesta mandar a Zacatecas?» ya no encuentra la tabla de tarifas", "config",
+          "Alguien leyó que «más contexto por chunk da mejores respuestas» y subió el tamaño en un PR chiquito. Los chunks se ven bien en el log; las preguntas por los estados del final de la tabla de tarifas dejaron de encontrar nada.",
           "<code>verificar.py</code> marca <code>tamano</code> (un chunk de 871 tokens, más que los 512 del modelo) y <code>traslape</code> (las preguntas frecuentes ya no tienen corte).",
           ["El manual cambió y perdió esa sección.", "Los chunks pasan del límite del modelo y lo de después no se embebe.", "El tokenizer está contando mal."],
           cmd(f"{V} tamano traslape", F("gig verificar")),
