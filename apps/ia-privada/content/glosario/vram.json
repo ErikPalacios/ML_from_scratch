@@ -1,0 +1,123 @@
+{
+  "nota": "Los conceptos que presenta la herramienta «¿Cabe en la GPU?» (content/herramientas/vram.md). «sensei»: la lección de Sensei donde se explica a fondo.",
+  "terminos": [
+    {
+      "id": "open-weight",
+      "termino": "Modelo open weight",
+      "en": "open-weight model",
+      "corto": "Un modelo cuyos [[pesos]] se pueden descargar y correr en tu propia máquina, con una licencia que dice qué se permite hacer con ellos.",
+      "largo": "No es lo mismo que open source: muchas veces se publican los pesos, pero no los datos ni el código con que se entrenó, y la licencia puede poner condiciones (por ejemplo, un límite de usuarios o la obligación de citar el nombre). Lo importante para una empresa: el modelo corre en su hardware y sus datos no salen de su red.",
+      "analogia": "Es como comprar una receta ya cocinada y congelada que puedes calentar en tu cocina cuantas veces quieras, contra pedir comida a domicilio (una API). Tienes el platillo, pero no necesariamente la lista de ingredientes ni el permiso de venderlo con tu marca.",
+      "ejemplo": "Llama 3.1 8B, Qwen3 32B y Mistral Small 24B se descargan de Hugging Face como archivos .safetensors."
+    },
+    {
+      "id": "vram",
+      "termino": "VRAM",
+      "en": "VRAM · GPU memory",
+      "corto": "La memoria que vive dentro de la tarjeta de la GPU. Todo lo que la GPU usa para calcular (los [[pesos]], el [[kv-cache|KV cache]] y lo que necesita el programa) tiene que caber ahí.",
+      "largo": "Es mucho más rápida que la RAM de la computadora, pero más chica y cara: de 16 GB en una T4 a 192 GB en una MI300X. Si lo que necesitas no cabe, el servidor no arranca o tiene que atender a menos personas a la vez. Por eso la primera pregunta al dimensionar es cuánta VRAM hace falta.",
+      "analogia": "La mesa de trabajo de un carpintero. Por rápido que sea, solo trabaja con lo que está sobre la mesa; lo que está en la bodega (el disco o la RAM) primero hay que traerlo, y eso es lento. **Dónde se rompe:** el carpintero puede ir y venir a la bodega; un LLM que no cabe en la VRAM, en la práctica, no sirve.",
+      "ejemplo": "Una NVIDIA L4 tiene 24 GB; una H100 SXM, 80 GB.",
+      "sensei": "cpu-gpu"
+    },
+    {
+      "id": "pesos",
+      "termino": "Pesos (parámetros)",
+      "en": "weights · parameters",
+      "corto": "Los números que el modelo aprendió al entrenarse. Son lo que el modelo «sabe»; se cargan una vez en la [[vram|VRAM]] y no cambian mientras sirve.",
+      "largo": "Un modelo de «8B» tiene ≈ 8 mil millones de ellos. Lo que ocupan es parámetros × bytes por parámetro: en 16 bits, 2 bytes cada uno. Cada token que el modelo escribe pasa por todos, así que tienen que estar completos en la memoria de la GPU.",
+      "analogia": "Las perillas de una consola de sonido gigante, ya acomodadas. Entrenar es girarlas hasta que la música suene bien; servir es solo usarlas así. Para tocar necesitas la consola entera, aunque una canción use unas perillas más que otras.",
+      "ejemplo": "Llama 3.1 8B tiene 8,030,261,248 parámetros: en BF16 ocupan 8,030,261,248 × 2 ≈ 16.06 GB.",
+      "sensei": "modelo"
+    },
+    {
+      "id": "cuantizacion",
+      "termino": "Cuantización",
+      "en": "quantization",
+      "corto": "Guardar los [[pesos]] con menos bits (8 o 4 en vez de 16) para que ocupen menos memoria, a cambio de un poco de precisión.",
+      "largo": "Cada peso se redondea a uno de pocos valores posibles y se guarda como un entero chico más una [[escala-por-grupo|escala]] que dice cuánto vale cada escalón. Con 4 bits los pesos ocupan ≈ la cuarta parte que en 16. Cuánto se pierde en calidad depende del modelo y del método, y se mide con evals.",
+      "analogia": "Pasar una foto de millones de colores a una paleta de 16. Se ve casi igual y pesa mucho menos; con muy pocos colores, empiezas a notar los saltos. **Dónde se rompe:** en una foto lo juzgas a ojo; en un modelo, solo midiendo sus respuestas.",
+      "ejemplo": "Qwen3 8B: ≈ 16.4 GB en BF16, ≈ 9.4 GB en FP8 y ≈ 6.1 GB en INT4 de AWQ.",
+      "sensei": "numeros-maquina"
+    },
+    {
+      "id": "escala-por-grupo",
+      "termino": "Escala por grupo",
+      "en": "group-wise scale",
+      "corto": "En la [[cuantizacion|cuantización]] a 4 bits, cada grupo de pesos (por ejemplo, 128) guarda su propia escala, en 16 bits, que dice cuánto vale cada escalón de sus enteros.",
+      "largo": "Con una sola escala para toda una capa, un peso muy grande obligaría a que los escalones fueran enormes y los pesos chicos se volverían 0. Con una escala por grupo, cada grupo ajusta su regla. El precio: bits extra. AWQ con grupos de 128 guarda, por grupo, una escala de 16 bits y un punto cero de 4: (16 + 4) ÷ 128 ≈ 0.16 bits más por peso, ≈ 4.16 en total.",
+      "analogia": "Cada cajón de un taller trae su propia regla: el de tornillos chicos mide en milímetros, el de vigas en metros. Con una sola regla para todo, los tornillos medirían «0 metros».",
+      "ejemplo": "En Qwen3 8B en AWQ, cada fila de 4,096 pesos de una capa se parte en 4,096 ÷ 128 = 32 grupos, y cada grupo guarda su escala.",
+      "sensei": "numeros-maquina"
+    },
+    {
+      "id": "tablas-de-tokens",
+      "termino": "Tablas de tokens",
+      "en": "embedding table · LM head",
+      "corto": "Las dos tablas de un LLM que traducen entre tokens y números: la de entrada convierte cada token en un vector y la de salida convierte el último vector en una puntuación para cada token del vocabulario. Tienen vocabulario × tamaño del vector parámetros cada una.",
+      "largo": "Son grandes porque el vocabulario lo es (128,256 tokens en Llama 3.1, 151,936 en Qwen3). Al cuantizar con AWQ, GPTQ o FP8 casi siempre se quedan en 16 bits: son sensibles a los errores y esos métodos las dejan fuera por omisión. GGUF, el formato de llama.cpp, sí las cuantiza. Algunos modelos usan la misma tabla para entrar y salir (la «atan», *tied*); entonces cuenta una sola vez.",
+      "analogia": "El diccionario de un intérprete: uno para pasar de palabras a ideas y otro para regresar. No se resumen, porque un error ahí cambia la palabra entera.",
+      "ejemplo": "Llama 3.1 8B: 128,256 × 4,096 = 525,336,576 parámetros por tabla; con dos, ≈ 1.05 mil millones, el 13 % del modelo.",
+      "sensei": "llms"
+    },
+    {
+      "id": "kv-cache",
+      "termino": "KV cache",
+      "en": "KV cache",
+      "corto": "La memoria donde el modelo guarda, para cada token de cada conversación activa, dos vectores ya calculados (la K y la V de la atención), para no recalcularlos en cada token nuevo.",
+      "largo": "Crece con cada token y con cada conversación, y vive en la [[vram|VRAM]] junto a los pesos. Por token ocupa \\(2 × L × g × d × b_{kv}\\) bytes: K y V, por cada bloque, por cada [[gqa|juego de K y V]], por los números de cada vector y sus bytes. Suele ser lo que decide cuántas personas atiende una GPU a la vez.",
+      "analogia": "Las notas que toma un mesero de cada mesa: no vuelve a preguntar todo lo que ya le dijeron. Cada mesa nueva y cada platillo más ocupan otra línea de su libreta, y la libreta tiene hojas contadas.",
+      "ejemplo": "Llama 3.1 8B: 2 × 32 × 8 × 128 × 2 bytes = 131,072 bytes = 128 KiB por token; una conversación de 8,192 tokens, 1 GiB.",
+      "sensei": "llms"
+    },
+    {
+      "id": "gqa",
+      "termino": "Juegos de K y V (GQA)",
+      "en": "grouped-query attention · KV heads",
+      "corto": "En cada bloque, la atención trabaja en varias cabezas a la vez. Con GQA, varias cabezas comparten un mismo juego de K y V, así que el [[kv-cache|KV cache]] guarda menos juegos (\\(g\\)) que cabezas.",
+      "largo": "Llama 3.1 8B tiene 32 cabezas pero solo 8 juegos de K y V: cada juego lo comparten 4 cabezas y el KV cache ocupa la cuarta parte. En el config.json del modelo el número de juegos es num_key_value_heads.",
+      "analogia": "Cuatro estudiantes que comparten un mismo juego de apuntes en vez de copiar cada quien el suyo: el librero se llena cuatro veces más despacio.",
+      "ejemplo": "Qwen3 30B-A3B usa solo 4 juegos por bloque: su KV cache por token (96 KiB) es más chico que el de Qwen3 8B (144 KiB), aunque el modelo es casi 4 veces más grande.",
+      "sensei": "llms"
+    },
+    {
+      "id": "contexto",
+      "termino": "Tokens por conversación (contexto)",
+      "en": "context length",
+      "corto": "Cuántos tokens lleva una conversación en un momento dado: el prompt (con sus documentos, si hay RAG) más lo que el modelo ya escribió. El [[kv-cache|KV cache]] guarda una entrada por cada uno.",
+      "largo": "Cada modelo tiene un máximo, su ventana de contexto, que viene en su config.json (max_position_embeddings). Que el modelo acepte 131,072 tokens no quiere decir que tu GPU tenga memoria para eso con muchas personas a la vez: esa cuenta es la de esta calculadora.",
+      "analogia": "El largo de la conversación que el mesero tiene que recordar de una mesa. Una mesa que pide de a poco ocupa una línea; una que dicta una lista de 200 platillos llena varias hojas.",
+      "ejemplo": "Un RAG que mete 6 fragmentos de 500 tokens más la pregunta y una respuesta de 400 ya lleva ≈ 3,500 tokens.",
+      "sensei": "llms"
+    },
+    {
+      "id": "concurrencia",
+      "termino": "Conversaciones a la vez",
+      "en": "concurrency · concurrent requests",
+      "corto": "Cuántas conversaciones atiende el servidor en el mismo momento. Cada una tiene su propio [[kv-cache|KV cache]], así que la memoria crece con cada una; los [[pesos]] se comparten.",
+      "largo": "No es lo mismo que usuarios registrados: 200 abogados en un despacho no escriben todos en el mismo segundo. Cuántas llegan a la vez se estima con el tráfico, y esa estimación (y cómo cambia la latencia) es tema de las herramientas de sizing.",
+      "analogia": "Las mesas ocupadas de un restaurante, no la gente en la lista de clientes. La cocina (los pesos) es una sola; cada mesa ocupa su lugar en la libreta del mesero.",
+      "ejemplo": "Con Llama 3.1 8B en BF16 y conversaciones de 8,192 tokens, cada una suma ≈ 1.07 GB: 4 a la vez son ≈ 4.3 GB solo de KV cache."
+    },
+    {
+      "id": "overhead",
+      "termino": "Overhead (programa y margen)",
+      "en": "overhead · memory headroom",
+      "corto": "La memoria que la GPU gasta en lo que no son ni los [[pesos]] ni el [[kv-cache|KV cache]]: el programa que sirve el modelo (\\(M_{prog}\\)) y el margen que el servidor deja libre a propósito (\\(f\\)).",
+      "largo": "El programa incluye el contexto de CUDA, las librerías, la memoria de trabajo de cada paso (las activaciones) y los buffers del servidor: del orden de 1 a 5 GB por GPU, según el servidor y el modelo. El margen evita que un pico de memoria tumbe al servidor: vLLM, por ejemplo, por omisión usaba el 90 % de la memoria de la GPU (versión 0.10.2) y en versiones nuevas el valor cambió. Se lee en la documentación de tu versión y, mejor, en lo que imprime el servidor al arrancar.",
+      "analogia": "En una mudanza, el camión no se llena hasta el techo: van también las cobijas, las cuerdas y el espacio para cerrar la puerta. Si calculas solo con los muebles, no cierra.",
+      "ejemplo": "Una L4 de 24 GB con 10 % de margen deja 21.6 GB útiles; con 2 GB de programa, quedan 19.6 GB para pesos y KV cache.",
+      "sensei": "llms"
+    },
+    {
+      "id": "moe",
+      "termino": "Mixture of Experts (MoE)",
+      "en": "mixture of experts",
+      "corto": "Un modelo donde cada bloque tiene muchas redes chicas («expertos») y cada token usa solo unas pocas. Calcula como un modelo chico, pero en memoria tienen que estar **todos** los expertos.",
+      "largo": "Qwen3 30B-A3B tiene 128 expertos por bloque y cada token usa 8: según su ficha, 3.3 mil millones de parámetros activos por token, de 30.5 mil millones en total. Para la memoria cuenta el total; para la velocidad, más bien los activos. Esa diferencia la ves en la calculadora de velocidad.",
+      "analogia": "Un hospital con 128 especialistas en el edificio: a cada paciente lo ven solo 8, pero el edificio tiene que tener consultorio para los 128.",
+      "ejemplo": "Qwen3 30B-A3B en BF16 ocupa ≈ 61 GB de pesos, como un modelo denso de 30B, aunque cada token haga las cuentas de uno de ≈ 3.3B.",
+      "sensei": "llms"
+    }
+  ]
+}

@@ -1,0 +1,330 @@
+{
+  "titulo": "¿Cabe en la GPU?",
+  "intro": "Extiende las calculadoras de Sensei con las mismas fórmulas: pesos \\(W\\), KV cache \\(m_{token} = 2 × L × g × d × b_{kv}\\) y el margen \\(f\\) con el programa \\(M_{prog}\\). Elige un modelo de ejemplo o mueve los controles. Arranca con Llama 3.1 8B en BF16 en una L4: 4 conversaciones de 8,192 tokens no caben.",
+  "preajustes": {
+    "label": "Modelo de ejemplo (arquitectura del config.json oficial)",
+    "inicial": 0,
+    "opciones": [
+      {
+        "label": "Llama 3.1 8B Instruct",
+        "valores": {
+          "P": 8.03,
+          "Et": 1.051,
+          "L": 32,
+          "g": 8,
+          "d": 128
+        },
+        "nota": "Meta, 8,030,261,248 parámetros. Vocabulario de 128,256 tokens × 4,096 números, dos tablas (entrada y salida). Contexto máximo: 131,072 tokens."
+      },
+      {
+        "label": "Llama 3.3 70B Instruct",
+        "valores": {
+          "P": 70.554,
+          "Et": 2.101,
+          "L": 80,
+          "g": 8,
+          "d": 128
+        },
+        "nota": "Meta, 70,553,706,496 parámetros. 128,256 tokens × 8,192 números, dos tablas. Contexto máximo: 131,072 tokens."
+      },
+      {
+        "label": "Qwen3 4B",
+        "valores": {
+          "P": 4.022,
+          "Et": 0.389,
+          "L": 36,
+          "g": 8,
+          "d": 128
+        },
+        "nota": "Alibaba, 4,022,468,096 parámetros. 151,936 tokens × 2,560 números, y la tabla de salida es la misma que la de entrada (una sola). Contexto: 32,768 tokens de origen y 131,072 con YaRN, según su ficha."
+      },
+      {
+        "label": "Qwen3 8B",
+        "valores": {
+          "P": 8.191,
+          "Et": 1.245,
+          "L": 36,
+          "g": 8,
+          "d": 128
+        },
+        "nota": "Alibaba, 8,190,735,360 parámetros. 151,936 tokens × 4,096 números, dos tablas. Contexto: 32,768 tokens de origen y 131,072 con YaRN, según su ficha."
+      },
+      {
+        "label": "Qwen3 32B",
+        "valores": {
+          "P": 32.762,
+          "Et": 1.556,
+          "L": 64,
+          "g": 8,
+          "d": 128
+        },
+        "nota": "Alibaba, 32,762,123,264 parámetros. 151,936 tokens × 5,120 números, dos tablas. Contexto: 32,768 tokens de origen y 131,072 con YaRN, según su ficha."
+      },
+      {
+        "label": "Qwen3 30B-A3B (MoE)",
+        "valores": {
+          "P": 30.532,
+          "Et": 0.622,
+          "L": 48,
+          "g": 4,
+          "d": 128
+        },
+        "nota": "Alibaba, 30,532,122,624 parámetros: 128 expertos por bloque y cada token usa 8. En memoria van **todos**. 151,936 tokens × 2,048 números, dos tablas. Solo 4 juegos de K y V por bloque."
+      },
+      {
+        "label": "Mistral Small 24B Instruct (2501)",
+        "valores": {
+          "P": 23.572,
+          "Et": 1.342,
+          "L": 40,
+          "g": 8,
+          "d": 128
+        },
+        "nota": "Mistral AI, 23,572,403,200 parámetros. 131,072 tokens × 5,120 números, dos tablas. Contexto máximo: 32,768 tokens."
+      }
+    ]
+  },
+  "entradas": [
+    {
+      "id": "P",
+      "label": "Parámetros del modelo, \\(P\\), en miles de millones",
+      "min": 0.1,
+      "max": 1000,
+      "paso": 0.001,
+      "valor": 8.03,
+      "tipo": "numero"
+    },
+    {
+      "id": "Et",
+      "label": "De ellos, las tablas de tokens, \\(E\\), en miles de millones (se quedan en 16 bits)",
+      "min": 0,
+      "max": 50,
+      "paso": 0.001,
+      "valor": 1.051,
+      "tipo": "numero"
+    },
+    {
+      "id": "bits",
+      "label": "Formato de los pesos",
+      "tipo": "opcion",
+      "valor": 16,
+      "opciones": [
+        {
+          "valor": 16,
+          "label": "BF16 o FP16 · 16 bits"
+        },
+        {
+          "valor": 8,
+          "label": "FP8 o INT8 · 8 bits"
+        },
+        {
+          "valor": 4.15625,
+          "label": "INT4 de AWQ o GPTQ, grupos de 128 · ≈ 4.16 bits"
+        },
+        {
+          "valor": 4,
+          "label": "INT4 ideal, sin escalas · 4 bits"
+        }
+      ]
+    },
+    {
+      "id": "L",
+      "label": "Bloques del modelo, \\(L\\)",
+      "min": 1,
+      "max": 128,
+      "paso": 1,
+      "valor": 32
+    },
+    {
+      "id": "g",
+      "label": "Juegos de K y V por bloque, \\(g\\)",
+      "min": 1,
+      "max": 128,
+      "paso": 1,
+      "valor": 8
+    },
+    {
+      "id": "d",
+      "label": "Números por cada K o V, \\(d\\)",
+      "min": 32,
+      "max": 256,
+      "paso": 32,
+      "valor": 128
+    },
+    {
+      "id": "bkv",
+      "label": "Formato del KV cache, \\(b_{kv}\\)",
+      "tipo": "opcion",
+      "valor": 2,
+      "opciones": [
+        {
+          "valor": 2,
+          "label": "BF16 o FP16 · 2 bytes"
+        },
+        {
+          "valor": 1,
+          "label": "FP8 · 1 byte"
+        }
+      ]
+    },
+    {
+      "id": "N",
+      "label": "Tokens por conversación, \\(N\\) (prompt más respuesta)",
+      "min": 1,
+      "max": 1048576,
+      "paso": 1,
+      "valor": 8192,
+      "tipo": "numero"
+    },
+    {
+      "id": "u",
+      "label": "Conversaciones a la vez, \\(u\\)",
+      "min": 1,
+      "max": 512,
+      "paso": 1,
+      "valor": 4,
+      "tipo": "numero"
+    },
+    {
+      "id": "V",
+      "label": "GPU (datos de gpus.json)",
+      "opciones": "gpus",
+      "inicial": "l4"
+    },
+    {
+      "id": "n",
+      "label": "GPUs en la misma copia del servidor, \\(n\\)",
+      "min": 1,
+      "max": 8,
+      "paso": 1,
+      "valor": 1
+    },
+    {
+      "id": "prog",
+      "label": "Programa que sirve el modelo, \\(M_{prog}\\)",
+      "min": 0,
+      "max": 20,
+      "paso": 0.5,
+      "valor": 2,
+      "unidad": "GB"
+    },
+    {
+      "id": "f",
+      "label": "Margen que el servidor deja libre, \\(f\\) (0.1 = 10 %)",
+      "min": 0,
+      "max": 0.5,
+      "paso": 0.01,
+      "valor": 0.1
+    }
+  ],
+  "calculos": [
+    {
+      "id": "W",
+      "formula": "(max(0, P - Et) * bits / 8 + Et * 2) * 1e9"
+    },
+    {
+      "id": "mtok",
+      "formula": "2 * L * g * d * bkv"
+    },
+    {
+      "id": "mconv",
+      "formula": "mtok * N"
+    },
+    {
+      "id": "kv",
+      "formula": "mconv * u"
+    },
+    {
+      "id": "total",
+      "formula": "W + prog * 1e9 + kv"
+    },
+    {
+      "id": "gpu",
+      "formula": "n * V * 1e9"
+    },
+    {
+      "id": "util",
+      "formula": "(1 - f) * gpu"
+    },
+    {
+      "id": "libre",
+      "formula": "util - W - prog * 1e9"
+    }
+  ],
+  "salidas": [
+    {
+      "label": "1 · Pesos, \\(W\\)",
+      "formula": "W",
+      "formato": "bytes",
+      "barra": true,
+      "nota": "\\(W = (P − E) × bits ÷ 8 + E × 2\\) bytes",
+      "cuenta": "({{P|num|3}} − {{Et|num|3}}) mil millones × {{bits|num|3}} bits ÷ 8 + {{Et|num|3}} mil millones × 2 bytes = **{{W|bytes|2}}**"
+    },
+    {
+      "label": "2 · KV cache por token, \\(m_{token}\\)",
+      "formula": "mtok / 1024",
+      "formato": "num",
+      "decimales": 0,
+      "nota": "en KiB: \\(2 × L × g × d × b_{kv}\\) bytes ÷ 1,024",
+      "cuenta": "2 × {{L|int}} × {{g|int}} × {{d|int}} × {{bkv|int}} bytes = {{mtok|int}} bytes = **{{mtok / 1024|num|0}} KiB**"
+    },
+    {
+      "label": "3 · KV cache de todas las conversaciones",
+      "formula": "kv",
+      "formato": "bytes",
+      "barra": true,
+      "nota": "\\(m_{token} × N × u\\)",
+      "cuenta": "{{mtok|int}} bytes × {{N|int}} tokens = {{mconv|bytes|2}} por conversación; × {{u|int}} conversaciones = **{{kv|bytes|2}}**"
+    },
+    {
+      "label": "4 · Overhead: el programa",
+      "formula": "prog * 1e9",
+      "formato": "bytes",
+      "barra": true,
+      "nota": "\\(M_{prog}\\): CUDA, el servidor y sus buffers. El margen \\(f\\) se descuenta en la fila 6"
+    },
+    {
+      "label": "5 · Lo que necesitas",
+      "formula": "total",
+      "formato": "bytes",
+      "cuenta": "{{W|bytes|2}} + {{kv|bytes|2}} + {{prog * 1e9|bytes|1}} = **{{total|bytes|2}}**"
+    },
+    {
+      "label": "6 · Lo que tienes, \\(M_{útil}\\)",
+      "formula": "util",
+      "formato": "bytes",
+      "nota": "\\((1 − f) × n × VRAM\\)",
+      "cuenta": "(1 − {{f|num|2}}) × {{n|int}} × {{V|num|0}} GB = **{{util|bytes|2}}**"
+    },
+    {
+      "label": "¿Cabe?",
+      "formula": "util - total",
+      "veredicto": {
+        "si": "Sí cabe",
+        "no": "No cabe"
+      },
+      "cuenta": "{{util|bytes|2}} − {{total|bytes|2}} = {{util - total|bytes|2}} (si sale negativo, eso es lo que falta)"
+    },
+    {
+      "label": "Parte de la memoria útil que ocupas",
+      "formula": "total / util",
+      "formato": "pct",
+      "barra": true,
+      "nota": "más de 100 %: no arranca, o rechaza conversaciones"
+    },
+    {
+      "label": "Conversaciones de \\(N\\) tokens que caben, \\(c\\)",
+      "formula": "max(0, floor(libre / mconv))",
+      "formato": "int",
+      "cuenta": "⌊({{util|bytes|2}} − {{W|bytes|2}} − {{prog * 1e9|bytes|1}}) ÷ {{mconv|bytes|2}}⌋ = **{{max(0, floor(libre / mconv))|int}}**"
+    },
+    {
+      "label": "Contexto máximo para \\(u\\) conversaciones",
+      "formula": "max(0, floor(libre / (u * mtok)))",
+      "formato": "int",
+      "nota": "tokens por conversación, si las \\(u\\) llegan a la vez",
+      "cuenta": "⌊{{max(0, libre)|bytes|2}} libres ÷ ({{u|int}} × {{mtok|int}} bytes)⌋ = **{{max(0, floor(libre / (u * mtok)))|int}} tokens**"
+    }
+  ],
+  "nota": "Prueba: con Llama 3.1 8B, cambia los pesos a INT4 de AWQ y mira cómo caben las 4 conversaciones. Después elige Llama 3.3 70B, pesos en FP8, 2 GPUs H100 SXM, programa de 5 GB y 2,250 tokens por conversación: caben 89. Sensei, con la cuenta corta \\(W = P × b\\), da 92; pon \\(E\\) en 0 y sale lo mismo. La diferencia son las tablas de tokens, que aquí se quedan en 16 bits."
+}
