@@ -1,0 +1,34 @@
+{
+  "nota": "Los conceptos que presenta la herramienta «Catálogo de hardware» (content/herramientas/catalogo.md).",
+  "terminos": [
+    {
+      "id": "memoria-unificada",
+      "termino": "Memoria unificada",
+      "en": "unified memory",
+      "corto": "Una sola memoria que comparten la CPU y la GPU de un mismo chip, en vez de que la GPU tenga su propia [[vram|VRAM]]. La usan las Mac con chips de Apple y la DGX Spark.",
+      "largo": "Deja cargar modelos mucho más grandes que cualquier tarjeta de escritorio, porque toda la memoria del equipo sirve para el modelo. A cambio, su [[ancho-de-banda|ancho de banda]] suele ser menor que el de una GPU de centro de datos, y el sistema operativo se queda con una parte.",
+      "analogia": "Un departamento con una sola cocina para todos los roomies, contra una casa donde el chef tiene su cocina aparte: cabe más gente cocinando, pero se estorban en el pasillo.",
+      "ejemplo": "Una Mac Studio con 256 GB de memoria unificada carga modelos que no caben en una RTX PRO 6000 de 96 GB, pero la lee a 1,200 GB/s contra 1,792.",
+      "sensei": "cpu-gpu"
+    },
+    {
+      "id": "sxm",
+      "termino": "SXM",
+      "en": "SXM module",
+      "corto": "El formato de las GPUs más grandes de NVIDIA: un módulo que se monta en una placa de 8 GPUs (HGX), unidas por NVLink, dentro de un servidor hecho para ellas. No se venden sueltas.",
+      "largo": "Frente a la versión PCIe de la misma GPU, la SXM recibe más potencia (700 W en una H100 SXM contra 350 en la PCIe), lee más rápido su memoria y habla con las otras 7 por NVLink. Por eso su precio de referencia es el de un servidor de 8 entre 8.",
+      "analogia": "Los motores de un avión: no los compras en la refaccionaria para tu coche, vienen montados en el avión.",
+      "ejemplo": "H100 SXM, H200 y B200. Su contraparte en tarjeta: la H100 PCIe y la H100 NVL.",
+      "sensei": "cpu-gpu"
+    },
+    {
+      "id": "sparsity",
+      "termino": "Sparsity",
+      "en": "2:4 structured sparsity",
+      "corto": "Una función de las GPUs de NVIDIA que se salta la mitad de las multiplicaciones cuando la mitad de los pesos son cero en un patrón fijo. Duplica la cifra del [[pico-de-calculo|pico]] en la hoja de datos.",
+      "largo": "Solo sirve si el modelo se preparó para eso, y casi ningún LLM abierto se sirve así. Por eso la cifra útil para dimensionar es la densa: la que anuncia NVIDIA con asterisco, dividida entre 2.",
+      "analogia": "Un anuncio de coche que da el rendimiento de gasolina en bajada: es cierto, pero no es como vas a manejar.",
+      "ejemplo": "H100 SXM: 1,979 TFLOPS en BF16 «con sparsity» son 989.5 densos."
+    }
+  ]
+}

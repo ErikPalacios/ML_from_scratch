@@ -10,6 +10,6 @@
   "pill": "AI systems engineering en TrueML",
   "titular": "Modelos abiertos en el hardware de la empresa, explicado desde cero.",
   "lead": "Qué hace falta para que una empresa use un LLM sin que sus datos salgan de su red: qué modelo, cuánta memoria, qué GPU comprar, cómo servirlo, cómo demostrar que funciona y cuánto cuesta. Con lecciones, calculadoras que muestran cada cuenta, casos de empresas resueltos de principio a fin y una rama del Dojo para construirlo.",
-  "descripcion": "IA Privada, de TrueML: cómo llevar modelos open weight al hardware propio de una empresa. Calculadora de VRAM con la cuenta paso a paso, lecciones, casos y práctica en el Dojo. En español, gratis y sin cuenta.",
+  "descripcion": "IA Privada, de TrueML: cómo llevar modelos open weight al hardware propio de una empresa. Calculadoras de VRAM, velocidad, sizing y TCO con la cuenta paso a paso, catálogo de hardware con precios, lecciones, casos y práctica en el Dojo. En español, gratis y sin cuenta.",
   "subtitulo": "IA en hardware propio"
 }

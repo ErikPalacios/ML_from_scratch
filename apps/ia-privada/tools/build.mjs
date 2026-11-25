@@ -27,6 +27,7 @@ import { createHash } from 'node:crypto';
 import { crear, esc } from './md.mjs';
 import { validar as validarDiagrama, montar } from './diagrama.mjs';
 import { validar as validarCalc, dibujar as dibujarCalc } from './calculadora.mjs';
+import { validarDatos, dibujarCatalogo } from './catalogo.mjs';
 import { marca, miniT, etapas as etapasDe, donar } from '../vendor/trueml/lib.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -46,6 +47,10 @@ const CASOS = json(join(C, 'casos.json'));
 const DOJO = json(join(C, 'dojo.json'));
 const SENSEI = json(join(C, 'datos', 'sensei.json'));
 const GPUS = json(join(C, 'datos', 'gpus.json'));
+const APIS = json(join(C, 'datos', 'apis.json'));
+const EQUIPOS = json(join(C, 'datos', 'equipos.json'));
+errores.push(...validarDatos(GPUS, EQUIPOS));
+for (const a of APIS.apis) if (!a.fuente?.url || !a.fuente?.consultado || typeof a.usd_millon_entrada !== 'number' || typeof a.usd_millon_salida !== 'number') errores.push(`apis.json ${a.id}: necesita precios y fuente con url y fecha`);
 const CLAVE = SITIO.clave;
 
 // ---------------------------------------------------------------- glosario: un archivo por página en content/glosario/
@@ -128,8 +133,41 @@ function resolverDatos(c, id) {
     x.valor = g.vram_gb;
     x.seleccion = GPUS.gpus.indexOf(g);
   }
+  // Una lista de preajustes con "datos": "gpus" | "apis" se llena desde esos archivos: cada opción pone en las entradas
+  // de «campos» el dato de esa GPU o API. Un dato que el fabricante no publica queda en 0 y la nota lo dice. Las entradas
+  // toman su valor inicial de la opción «inicial»: ningún número de una GPU o de un precio se escribe a mano.
+  const porId = new Map((c.entradas || []).map((x) => [x.id, x]));
+  for (const pa of (Array.isArray(c.preajustes) ? c.preajustes : [])) {
+    if (!pa.datos) continue;
+    const fuente = { gpus: GPUS.gpus, apis: APIS.apis }[pa.datos];
+    if (!fuente) throw new Error(`calculadora ${id}: «datos» = «${pa.datos}» no existe (gpus o apis)`);
+    const filas = fuente.filter((y) => (!pa.ids || pa.ids.includes(y.id)) && (pa.requiere || []).every((k) => dato(y, k) !== null));
+    const ini = filas.findIndex((y) => y.id === pa.inicial);
+    if (ini < 0) throw new Error(`calculadora ${id}: «${pa.label}»: «inicial» = «${pa.inicial}» no está en ${pa.datos}.json (o no pasa el filtro)`);
+    pa.opciones = filas.map((y) => {
+      const valores = {}, faltan = [];
+      for (const [k, campo] of Object.entries(pa.campos)) { const v = dato(y, campo); valores[k] = v === null ? 0 : v; if (v === null) faltan.push(NOMBRE_DATO[campo] || campo); }
+      const f = y.fuente || {};
+      const nota = pa.datos === 'gpus'
+        ? `${y.nombre}: especificaciones de [${dominio(f.url)}](${f.url}), consultado ${f.consultado}.${pa.campos && Object.values(pa.campos).includes('renta_min_usd_hora') && y.nube?.length ? ` Renta: la más barata de gpus.json (${rentaMin(y).proveedor}, ${rentaMin(y).fuente.consultado}).` : ''}${faltan.length ? ` **Sin dato publicado:** ${faltan.join(', ')} (queda en 0; escribe el tuyo).` : ''}`
+        : `${y.proveedor}, ${y.modelo}: [precios de ${dominio(f.url)}](${f.url}), consultado ${f.consultado}.${y.nota ? ` ${y.nota}` : ''}`;
+      return { label: pa.datos === 'gpus' ? `${y.nombre} · ${y.vram_gb} GB` : `${y.modelo} · ${y.proveedor}`, valores, nota };
+    });
+    pa.inicial = ini;
+    for (const [k, v] of Object.entries(pa.opciones[ini].valores)) if (porId.has(k)) porId.get(k).valor = v;
+    delete pa.datos; delete pa.campos; delete pa.ids; delete pa.requiere;
+  }
   return c;
 }
+// Lo que una calculadora puede pedir de una GPU: cualquier campo de gpus.json, más la renta más barata por GPU y hora.
+const rentaMin = (g) => (g.nube || []).filter((n) => n.usd_gpu_hora && !n.gpu_cobrada_aparte).sort((a, b) => a.usd_gpu_hora - b.usd_gpu_hora)[0] || null;
+function dato(y, campo) {
+  if (campo === 'renta_min_usd_hora') { const r = rentaMin(y); return r ? r.usd_gpu_hora : null; }
+  const v = y[campo];
+  return typeof v === 'number' ? v : null;
+}
+const NOMBRE_DATO = { fp16_tflops_denso: 'FP16 denso', fp8_tflops_denso: 'FP8 denso', int8_tops_denso: 'INT8 denso', compra_usd: 'precio de compra', renta_min_usd_hora: 'renta por hora', potencia_w: 'consumo', ancho_banda_gbs: 'ancho de banda' };
+const dominio = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return 'la fuente'; } };
 const calculadora = (id, pie, inline) => {
   const p = join(C, 'calculadoras', `${id}.json`);
   if (!existsSync(p)) throw new Error(`falta content/calculadoras/${id}.json`);
@@ -156,7 +194,7 @@ for (const l of LISTAS) {
   for (const s of meta.sensei) if (!SENSEI.lecciones[s]) errores.push(`${rel}: «sensei» menciona «${s}», que no está en el temario de Sensei`);
   l.meta = meta;
   try {
-    Object.assign(l, crear({ glosario: GLOS, diagrama, figura, calculadora, contexto: rel }).render(cuerpo));
+    Object.assign(l, crear({ glosario: GLOS, diagrama, figura, calculadora, extras: { catalogo: (arg, dentro, inline) => dibujarCatalogo(GPUS, EQUIPOS, inline) }, contexto: rel }).render(cuerpo));
   } catch (e) { fail(e.message); }
   for (const id of l.conceptos) {
     if (PRESENTA.has(id)) errores.push(`«${id}» se presenta en ${PRESENTA.get(id).id} y otra vez en ${l.id}`);
