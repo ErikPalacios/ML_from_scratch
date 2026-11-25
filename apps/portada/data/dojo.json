@@ -114,8 +114,8 @@
           "id": "ingesta",
           "titulo": "Conectores y parsing",
           "etapa": "datos",
-          "lista": false,
-          "url": null
+          "lista": true,
+          "url": "https://dojo.trueml.app/rag/ingesta/"
         },
         {
           "num": 2,

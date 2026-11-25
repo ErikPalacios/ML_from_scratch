@@ -144,7 +144,7 @@ Cada fase cabe en una ventana de 5 horas y termina con la app construida, revisa
 | 11 | Estación 3: vLLM bajo carga (primera sesión con GPU rentada; se elige el proveedor) | 10 |
 | 12 | Estación 4: gateway de modelos | 11 |
 | **Entrenamiento RAG** (lo que piden las estaciones 5–6) | | |
-| 13 | RAG · estación 1: conectores y parsing | — |
+| 13 ✓ | RAG · estación 1: conectores y parsing. Hecha el 2026-11-25: en vivo en dojo.trueml.app/rag/ingesta/ | — |
 | 14 | RAG · estación 2: chunking con contexto | 13 |
 | 15 | RAG · estación 3: permisos en cada chunk | 14 |
 | 16 | RAG · estación 4: golden set | 15 |
@@ -169,6 +169,8 @@ Opcional, después: las estaciones 10–12 del RAG (Docker, índice nuevo sin co
 **Medido (fase 2, 2026-11-25):** calculadoras de velocidad, sizing y TCO, catálogo, investigación de precios, especificaciones y benchmarks (3 subagentes Sonnet), revisión de hechos (Sonnet, 3 graves y 11 menores, todas corregidas) y deploy: la ventana de 5 horas pasó de 9 % a 55 % y el límite semanal total de 83 % a 89 %; Fable no se usó. Esas cifras incluyen a la sesión de la fase 3, que corrió en paralelo, así que la fase 2 sola costó menos. El motor de calculadoras ganó varias listas de preajustes llenadas desde datos (`"datos": "gpus" | "apis"`), la tabla `comparar` y `sin_valor`; el catálogo es el bloque `:::catalogo`. Los precios por token viven en content/datos/apis.json; los servidores con precio, en apps/sensei/content/datos/equipos.json (sync.mjs lo copia).
 
 **Medido (fase 3, 2026-11-25):** 5 lecciones (≈ 48.6k palabras), la ficha del despacho y la integración corrieron en paralelo con la fase 2: las dos juntas subieron el límite semanal total de 83 % a 90 % y la ventana de 5 horas de ≈ 9 % a 64 % (la fase 2 sola llegó a 89 % antes de que esta terminara). Para la fase 3 quedan ≈ 6–7 puntos semanales, ≈ 1.3 % por lección, como las fases 5–6 de Sensei; el reparto por pieza es aproximado. Por pieza: paquetes con web (3 Sonnet, medio) ≈ 2 puntos; escritores (5 Opus, medio, en paralelo, 15–23 min, 220–300k tokens cada uno) ≈ 3; revisión mecánica (5 Sonnet, bajo) < 1; revisión de fondo (5 Opus, alto, hechos y claridad en un solo agente por lección) ≈ 2, con 64 correcciones de hechos (13 graves) y 76 cambios de claridad; integración (Sonnet, medio) y navegador < 1. Lo nuevo: la ficha del despacho como única fuente de sus números (como `empresa.json` en Sensei), y la coordinación con la fase 2 por mensajes: su herramienta de sizing mostró que 1 L40S no atiende bien al despacho (el prefill de 6,000 tokens ya pasa el TTFT de 2 s), y eso se volvió el hilo de las lecciones en vez de un error.
+
+**Medido (fase 13, 2026-11-25):** kit (cuatro fuentes ficticias por HTTP, sin Docker), solución, 11 checks, 6 fallas probadas, contenido con salidas reales, revisión de hechos (un subagente Sonnet: ningún error, 6 precisiones aplicadas), chequeos de la app y deploy: la ventana de 5 horas pasó de 12 % a 64 % y el límite semanal total de 83 % a 90 %; Fable no se usó. Esas cifras incluyen a las sesiones de las fases 2 y 3, que corrieron en paralelo, así que la fase 13 sola costó menos. Código y contenido en Opus (una sola sesión, sin escritores); la revisión de hechos, en Sonnet.
 
 **Costo estimado:** ≈ 24 lecciones a 1.4–3.5 % del límite semanal cada una (lo medido en Sensei) son ≈ 35–85 % de una semana, repartido entre varias. Las herramientas, los casos y las estaciones se miden al terminar cada fase, igual que en Sensei.
 

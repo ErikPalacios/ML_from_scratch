@@ -25,7 +25,8 @@ const deRama = (() => { const x = JSON.parse(JSON.stringify(est.find((e) => e.id
 const PR = plantillaTablero([...est, deRama].map(enSuLinea), LINEAS);
 
 // las estaciones con taller, en el orden del tronco; los casos de prueba las buscan por id, no por posición
-const CON_TALLER = tronco.estaciones.filter((t) => est.some((e) => e.caso === tronco.caso && e.id === t.id)).map((t) => `${tronco.caso}-${t.id}`);
+// Las estaciones con taller, en el orden de la plantilla: el tronco y después cada rama, cada una por número.
+const CON_TALLER = [...LINEAS.values()].flatMap((l) => l.estaciones.filter((s) => est.some((e) => (e.rama || e.caso) === l.id && e.id === s.id)).map((s) => `${l.id}-${s.id}`));
 const PROXIMAS = [...LINEAS.values()].reduce((n, l) => n + l.total, 0) - CON_TALLER.length;
 const de = (doc, id) => doc.estaciones.find((x) => x.id === id);
 
@@ -51,7 +52,7 @@ test('la plantilla trae las estaciones con taller y las demás como próximament
   assert.deepEqual(P.estaciones.map((e) => e.id), CON_TALLER);
   assert.ok(CON_TALLER.includes('c01-datos') && CON_TALLER.includes('c01-empaquetado'));
   assert.equal(P.proximas.length, PROXIMAS);
-  assert.equal(P.proximas.filter((s) => s.grupo === tronco.caso).length, tronco.estaciones.length - CON_TALLER.length);
+  assert.equal(P.proximas.filter((s) => s.grupo === tronco.caso).length, tronco.estaciones.length - CON_TALLER.filter((id) => id.startsWith(`${tronco.caso}-`)).length);
   assert.equal(P.proximas.filter((s) => s.grupo === 'ia-privada').length, IA.estaciones.length, 'las 8 de IA Privada, próximamente');
   assert.ok(P.estaciones.every((e) => e.objetivos.length && e.fallas.length && e.pasos.length));
 });
@@ -230,6 +231,7 @@ test('la etapa de la T: en el tronco sale del número; en una rama, de la estaci
 test('el molde: caso o rama (uno de los dos), y c01 es el nombre viejo de ref', () => {
   for (const e of est) {
     assert.deepEqual([...molde(e, e.id), ...cruzadas(e)], [], `${e.id} sigue pasando el molde sin reescribirse`);
+    if (!e.caso) continue;   // las de rama usan «ref» desde el principio
     const n = normalizar(JSON.parse(JSON.stringify(e)));
     for (const x of n.precalculos.cuentas) assert.deepEqual(x.ref, x.c01);
     for (const x of n.mapa.escala) assert.equal(x.ref, x.c01);

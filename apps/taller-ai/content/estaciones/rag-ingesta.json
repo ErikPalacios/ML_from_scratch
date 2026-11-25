@@ -1,0 +1,1205 @@
+{
+  "id": "ingesta",
+  "patron": "llm",
+  "rama": "rag",
+  "etapa": "datos",
+  "num": 1,
+  "titulo": "Conectores y parsing",
+  "nav": "Conectores y parsing",
+  "pregunta": "¿Cómo traes los documentos de cuatro fuentes distintas, con su texto limpio y sus permisos, sin volver a procesar lo que no cambió?",
+  "version": "2026-11-25",
+  "mapa": {
+    "resumen": "Un RAG contesta con los documentos de la empresa, así que lo primero es <b>tenerlos</b>: traerlos de cada sistema donde viven, sacarles el texto y saber quién puede verlos. Esta estación es la <b>ingestión</b>. Un <b>conector</b> por fuente (una wiki, un Drive, un Jira y el repositorio de políticas) lista lo visible y trae lo que cambió; el <b>parsing</b> convierte HTML, PDF y tickets en texto limpio con su estructura; el texto se guarda <b>por el hash de su contenido</b>, así un documento que no cambió no se vuelve a procesar; y cada documento lleva su <b>ACL</b>, la lista de quién lo puede abrir. La estación 2 parte ese texto en chunks y la 3 lleva la ACL a cada chunk.",
+    "entra": [
+      "cuatro fuentes con su propia API: una wiki con páginas y restricciones, un Drive con PDFs y su feed de cambios, un Jira con tickets y niveles de seguridad, y un repositorio de políticas en Markdown",
+      "una cuenta de servicio con un token por fuente, y el límite de llamadas de cada una",
+      "un día después, las ediciones, borrados y cambios de permisos de ese día"
+    ],
+    "sale": [
+      "el texto limpio de cada documento en <code>almacen/texto/&lt;sha256 del crudo&gt;.json</code>, guardado una vez por contenido",
+      "el catálogo: por documento, su versión, su hash, su URL y su ACL como cláusulas de principals",
+      "los cursores de cada conector, para que la siguiente corrida traiga solo lo nuevo",
+      "un registro por corrida, con cuánto vio, descargó, parseó y saltó cada fuente"
+    ],
+    "escala": [
+      {
+        "que": "Documentos",
+        "ref": "≈ 1.5 M: Confluence ≈ 375k páginas, Drive ≈ 620k archivos (≈ 300k PDFs), Jira ≈ 500k tickets de 2 años, políticas unos miles",
+        "taller": "101 el día 1: wiki 27 páginas, Drive 16 archivos, Jira 50 tickets, políticas 8"
+      },
+      {
+        "que": "Cambios al día",
+        "ref": "≈ 1 % (≈ 15k documentos)",
+        "taller": "17 cambios el día 2 (16 documentos vistos, 14 descargados, 11 parseados)"
+      },
+      {
+        "que": "Frescura",
+        "ref": "p95 ≤ 15 min de la edición a «responde con la versión nueva»; una revocación, ≤ 5 min (estación 3)",
+        "taller": "lo que tardes en correr <code>pipeline/ingestar.py</code>: ≈ 1.5 s el día 2"
+      },
+      {
+        "que": "Texto guardado",
+        "ref": "≈ 19 GB de texto plano × ≈ 2 por estructura y metadatos ≈ 40 GB en S3 (≈ US$1 al mes)",
+        "taller": "≈ 46 KB en 101 archivos de <code>almacen/texto/</code>"
+      },
+      {
+        "que": "PDFs escaneados",
+        "ref": "≈ 15 % de 300k PDFs × ≈ 10 páginas ≈ 450k páginas de OCR",
+        "taller": "1 PDF escaneado, que se marca <code>necesita_ocr</code> (el dojo no hace OCR)"
+      },
+      {
+        "que": "Dónde corre",
+        "ref": "conectores, parsing y OCR en CPU (4 máquinas), con colas por fuente y el texto en S3",
+        "taller": "un proceso en tu Mac: las fuentes en el puerto 8120 y el almacén en una carpeta"
+      }
+    ]
+  },
+  "precalculos": {
+    "intro": "Antes de escribir un conector, las cuentas de servilleta de la ingestión: cuántos documentos hay, cuánto tarda el primer recorrido con el límite de llamadas, cuánto pesa el texto, cuánto cuesta el hash, cuánto cambia cada día, cuánto OCR hace falta y cuántos borrados de golpe son sospechosos. Cada cuenta va en las dos escalas: C11 y el dojo.",
+    "cuentas": [
+      {
+        "id": "corpus",
+        "pregunta": "¿Cuántos documentos hay que traer, y de qué fuentes?",
+        "formula": "documentos = la suma, fuente por fuente, de lo que entra después de filtrar (sin papelera, sin archivados, solo el periodo útil)",
+        "ref": {
+          "cuenta": "375k páginas de Confluence + 620k archivos de Drive + 500k tickets de Jira (2 años) + unos miles de políticas",
+          "valor": "≈ 1.5 M documentos, cada uno con su ACL"
+        },
+        "taller": {
+          "cuenta": "27 páginas + 16 archivos + 50 tickets + 8 políticas",
+          "valor": "101 documentos"
+        },
+        "decide": "Cuatro fuentes son cuatro conectores distintos: cada una tiene su API, su forma de avisar cambios y su modelo de permisos. El filtro de entrada (qué fuente, qué periodo) recorta más que cualquier optimización: Jira tiene ≈ 3 M tickets y solo entran los de 2 años.",
+        "conceptos": [
+          "ingestion",
+          "conector"
+        ],
+        "comprueba": {
+          "code": "python mundo/fuentes.py estado",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ responden en http://localhost:8120 · reloj del mundo 2026-11-20T15:00:00Z (día 1)\n  wiki 27 páginas en 3 espacios · drive 16 archivos · jira 50 tickets · políticas 8 archivos · 101 documentos"
+        }
+      },
+      {
+        "id": "llamadas",
+        "pregunta": "¿Cuánto tarda el primer recorrido de la wiki con su límite de llamadas?",
+        "formula": "llamadas = páginas de la lista + documentos × llamadas por documento (cuerpo y restricción) + permisos de cada espacio; tiempo ≥ llamadas ÷ límite por segundo",
+        "ref": {
+          "cuenta": "≈ 375k páginas × 2 llamadas ≈ 750k llamadas (las de lista y de permisos de espacio suman menos de 5 %); con un límite de 10 por segundo (un supuesto: el número real lo acuerdas con quien administra la wiki)",
+          "valor": "≥ 75,000 s ≈ 21 horas solo de wiki"
+        },
+        "taller": {
+          "cuenta": "4 de lista + 27 cuerpos + 27 restricciones + 3 espacios = 61 llamadas ÷ 10 por segundo",
+          "valor": "≥ 6.1 s"
+        },
+        "decide": "El primer recorrido (el crawl inicial) se reparte en días y por prioridad, y cada llamada que ahorras cuenta: guarda en memoria la restricción de cada ancestro, porque la comparten muchas páginas. Y un 429 no es un error: es la fuente pidiéndote que esperes.",
+        "conceptos": [
+          "rate-limit",
+          "paginacion"
+        ],
+        "comprueba": {
+          "code": "python -c \"\nimport sys; sys.path.insert(0, '.')\nfrom mundo.comun import estado, ancestros\ne = estado(); ps = e['wiki']['paginas']\nlista = sum(-(-sum(1 for p in ps.values() if p['espacio'] == s) // 10) for s in e['wiki']['espacios'])\nprint(f'{len(ps)} páginas: {lista} llamadas de lista + {len(ps)} de cuerpo + {len(ps)} de restricciones + {len(e[\"wiki\"][\"espacios\"])} de permisos de espacio = {lista + 2 * len(ps) + 3}')\nprint(f'a {e[\"limite_wiki\"]} por segundo: ≥ {(lista + 2 * len(ps) + 3) / e[\"limite_wiki\"]:.1f} s')\"",
+          "nota": "",
+          "donde": "mac",
+          "salida": "27 páginas: 4 llamadas de lista + 27 de cuerpo + 27 de restricciones + 3 de permisos de espacio = 61\na 10 por segundo: ≥ 6.1 s"
+        },
+        "confirma": "el paso 7: la primera corrida de la wiki hizo 67 llamadas (61 más 6 reintentos por 429) en ≈ 6.5 s."
+      },
+      {
+        "id": "texto",
+        "pregunta": "¿Cuánto pesa guardar el texto parseado de todo?",
+        "formula": "texto = tokens del corpus × ≈ 4 bytes por token; guardado ≈ texto × 2 por la estructura y los metadatos",
+        "ref": {
+          "cuenta": "≈ 4.8 B tokens × 4 B ≈ 19 GB de texto; × 2 ≈ 40 GB en S3 (a ≈ US$0.023 por GB al mes en S3 Standard)",
+          "valor": "≈ US$1 al mes"
+        },
+        "taller": {
+          "cuenta": "73 KiB de contenido crudo (HTML, PDF, JSON y Markdown) → el texto limpio",
+          "valor": "46,568 bytes en 101 archivos"
+        },
+        "decide": "Guardar el texto parseado cuesta casi nada y te ahorra lo caro: si mañana cambia el chunking o el modelo de embeddings, vuelves a partir desde el almacén, sin volver a llamar a las APIs (con sus límites) ni repetir el OCR.",
+        "conceptos": [
+          "hash-contenido"
+        ],
+        "comprueba": {
+          "code": "python -c \"\nimport sys; sys.path.insert(0, '.')\nfrom mundo.comun import estado\nfrom mundo.referencia import esperado\ne = esperado(estado())\npor = {}\nfor d, v in e.items():\n    f = d.split(':')[0]; por[f] = por.get(f, 0) + len(v['crudo'])\nprint(' · '.join(f'{f} {b / 1024:.0f} KiB' for f, b in por.items()), f'· total {sum(por.values()) / 1024:.0f} KiB en {len(e)} documentos')\"",
+          "nota": "",
+          "donde": "mac",
+          "salida": "wiki 15 KiB · drive 17 KiB · jira 39 KiB · politicas 1 KiB · total 73 KiB en 101 documentos"
+        },
+        "confirma": "el paso 7: <code>almacen/texto/</code> tiene 101 archivos y 46,568 bytes."
+      },
+      {
+        "id": "hash",
+        "pregunta": "¿Cuánto cuesta calcular el hash de todo el contenido?",
+        "formula": "tiempo = bytes de contenido ÷ velocidad de sha256 en un núcleo",
+        "ref": {
+          "cuenta": "≈ 19 GB de texto ÷ ≈ 1.4 GB/s (lo que mide tu Mac); el crudo pesa más (PDFs), digamos 10 veces: ≈ 190 GB ÷ 1.4 GB/s",
+          "valor": "≈ 14 s para el texto; ≈ 2.3 min de un núcleo para el crudo"
+        },
+        "taller": {
+          "cuenta": "73 KiB ÷ 1.4 GB/s",
+          "valor": "≈ 55 µs: lo que tarda es la red, no el hash"
+        },
+        "decide": "Hashear todo es gratis comparado con parsear o hacer OCR: no hay razón para volver a parsear un contenido cuyo hash ya tienes. El hash va sobre los bytes crudos, tal como llegan.",
+        "conceptos": [
+          "hash-contenido"
+        ],
+        "comprueba": {
+          "code": "python -c \"\nimport hashlib, time\nb = bytes(512 * 2**20)\nt = time.perf_counter(); hashlib.sha256(b).hexdigest(); s = time.perf_counter() - t\nprint(f'sha256 de 512 MiB en {s:.2f} s: {512 / 1024 / s:.1f} GiB/s en un núcleo')\"",
+          "nota": "En una M4. 1.3 GiB/s son ≈ 1.4 GB/s. Tu número puede variar (en otra corrida salió 1.2).",
+          "donde": "mac",
+          "salida": "sha256 de 512 MiB en 0.39 s: 1.3 GiB/s en un núcleo"
+        }
+      },
+      {
+        "id": "cambios",
+        "pregunta": "Si solo traes lo que cambió, ¿cuánto procesas cada día?",
+        "formula": "por día = documentos × fracción que cambia; ahorro = documentos ÷ cambios del día",
+        "ref": {
+          "cuenta": "1.5 M × 1 % = ≈ 15k documentos al día, contra 1.5 M si reprocesas todo cada noche",
+          "valor": "≈ 100 veces menos trabajo (y respuestas de minutos, no de 24 horas)"
+        },
+        "taller": {
+          "cuenta": "el día 2 cambian 17 cosas en 103 documentos: 14 se descargan y, de esos, 3 traen los mismos bytes",
+          "valor": "11 parseados en lugar de 103"
+        },
+        "decide": "La corrida incremental lee desde un cursor, y el hash ahorra un escalón más: un cambio de permisos, un nombre nuevo o una republicación idéntica bajan el archivo, pero no se vuelven a parsear.",
+        "conceptos": [
+          "cursor",
+          "hash-contenido"
+        ],
+        "confirma": "el paso 8: el día 2, la corrida vio 16, descargó 14, parseó 11 y saltó 3 por hash."
+      },
+      {
+        "id": "ocr",
+        "pregunta": "¿Cuántas páginas necesitan OCR, y cuánto cuesta?",
+        "formula": "páginas = PDFs × fracción escaneada × páginas por PDF; costo = páginas × segundos de CPU por página",
+        "ref": {
+          "cuenta": "300k PDFs × ≈ 15 % × ≈ 10 páginas = ≈ 450k páginas × ≈ 2 s por página en un núcleo",
+          "valor": "≈ 250 núcleo-horas, una vez; después solo lo nuevo"
+        },
+        "taller": {
+          "cuenta": "1 PDF escaneado de 2 páginas, de 10 PDFs",
+          "valor": "0 en el dojo: se marca <code>necesita_ocr</code> y no entra con texto vacío"
+        },
+        "decide": "Un PDF escaneado sin OCR es un documento vacío: si lo indexas así, nadie lo encuentra y nadie se entera. Se detecta (casi no tiene texto extraíble), se marca y se cuenta, y el OCR corre aparte, una sola vez por contenido.",
+        "conceptos": [
+          "ocr"
+        ],
+        "confirma": "el paso 5: el acta de inventario escaneada sale con texto vacío y <code>necesita_ocr: True</code>."
+      },
+      {
+        "id": "freno",
+        "pregunta": "¿Cuántos borrados de golpe son sospechosos?",
+        "formula": "límite = documentos vivos de la fuente × fracción máxima de borrado en una pasada",
+        "ref": {
+          "cuenta": "Drive: 620k × 2 %",
+          "valor": "≈ 12k documentos: más que eso en una pasada casi siempre es una credencial o un permiso, no 12k borrados de verdad"
+        },
+        "taller": {
+          "cuenta": "Drive: 15 vivos el día 2 × 20 % (con 15 documentos, el 2 % sería menos de uno)",
+          "valor": "3 documentos; perder la unidad compartida quiere borrar 11 (73 %) y se frena"
+        },
+        "decide": "El barrido borra lo que ya no ve (fail-closed), y el freno evita que un permiso roto vacíe una fuente entera. Cuando se frena, se arregla el acceso, no el catálogo.",
+        "conceptos": [
+          "freno",
+          "barrido"
+        ],
+        "confirma": "el paso 8 y la falla «unidad-perdida»: el barrido quería borrar 11 de 15 y no borró nada."
+      }
+    ]
+  },
+  "conceptos": [
+    {
+      "id": "ingestion",
+      "termino": "Ingestión",
+      "en": "ingestion",
+      "analogia": "Como la recepción de una biblioteca: recibe libros de varias editoriales, les pone su ficha y su sello de quién puede pedirlos, y los acomoda. Si la recepción falla, el mejor bibliotecario no encuentra nada.",
+      "importa": "En un RAG casi nada se entrena: el LLM y los embeddings vienen hechos. Lo que decide si la respuesta es buena es lo que entró: el texto correcto, completo, al día y con sus permisos.",
+      "trampa": "Pensar que es «copiar archivos una vez». La ingestión es continua: cada día hay ediciones, borrados y cambios de permisos, y todos tienen que llegar.",
+      "def": "Traer los documentos desde donde viven, convertirlos en texto y guardarlos con sus datos (versión, permisos, origen), y mantenerlos al día."
+    },
+    {
+      "id": "conector",
+      "termino": "Conector y cuenta de servicio",
+      "en": "connector · service account",
+      "analogia": "Un mensajero por cada oficina: cada una tiene su ventanilla, sus horarios y su forma de pedir las cosas. El mensajero lleva su credencial (el token) y sabe cómo pedir en esa ventanilla.",
+      "importa": "Cada fuente es un proyecto aparte: otra API, otra manera de avisar cambios y otro modelo de permisos. Por eso los conectores comparten una forma (listar, cambios, traer, acl) y el resto del pipeline no sabe de qué fuente viene un documento.",
+      "trampa": "Tratar un 401 o un 403 como «no hay nada». Un conector con el token vencido se ve exactamente como uno sin cambios: por eso el error se lanza y se cuenta.",
+      "def": "El código que habla con una fuente (su API, su paginación, sus permisos) con una cuenta de servicio: un usuario técnico, con su token, que solo lee."
+    },
+    {
+      "id": "paginacion",
+      "termino": "Paginación",
+      "en": "pagination",
+      "analogia": "Un catálogo impreso por tomos: terminas el tomo 1 y en la última hoja dice «sigue en el tomo 2». Si no lo abres, crees que el catálogo era de un tomo.",
+      "importa": "Cada fuente pagina distinto: la wiki del dojo con «siguiente», el Drive con <code>nextPageToken</code>, el Jira con <code>nextPageToken</code> e <code>isLast</code>. Si te quedas con la primera página, pierdes documentos sin ningún error.",
+      "trampa": "Calcular las páginas con «total ÷ tamaño» y un contador: si alguien crea o borra algo mientras recorres, saltas o repites. Sigue el enlace o el token que te da la API.",
+      "def": "Una API no te da 10,000 resultados de una vez: te da una página (10 o 20) y un enlace o token para pedir la siguiente, hasta que ya no hay."
+    },
+    {
+      "id": "rate-limit",
+      "termino": "Límite de llamadas",
+      "en": "rate limit · 429 · Retry-After",
+      "analogia": "La fila de una taquilla con un letrero «máximo 10 personas por segundo»: si llegas antes, el guardia te dice «espera unos segundos». Insistir no te hace pasar antes.",
+      "importa": "El crawl inicial de C11 se mide en horas o días por este límite. Un conector respeta Retry-After y reintenta un número acotado de veces; así la corrida tarda más, pero termina.",
+      "trampa": "Quitar los reintentos «para que no se quede esperando»: el primer 429 tumba la corrida a la mitad. O reintentar sin esperar, que solo te gana más 429.",
+      "def": "Cuántas llamadas por segundo te deja hacer una API. Si te pasas responde 429 (Too Many Requests), casi siempre con Retry-After: cuánto esperar (en segundos o, según el estándar, una fecha)."
+    },
+    {
+      "id": "acl",
+      "termino": "ACL y principals",
+      "en": "access control list · principals",
+      "analogia": "La lista de invitados en la puerta de una fiesta: puede decir nombres («Ana») o grupos («el equipo de soporte»). El guardia no necesita saber quién está en cada grupo ahora; eso se resuelve cuando alguien llega.",
+      "importa": "Un RAG empresarial no puede contestar con un documento que tú no podrías abrir. Para filtrar en la búsqueda (estación 3), cada documento tiene que traer su ACL desde la ingestión.",
+      "trampa": "Guardar la lista de usuarios ya «expandida» en vez de los grupos: cada alta o baja en un grupo grande obligaría a reescribir miles de documentos.",
+      "def": "La lista de quién puede abrir un documento. Cada entrada es un principal: un usuario (<code>user:ana@…</code>), un grupo (<code>group:soporte@…</code>) o todo el dominio (<code>domain:…</code>)."
+    },
+    {
+      "id": "clausulas",
+      "termino": "Cláusulas: un AND de ORs",
+      "en": "ACL clauses",
+      "analogia": "Entrar a una sala dentro de un edificio: necesitas el gafete del edificio Y estar en la lista de esa sala. Tener uno solo no alcanza.",
+      "importa": "Así se representan permisos que se suman: espacio de la wiki ∧ restricción del ancestro ∧ restricción de la página, o proyecto de Jira ∧ nivel de seguridad. Una lista plana dejaría ver la página restringida a quien solo ve el espacio.",
+      "trampa": "Juntar todos los principals en una sola lista «por simplicidad»: convierte un AND en un OR y abre lo que estaba restringido.",
+      "def": "Una ACL como lista de cláusulas: cada cláusula es un OR de principals, y para ver el documento tienes que cumplir TODAS (AND)."
+    },
+    {
+      "id": "herencia",
+      "termino": "Restricción heredada",
+      "en": "inherited restrictions",
+      "analogia": "Una carpeta con candado en un archivero: las hojas de adentro no tienen candado propio, pero nadie las saca sin abrir la carpeta.",
+      "importa": "La API de la wiki del dojo (como la de Confluence) te da solo la restricción PROPIA de cada página. Si no recorres los ancestros, «Caso Transportes del Norte» queda visible para todo Legal en vez de solo para litigios.",
+      "trampa": "Leer solo la restricción de la página y dar por buena una lista vacía: la página hija de una restringida sale abierta.",
+      "def": "En la wiki, una restricción de lectura en una página también cierra todas las páginas debajo de ella, aunque esas no tengan restricción propia."
+    },
+    {
+      "id": "link-compartido",
+      "termino": "Link compartido",
+      "en": "link sharing · allowFileDiscovery",
+      "analogia": "Dejar la llave de tu casa con tres amigos: no es lo mismo que pegarla en la puerta del edificio. Quien tiene la llave entra; los demás ni saben que existe.",
+      "importa": "Regla del caso: link compartido = no compartido. Si lo indexas como visible para todo el dominio, el asistente convierte cada link en un documento que cualquiera encuentra preguntando (como el tabulador de sueldos).",
+      "trampa": "Tomar el campo <code>type</code> y olvidar <code>allowFileDiscovery</code>. O «ampliarlo» por pedido de producto sin pasar por Seguridad.",
+      "def": "En Drive, «cualquiera con el link» es un permiso <code>anyone</code> o <code>domain</code> con <code>allowFileDiscovery: false</code>: lo abre quien tiene el link, pero no aparece en búsquedas."
+    },
+    {
+      "id": "cursor",
+      "termino": "Cursor de cambios",
+      "en": "change cursor · page token",
+      "analogia": "El separador que dejas en un libro: mañana abres ahí, no desde la primera página.",
+      "importa": "Es lo que hace incremental a la ingestión: el día 2 se traen 14 documentos, no 103. Se guarda solo si la fuente terminó bien; si se cae a la mitad, la siguiente corrida vuelve a empezar desde el cursor viejo.",
+      "trampa": "Pedir el token de inicio del Drive DESPUÉS de listar: lo que cambió mientras listabas queda fuera para siempre. O usar la hora de tu Mac en vez de las fechas de la fuente.",
+      "def": "Lo que el conector guarda para la siguiente corrida: hasta dónde leyó. Una fecha (la wiki, el Jira), un token del feed de cambios (el Drive) o las huellas de un árbol (las políticas)."
+    },
+    {
+      "id": "idempotencia",
+      "termino": "Idempotencia",
+      "en": "idempotency",
+      "analogia": "El botón del elevador: picarlo cinco veces no trae cinco elevadores.",
+      "importa": "Te permite traer de más sin miedo: el JQL de Jira solo entiende minutos, así que lo que cayó en el minuto del cursor vuelve a salir, y con la versión igual cuenta como «sin cambios». Los reintentos y las corridas repetidas tampoco rompen nada.",
+      "trampa": "Intentar traer «exactamente lo nuevo» con un corte al segundo y perder lo que cayó en el mismo minuto, en vez de traer un poco de más y dejar que la versión decida.",
+      "def": "Procesar dos veces lo mismo deja el mismo resultado que procesarlo una vez: nada se duplica ni se pisa."
+    },
+    {
+      "id": "parsing",
+      "termino": "Parsing",
+      "en": "parsing",
+      "analogia": "Pasar en limpio unas notas: copias lo que importa, respetas los títulos y las tablas, y no copias los tachones ni el membrete de cada hoja.",
+      "importa": "El LLM solo ve el texto que le das. Si el parser mezcla menús, pierde títulos o aplana una tabla, ningún modelo arregla después lo que no llegó.",
+      "trampa": "Un parser genérico para todo («extrae el texto del archivo»): cada formato tiene su basura y su estructura, y se parsea distinto.",
+      "def": "Convertir el contenido crudo (HTML, PDF, el JSON de un ticket) en texto limpio que conserva la estructura: títulos, listas y tablas."
+    },
+    {
+      "id": "boilerplate",
+      "termino": "Boilerplate",
+      "en": "boilerplate",
+      "analogia": "El membrete y el «página 2 de 3» de cada hoja de una carta: están en todas, y no dicen nada de la carta.",
+      "importa": "Si entra al índice, ensucia la búsqueda: «Ver historial» aparece en las 27 páginas y no ayuda a ninguna pregunta. En un PDF, el encabezado repetido se detecta porque está en TODAS las páginas.",
+      "trampa": "Borrar «lo que se parece a un pie» con una lista fija de frases: cambia el formato y se cuela. Mejor una regla de estructura (div.nav, la línea que se repite en cada página).",
+      "def": "El texto que se repite y no es contenido: menús de navegación, pies de página, encabezados de cada hoja de un PDF, firmas de correo, mensajes automáticos."
+    },
+    {
+      "id": "tabla-filas",
+      "termino": "Tabla como filas",
+      "en": "tables as rows",
+      "analogia": "Leer un horario de autobús en voz alta: no dices «Centro Norte Sur 8:00 8:15 8:30», dices «al Centro a las 8:00, al Norte a las 8:15».",
+      "importa": "«¿Qué comisión paga Electrónica?» tiene la respuesta en una celda. Si el parser aplana la tabla a texto corrido, se pierde qué número va con qué categoría y el LLM contesta con seguridad el número equivocado.",
+      "trampa": "Dejar que el extractor de texto «lea» la tabla de izquierda a derecha: sale una sopa de valores sin encabezados.",
+      "def": "Cada fila de una tabla se escribe con su encabezado: «Categoría: Electrónica; Comisión: 8 %»."
+    },
+    {
+      "id": "ocr",
+      "termino": "Capa de texto y OCR",
+      "en": "text layer · OCR",
+      "analogia": "Un libro contra la fotocopia de un libro: del primero copias y pegas; de la fotocopia, alguien tiene que volver a teclear lo que ve.",
+      "importa": "pypdf solo lee la capa de texto: de un escaneo saca casi nada. Si no lo detectas, entra un documento vacío. En C11, ≈ 450k páginas van por OCR una vez y después solo lo nuevo.",
+      "trampa": "Confiar en que «si es PDF tiene texto». O indexar el escaneo con texto vacío y no contarlo en ningún lado.",
+      "def": "Un PDF digital trae el texto adentro (su capa de texto). Uno escaneado es solo una imagen: sacarle el texto pide OCR (reconocimiento óptico de caracteres)."
+    },
+    {
+      "id": "hash-contenido",
+      "termino": "Direccionado por contenido",
+      "en": "content addressing · content hash",
+      "analogia": "Las huellas digitales: no importa cómo se llame la persona hoy ni dónde esté; si la huella coincide, es la misma.",
+      "importa": "Si el hash del crudo ya está en el almacén (y se parseó con el parser de hoy), no se vuelve a parsear: un cambio de permisos, de nombre o una republicación idéntica no cuestan parsing ni OCR. Y dos copias iguales se guardan una vez.",
+      "trampa": "Usar como llave la fecha de modificación o el nombre del archivo: cambian sin que cambie el contenido, y al revés. O hashear el texto ya parseado: entonces cada vez tienes que parsear para saber si cambió.",
+      "def": "Guardar cada contenido con el sha256 de sus bytes como nombre. El mismo contenido siempre da el mismo nombre; un byte distinto da otro."
+    },
+    {
+      "id": "barrido",
+      "termino": "Barrido de reconciliación",
+      "en": "reconciliation sweep",
+      "analogia": "Hacer inventario de la bodega aunque tengas las notas de entrada y salida: las notas se pierden; el conteo físico dice la verdad.",
+      "importa": "Los eventos y los cursores son para la latencia; el barrido es para la verdad. La wiki no avisa borrados ni cambios de permisos: el día 2, la macro borrada y la restricción nueva solo las encuentra el barrido.",
+      "trampa": "Confiar solo en la corrida incremental. Lo que nunca te avisaron (un borrado, una restricción) se queda en el catálogo para siempre.",
+      "def": "Una pasada que lista TODO lo que la fuente deja ver y lo compara con el catálogo: lo que ya no está se borra, lo de otra versión se reprocesa y las ACL se vuelven a leer."
+    },
+    {
+      "id": "fail-closed",
+      "termino": "Fail-closed y lápidas",
+      "en": "fail-closed · tombstone",
+      "analogia": "Un banco que, si el lector de huellas falla, no abre la bóveda «mientras lo arreglan». Y el registro de quién salió y por qué no se tira: se archiva.",
+      "importa": "Si alguien restringe una página a «solo yo», la cuenta del conector también la pierde y nadie te avisa: si sigues sirviéndola, el asistente muestra lo que ya no debería. La lápida deja rastro de qué se quitó y cuándo.",
+      "trampa": "Tratar un 404 o un 403 de la fuente como «reintenta luego y mientras tanto sigue sirviendo». O borrar el registro sin rastro.",
+      "def": "Ante la duda, cerrar: lo que el conector ya no puede leer se quita. Y no se borra el registro: queda una lápida con su motivo y su fecha."
+    },
+    {
+      "id": "freno",
+      "termino": "Freno de borrado",
+      "en": "deletion circuit breaker",
+      "analogia": "El límite de retiro de tu tarjeta: si alguien intenta sacar todo de golpe, el banco lo detiene y te llama, aunque podría ser legítimo.",
+      "importa": "Un permiso perdido o un token vencido hacen que media fuente «desaparezca». Sin freno, el barrido borra medio Drive del índice por un problema de acceso, y lo notas cuando nadie encuentra nada.",
+      "trampa": "Ponerlo tan alto que nunca salta, o «arreglar» el freno borrando a mano: lo que se arregla es el acceso.",
+      "def": "Si una pasada quiere borrar más de cierta fracción de una fuente (2 % en C11, 20 % en el dojo), no borra nada y avisa."
+    }
+  ],
+  "mundo": {
+    "resumen": "El kit trae el marketplace del caso en chico, el 20 de noviembre de 2026: <b>cuatro fuentes de documentos ficticios</b> (una wiki con 27 páginas en 3 espacios, un Drive con 16 archivos, un Jira con 50 tickets y un repositorio con 8 políticas) servidas por HTTP en tu Mac, cada una con su API, su paginación, su forma de avisar cambios y sus permisos. Tú escribes la ingestión: los conectores, el parsing, el almacén por hash y la corrida incremental. Después pasa un día y ves qué trae tu ingestión. Sin Docker, sin GPU y sin internet (después del <code>pip install</code>).",
+    "trae": [
+      {
+        "que": "mundo/fuentes.py",
+        "detalle": "Las cuatro APIs en el puerto 8120: la wiki (con un límite de 10 llamadas por segundo y 429), el Drive (con su feed de cambios y sus permisos), el Jira (con un JQL chico, fechas en la zona de la cuenta y niveles de seguridad) y el repositorio de políticas (un árbol con el sha de git de cada archivo). Todas piden un token. También hace de administrador: <code>token</code>, <code>unidad</code>, <code>log</code> y <code>estado</code>."
+      },
+      {
+        "que": "mundo/crear.py y mundo/avanzar.py",
+        "detalle": "El día 1 (101 documentos, siempre iguales: sin azar y sin descargas) y el día 2, con 17 cambios: ediciones, una republicación idéntica, borrados, una página nueva dentro de una restringida, un permiso nuevo sin versión nueva, un archivo que solo cambia de nombre y tickets nuevos."
+      },
+      {
+        "que": "Los documentos",
+        "detalle": "Páginas de la wiki con menú, macro de índice, pie y tablas; PDFs reales (los escribe <code>mundo/pdf.py</code>) con encabezado y pie en cada hoja, y uno escaneado sin capa de texto; tickets con firma, correos citados y comentarios automáticos; políticas en Markdown. Hay una página restringida que hereda su restricción, un PDF compartido solo «con el link» y tickets con nivel de seguridad."
+      },
+      {
+        "que": "pipeline/_comun.py y config.yaml",
+        "detalle": "Lo que comparten los pasos (<code>config()</code>, <code>sha256()</code>, <code>utc()</code>, <code>escribir_json()</code> de un jalón, <code>FuenteSinAcceso</code>) y la configuración: URLs, tokens, reintentos, la zona del Jira, la regla del link compartido y el freno."
+      },
+      {
+        "que": "verificar.py y romper.py",
+        "detalle": "11 checks con los criterios de «listo» (los de los conectores llaman a tu código contra las fuentes; los del almacén comparan con la verdad del mundo, <code>mundo/referencia.py</code>) y 6 fallas en el mundo, la configuración o el almacén, nunca en lo que escribes."
+      }
+    ],
+    "tu_pipeline": [
+      {
+        "archivo": "pipeline/conectores/http.py",
+        "hace": "<code>pedir()</code>: token, reintentos ante 429 con Retry-After, 401/403 → FuenteSinAcceso, 404 → None."
+      },
+      {
+        "archivo": "pipeline/conectores/wiki.py",
+        "hace": "Las páginas paginadas y la ACL como espacio ∧ ancestros ∧ página."
+      },
+      {
+        "archivo": "pipeline/conectores/drive.py",
+        "hace": "El feed de cambios con su pageToken y los permisos, con link compartido = no compartido."
+      },
+      {
+        "archivo": "pipeline/conectores/jira.py",
+        "hace": "El JQL por fecha, en minutos y en la zona de la cuenta, y la ACL por proyecto y nivel de seguridad."
+      },
+      {
+        "archivo": "pipeline/conectores/politicas.py",
+        "hace": "El árbol de git contra el cursor: nuevos, cambiados y borrados por su sha."
+      },
+      {
+        "archivo": "pipeline/parsing.py",
+        "hace": "HTML, PDF, ticket y Markdown a texto limpio, con títulos, listas y tablas fila por fila; detecta el escaneo."
+      },
+      {
+        "archivo": "pipeline/almacen.py",
+        "hace": "El texto por el hash del crudo, el catálogo con la ACL y las lápidas."
+      },
+      {
+        "archivo": "pipeline/ingestar.py",
+        "hace": "La corrida incremental (procesar e incremental) y el barrido con su freno. La línea de comandos y el resumen vienen dados."
+      }
+    ],
+    "requisitos": [
+      "Python 3.11 o más nuevo (se probó con 3.14.3) y ≈ 30 MB para el entorno virtual",
+      "El puerto 8120 libre en tu Mac",
+      "Internet solo para el <code>pip install</code> (beautifulsoup4, pypdf y pyyaml)"
+    ],
+    "sustituciones": [
+      {
+        "nube": "Confluence Cloud (API REST)",
+        "local": "La wiki del dojo, <code>/wiki/api</code>",
+        "diferencia": "La misma idea: páginas paginadas, el cuerpo en HTML, permisos del espacio y restricciones de lectura propias de cada página, que se heredan a las de abajo (solo las de lectura; las de edición no se heredan), y 429 con Retry-After. Las rutas y los campos del dojo son más chicos; en Confluence el cuerpo viene en su formato de almacenamiento, con macros, y los cambios se avisan con eventos para apps (webhooks) o se consultan por fecha."
+      },
+      {
+        "nube": "Google Drive API v3",
+        "local": "El Drive del dojo, <code>/drive/v3</code>",
+        "diferencia": "Imita la forma: <code>changes/startPageToken</code>, <code>changes</code> con <code>nextPageToken</code> o <code>newStartPageToken</code>, <code>files/&lt;id&gt;?alt=media</code> y la lista de permisos con <code>type</code> (user, group, domain, anyone) y <code>allowFileDiscovery</code>. En Drive, <code>anyone</code> con <code>allowFileDiscovery: true</code> es público y buscable; el dojo lo trata como todo el dominio, por la regla del caso. El de Google tiene unidades compartidas con su propia herencia, carpetas de acceso limitado (<code>inheritedPermissionsDisabled</code>) y notificaciones push; aquí, una unidad que se puede perder."
+      },
+      {
+        "nube": "Jira Cloud (API REST y JQL)",
+        "local": "El Jira del dojo, <code>/jira/api</code>",
+        "diferencia": "La búsqueda pagina con <code>nextPageToken</code> e <code>isLast</code>, y el JQL entiende fechas al minuto en la zona del perfil de quien consulta, como el de Atlassian. En Jira Cloud la API v3 devuelve la descripción en ADF (un JSON con estructura), no en texto plano; el JQL del dojo solo acepta proyecto, <code>updated &gt;=</code> y el orden."
+      },
+      {
+        "nube": "El repositorio de políticas (git)",
+        "local": "<code>/repo/politicas/arbol</code> y <code>/crudo</code>",
+        "diferencia": "El sha de cada archivo es el de git (sha1 de «blob &lt;tamaño&gt;\\0» y el contenido), así que la huella la da la fuente. En C11 los cambios llegan por los commits del repositorio."
+      },
+      {
+        "nube": "Un bucket de S3 con el JSON estructurado de cada versión",
+        "local": "La carpeta <code>almacen/</code>",
+        "diferencia": "Los mismos archivos direccionados por hash; S3 agrega versionado, permisos y durabilidad."
+      },
+      {
+        "nube": "Un parser de layout y OCR (por ejemplo Docling, de licencia MIT)",
+        "local": "pypdf, que solo lee la capa de texto",
+        "diferencia": "Un parser de layout reconoce orden de lectura, columnas y tablas dentro del PDF; pypdf saca líneas sueltas y no hace OCR. Por eso el escaneo se marca y no se procesa."
+      },
+      {
+        "nube": "Colas por fuente, webhooks y un orquestador",
+        "local": "Una corrida a mano de <code>pipeline/ingestar.py</code>",
+        "diferencia": "En C11 la ingestión corre sola y sin parar; aquí la corres tú, una vez por «día», y ves cada cuenta."
+      }
+    ],
+    "arranque": "unzip rag-ingesta.zip && cd rag-ingesta\npython3 -m venv .venv && source .venv/bin/activate\npip install -r requirements.txt\npython mundo/crear.py\npython mundo/fuentes.py arrancar",
+    "python": "python"
+  },
+  "guiado": [
+    {
+      "n": 0,
+      "id": "mundo",
+      "titulo": "Levantar el mundo",
+      "objetivo": "Las cuatro fuentes arriba en el puerto 8120, con el mundo del día 1.",
+      "conceptos": [
+        "ingestion"
+      ],
+      "explica": "El mundo vive en <code>fuentes/estado.json</code> (lo escribe <code>mundo/crear.py</code>, siempre igual) y lo sirve <code>mundo/fuentes.py</code> por HTTP, en segundo plano. Tu ingestión solo habla con esas APIs, como lo haría con las de verdad.",
+      "codigo": [],
+      "comandos": [
+        {
+          "code": "python3 -m venv .venv && source .venv/bin/activate\npip install -r requirements.txt",
+          "nota": "Desde aquí, cada terminal nueva necesita <code>source .venv/bin/activate</code>.",
+          "donde": "mac",
+          "salida": "\nPython 3.14.3"
+        },
+        {
+          "code": "python mundo/crear.py\npython mundo/fuentes.py arrancar",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ mundo creado al 2026-11-20T15:00:00Z: wiki 27 páginas en 3 espacios · drive 16 archivos · jira 50 tickets · políticas 8 archivos · 101 documentos\n  siguiente: python mundo/fuentes.py arrancar\n✓ fuentes arriba en http://localhost:8120 (pid 16746): wiki, drive, jira y políticas"
+        },
+        {
+          "code": "python verificar.py mundo",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ mundo        fuentes arriba en http://localhost:8120 · día 1 del mundo (2026-11-20T15:00:00Z) · 101 documentos visibles · los 4 tokens de config.yaml entran\n\n1/1 en verde"
+        },
+        {
+          "code": "python verificar.py http",
+          "nota": "Es lo esperado: <code>pipeline/</code> todavía es el esqueleto. Cada check se pone en verde en su paso.",
+          "donde": "mac",
+          "salida": "✗ http         conectores.http.pedir todavía es el esqueleto (paso 1: pedir)\n\n0/1 en verde · falta: http\n[código 1]"
+        }
+      ],
+      "verifica": "<code>verificar.py mundo</code> en verde.",
+      "ojo": "Si el 8120 está ocupado, <code>lsof -nP -iTCP:8120 -sTCP:LISTEN</code> te dice quién. Las fuentes siguen corriendo aunque cierres la terminal: <code>python mundo/fuentes.py parar</code> las apaga."
+    },
+    {
+      "n": 1,
+      "id": "pedir",
+      "titulo": "Una llamada que no se traga los errores",
+      "objetivo": "<code>pedir()</code>: el token en cada llamada, esperar y reintentar ante un 429, y nunca convertir un 401 en «vacío».",
+      "conceptos": [
+        "conector",
+        "rate-limit"
+      ],
+      "explica": "Las cuatro fuentes se piden igual: GET a una URL, con el encabezado <code>Authorization: Bearer &lt;token&gt;</code> de la cuenta de servicio. Lo que cambia es qué haces con la respuesta. <b>200</b>: el JSON como dict o, si es un PDF o un Markdown, los bytes. <b>429</b>: la fuente te pide esperar; <code>Retry-After</code> dice cuántos segundos, y reintentas hasta <code>http.reintentos</code> veces. <b>401 o 403</b>: <code>FuenteSinAcceso</code>, que la corrida anota y no esconde. <b>404</b>: None, porque el documento ya no existe o ya no lo puedes ver. Cuentas cada llamada y cada 429: son los números del precálculo de llamadas.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "pipeline/conectores/http.py",
+          "code": "\"\"\"Paso 1 · pedir(): una llamada a una fuente, con su token, reintentos ante 429 y errores que no se tragan.\n\nContrato:\n- La URL base y el token de cada fuente salen de config.yaml (fuentes.<fuente>.url y .token). El token va en el\n  encabezado «Authorization: Bearer <token>».\n- 429 (demasiadas llamadas): espera los segundos de «Retry-After» (las fuentes del dojo siempre lo mandan en segundos) y reintenta, hasta http.reintentos veces.\n  Si se acaban los reintentos, deja salir el error.\n- 401 o 403: lanza FuenteSinAcceso. Nunca lo conviertas en «no hay nada»: un conector sin acceso parece uno sin cambios.\n- 404: devuelve None (el documento ya no existe, o la cuenta del conector ya no lo puede ver).\n- Si la respuesta es JSON, devuelve el dict; si no (un PDF, un Markdown), los bytes tal cual.\n- Cuenta cada llamada en LLAMADAS[fuente] y cada 429 en ESPERAS[fuente] (para el resumen de la corrida).\n\"\"\"\nfrom __future__ import annotations\n\nimport json\nimport time\nfrom collections import Counter\nfrom urllib.error import HTTPError\nfrom urllib.parse import urlencode\nfrom urllib.request import Request, urlopen\n\nfrom _comun import FuenteSinAcceso, config\n\nLLAMADAS: Counter = Counter()\nESPERAS: Counter = Counter()\n\n\ndef pedir(fuente: str, ruta: str, params: dict | None = None):\n    \"\"\"GET a <url de la fuente><ruta>?<params>. La ruta puede traer ya su «?…» (por ejemplo, la «siguiente» de la wiki).\"\"\"\n    c = config()\n    f = c[\"fuentes\"][fuente]\n    url = f[\"url\"] + ruta + ((\"&\" if \"?\" in ruta else \"?\") + urlencode(params) if params else \"\")\n    for intento in range(c[\"http\"][\"reintentos\"] + 1):\n        LLAMADAS[fuente] += 1\n        try:\n            with urlopen(Request(url, headers={\"Authorization\": f\"Bearer {f['token']}\"}), timeout=c[\"http\"][\"timeout\"]) as r:\n                cuerpo = r.read()\n                return json.loads(cuerpo) if r.headers.get(\"Content-Type\", \"\").startswith(\"application/json\") else cuerpo\n        except HTTPError as e:\n            if e.code == 429 and intento < c[\"http\"][\"reintentos\"]:\n                ESPERAS[fuente] += 1\n                time.sleep(float(e.headers.get(\"Retry-After\", \"1\")))\n                continue\n            if e.code in (401, 403):\n                raise FuenteSinAcceso(f\"{fuente} respondió {e.code} en {ruta}: ¿token vencido o permiso retirado?\") from None\n            if e.code == 404:\n                return None\n            raise",
+          "nota": ""
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python -c \"\nimport sys; sys.path.insert(0, 'pipeline')\nfrom conectores.http import pedir, LLAMADAS, ESPERAS\nprint(pedir('politicas', '/arbol')['archivos'][:2])\nprint(pedir('drive', '/files/no-existe'))\nfor _ in range(20): pedir('wiki', '/espacios/SOP/permisos')\nprint('llamadas', dict(LLAMADAS), '· 429 esperados', dict(ESPERAS))\"",
+          "nota": "20 llamadas seguidas a la wiki: la cubeta deja 10 de golpe y ≈ 10 por segundo después, así que alguna recibe 429 y se reintenta.",
+          "donde": "mac",
+          "salida": "[{'ruta': 'cancelaciones.md', 'sha': '6d8cd224d19c9d68516d755a23c234b52b19d276'}, {'ruta': 'cupones.md', 'sha': '5ac6f61c2599756ff068ed29bad1e4b778d359cd'}]\nNone\nllamadas {'politicas': 1, 'drive': 1, 'wiki': 21} · 429 esperados {'wiki': 1}"
+        },
+        {
+          "code": "python -c \"\nfrom urllib.request import Request, urlopen\nfrom urllib.error import HTTPError\ntry:\n    urlopen(Request('http://localhost:8120/jira/api/nivel/10001', headers={'Authorization': 'Bearer otro'}))\nexcept HTTPError as e:\n    print(e.code, e.read().decode())\"",
+          "nota": "Lo que contesta una fuente con un token que no sirve. Tu <code>pedir()</code> lo convierte en <code>FuenteSinAcceso</code>.",
+          "donde": "mac",
+          "salida": "401 {\"error\": \"token inválido o vencido\"}"
+        },
+        {
+          "code": "python verificar.py http",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ http         JSON → dict, Markdown → bytes, 404 → None, 401 → FuenteSinAcceso · 25 llamadas a la wiki: 3 respuestas 429, todas reintentadas\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "<code>verificar.py http</code> en verde: JSON → dict, bytes → bytes, 404 → None, 401 → FuenteSinAcceso y 25 llamadas a la wiki sin perder ninguna.",
+      "ojo": "<code>urlopen</code> lanza <code>HTTPError</code> para cualquier código ≥ 400: el 429 y el 404 también llegan como excepción, no como respuesta.",
+      "en_pagina": {
+        "conceptos": [
+          "ingestion",
+          "conector",
+          "rate-limit"
+        ],
+        "precalculos": [
+          "corpus",
+          "llamadas"
+        ]
+      }
+    },
+    {
+      "n": 2,
+      "id": "wiki",
+      "titulo": "El conector de la wiki",
+      "objetivo": "Todas las páginas de los 3 espacios, siguiendo la paginación, y la ACL de cada una como espacio ∧ ancestros ∧ página.",
+      "conceptos": [
+        "paginacion",
+        "acl",
+        "clausulas",
+        "herencia"
+      ],
+      "explica": "Los cuatro conectores tienen la misma forma (está en <code>pipeline/conectores/__init__.py</code>): <code>listar()</code>, <code>cambios(cursor)</code>, <code>traer(ref)</code> y <code>acl(ref)</code>. Un <b>ref</b> es lo que sabes de un documento sin bajarlo (id, versión, fecha, título); un <b>doc</b> es el ref más su contenido crudo y su ACL. La wiki da 10 páginas por llamada y en «siguiente» la ruta de las que siguen. Su ACL es una <b>intersección</b>: quien puede ver el espacio, y además quien está en la restricción de cada ancestro restringido y de la página. La API solo te da la restricción propia de cada página, así que recorres los ancestros (vienen en la lista) y guardas cada restricción en memoria: muchas páginas comparten ancestros y cada llamada cuenta para el límite.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "pipeline/conectores/wiki.py",
+          "code": "\"\"\"Paso 2 · El conector de la wiki: páginas paginadas y la ACL como intersección (espacio ∧ ancestros ∧ página).\n\nContrato (la forma común está en conectores/__init__.py):\n- listar(): todas las páginas de los espacios de config (fuentes.wiki.espacios), siguiendo «siguiente» hasta que\n  venga null. doc_id = \"wiki:<id>\", version = str(version), actualizado = el de la página, url = <url>/paginas/<id>.\n  En meta guarda el espacio y los ancestros (los ids, de la raíz al padre).\n- cambios(cursor): con None, todo (listar) y el cursor {\"desde\": la fecha «actualizado» más nueva que viste}.\n  Con cursor, solo las páginas con actualizado ≥ cursor[\"desde\"] (parámetro «desde» de la API). La wiki no avisa\n  de borrados: la lista de borrados va vacía (los encuentra el barrido, paso 8).\n- traer(ref): GET /paginas/<id>. None si la página ya no se ve (404). tipo \"html\", crudo = el «cuerpo» en UTF-8.\n- acl(ref): una cláusula con los principals del espacio (GET /espacios/<clave>/permisos) y una más por cada\n  ancestro, y por la página misma, que tenga restricción de lectura (GET /paginas/<id>/restricciones: usuarios +\n  grupos). La API solo devuelve la restricción PROPIA de cada página: la heredada la armas tú recorriendo ancestros.\n  Cada cláusula, ordenada y sin repetidos. Guarda en memoria lo que ya pediste: cada llamada cuenta para el límite.\n\"\"\"\nfrom __future__ import annotations\n\nfrom _comun import config\nfrom conectores.http import pedir\n\nFUENTE = \"wiki\"\n_permisos_espacio: dict[str, list[str]] = {}\n_restricciones: dict[str, list[str]] = {}\n\n\ndef _paginas(espacio: str, desde: str | None = None):\n    r = pedir(FUENTE, \"/paginas\", {\"espacio\": espacio, \"inicio\": 0, \"limite\": 10} | ({\"desde\": desde} if desde else {}))\n    while True:\n        yield from r[\"resultados\"]\n        if not r[\"siguiente\"]:\n            return\n        r = pedir(FUENTE, r[\"siguiente\"])\n\n\ndef _ref(p: dict) -> dict:\n    return {\"doc_id\": f\"wiki:{p['id']}\", \"fuente\": FUENTE, \"version\": str(p[\"version\"]), \"actualizado\": p[\"actualizado\"],\n            \"titulo\": p[\"titulo\"], \"url\": f\"{config()['fuentes'][FUENTE]['url']}/paginas/{p['id']}\",\n            \"meta\": {\"espacio\": p[\"espacio\"], \"ancestros\": p[\"ancestros\"]}}\n\n\ndef listar() -> list[dict]:\n    return [_ref(p) for esp in config()[\"fuentes\"][FUENTE][\"espacios\"] for p in _paginas(esp)]\n\n\ndef cambios(cursor: dict | None):\n    if cursor is None:\n        refs = listar()\n    else:\n        refs = [_ref(p) for esp in config()[\"fuentes\"][FUENTE][\"espacios\"] for p in _paginas(esp, cursor[\"desde\"])]\n    fechas = [r[\"actualizado\"] for r in refs] + ([cursor[\"desde\"]] if cursor else [])\n    return refs, [], {\"desde\": max(fechas) if fechas else None}\n\n\ndef _restriccion(pid: str) -> list[str]:\n    if pid not in _restricciones:\n        r = pedir(FUENTE, f\"/paginas/{pid}/restricciones\")\n        leer = (r or {}).get(\"leer\", {})\n        _restricciones[pid] = sorted(set(leer.get(\"usuarios\", []) + leer.get(\"grupos\", [])))\n    return _restricciones[pid]\n\n\ndef acl(ref: dict) -> list[list[str]]:\n    esp = ref[\"meta\"][\"espacio\"]\n    if esp not in _permisos_espacio:\n        _permisos_espacio[esp] = sorted(set(pedir(FUENTE, f\"/espacios/{esp}/permisos\")[\"leer\"]))\n    clausulas = [_permisos_espacio[esp]]\n    for pid in ref[\"meta\"][\"ancestros\"] + [ref[\"doc_id\"].split(\":\", 1)[1]]:\n        if _restriccion(pid):\n            clausulas.append(_restriccion(pid))\n    return clausulas\n\n\ndef traer(ref: dict) -> dict | None:\n    p = pedir(FUENTE, f\"/paginas/{ref['doc_id'].split(':', 1)[1]}\")\n    if p is None:\n        return None\n    r = _ref(p)\n    return r | {\"tipo\": \"html\", \"crudo\": p[\"cuerpo\"].encode(), \"acl\": acl(r)}",
+          "nota": ""
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python -c \"\nimport sys; sys.path.insert(0, 'pipeline')\nfrom _comun import config\nfrom conectores.http import pedir\nr = pedir('wiki', '/paginas', {'espacio': 'SOP', 'inicio': 0, 'limite': 10})\nprint(len(r['resultados']), 'resultados · siguiente:', r['siguiente'])\nprint(r['resultados'][0])\"",
+          "nota": "",
+          "donde": "mac",
+          "salida": "10 resultados · siguiente: /paginas?espacio=SOP&inicio=10&limite=10\n{'id': '1001', 'titulo': 'Manual de soporte', 'espacio': 'SOP', 'version': 3, 'actualizado': '2026-09-02T16:10:00Z', 'ancestros': []}"
+        },
+        {
+          "code": "python -c \"\nimport sys; sys.path.insert(0, 'pipeline')\nfrom conectores.http import pedir\nfor p in ('3003', '3004'):\n    print(p, pedir('wiki', f'/paginas/{p}/restricciones'))\"",
+          "nota": "«Caso Transportes del Norte» (3004) no tiene restricción propia; su padre, «Litigios» (3003), sí.",
+          "donde": "mac",
+          "salida": "3003 {'leer': {'grupos': ['group:legal-litigios@marketplace.test'], 'usuarios': []}}\n3004 {'leer': {'grupos': [], 'usuarios': []}}"
+        },
+        {
+          "code": "python -c \"\nimport sys; sys.path.insert(0, 'pipeline')\nfrom conectores import wiki\nrefs = {r['doc_id']: r for r in wiki.listar()}\nprint(len(refs), 'páginas')\nfor d in ('wiki:2002', 'wiki:3003', 'wiki:3004'):\n    print(d, refs[d]['titulo'], '→', wiki.acl(refs[d]))\"",
+          "nota": "3004 hereda la cláusula de 3003: para verla hay que ver el espacio Legal Y estar en litigios.",
+          "donde": "mac",
+          "salida": "27 páginas\nwiki:2002 Comisiones por categoría → [['group:operaciones@marketplace.test']]\nwiki:3003 Litigios → [['group:legal@marketplace.test', 'group:soporte-lideres@marketplace.test'], ['group:legal-litigios@marketplace.test']]\nwiki:3004 Caso Transportes del Norte → [['group:legal@marketplace.test', 'group:soporte-lideres@marketplace.test'], ['group:legal-litigios@marketplace.test']]"
+        },
+        {
+          "code": "python verificar.py wiki",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ wiki         27 páginas de 3 espacios (paginadas de 10 en 10) · 4 con restricción propia o heredada, todas con su ACL bien\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "<code>verificar.py wiki</code> en verde: las 27 páginas, cada una con su versión y su ACL.",
+      "ojo": "La versión va como texto (<code>\"3\"</code>), igual en todas las fuentes: así el catálogo compara versiones sin saber de qué fuente vienen.",
+      "en_pagina": {
+        "conceptos": [
+          "paginacion",
+          "acl",
+          "clausulas",
+          "herencia"
+        ],
+        "precalculos": []
+      }
+    },
+    {
+      "n": 3,
+      "id": "drive",
+      "titulo": "El conector del Drive",
+      "objetivo": "El feed de cambios con su pageToken, y los permisos de cada archivo con la regla del link compartido.",
+      "conceptos": [
+        "cursor",
+        "link-compartido"
+      ],
+      "explica": "El Drive no se recorre por fecha: tiene un <b>feed de cambios</b>. Pides un token de inicio (<code>startPageToken</code>) y, la vez siguiente, todo lo que cambió desde ese token, página por página, hasta que la respuesta trae <code>newStartPageToken</code>: ese es tu cursor nuevo. La primera vez, el orden importa: <b>primero el token, después la lista</b>, así lo que cambie mientras listas queda en el feed. Un cambio con <code>removed: true</code> (ya no lo ves) o con el archivo en la papelera es un borrado. La ACL es una sola cláusula con los permisos del archivo: usuarios y grupos tal cual, y <code>domain</code> o <code>anyone</code> solo si son <b>descubribles</b>; un link compartido no da acceso a nadie.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "pipeline/conectores/drive.py",
+          "code": "\"\"\"Paso 3 · El conector del Drive: el feed de cambios con su pageToken y los permisos de cada archivo.\n\nContrato (la forma común está en conectores/__init__.py):\n- listar(): todos los archivos visibles (GET /files, siguiendo nextPageToken). doc_id = \"drive:<id>\",\n  version = str(version), actualizado = modifiedTime, titulo = name, url = <url>/files/<id>, meta = {\"mimeType\"}.\n- cambios(cursor): con None, PRIMERO pide el token de inicio (GET /changes/startPageToken) y DESPUÉS lista todo:\n  así un cambio que pase mientras listas queda en el feed. Cursor = {\"pageToken\": ese token}.\n  Con cursor, lee GET /changes?pageToken=… página por página hasta que venga newStartPageToken (ese es el cursor\n  nuevo). Un cambio con removed: true o con el archivo en la papelera (trashed) va a la lista de borrados; los demás\n  son refs. Si un archivo cambió dos veces, queda una sola vez, con su estado más nuevo.\n- traer(ref): los bytes con GET /files/<id>?alt=media (None si ya no se ve). tipo \"pdf\" o \"markdown\" según mimeType.\n- acl(ref): UNA cláusula con los permisos (GET /files/<id>/permissions): user → user:<correo>, group → group:<correo>,\n  domain o anyone con allowFileDiscovery: true → domain:<dominio de config>. Un domain o anyone con\n  allowFileDiscovery: false es un link compartido: con drive.link_compartido = ignorar no da acceso a nadie\n  (no entra a la cláusula). Ordenada y sin repetidos.\n\"\"\"\nfrom __future__ import annotations\n\nfrom _comun import config\nfrom conectores.http import pedir\n\nFUENTE = \"drive\"\nTIPOS = {\"application/pdf\": \"pdf\", \"text/markdown\": \"markdown\"}\n\n\ndef _ref(f: dict) -> dict:\n    return {\"doc_id\": f\"drive:{f['id']}\", \"fuente\": FUENTE, \"version\": str(f[\"version\"]), \"actualizado\": f[\"modifiedTime\"],\n            \"titulo\": f[\"name\"], \"url\": f\"{config()['fuentes'][FUENTE]['url']}/files/{f['id']}\", \"meta\": {\"mimeType\": f[\"mimeType\"]}}\n\n\ndef listar() -> list[dict]:\n    out, tok = [], None\n    while True:\n        r = pedir(FUENTE, \"/files\", {\"pageToken\": tok} if tok else None)\n        out += [_ref(f) for f in r[\"files\"]]\n        tok = r.get(\"nextPageToken\")\n        if not tok:\n            return out\n\n\ndef cambios(cursor: dict | None):\n    if cursor is None:\n        inicio = pedir(FUENTE, \"/changes/startPageToken\")[\"startPageToken\"]   # antes de listar, no después\n        return listar(), [], {\"pageToken\": inicio}\n    vivos, borrados, tok = {}, {}, cursor[\"pageToken\"]\n    while True:\n        r = pedir(FUENTE, \"/changes\", {\"pageToken\": tok})\n        for c in r[\"changes\"]:\n            did = f\"drive:{c['fileId']}\"\n            if c[\"removed\"] or c[\"file\"][\"trashed\"]:\n                borrados[did] = True\n                vivos.pop(did, None)\n            else:\n                vivos[did] = _ref(c[\"file\"])\n                borrados.pop(did, None)\n        if \"newStartPageToken\" in r:\n            return list(vivos.values()), list(borrados), {\"pageToken\": r[\"newStartPageToken\"]}\n        tok = r[\"nextPageToken\"]\n\n\ndef acl(ref: dict) -> list[list[str]]:\n    c = config()\n    r = pedir(FUENTE, f\"/files/{ref['doc_id'].split(':', 1)[1]}/permissions\") or {\"permissions\": []}\n    principals = set()\n    for p in r[\"permissions\"]:\n        if p[\"type\"] == \"user\":\n            principals.add(f\"user:{p['emailAddress']}\")\n        elif p[\"type\"] == \"group\":\n            principals.add(f\"group:{p['emailAddress']}\")\n        elif p[\"type\"] in (\"domain\", \"anyone\"):\n            if p.get(\"allowFileDiscovery\") or c[\"drive\"][\"link_compartido\"] == \"dominio\":\n                principals.add(f\"domain:{c['dominio']}\")\n    return [sorted(principals)]\n\n\ndef traer(ref: dict) -> dict | None:\n    fid = ref[\"doc_id\"].split(\":\", 1)[1]\n    meta = pedir(FUENTE, f\"/files/{fid}\")\n    crudo = pedir(FUENTE, f\"/files/{fid}\", {\"alt\": \"media\"}) if meta else None\n    if meta is None or crudo is None:\n        return None\n    r = _ref(meta)\n    return r | {\"tipo\": TIPOS[meta[\"mimeType\"]], \"crudo\": crudo, \"acl\": acl(r)}",
+          "nota": ""
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python -c \"\nimport sys, json; sys.path.insert(0, 'pipeline')\nfrom conectores.http import pedir\nfor f in ('d04', 'd09'):\n    print(f, json.dumps(pedir('drive', f'/files/{f}/permissions')['permissions'], ensure_ascii=False))\"",
+          "nota": "d04 (los sueldos) se compartió con «cualquiera con el link»; d09, con el link dentro del dominio.",
+          "donde": "mac",
+          "salida": "d04 [{\"emailAddress\": \"lucia.mora@marketplace.test\", \"role\": \"owner\", \"type\": \"user\"}, {\"allowFileDiscovery\": false, \"role\": \"reader\", \"type\": \"anyone\"}]\nd09 [{\"emailAddress\": \"jorge.paz@marketplace.test\", \"role\": \"owner\", \"type\": \"user\"}, {\"emailAddress\": \"operaciones@marketplace.test\", \"role\": \"reader\", \"type\": \"group\"}, {\"allowFileDiscovery\": false, \"domain\": \"marketplace.test\", \"role\": \"reader\", \"type\": \"domain\"}]"
+        },
+        {
+          "code": "python -c \"\nimport sys; sys.path.insert(0, 'pipeline')\nfrom conectores import drive\nrefs = {r['doc_id']: r for r in drive.listar()}\nfor d in ('drive:d01', 'drive:d04', 'drive:d09', 'drive:d10'):\n    print(d, refs[d]['titulo'], '→', drive.acl(refs[d]))\nr, b, cur = drive.cambios(None)\nprint(len(r), 'archivos · cursor', cur)\"",
+          "nota": "d01 y d10 sí son de todo el dominio (descubribles). d04 queda solo para su dueña y d09 para operaciones.",
+          "donde": "mac",
+          "salida": "drive:d01 Política de viajes 2026.pdf → [['domain:marketplace.test', 'user:lucia.mora@marketplace.test']]\ndrive:d04 Sueldos 2026.pdf → [['user:lucia.mora@marketplace.test']]\ndrive:d09 Plan de temporada alta.pdf → [['group:operaciones@marketplace.test', 'user:jorge.paz@marketplace.test']]\ndrive:d10 Código de conducta.pdf → [['domain:marketplace.test', 'user:irene.sol@marketplace.test']]\n16 archivos · cursor {'pageToken': '16'}"
+        },
+        {
+          "code": "python verificar.py drive",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ drive        16 archivos · feed de cambios del 0 al 16 con 0 borrado(s) · 2 con link compartido que no dan acceso: drive:d04, drive:d09\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "<code>verificar.py drive</code> en verde: los 16 archivos, el cursor es el startPageToken y desde el token 0 salen todos una sola vez.",
+      "ojo": "Un archivo que cambió dos veces sale dos veces en el feed: quédate con el estado más nuevo, una vez.",
+      "en_pagina": {
+        "conceptos": [
+          "cursor",
+          "link-compartido"
+        ],
+        "precalculos": []
+      }
+    },
+    {
+      "n": 4,
+      "id": "jira-politicas",
+      "titulo": "Los conectores del Jira y de las políticas",
+      "objetivo": "El JQL por fecha en la zona de la cuenta, la ACL por proyecto y nivel de seguridad, y el árbol de git de las políticas.",
+      "conceptos": [
+        "idempotencia",
+        "cursor",
+        "clausulas"
+      ],
+      "explica": "El Jira se recorre con un <b>JQL</b> (su lenguaje de búsqueda): <code>project in (SOP, SEG) AND updated &gt;= \"aaaa-mm-dd hh:mm\" ORDER BY updated ASC</code>. Dos detalles reales: el JQL solo entiende <b>minutos</b>, y lee la fecha en la <b>zona del perfil</b> de la cuenta (aquí, Ciudad de México, UTC−6). Así que conviertes tu cursor (en UTC) a esa zona y lo cortas al minuto: lo que cayó en ese minuto vuelve a salir, y eso está bien porque procesar dos veces lo mismo no cambia nada (idempotencia). La ACL: quién ve el proyecto, donde «reportero» es el correo de quien abrió el ticket, y una segunda cláusula si el ticket tiene nivel de seguridad. Las políticas son más simples: el árbol de git trae el sha de cada archivo, que ya es su huella; comparas el árbol de hoy con el del cursor.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "pipeline/conectores/jira.py",
+          "code": "\"\"\"Paso 4 · El conector del Jira: JQL por fecha de actualización (en minutos y en la zona de la cuenta) y la ACL\npor proyecto y nivel de seguridad.\n\nContrato (la forma común está en conectores/__init__.py):\n- listar(): todos los tickets de los proyectos de config (fuentes.jira.proyectos) con\n  GET /buscar?jql=project in (SOP, SEG) ORDER BY updated ASC&maxResults=20, siguiendo nextPageToken hasta isLast.\n  doc_id = \"jira:<clave>\", version = fields.updated tal cual, actualizado = esa fecha en UTC con Z, titulo = summary,\n  url = <url>/ticket/<clave>, meta = {\"proyecto\", \"reportero\" (el correo), \"nivel\" (el id del nivel o None)}.\n- cambios(cursor): con None, listar() y cursor {\"desde\": el «actualizado» más nuevo, en UTC}. Con cursor, el mismo\n  JQL con «AND updated >= \"aaaa-mm-dd hh:mm\"»: Jira solo entiende minutos y los lee en la zona del perfil de la\n  cuenta (fuentes.jira.zona). Convierte el cursor a esa zona y córtalo al minuto: lo que caiga en ese minuto vuelve a\n  salir, y eso está bien (la versión dice si cambió). Sin borrados (los encuentra el barrido).\n- traer(ref): GET /ticket/<clave>. crudo = el JSON del ticket con json.dumps(…, sort_keys=True, ensure_ascii=False)\n  en UTF-8 (mismo ticket → mismos bytes → mismo hash). tipo \"ticket\". None si ya no existe.\n- acl(ref): la cláusula de quién puede ver el proyecto (GET /proyecto/<clave>/permisos), donde el valor especial\n  «reportero» se cambia por user:<correo de quien lo reportó>; y, si el ticket tiene nivel de seguridad, una\n  segunda cláusula con sus miembros (GET /nivel/<id>). Cada cláusula ordenada y sin repetidos.\n\"\"\"\nfrom __future__ import annotations\n\nimport json\nfrom zoneinfo import ZoneInfo\n\nfrom _comun import config, iso, utc\nfrom conectores.http import pedir\n\nFUENTE = \"jira\"\n_proyectos: dict[str, list[str]] = {}\n_niveles: dict[str, list[str]] = {}\n\n\ndef _buscar(desde: str | None):\n    c = config()[\"fuentes\"][FUENTE]\n    jql = f\"project in ({', '.join(c['proyectos'])})\"\n    if desde:\n        jql += f' AND updated >= \"{utc(desde).astimezone(ZoneInfo(c[\"zona\"])):%Y-%m-%d %H:%M}\"'\n    jql += \" ORDER BY updated ASC\"\n    tok = None\n    while True:\n        r = pedir(FUENTE, \"/buscar\", {\"jql\": jql, \"maxResults\": 20} | ({\"nextPageToken\": tok} if tok else {}))\n        yield from r[\"issues\"]\n        if r[\"isLast\"]:\n            return\n        tok = r[\"nextPageToken\"]\n\n\ndef _ref(t: dict) -> dict:\n    f = t[\"fields\"]\n    return {\"doc_id\": f\"jira:{t['key']}\", \"fuente\": FUENTE, \"version\": f[\"updated\"], \"actualizado\": iso(utc(f[\"updated\"])),\n            \"titulo\": f[\"summary\"], \"url\": f\"{config()['fuentes'][FUENTE]['url']}/ticket/{t['key']}\",\n            \"meta\": {\"proyecto\": f[\"project\"][\"key\"], \"reportero\": f[\"reporter\"][\"emailAddress\"], \"nivel\": (f[\"security\"] or {}).get(\"id\")}}\n\n\ndef listar() -> list[dict]:\n    return [_ref(t) for t in _buscar(None)]\n\n\ndef cambios(cursor: dict | None):\n    refs = listar() if cursor is None else [_ref(t) for t in _buscar(cursor[\"desde\"])]\n    fechas = [r[\"actualizado\"] for r in refs] + ([cursor[\"desde\"]] if cursor else [])\n    return refs, [], {\"desde\": max(fechas) if fechas else None}\n\n\ndef acl(ref: dict) -> list[list[str]]:\n    m = ref[\"meta\"]\n    if m[\"proyecto\"] not in _proyectos:\n        _proyectos[m[\"proyecto\"]] = pedir(FUENTE, f\"/proyecto/{m['proyecto']}/permisos\")[\"ver\"]\n    ver = {f\"user:{m['reportero']}\" if p == \"reportero\" else p for p in _proyectos[m[\"proyecto\"]]}\n    clausulas = [sorted(ver)]\n    if m[\"nivel\"]:\n        if m[\"nivel\"] not in _niveles:\n            _niveles[m[\"nivel\"]] = pedir(FUENTE, f\"/nivel/{m['nivel']}\")[\"miembros\"]\n        clausulas.append(sorted(set(_niveles[m[\"nivel\"]])))\n    return clausulas\n\n\ndef traer(ref: dict) -> dict | None:\n    t = pedir(FUENTE, f\"/ticket/{ref['doc_id'].split(':', 1)[1]}\")\n    if t is None:\n        return None\n    r = _ref(t)\n    return r | {\"tipo\": \"ticket\", \"crudo\": json.dumps(t, sort_keys=True, ensure_ascii=False).encode(), \"acl\": acl(r)}",
+          "nota": ""
+        },
+        {
+          "lang": "python",
+          "path": "pipeline/conectores/politicas.py",
+          "code": "\"\"\"Paso 4 · El conector del repositorio de políticas: el árbol de git dice qué cambió, por la huella de cada archivo.\n\nContrato (la forma común está en conectores/__init__.py):\n- listar(): GET /arbol → {\"commit\", \"archivos\": [{\"ruta\", \"sha\"}]}. doc_id = \"politicas:<ruta>\",\n  version = el sha del archivo (git ya te da la huella del contenido), actualizado = None, titulo = la ruta,\n  url = <url>/crudo/<ruta>, meta = {}.\n- cambios(cursor): no hay feed ni fechas: siempre pide el árbol y lo compara con el del cursor.\n  Cursor = {\"commit\", \"shas\": {ruta: sha}}. Refs = los archivos nuevos o con otro sha; borrados = las rutas que\n  estaban en el cursor y ya no están. Con None, todo.\n- traer(ref): los bytes con GET /crudo/<ruta>. tipo \"markdown\".\n- acl(ref): una sola cláusula, la de config (fuentes.politicas.leer): todo el repositorio lo leen soporte y operaciones.\n\"\"\"\nfrom __future__ import annotations\n\nfrom _comun import config\nfrom conectores.http import pedir\n\nFUENTE = \"politicas\"\n\n\ndef _arbol() -> dict:\n    return pedir(FUENTE, \"/arbol\")\n\n\ndef _ref(a: dict) -> dict:\n    return {\"doc_id\": f\"politicas:{a['ruta']}\", \"fuente\": FUENTE, \"version\": a[\"sha\"], \"actualizado\": None,\n            \"titulo\": a[\"ruta\"], \"url\": f\"{config()['fuentes'][FUENTE]['url']}/crudo/{a['ruta']}\", \"meta\": {}}\n\n\ndef listar() -> list[dict]:\n    return [_ref(a) for a in _arbol()[\"archivos\"]]\n\n\ndef cambios(cursor: dict | None):\n    t = _arbol()\n    antes = (cursor or {}).get(\"shas\", {})\n    ahora = {a[\"ruta\"]: a[\"sha\"] for a in t[\"archivos\"]}\n    refs = [_ref(a) for a in t[\"archivos\"] if antes.get(a[\"ruta\"]) != a[\"sha\"]]\n    borrados = [f\"politicas:{r}\" for r in antes if r not in ahora]\n    return refs, borrados, {\"commit\": t[\"commit\"], \"shas\": ahora}\n\n\ndef acl(ref: dict) -> list[list[str]]:\n    return [sorted(set(config()[\"fuentes\"][FUENTE][\"leer\"]))]\n\n\ndef traer(ref: dict) -> dict | None:\n    crudo = pedir(FUENTE, f\"/crudo/{ref['titulo']}\")\n    if crudo is None:\n        return None\n    return ref | {\"tipo\": \"markdown\", \"crudo\": crudo, \"acl\": acl(ref)}",
+          "nota": ""
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python -c \"\nimport sys; sys.path.insert(0, 'pipeline')\nfrom zoneinfo import ZoneInfo\nfrom _comun import utc\nd = '2026-11-20T14:59:40Z'\nprint(d, '→', f'updated >= \"{utc(d).astimezone(ZoneInfo(\"America/Mexico_City\")):%Y-%m-%d %H:%M}\"')\nfrom conectores.http import pedir\nr = pedir('jira', '/buscar', {'jql': 'project in (SOP, SEG) AND updated >= \"2026-11-20 14:59\"'})\nprint('con la hora en UTC sin convertir:', len(r['issues']), 'tickets')\nr = pedir('jira', '/buscar', {'jql': 'project in (SOP, SEG) AND updated >= \"2026-11-20 08:59\"'})\nprint('en la zona de la cuenta:', [(t['key'], t['fields']['updated']) for t in r['issues']])\"",
+          "nota": "Con la hora en UTC sin convertir, Jira la lee como las 14:59 de Ciudad de México: seis horas después. No da error: da cero tickets.",
+          "donde": "mac",
+          "salida": "2026-11-20T14:59:40Z → updated >= \"2026-11-20 08:59\"\ncon la hora en UTC sin convertir: 0 tickets\nen la zona de la cuenta: [('SOP-40', '2026-11-20T08:59:40.000-0600')]"
+        },
+        {
+          "code": "python -c \"\nimport sys; sys.path.insert(0, 'pipeline')\nfrom conectores import jira, politicas\nrefs = {r['doc_id']: r for r in jira.listar()}\nprint(len(refs), 'tickets')\nfor d in ('jira:SOP-1', 'jira:SOP-5', 'jira:SEG-1'):\n    print(d, '→', jira.acl(refs[d]))\np = politicas.listar()\nprint(len(p), 'políticas ·', p[0]['doc_id'], p[0]['version'])\"",
+          "nota": "SOP-5 tiene nivel «Solo líderes»: ver el proyecto ya no alcanza.",
+          "donde": "mac",
+          "salida": "50 tickets\njira:SOP-1 → [['group:operaciones@marketplace.test', 'group:soporte@marketplace.test', 'user:ana.ruiz@marketplace.test']]\njira:SOP-5 → [['group:operaciones@marketplace.test', 'group:soporte@marketplace.test', 'user:elena.cruz@marketplace.test'], ['group:soporte-lideres@marketplace.test']]\njira:SEG-1 → [['group:fraude@marketplace.test']]\n8 políticas · politicas:cancelaciones.md 6d8cd224d19c9d68516d755a23c234b52b19d276"
+        },
+        {
+          "code": "python verificar.py jira politicas",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ jira         50 tickets (de 20 en 20) · 5 con nivel de seguridad · desde 2026-11-20T14:59:40Z = updated >= 08:59 en la zona de la cuenta: 1 ticket(s)\n✓ politicas    8 archivos por su sha de git · el árbol contra el cursor da los nuevos, los cambiados y los borrados\n\n2/2 en verde"
+        }
+      ],
+      "verifica": "<code>verificar.py jira politicas</code> en verde.",
+      "ojo": "La versión de un ticket es su <code>updated</code> tal cual viene (con su <code>-0600</code>); el «actualizado» del catálogo va en UTC con Z.",
+      "en_pagina": {
+        "conceptos": [
+          "idempotencia"
+        ],
+        "precalculos": []
+      }
+    },
+    {
+      "n": 5,
+      "id": "parsing",
+      "titulo": "Del crudo al texto limpio",
+      "objetivo": "HTML, PDF, ticket y Markdown a texto con estructura, sin boilerplate, con las tablas fila por fila y el escaneo detectado.",
+      "conceptos": [
+        "parsing",
+        "boilerplate",
+        "tabla-filas",
+        "ocr"
+      ],
+      "explica": "Un parser por tipo. <b>HTML</b> (con BeautifulSoup): fuera el menú, el pie y las macros; los títulos como <code>#</code> y <code>##</code>, cada ítem como <code>- </code> y cada fila de tabla con su encabezado. <b>PDF</b> (con pypdf): el texto de cada página, sin las líneas que se repiten en todas (el encabezado y el pie; los números se cambian por <code>#</code> para que «Página 1 de 2» y «Página 2 de 2» cuenten como la misma). Si casi no queda texto, no tiene capa de texto: <code>necesita_ocr</code>. <b>Ticket</b>: título, descripción sin la firma, resolución y los comentarios de personas sin el correo citado. <b>Markdown</b>: tal cual. <code>PARSER</code> es la versión de tu parser: si la subes, el almacén vuelve a parsear todo.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "pipeline/parsing.py",
+          "code": "\"\"\"Paso 5 · Del contenido crudo a texto limpio y con estructura, uno por tipo de documento.\n\nContrato:\n- parsear(doc) -> {\"texto\": str, \"necesita_ocr\": bool}, según doc[\"tipo\"]. Sube PARSER cuando cambies cómo se\n  parsea: el almacén vuelve a parsear todo lo que se parseó con otra versión.\n- \"html\" (la wiki): quita el menú (div.nav), el pie (div.pie) y las macros (ac:structured-macro). Cada título\n  h1/h2/h3 sale como «# », «## », «### » + texto; cada párrafo, en su línea; cada ítem de lista, «- » + texto; cada\n  fila de una tabla, como «Encabezado: valor; Encabezado: valor» (el encabezado es la primera fila, la de los th).\n- \"pdf\": el texto de cada página con pypdf. Quita las líneas que se repiten en TODAS las páginas (encabezados y pies),\n  comparándolas con los números cambiados por «#» (así «Página 1 de 2» y «Página 2 de 2» cuentan como la misma).\n  Si al final quedan menos de 20 caracteres, el PDF no tiene capa de texto: texto \"\" y necesita_ocr True.\n- \"ticket\" (JSON de Jira): «# <clave> · <summary>», la descripción sin la firma (desde la línea «--»), «Resolución: …»\n  si tiene, y los comentarios que no son automáticos (los que empiezan con «[automático]») sin las líneas citadas\n  (las que empiezan con «>») ni la línea «El … escribió:».\n- \"markdown\": el texto tal cual, en UTF-8.\n- Las líneas van unidas con \"\\n\", sin espacios de sobra al final ni líneas vacías repetidas.\n\"\"\"\nfrom __future__ import annotations\n\nimport io\nimport json\nimport re\n\nfrom bs4 import BeautifulSoup\nfrom pypdf import PdfReader\n\nPARSER = \"v1\"\n\n\ndef _limpio(lineas: list[str]) -> str:\n    out = []\n    for l in (x.rstrip() for x in lineas):\n        if l or (out and out[-1]):\n            out.append(l)\n    return \"\\n\".join(out).strip()\n\n\ndef html_a_texto(html: str) -> str:\n    soup = BeautifulSoup(html, \"html.parser\")\n    for x in soup.select(\"div.nav, div.pie\") + soup.find_all(\"ac:structured-macro\"):\n        x.decompose()\n    lineas = []\n    for el in soup.find_all([\"h1\", \"h2\", \"h3\", \"p\", \"li\", \"table\"]):\n        if el.name in (\"h1\", \"h2\", \"h3\"):\n            lineas += [\"\", \"#\" * int(el.name[1]) + \" \" + el.get_text(\" \", strip=True)]\n        elif el.name == \"p\" and not el.find_parent(\"table\"):\n            lineas.append(el.get_text(\" \", strip=True))\n        elif el.name == \"li\" and not el.find_parent(\"table\"):\n            lineas.append(\"- \" + el.get_text(\" \", strip=True))\n        elif el.name == \"table\":\n            filas = el.find_all(\"tr\")\n            enc = [c.get_text(\" \", strip=True) for c in filas[0].find_all([\"th\", \"td\"])]\n            for f in filas[1:]:\n                celdas = [c.get_text(\" \", strip=True) for c in f.find_all([\"th\", \"td\"])]\n                lineas.append(\"; \".join(f\"{h}: {v}\" for h, v in zip(enc, celdas)))\n    return _limpio(lineas)\n\n\ndef pdf_a_texto(crudo: bytes) -> tuple[str, bool]:\n    paginas = [(p.extract_text() or \"\").splitlines() for p in PdfReader(io.BytesIO(crudo)).pages]\n    forma = lambda l: re.sub(r\"\\d+\", \"#\", l.strip())  # noqa: E731\n    repetidas = set.intersection(*(set(map(forma, p)) for p in paginas)) if len(paginas) > 1 else set()\n    texto = _limpio([l for p in paginas for l in p if forma(l) not in repetidas])\n    return (\"\", True) if len(texto) < 20 else (texto, False)\n\n\ndef ticket_a_texto(crudo: bytes) -> str:\n    t = json.loads(crudo)\n    f = t[\"fields\"]\n    lineas = [f\"# {t['key']} · {f['summary']}\", \"\"]\n    lineas += (f.get(\"description\") or \"\").split(\"\\n--\\n\")[0].splitlines()\n    if f.get(\"resolution\"):\n        lineas += [\"\", f\"Resolución: {f['resolution']}\"]\n    comentarios = [c for c in f[\"comment\"][\"comments\"] if not c[\"body\"].startswith(\"[automático]\")]\n    if comentarios:\n        lineas += [\"\", \"Comentarios:\"]\n        for c in comentarios:\n            limpio = [l for l in c[\"body\"].splitlines() if not l.startswith(\">\") and not re.match(r\"^El .+ escribió:$\", l)]\n            lineas.append(\"- \" + \" \".join(l.strip() for l in limpio if l.strip()))\n    return _limpio(lineas)\n\n\ndef parsear(doc: dict) -> dict:\n    if doc[\"tipo\"] == \"html\":\n        return {\"texto\": html_a_texto(doc[\"crudo\"].decode()), \"necesita_ocr\": False}\n    if doc[\"tipo\"] == \"pdf\":\n        texto, ocr = pdf_a_texto(doc[\"crudo\"])\n        return {\"texto\": texto, \"necesita_ocr\": ocr}\n    if doc[\"tipo\"] == \"ticket\":\n        return {\"texto\": ticket_a_texto(doc[\"crudo\"]), \"necesita_ocr\": False}\n    if doc[\"tipo\"] == \"markdown\":\n        return {\"texto\": _limpio(doc[\"crudo\"].decode().splitlines()), \"necesita_ocr\": False}\n    raise ValueError(f\"tipo desconocido: {doc['tipo']}\")",
+          "nota": ""
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python -c \"\nimport sys; sys.path.insert(0, 'pipeline')\nfrom conectores import wiki\nfrom parsing import parsear\nd = wiki.traer({'doc_id': 'wiki:2002', 'meta': {}})\nprint(d['crudo'].decode()[:420]); print('---')\nprint(parsear(d)['texto'])\"",
+          "nota": "Arriba, los primeros 420 caracteres del HTML que da la wiki; abajo, lo que deja tu parser.",
+          "donde": "mac",
+          "salida": "<div class=\"nav\">Inicio › Espacios › Operaciones › Comisiones por categoría</div>\n<ac:structured-macro ac:name=\"toc\" ac:schema-version=\"1\"></ac:structured-macro>\n<h1>Comisiones por categoría</h1>\n<p>La comisión se cobra sobre el precio de venta sin IVA y se descuenta del pago a quien vende. El pago se hace los días que marca la tabla, contados desde la entrega.</p>\n<h2>Tabla vigente</h2>\n<table class=\"tabla\"><tbody><\n---\n# Comisiones por categoría\nLa comisión se cobra sobre el precio de venta sin IVA y se descuenta del pago a quien vende. El pago se hace los días que marca la tabla, contados desde la entrega.\n\n## Tabla vigente\nCategoría: Electrónica; Comisión: 8 %; Días para pagar a quien vende: 15\nCategoría: Moda; Comisión: 12 %; Días para pagar a quien vende: 10\nCategoría: Hogar; Comisión: 10 %; Días para pagar a quien vende: 10\nCategoría: Juguetes; Comisión: 11 %; Días para pagar a quien vende: 10\n\n## Excepciones\nDurante la temporada alta (noviembre y diciembre) la comisión de Moda baja a 10 % para vendedores con calificación mayor a 4.5."
+        },
+        {
+          "code": "python -c \"\nimport sys, io; sys.path.insert(0, 'pipeline')\nfrom pypdf import PdfReader\nfrom conectores import drive\nfrom parsing import parsear\nrefs = {r['doc_id']: r for r in drive.listar()}\nd = drive.traer(refs['drive:d01'])\nprint(PdfReader(io.BytesIO(d['crudo'])).pages[0].extract_text()); print('---')\nprint(parsear(d)['texto']); print('---')\nprint(parsear(drive.traer(refs['drive:d06'])))\"",
+          "nota": "Arriba, lo que pypdf saca de la página 1, con el encabezado y el pie. Abajo, el texto de las dos páginas sin ellos, y el escaneo.",
+          "donde": "mac",
+          "salida": "Marketplace · Política de viajes 2026\nPolítica de viajes 2026\nAplica a todo el personal que viaja por trabajo dentro de México.\nViáticos por día: 1,200 pesos en ciudades grandes y 900 pesos en el resto.\nHotel: tope de 2,000 pesos por noche, con factura a nombre del marketplace.\nUso interno · Página 1 de 2\n---\nPolítica de viajes 2026\nAplica a todo el personal que viaja por trabajo dentro de México.\nViáticos por día: 1,200 pesos en ciudades grandes y 900 pesos en el resto.\nHotel: tope de 2,000 pesos por noche, con factura a nombre del marketplace.\nVuelos\nSe compran con 14 días de anticipación en clase económica.\nSi el vuelo cuesta más de 6,000 pesos, lo aprueba la dirección del área.\n---\n{'texto': '', 'necesita_ocr': True}"
+        },
+        {
+          "code": "python -c \"\nimport sys; sys.path.insert(0, 'pipeline')\nfrom conectores import jira\nfrom parsing import parsear\nd = jira.traer({'doc_id': 'jira:SOP-1', 'meta': {}})\nimport json; t = json.loads(d['crudo'])['fields']\nprint(t['description']); print('--- un comentario:'); print(t['comment']['comments'][1]['body']); print('--- el texto:')\nprint(parsear(d)['texto'])\"",
+          "nota": "",
+          "donde": "mac",
+          "salida": "La guía no se mueve desde el centro de distribución de Querétaro.\n\n--\nSaludos,\nAna Ruiz\nAgente de soporte · Marketplace\nExt. 4401\n--- un comentario:\nLe escribí a la persona.\n\nEl lun, 3 nov 2026 a las 10:12, cliente escribió:\n> ¿Me pueden ayudar?\n> Gracias.\n--- el texto:\n# SOP-1 · Cliente reporta pedido sin movimiento desde hace 5 días\n\nLa guía no se mueve desde el centro de distribución de Querétaro.\n\nResolución: Se abrió investigación con la paquetería y se reenvió el pedido.\n\nComentarios:\n- Le escribí a la persona."
+        },
+        {
+          "code": "python verificar.py parsing",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ parsing      HTML con títulos, listas y tablas fila por fila · PDF sin encabezado ni pie · drive:d06 marcado para OCR · ticket sin firma, cita ni automáticos · parser v1\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "<code>verificar.py parsing</code> en verde.",
+      "ojo": "Los títulos de un PDF salen como líneas sueltas: pypdf no sabe qué es un título ni una tabla. En C11 un parser de layout recupera esa estructura.",
+      "en_pagina": {
+        "conceptos": [
+          "parsing",
+          "boilerplate",
+          "tabla-filas",
+          "ocr"
+        ],
+        "precalculos": [
+          "ocr"
+        ]
+      }
+    },
+    {
+      "n": 6,
+      "id": "almacen",
+      "titulo": "El almacén por hash",
+      "objetivo": "El texto guardado con el sha256 del crudo como nombre, comprobable, y el catálogo con la ACL y las lápidas.",
+      "conceptos": [
+        "hash-contenido",
+        "fail-closed"
+      ],
+      "explica": "El almacén tiene dos partes. <code>almacen/texto/&lt;sha256 del crudo&gt;.json</code> guarda el texto de un <b>contenido</b>: el nombre es su huella, así que el mismo contenido siempre cae en el mismo archivo. <code>tiene_texto(h)</code> responde «ya lo tengo» solo si el archivo existe, se parseó con el <code>PARSER</code> de hoy y su <code>sha256_texto</code> coincide con su texto: si alguien lo editó a mano, ya no sirve. <code>almacen/catalogo.json</code> guarda un registro por <b>documento</b>: su versión, su hash, su URL y su ACL. Un borrado no quita el registro: lo deja como <b>lápida</b> (tombstone), con su motivo y su fecha.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "pipeline/almacen.py",
+          "code": "\"\"\"Paso 6 · El almacén: el texto parseado guardado por el hash de su contenido crudo, y el catálogo con la ACL.\n\nContrato:\n- El texto de un contenido vive en almacen/texto/<sha256 del crudo>.json:\n  {\"hash_crudo\", \"parser\" (PARSER de parsing.py), \"texto\", \"sha256_texto\", \"necesita_ocr\"}.\n  El nombre del archivo ES la huella del contenido: el mismo PDF en dos lugares se guarda una vez.\n- tiene_texto(h): True solo si el archivo existe, se parseó con el PARSER de hoy y su sha256_texto coincide con su\n  texto (si alguien lo editó a mano, ya no sirve y hay que volver a parsear).\n- guardar_texto(h, parseado): escribe ese JSON (de un jalón, con escribir_json).\n- El catálogo, almacen/catalogo.json, es un dict doc_id → registro:\n  {\"fuente\", \"version\", \"actualizado\", \"titulo\", \"url\", \"tipo\", \"hash\" (el del crudo), \"acl\" (las cláusulas),\n   \"necesita_ocr\", \"borrado\" (False), \"ingerido\" (cuándo, en UTC)}.\n- borrar(c, doc_id, motivo): no quita el registro: lo deja como lápida (tombstone): borrado True, su motivo y\n  «borrado_en». Así sabes qué se borró, cuándo y por qué, y un evento viejo no lo «revive» sin que lo notes.\n\"\"\"\nfrom __future__ import annotations\n\nfrom _comun import CATALOGO, TEXTO, ahora, escribir_json, leer_json, sha256\nfrom parsing import PARSER\n\n\ndef ruta_texto(h: str):\n    return TEXTO / f\"{h}.json\"\n\n\ndef tiene_texto(h: str) -> bool:\n    d = leer_json(ruta_texto(h))\n    return bool(d and d.get(\"parser\") == PARSER and sha256(d[\"texto\"].encode()) == d.get(\"sha256_texto\"))\n\n\ndef leer_texto(h: str) -> dict:\n    return leer_json(ruta_texto(h))\n\n\ndef guardar_texto(h: str, parseado: dict) -> None:\n    escribir_json(ruta_texto(h), {\"hash_crudo\": h, \"parser\": PARSER, \"texto\": parseado[\"texto\"],\n                                  \"sha256_texto\": sha256(parseado[\"texto\"].encode()), \"necesita_ocr\": parseado[\"necesita_ocr\"]})\n\n\ndef catalogo() -> dict:\n    return leer_json(CATALOGO, {})\n\n\ndef guardar_catalogo(c: dict) -> None:\n    escribir_json(CATALOGO, c)\n\n\ndef registrar(c: dict, doc: dict, h: str, necesita_ocr: bool) -> None:\n    c[doc[\"doc_id\"]] = {\"fuente\": doc[\"fuente\"], \"version\": doc[\"version\"], \"actualizado\": doc[\"actualizado\"], \"titulo\": doc[\"titulo\"],\n                        \"url\": doc[\"url\"], \"tipo\": doc[\"tipo\"], \"hash\": h, \"acl\": doc[\"acl\"], \"necesita_ocr\": necesita_ocr,\n                        \"borrado\": False, \"ingerido\": ahora()}\n\n\ndef borrar(c: dict, doc_id: str, motivo: str) -> bool:\n    if doc_id not in c or c[doc_id].get(\"borrado\"):\n        return False\n    c[doc_id] |= {\"borrado\": True, \"motivo\": motivo, \"borrado_en\": ahora()}\n    return True",
+          "nota": ""
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python -c \"\nimport sys; sys.path.insert(0, 'pipeline')\nfrom _comun import sha256\nfrom conectores import wiki\nimport almacen\nfrom parsing import parsear\nd = wiki.traer({'doc_id': 'wiki:2002', 'meta': {}})\nh = sha256(d['crudo'])\nprint('hash', h[:16], '· tiene_texto antes:', almacen.tiene_texto(h))\nalmacen.guardar_texto(h, parsear(d))\nprint('tiene_texto después:', almacen.tiene_texto(h), '·', almacen.ruta_texto(h).name)\nprint('otra vez el mismo contenido:', sha256(wiki.traer({'doc_id': 'wiki:2002', 'meta': {}})['crudo']) == h)\"",
+          "nota": "El mismo contenido da el mismo hash, siempre: por eso el nombre del archivo basta para saber si ya lo parseaste.",
+          "donde": "mac",
+          "salida": "hash 16e7b212358d84b9 · tiene_texto antes: False\ntiene_texto después: True · 16e7b212358d84b914f7ec93737e9ca74ce00355398af821e94d95959d936891.json\notra vez el mismo contenido: True"
+        }
+      ],
+      "verifica": "El ejemplo de arriba: <code>tiene_texto</code> pasa de False a True y el mismo contenido da el mismo hash. Los checks <code>almacen</code> y <code>catalogo</code> se ponen en verde en el paso 7, con la primera corrida.",
+      "ojo": "Hashea los bytes crudos, no el texto parseado: si hasheas el texto, tienes que parsear para saber si cambió, que es justo lo que querías evitar.",
+      "en_pagina": {
+        "conceptos": [
+          "hash-contenido"
+        ],
+        "precalculos": [
+          "hash"
+        ]
+      }
+    },
+    {
+      "n": 7,
+      "id": "ingestar",
+      "titulo": "La primera corrida (y la segunda)",
+      "objetivo": "<code>procesar</code> e <code>incremental</code>: traer de las 4 fuentes, parsear solo el contenido nuevo, guardar el catálogo y los cursores.",
+      "conceptos": [
+        "cursor",
+        "hash-contenido",
+        "idempotencia"
+      ],
+      "explica": "Por cada ref que te da un conector: si el catálogo ya tiene esa versión, ni lo traes (<b>sin_cambios</b>). Si no, lo traes (<b>descargados</b>), calculas el hash del crudo y, si el almacén ya tiene ese texto, no lo parseas (<b>saltados</b>); si no, lo parseas y lo guardas (<b>parseados</b>). Después lo registras con su versión, su hash y su ACL nuevos. La corrida incremental le pasa a cada conector su cursor (None la primera vez: todo) y guarda el cursor nuevo <b>solo si esa fuente terminó bien</b>. <code>main()</code> viene dado: corre las fuentes, atrapa <code>FuenteSinAcceso</code> por fuente, escribe la corrida en <code>almacen/corridas/</code> e imprime el resumen.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "pipeline/ingestar.py",
+          "code": "\"\"\"Pasos 7 y 8 · La ingestión: de cada fuente, lo que cambió; se parsea solo lo que es contenido nuevo y se guarda\npor su hash, con su ACL.\n\n    python pipeline/ingestar.py                    # incremental, desde los cursores (la primera vez: todo)\n    python pipeline/ingestar.py --barrido          # reconciliación: lo visible contra el catálogo, y las ACL al día\n    python pipeline/ingestar.py --doc wiki:1002    # vuelve a traer y parsear un documento\n    python pipeline/ingestar.py --fuente wiki      # solo una fuente (se combina con las de arriba)\n\nContrato (main, la línea de comandos y el resumen, viene dado; tú escribes procesar e incremental en el paso 7 y\nbarrido en el paso 8):\n- Por cada documento que te da el conector (procesar):\n  1. Si el catálogo ya tiene esa versión (y no está borrado), no lo traes: «sin_cambios».\n  2. Si no, lo traes (traer). None → lápida con motivo «ya no se puede leer» («borrados»).\n  3. h = sha256(crudo) («descargados»). Si almacen.tiene_texto(h), no se vuelve a parsear («saltados»);\n     si no, parsear y guardar_texto («parseados»). Después, registrar en el catálogo (versión, hash y ACL nuevos).\n- Incremental: cambios(cursor) de cada conector; los borrados que trae van a lápida. El cursor de una fuente se\n  guarda en almacen/cursores.json SOLO si esa fuente terminó bien.\n- --barrido: por fuente, listar() completo. Lo que está vivo en el catálogo y ya no aparece → lápida con motivo\n  «ya no está en la fuente», salvo que sean más de freno.max_borrado de los vivos de esa fuente: entonces no borra\n  nada de esa fuente y anota «frenado» (casi siempre es un permiso o un token, no media fuente borrada).\n  Lo que tiene otra versión se procesa; lo que tiene la misma, se le vuelve a pedir la ACL y se actualiza si cambió\n  («acl_cambiadas»). El barrido no mueve los cursores.\n- FuenteSinAcceso en una fuente: se anota su error y se sigue con las demás.\n- Cada corrida deja almacen/corridas/<fecha>.json: {\"inicio\", \"fin\", \"modo\", \"fuentes\": {fuente: {las cuentas,\n  \"llamadas\", \"esperas_429\", \"segundos\", \"error\"?, \"frenado\"?}}}. Sale con código 1 si alguna fuente tuvo error o freno.\n\"\"\"\nfrom __future__ import annotations\n\nimport argparse\nimport sys\nimport time\nfrom collections import Counter\nfrom datetime import datetime\n\nfrom _comun import CORRIDAS, CURSORES, FuenteSinAcceso, ahora, config, escribir_json, leer_json, sha256\nimport almacen\nfrom conectores import drive, jira, politicas, wiki\nfrom conectores.http import ESPERAS, LLAMADAS\nfrom parsing import parsear\n\nCONECTORES = {\"wiki\": wiki, \"drive\": drive, \"jira\": jira, \"politicas\": politicas}\nCUENTAS = [\"vistos\", \"sin_cambios\", \"descargados\", \"parseados\", \"saltados\", \"borrados\", \"acl_cambiadas\"]\n\n\ndef procesar(c: dict, con, ref: dict, cuenta: Counter, forzar: bool = False) -> None:\n    prev = c.get(ref[\"doc_id\"])\n    if prev and not forzar and not prev.get(\"borrado\") and prev[\"version\"] == ref[\"version\"]:\n        cuenta[\"sin_cambios\"] += 1\n        return\n    doc = con.traer(ref)\n    if doc is None:\n        cuenta[\"borrados\"] += almacen.borrar(c, ref[\"doc_id\"], \"ya no se puede leer\")\n        return\n    h = sha256(doc[\"crudo\"])\n    cuenta[\"descargados\"] += 1\n    if almacen.tiene_texto(h):\n        cuenta[\"saltados\"] += 1\n        ocr = almacen.leer_texto(h)[\"necesita_ocr\"]\n    else:\n        p = parsear(doc)\n        almacen.guardar_texto(h, p)\n        cuenta[\"parseados\"] += 1\n        ocr = p[\"necesita_ocr\"]\n    almacen.registrar(c, doc, h, ocr)\n\n\ndef incremental(c: dict, nombre: str, con, cursores: dict, cuenta: Counter) -> None:\n    refs, borrados, nuevo = con.cambios(cursores.get(nombre))\n    cuenta[\"vistos\"] += len(refs)\n    for d in borrados:\n        cuenta[\"borrados\"] += almacen.borrar(c, d, \"la fuente lo borró\")\n    for r in refs:\n        procesar(c, con, r, cuenta)\n    cursores[nombre] = nuevo\n\n\ndef barrido(c: dict, nombre: str, con, cuenta: Counter) -> None:\n    refs = con.listar()\n    cuenta[\"vistos\"] += len(refs)\n    visibles = {r[\"doc_id\"] for r in refs}\n    vivos = [d for d, x in c.items() if x[\"fuente\"] == nombre and not x.get(\"borrado\")]\n    sobran = [d for d in vivos if d not in visibles]\n    if vivos and len(sobran) > config()[\"freno\"][\"max_borrado\"] * len(vivos):\n        cuenta[\"frenado\"] = f\"quería borrar {len(sobran)} de {len(vivos)} ({len(sobran) / len(vivos):.0%}); no borré nada\"\n        return\n    for d in sobran:\n        cuenta[\"borrados\"] += almacen.borrar(c, d, \"ya no está en la fuente\")\n    for r in refs:\n        prev = c.get(r[\"doc_id\"])\n        if prev and not prev.get(\"borrado\") and prev[\"version\"] == r[\"version\"]:\n            nueva = con.acl(r)\n            if nueva != prev[\"acl\"]:\n                prev[\"acl\"] = nueva\n                cuenta[\"acl_cambiadas\"] += 1\n            else:\n                cuenta[\"sin_cambios\"] += 1\n        else:\n            procesar(c, con, r, cuenta)\n\n\ndef main() -> int:\n    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)\n    ap.add_argument(\"--barrido\", action=\"store_true\")\n    ap.add_argument(\"--doc\")\n    ap.add_argument(\"--fuente\", choices=list(CONECTORES))\n    a = ap.parse_args()\n    nombres = [a.doc.split(\":\", 1)[0]] if a.doc else ([a.fuente] if a.fuente else list(CONECTORES))\n    modo = \"doc\" if a.doc else \"barrido\" if a.barrido else \"incremental\"\n    c, cursores = almacen.catalogo(), leer_json(CURSORES, {})\n    corrida = {\"inicio\": ahora(), \"modo\": modo, \"fuentes\": {}}\n    for nombre in nombres:\n        con, cuenta, t0 = CONECTORES[nombre], Counter(), time.perf_counter()\n        try:\n            if a.doc:\n                ref = next((r for r in con.listar() if r[\"doc_id\"] == a.doc), None)\n                if ref is None:\n                    cuenta[\"borrados\"] += almacen.borrar(c, a.doc, \"ya no está en la fuente\")\n                else:\n                    cuenta[\"vistos\"] += 1\n                    procesar(c, con, ref, cuenta, forzar=True)\n            elif a.barrido:\n                barrido(c, nombre, con, cuenta)\n            else:\n                incremental(c, nombre, con, cursores, cuenta)\n                escribir_json(CURSORES, cursores)\n        except FuenteSinAcceso as e:\n            cuenta[\"error\"] = str(e)\n        almacen.guardar_catalogo(c)\n        corrida[\"fuentes\"][nombre] = {k: cuenta[k] for k in CUENTAS} | {k: cuenta[k] for k in (\"error\", \"frenado\") if k in cuenta} | {\n            \"llamadas\": LLAMADAS[nombre], \"esperas_429\": ESPERAS[nombre], \"segundos\": round(time.perf_counter() - t0, 2)}\n    corrida[\"fin\"] = ahora()\n    p = CORRIDAS / f\"{datetime.now():%Y%m%d-%H%M%S-%f}.json\"\n    escribir_json(p, corrida)\n\n    print(f\"{'fuente':<10}\" + \"\".join(f\"{k:>14}\" for k in CUENTAS + [\"llamadas\", \"esperas_429\", \"segundos\"]))\n    for n, f in corrida[\"fuentes\"].items():\n        print(f\"{n:<10}\" + \"\".join(f\"{f[k]:>14}\" for k in CUENTAS + [\"llamadas\", \"esperas_429\", \"segundos\"]))\n        for k in (\"error\", \"frenado\"):\n            if k in f:\n                print(f\"  ✗ {n}: {k}: {f[k]}\")\n    vivos = sum(1 for x in c.values() if not x.get(\"borrado\"))\n    print(f\"catálogo: {vivos} documentos vivos, {len(c) - vivos} lápidas · corrida en {p.relative_to(CORRIDAS.parent.parent)}\")\n    return 1 if any(\"error\" in f or \"frenado\" in f for f in corrida[\"fuentes\"].values()) else 0\n\n\nif __name__ == \"__main__\":\n    sys.exit(main())",
+          "nota": "El archivo completo, con el barrido del paso 8."
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python pipeline/ingestar.py",
+          "nota": "La primera vez, todo: 101 descargados y 101 parseados. La wiki tarda más por su límite de llamadas (y cuántos 429 recibe cambia un poco en cada corrida).",
+          "donde": "mac",
+          "salida": "fuente            vistos   sin_cambios   descargados     parseados      saltados      borrados acl_cambiadas      llamadas   esperas_429      segundos\nwiki                  27             0            27            27             0             0             0            67             6          6.48\ndrive                 16             0            16            16             0             0             0            51             0          0.25\njira                  50             0            50            50             0             0             0            56             0          0.33\npoliticas              8             0             8             8             0             0             0             9             0          0.05\ncatálogo: 101 documentos vivos, 0 lápidas · corrida en almacen/corridas/20261125-150537-725145.json"
+        },
+        {
+          "code": "python pipeline/ingestar.py",
+          "nota": "Otra vez, enseguida: casi nada. Lo único que vuelve es lo que cae en el borde del cursor (la wiki con su ≥, el Jira con su minuto), y cuenta como sin_cambios.",
+          "donde": "mac",
+          "salida": "fuente            vistos   sin_cambios   descargados     parseados      saltados      borrados acl_cambiadas      llamadas   esperas_429      segundos\nwiki                   1             1             0             0             0             0             0             3             0          0.03\ndrive                  0             0             0             0             0             0             0             1             0           0.0\njira                   1             1             0             0             0             0             0             1             0          0.01\npoliticas              0             0             0             0             0             0             0             1             0           0.0\ncatálogo: 101 documentos vivos, 0 lápidas · corrida en almacen/corridas/20261125-150537-999281.json"
+        },
+        {
+          "code": "ls almacen; ls almacen/texto | head -3\ncat almacen/texto/*.json | wc -c\ncat almacen/cursores.json",
+          "nota": "",
+          "donde": "mac",
+          "salida": "catalogo.json\ncorridas\ncursores.json\ntexto\n01884e545e13bc9df0577c37cc35ed0fc38c735c041ec094b7fb9b7b9b523721.json\n07fc05ee90cc289a0118a16802c31cda5eb2c7f6ef13cc72914f9136974f99aa.json\n0b27d3c65e9d2cc1c4d8b4fb5ecb626b6b0b0a273d13f4aca76a218c28efa25c.json\n101 archivos · 46568 bytes\n{\n \"drive\": {\n  \"pageToken\": \"16\"\n },\n \"jira\": {\n  \"desde\": \"2026-11-20T14:59:40Z\"\n },\n \"politicas\": {\n  \"commit\": \"46ec98c8c3b2cdbf60474c09f255424864d8f0b1\",\n  \"shas\": {\n   \"cancelaciones.md\": \"6d8cd224d19c9d68516d755a23c234b52b19d276\",\n   \"cupones.md\": \"5ac6f61c2599756ff068ed29bad1e4b778d359cd\",\n   \"devoluciones.md\": \"b1cccc0c2459ffd78b3185bc95d8ee8099174dce\",\n   \"envios.md\": \"213831347bf764d73829ba29dc011e4d7c5f1b5d\",\n   \"garantias.md\": \"340e77fdd509170483b24a74188ae4d333c5153b\",\n   \"privacidad.md\": \"a1e23f7d38731ecb957a235cf33dddf63730566b\",\n   \"reembolsos.md\": \"1ad10f9cd9b8121592e066e8836b9bf9e38965bd\",\n   \"vendedores.md\": \"b4cd96a2fbff000814341dfa0ca9b8a91c40a983\"\n  }\n },\n \"wiki\": {\n  \"desde\": \"2026-10-29T20:10:00Z\"\n }\n}"
+        },
+        {
+          "code": "python -c \"\nimport json\nc = json.load(open('almacen/catalogo.json'))\nprint(json.dumps(c['drive:d04'], ensure_ascii=False, indent=1))\"",
+          "nota": "",
+          "donde": "mac",
+          "salida": "{\n \"acl\": [\n  [\n   \"user:lucia.mora@marketplace.test\"\n  ]\n ],\n \"actualizado\": \"2026-01-20T17:00:00Z\",\n \"borrado\": false,\n \"fuente\": \"drive\",\n \"hash\": \"be825e836f2692aab8d1082d2446ec523080acdaf9e8c74f28c06d4f26deb812\",\n \"ingerido\": \"2026-11-25T21:05:37Z\",\n \"necesita_ocr\": false,\n \"tipo\": \"pdf\",\n \"titulo\": \"Sueldos 2026.pdf\",\n \"url\": \"http://localhost:8120/drive/v3/files/d04\",\n \"version\": \"1\"\n}"
+        },
+        {
+          "code": "python verificar.py almacen catalogo",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ almacen      101 documentos vivos → 101 textos por hash, todos íntegros · 101 archivos en almacen/texto (45 KiB)\n✓ catalogo     101 vivos, al día con las fuentes (drive 16, jira 50, politicas 8, wiki 27) · 0 lápida(s) · ACL igual a la de cada fuente · 1 para OCR\n\n2/2 en verde"
+        }
+      ],
+      "verifica": "<code>verificar.py almacen catalogo</code> en verde: 101 documentos vivos, cada uno con su texto íntegro y su ACL igual a la de la fuente.",
+      "ojo": "Si guardas los cursores antes de procesar y la corrida se cae a la mitad, la siguiente empieza después de lo que nunca se guardó.",
+      "en_pagina": {
+        "conceptos": [],
+        "precalculos": [
+          "texto"
+        ]
+      }
+    },
+    {
+      "n": 8,
+      "id": "dia-2",
+      "titulo": "Un día después: incremental, barrido y freno",
+      "objetivo": "Que el día 2 entre solo lo que cambió, que el barrido encuentre lo que nadie avisó y que el freno no borre media fuente.",
+      "conceptos": [
+        "barrido",
+        "fail-closed",
+        "freno",
+        "cursor"
+      ],
+      "explica": "<code>mundo/avanzar.py</code> pasa un día: en la wiki se edita «Devoluciones», se republica sin cambios «Proveedores logísticos», se borra una macro, nace «Caso Envíos Express» dentro de «Litigios» y «Alta de vendedores» se restringe sin versión nueva; en el Drive, una versión nueva, una minuta a la papelera, un permiso quitado y un archivo que solo cambia de nombre; en el Jira, 3 tickets con comentarios, 2 nuevos y uno que pasa a «Solo líderes»; en las políticas, un cambio y un archivo nuevo. La corrida incremental trae casi todo, pero la wiki no avisa borrados ni cambios de permisos: eso lo encuentra el <b>barrido</b> (<code>--barrido</code>), que lista todo lo visible, deja lápidas de lo que ya no está, reprocesa lo de otra versión y vuelve a pedir las ACL. Y si quiere borrar más de <code>freno.max_borrado</code> de una fuente, no borra nada y lo anota.",
+      "codigo": [],
+      "comandos": [
+        {
+          "code": "python mundo/avanzar.py",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ pasó un día: el mundo está al 2026-11-21T15:00:00Z\n  wiki 5 cambios · drive 4 · jira 6 · políticas 2 (la lista está en la guía, paso 8)"
+        },
+        {
+          "code": "python verificar.py catalogo",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✗ catalogo     faltan 4 documento(s) en el catálogo: jira:SOP-41, jira:SOP-42, politicas:regalos.md, wiki:3006 (¿corriste la ingestión después del último cambio del mundo?)\n\n0/1 en verde · falta: catalogo\n[código 1]"
+        },
+        {
+          "code": "python pipeline/ingestar.py",
+          "nota": "14 descargados y solo 11 parseados: el permiso de d01, el nombre de d08 y la republicación de 2005 traen los mismos bytes. La minuta de la papelera ya es lápida.",
+          "donde": "mac",
+          "salida": "fuente            vistos   sin_cambios   descargados     parseados      saltados      borrados acl_cambiadas      llamadas   esperas_429      segundos\nwiki                   4             1             3             2             1             0             0            17             1          1.19\ndrive                  3             0             3             1             2             1             0            10             0          0.05\njira                   7             1             6             6             0             0             0            10             0          0.05\npoliticas              2             0             2             2             0             0             0             3             0          0.02\ncatálogo: 104 documentos vivos, 1 lápidas · corrida en almacen/corridas/20261125-150539-984106.json"
+        },
+        {
+          "code": "python verificar.py catalogo",
+          "nota": "La macro borrada sigue viva: la wiki no avisó.",
+          "donde": "mac",
+          "salida": "✗ catalogo     1 documento(s) siguen vivos en el catálogo y la fuente ya no los deja leer: wiki:1012\n\n0/1 en verde · falta: catalogo\n[código 1]"
+        },
+        {
+          "code": "python pipeline/ingestar.py --barrido",
+          "nota": "Una lápida (la macro) y una ACL cambiada (la restricción nueva de «Alta de vendedores»), sin descargar nada.",
+          "donde": "mac",
+          "salida": "fuente            vistos   sin_cambios   descargados     parseados      saltados      borrados acl_cambiadas      llamadas   esperas_429      segundos\nwiki                  27            26             0             0             0             1             1            37             3          3.19\ndrive                 15            15             0             0             0             0             0            17             0           0.1\njira                  52            52             0             0             0             0             0             6             0           0.1\npoliticas              9             9             0             0             0             0             0             1             0          0.03\ncatálogo: 103 documentos vivos, 2 lápidas · corrida en almacen/corridas/20261125-150543-744761.json"
+        },
+        {
+          "code": "python -c \"\nimport json\nc = json.load(open('almacen/catalogo.json'))\nfor d, x in c.items():\n    if x['borrado']: print(d, x['titulo'], '·', x['motivo'])\nprint('wiki:2003 →', c['wiki:2003']['acl'])\"",
+          "nota": "",
+          "donde": "mac",
+          "salida": "drive:d13 Minuta semanal de operaciones 2026-10-16 · la fuente lo borró\nwiki:1012 Macro: cupón no aplicó · ya no está en la fuente\nwiki:2003 → [['group:operaciones@marketplace.test'], ['group:operaciones-lideres@marketplace.test']]"
+        },
+        {
+          "code": "python verificar.py incremental barrido catalogo",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ incremental  día 2: vio 16, descargó 14, parseó 11 y saltó 3 por hash (el día 1 parseó 101)\n✓ barrido      1 barrido(s), el último sin freno · 2 lápida(s) con su motivo · con 70 % desaparecido, el freno no borra nada\n✓ catalogo     103 vivos, al día con las fuentes (drive 15, jira 52, politicas 9, wiki 27) · 2 lápida(s) · ACL igual a la de cada fuente · 1 para OCR\n\n3/3 en verde"
+        },
+        {
+          "code": "python verificar.py",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ mundo        fuentes arriba en http://localhost:8120 · día 2 del mundo (2026-11-21T15:00:00Z) · 103 documentos visibles · los 4 tokens de config.yaml entran\n✓ http         JSON → dict, Markdown → bytes, 404 → None, 401 → FuenteSinAcceso · 25 llamadas a la wiki: 2 respuestas 429, todas reintentadas\n✓ wiki         27 páginas de 3 espacios (paginadas de 10 en 10) · 6 con restricción propia o heredada, todas con su ACL bien\n✓ drive        15 archivos · feed de cambios del 0 al 20 con 1 borrado(s) · 2 con link compartido que no dan acceso: drive:d04, drive:d09\n✓ jira         52 tickets (de 20 en 20) · 6 con nivel de seguridad · desde 2026-11-20T14:59:40Z = updated >= 08:59 en la zona de la cuenta: 7 ticket(s)\n✓ politicas    9 archivos por su sha de git · el árbol contra el cursor da los nuevos, los cambiados y los borrados\n✓ parsing      HTML con títulos, listas y tablas fila por fila · PDF sin encabezado ni pie · drive:d06 marcado para OCR · ticket sin firma, cita ni automáticos · parser v1\n✓ almacen      103 documentos vivos → 103 textos por hash, todos íntegros · 112 archivos en almacen/texto (51 KiB)\n✓ catalogo     103 vivos, al día con las fuentes (drive 15, jira 52, politicas 9, wiki 27) · 2 lápida(s) · ACL igual a la de cada fuente · 1 para OCR\n✓ incremental  día 2: vio 16, descargó 14, parseó 11 y saltó 3 por hash (el día 1 parseó 101)\n✓ barrido      1 barrido(s), el último sin freno · 2 lápida(s) con su motivo · con 70 % desaparecido, el freno no borra nada\n\n11/11 en verde"
+        }
+      ],
+      "verifica": "<code>verificar.py</code> completo en verde: 11 de 11.",
+      "ojo": "El check <code>barrido</code> también prueba tu freno con un conector de mentiras que «ve» 3 de 10: con el freno roto, borraría 7.",
+      "en_pagina": {
+        "conceptos": [
+          "barrido",
+          "fail-closed",
+          "freno"
+        ],
+        "precalculos": [
+          "cambios",
+          "freno"
+        ]
+      }
+    }
+  ],
+  "solo": {
+    "reglas": [
+      "Empieza con <code>python mundo/reiniciar.py</code>: deja el esqueleto, borra <code>almacen/</code> y vuelve al día 1.",
+      "Sin GUION.md ni <code>mundo/referencia.py</code>: solo los contratos de arriba de cada archivo y estos objetivos.",
+      "Claude corre <code>verificar.py</code> y te dice qué falla; no te da código."
+    ],
+    "objetivos": [
+      {
+        "n": 1,
+        "objetivo": "Las fuentes arriba y los cuatro tokens de config.yaml entran.",
+        "check": "mundo"
+      },
+      {
+        "n": 2,
+        "objetivo": "<code>pedir()</code> devuelve JSON o bytes, None con 404, FuenteSinAcceso con 401 y sobrevive a los 429.",
+        "check": "http",
+        "pista": "¿Qué excepción lanza <code>urlopen</code> con un 429, y qué encabezado trae?"
+      },
+      {
+        "n": 3,
+        "objetivo": "La wiki: las 27 páginas, paginadas, con su ACL como intersección.",
+        "check": "wiki",
+        "pista": "¿De dónde sale la restricción de «Caso Transportes del Norte» si ella no tiene?"
+      },
+      {
+        "n": 4,
+        "objetivo": "El Drive: el feed de cambios con su token y la regla del link compartido.",
+        "check": "drive"
+      },
+      {
+        "n": 5,
+        "objetivo": "El Jira: el JQL en la zona de la cuenta y al minuto, y el nivel de seguridad como segunda cláusula.",
+        "check": "jira",
+        "pista": "¿Qué hora es 14:59:40 UTC en Ciudad de México?"
+      },
+      {
+        "n": 6,
+        "objetivo": "Las políticas: nuevos, cambiados y borrados por el sha del árbol.",
+        "check": "politicas"
+      },
+      {
+        "n": 7,
+        "objetivo": "El parsing: tablas fila por fila, sin menú ni pie, el escaneo detectado y el ticket sin firma ni citas.",
+        "check": "parsing"
+      },
+      {
+        "n": 8,
+        "objetivo": "Cada documento vivo tiene su texto en <code>almacen/texto/&lt;hash&gt;.json</code>, íntegro.",
+        "check": "almacen"
+      },
+      {
+        "n": 9,
+        "objetivo": "El catálogo coincide con las fuentes: los mismos documentos, las mismas versiones y las mismas ACL.",
+        "check": "catalogo"
+      },
+      {
+        "n": 10,
+        "objetivo": "El día 2, la corrida incremental trae solo lo que cambió y no vuelve a parsear lo que tiene el mismo hash.",
+        "check": "incremental",
+        "pista": "Tres cambios del día 2 no cambian los bytes: ¿cuáles?"
+      },
+      {
+        "n": 11,
+        "objetivo": "El barrido deja lápidas de lo que ya no está y se frena si quiere borrar demasiado.",
+        "check": "barrido"
+      }
+    ]
+  },
+  "fallas": [
+    {
+      "id": "token-vencido",
+      "titulo": "La wiki dejó de cambiar",
+      "tipo": "infra",
+      "historia": "Una agente actualizó ayer los tiempos de reembolso con débito y el asistente sigue diciendo los de antes. El job de ingestión «corrió» a su hora; nadie vio nada raro.",
+      "sintoma": "<code>verificar.py</code> marca <code>mundo</code> (config.yaml no entra a la wiki) y <code>catalogo</code> (wiki:1004 con versión vieja). Las otras fuentes están al día.",
+      "hipotesis": [
+        "Nadie corrió la ingestión.",
+        "El conector de la wiki está fallando, pero la corrida no lo dice fuerte.",
+        "El cursor de la wiki se adelantó y se saltó la edición."
+      ],
+      "confirma": {
+        "code": "python -c \"import json, glob; c = json.load(open(sorted(glob.glob('almacen/corridas/*.json'))[-1])); print(json.dumps(c['fuentes']['wiki'], ensure_ascii=False))\"",
+        "nota": "",
+        "donde": "mac",
+        "salida": "{\"acl_cambiadas\": 0, \"borrados\": 0, \"descargados\": 0, \"error\": \"wiki respondió 401 en /paginas: ¿token vencido o permiso retirado?\", \"esperas_429\": 0, \"llamadas\": 1, \"parseados\": 0, \"saltados\": 0, \"segundos\": 0.02, \"sin_cambios\": 0, \"vistos\": 0}"
+      },
+      "arreglo": "TI rotó el token de la cuenta del conector. Pide el nuevo (<code>python mundo/fuentes.py token wiki</code> hace de administrador), ponlo en <code>fuentes.wiki.token</code> de config.yaml y corre <code>python pipeline/ingestar.py</code>. En C11 el token vive en un gestor de secretos y la alerta es de atraso por fuente: un conector sin acceso se ve igual que uno sin cambios.",
+      "concepto": "conector",
+      "check": "catalogo"
+    },
+    {
+      "id": "sin-reintentos",
+      "titulo": "La ingestión truena con «HTTP Error 429»",
+      "tipo": "config",
+      "historia": "La wiki bajó su límite de llamadas para todas las apps. El mismo día, alguien dejó los reintentos en 0 «para que la ingestión no se quede esperando».",
+      "sintoma": "La corrida programada se cae con un traceback de <code>HTTPError: HTTP Error 429</code>; <code>verificar.py</code> marca <code>http</code> y <code>catalogo</code> (tres páginas con versión vieja).",
+      "hipotesis": [
+        "La wiki está caída.",
+        "Llamamos demasiado rápido y ya no reintentamos.",
+        "Cambió el token."
+      ],
+      "confirma": {
+        "code": "python pipeline/ingestar.py 2>&1 | tail -4",
+        "nota": "",
+        "donde": "mac",
+        "salida": "    result = func(*args)\n  File \"/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/urllib/request.py\", line 611, in http_error_default\n    raise HTTPError(req.full_url, code, msg, hdrs, fp)\nurllib.error.HTTPError: HTTP Error 429: Too Many Requests"
+      },
+      "arreglo": "<code>http.reintentos</code> vuelve a 5 y <code>python pipeline/ingestar.py</code>: con Retry-After la corrida tarda más, pero termina. El límite es de la fuente: se respeta, no se negocia quitando reintentos.",
+      "concepto": "rate-limit",
+      "check": "catalogo"
+    },
+    {
+      "id": "restriccion-silenciosa",
+      "titulo": "Legal dice que ya nadie debería ver «Retención de datos»",
+      "tipo": "mundo",
+      "historia": "Legal restringió la página «Retención de datos» a solo su autora mientras la reescriben. Pregunta por qué el asistente todavía la cita.",
+      "sintoma": "<code>verificar.py catalogo</code>: wiki:3005 sigue viva en el catálogo y la fuente ya no la deja leer. La corrida incremental no vio nada.",
+      "hipotesis": [
+        "La restricción todavía no se aplica en la wiki.",
+        "La cuenta del conector perdió la página y nadie avisó.",
+        "El catálogo tiene una copia vieja por un cursor atrasado."
+      ],
+      "confirma": {
+        "code": "python -c \"import sys; sys.path.insert(0, 'pipeline'); from conectores.http import pedir; print(pedir('wiki', '/paginas/3005'))\"",
+        "nota": "None: un 404 para la cuenta del conector.",
+        "donde": "mac",
+        "salida": "None"
+      },
+      "arreglo": "<code>python pipeline/ingestar.py --barrido</code>: lista todo lo visible, ve que wiki:3005 ya no está y la deja como lápida. Regla del caso: lo que el conector ya no puede leer se borra del índice (fail-closed).",
+      "concepto": "fail-closed",
+      "check": "catalogo"
+    },
+    {
+      "id": "link-como-dominio",
+      "titulo": "«Sueldos 2026» aparece para cualquiera",
+      "tipo": "config",
+      "historia": "Producto pidió que los documentos «compartidos con link» aparezcan en el asistente, porque mucha gente comparte así. Alguien cambió una línea de config.yaml sin pasar por Seguridad.",
+      "sintoma": "<code>verificar.py catalogo</code>: drive:d04 con una ACL distinta a la de la fuente, que ahora incluye <code>domain:marketplace.test</code>.",
+      "hipotesis": [
+        "Alguien compartió los sueldos con todo el dominio en el Drive.",
+        "Cambió la regla del link compartido en la configuración.",
+        "El parser mezcló dos documentos."
+      ],
+      "confirma": {
+        "code": "python verificar.py catalogo",
+        "nota": "",
+        "donde": "mac",
+        "salida": "✗ catalogo     1 documento(s) con una ACL distinta a la de la fuente: drive:d04; por ejemplo drive:d04: [['domain:marketplace.test', 'user:lucia.mora@marketplace.test']]\n\n0/1 en verde · falta: catalogo\n[código 1]"
+      },
+      "arreglo": "<code>drive.link_compartido</code> vuelve a <code>ignorar</code> y <code>python pipeline/ingestar.py --barrido</code>, que vuelve a pedir la ACL de lo que no cambió de versión. Link compartido = no compartido: es una decisión de producto y de Seguridad, no un switch de config.",
+      "concepto": "link-compartido",
+      "check": "catalogo"
+    },
+    {
+      "id": "texto-alterado",
+      "titulo": "El asistente dice que la comisión de Electrónica es 6 %",
+      "tipo": "infra",
+      "historia": "Alguien de datos vio «un error» en el texto guardado de las comisiones y lo corrigió directo en el almacén, para no esperar a la wiki.",
+      "sintoma": "<code>verificar.py almacen</code>: el texto de wiki:2002 ya no coincide con su sha256_texto.",
+      "hipotesis": [
+        "La wiki cambió la tabla.",
+        "Alguien editó el almacén a mano.",
+        "El parser cambió de versión."
+      ],
+      "confirma": {
+        "code": "python verificar.py almacen",
+        "nota": "",
+        "donde": "mac",
+        "salida": "✗ almacen      el texto de wiki:2002 ya no coincide con su sha256_texto: alguien lo editó a mano\n\n0/1 en verde · falta: almacen\n[código 1]"
+      },
+      "arreglo": "<code>python pipeline/ingestar.py --doc wiki:2002</code>: <code>tiene_texto()</code> ve que el archivo ya no es íntegro, vuelve a parsear y lo reemplaza con el texto de la fuente. La corrección, si es real, se hace en la fuente: el almacén es un derivado.",
+      "concepto": "hash-contenido",
+      "check": "almacen"
+    },
+    {
+      "id": "unidad-perdida",
+      "titulo": "El barrido de la noche salió en rojo",
+      "tipo": "infra",
+      "historia": "TI reorganizó la unidad compartida de operaciones y movió a sus miembros. El barrido de la noche terminó con código 1.",
+      "sintoma": "<code>verificar.py</code> marca <code>catalogo</code> (11 documentos que la fuente ya no deja leer) y <code>barrido</code> (el último se frenó en drive).",
+      "hipotesis": [
+        "Borraron media unidad compartida.",
+        "La cuenta del conector perdió el acceso a la unidad.",
+        "El feed de cambios se reinició."
+      ],
+      "confirma": {
+        "code": "python verificar.py catalogo barrido",
+        "nota": "",
+        "donde": "mac",
+        "salida": "✗ catalogo     11 documento(s) siguen vivos en el catálogo y la fuente ya no los deja leer: drive:d02, drive:d05, drive:d06, drive:d07 y 7 más\n✗ barrido      el último barrido se frenó en drive: quería borrar 11 de 15 (73%); no borré nada\n\n0/2 en verde · falta: catalogo, barrido\n[código 1]"
+      },
+      "arreglo": "No se arregla en el catálogo: se arregla el acceso. Pide a TI que regrese la cuenta (<code>python mundo/fuentes.py unidad on</code>) y vuelve a correr <code>python pipeline/ingestar.py --barrido</code>, que ya no se frena. Sin freno, el asistente habría perdido medio Drive por un permiso.",
+      "concepto": "freno",
+      "check": "barrido"
+    }
+  ],
+  "listo": [
+    "Cada conector recorre su fuente completa, siguiendo su paginación, y respeta el límite de llamadas.",
+    "Un 401 o 403 se anota como error de esa fuente, nunca como «sin cambios».",
+    "Cada documento tiene su ACL como cláusulas, con la herencia de la wiki, el link compartido del Drive y el nivel de seguridad del Jira.",
+    "El texto sale limpio y con estructura; el escaneo queda marcado para OCR.",
+    "El texto se guarda por el hash del crudo y lo que no cambió de bytes no se vuelve a parsear.",
+    "La corrida incremental trae solo lo nuevo, y el barrido encuentra lo que nadie avisó sin borrar media fuente por un permiso."
+  ],
+  "repaso": {
+    "memo": "<b>Cuatro fuentes, una forma; el hash decide qué se parsea; la ACL viaja con el documento.</b> Cada conector sabe listar, traer lo que cambió desde su cursor y leer los permisos de su fuente como cláusulas. El texto se guarda con el sha256 del crudo como nombre, así que lo que no cambió de bytes no se vuelve a procesar. Y los eventos dan la latencia, pero el barrido da la verdad: lo que ya no se puede leer se quita (con freno).",
+    "trampa": "Un conector «vivo» que no trae nada. Con el token vencido, sin reintentos o sin acceso a una unidad, la ingestión puede seguir «corriendo» con el catálogo congelado, y el asistente contesta con seguridad lo de la semana pasada. Por eso los errores de acceso se lanzan, cada corrida deja sus cuentas por fuente y se alerta del atraso, no solo de la caída.",
+    "entrevista": [
+      {
+        "q": "¿Cómo diseñas los conectores de un RAG con cuatro fuentes distintas?",
+        "a": "Uno por fuente, con la misma forma: listar lo visible, traer los cambios desde un cursor, traer un documento y leer su ACL. Cada uno resuelve lo suyo (paginación, límite de llamadas, feed de cambios o polling por fecha, modelo de permisos) y el resto del pipeline no sabe de qué fuente viene el documento. Corren con una cuenta de servicio de solo lectura que Seguridad aprueba por fuente."
+      },
+      {
+        "q": "¿Cómo evitas reprocesar todo cada noche?",
+        "a": "Dos escalones. El cursor de cada fuente trae solo lo que cambió desde la última corrida (en C11, ≈ 1 % al día). Y el hash del contenido crudo decide si se parsea: un cambio de permisos, de nombre o una republicación idéntica bajan el archivo, pero no pasan por el parser ni por el OCR. El texto parseado se guarda por hash, así que re-chunkear después no vuelve a las APIs."
+      },
+      {
+        "q": "¿Qué haces con las tablas y los PDFs escaneados?",
+        "a": "Las tablas se escriben fila por fila con su encabezado («Categoría: Electrónica; Comisión: 8 %»), para que no se pierda qué valor va con qué fila. Un PDF sin capa de texto se detecta (casi no tiene texto extraíble), se marca y pasa por OCR una vez; nunca entra vacío. Y se mide con un slice del golden set de preguntas cuya respuesta es una celda o un escaneo."
+      },
+      {
+        "q": "Alguien restringe una página y el asistente la sigue citando. ¿Qué falló?",
+        "a": "Probablemente nada avisó: si la restringen a «solo yo», la cuenta del conector también la pierde y no recibe el evento. La regla es fail-closed: lo que el conector ya no puede leer se borra del índice, y un barrido periódico compara lo visible contra lo indexado. Con un freno: si una pasada quiere borrar más del 2 % de una fuente, se detiene y avisa, porque casi siempre es un permiso o una credencial."
+      },
+      {
+        "q": "¿Por qué guardas la ACL como cláusulas y no como una lista de usuarios?",
+        "a": "Porque los permisos se suman con AND: ver el espacio y estar en la restricción de la página y de cada ancestro. Una lista plana lo convertiría en OR. Y guardo principals (usuarios, grupos, dominio) sin expandir los grupos: cambiar a alguien de grupo no reescribe miles de documentos; los grupos de cada persona se resuelven en la consulta."
+      }
+    ]
+  },
+  "prompts": {
+    "claude_md": "kits/rag-ingesta/CLAUDE.md",
+    "guiado": "content/estaciones/rag-ingesta/prompts/guiado.md",
+    "solo": "content/estaciones/rag-ingesta/prompts/solo.md",
+    "romper_ayuda": "content/estaciones/rag-ingesta/prompts/romper-ayuda.md",
+    "romper_solo": "content/estaciones/rag-ingesta/prompts/romper-solo.md"
+  }
+}
