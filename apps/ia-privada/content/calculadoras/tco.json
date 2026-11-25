@@ -79,14 +79,14 @@
     { "label": "¿El propio sale más barato que la API?", "formula": "api - prop",
       "veredicto": { "si": "Sí", "no": "No" },
       "cuenta": "API US${{api|int}} − propio US${{prop|int}} = US${{api - prop|int}} al mes" },
-    { "label": "Equilibrio con la API: volumen", "formula": "api > 0 ? prop / api : 1 / 0", "formato": "x", "decimales": 1,
+    { "label": "Equilibrio con la API: volumen", "sin_valor": "API gratis", "formula": "api > 0 ? prop / api : 1 / 0", "formato": "x", "decimales": 1,
       "nota": "veces tu volumen de hoy a partir de las que el propio cuesta menos que la API, si tus GPUs lo aguantan",
       "cuenta": "{{prop|int}} ÷ {{api|int}} = **{{api > 0 ? prop / api : 1 / 0|num|1}}×** tus tokens de hoy" },
-    { "label": "Equilibrio con la nube: horas al mes, \\(h^{*}\\)", "formula": "G * c > 0 ? (prop - op) / (G * c) : 1 / 0", "formato": "int",
+    { "label": "Equilibrio con la nube: horas al mes, \\(h^{*}\\)", "sin_valor": "Sin renta", "formula": "G * c > 0 ? (prop - op) / (G * c) : 1 / 0", "formato": "int",
       "nota": "\\(h^{*} = (P − O_{pers}) ÷ (G × c)\\), la de Sensei con \\(G\\) GPUs; con más horas al mes, comprar gana",
       "cuenta": "({{prop|int}} − {{op|int}}) ÷ ({{G|int}} × US${{c|corto}}) = **{{G * c > 0 ? (prop - op) / (G * c) : 1 / 0|int}} h** de las 730 del mes" },
-    { "label": "Meses para recuperar la compra frente a la API", "formula": "api - fijo > 0 ? Kt / (api - fijo) : 1 / 0", "formato": "num", "decimales": 1,
-      "nota": "«—»: nunca; lo que ahorras al mes no paga ni la luz ni las personas",
+    { "label": "Meses para recuperar la compra frente a la API", "sin_valor": "Nunca", "formula": "api - fijo > 0 ? Kt / (api - fijo) : 1 / 0", "formato": "num", "decimales": 1,
+      "nota": "«Nunca»: lo que ahorras al mes no paga ni la luz ni las personas",
       "cuenta": "{{Kt|int}} ÷ ({{api|int}} − {{fijo|int}} de gastos fijos al mes) = **{{api - fijo > 0 ? Kt / (api - fijo) : 1 / 0|num|1}} meses**" }
   ],
   "comparar": {

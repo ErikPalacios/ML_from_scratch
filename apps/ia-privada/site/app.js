@@ -150,6 +150,8 @@
   function fijo(n, d) { return n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }); }
   function auto(n) { return Math.abs(n) >= 100 ? 0 : Math.abs(n) >= 10 ? 1 : 2; }
   function formatear(x, f, dec) {
+    if (x === Infinity) return '∞';
+    if (x === -Infinity) return '−∞';
     if (typeof x !== 'number' || !isFinite(x)) return '—';
     var d = (dec === undefined || dec === null) ? null : dec;
     if (f === 'int') return fijo(Math.round(x), 0);
@@ -191,7 +193,7 @@
       spec.salidas.forEach(function (s, k) { if (s.barra && s.formato !== 'pct' && isFinite(ys[k])) maxB = Math.max(maxB, Math.abs(ys[k])); });
       spec.salidas.forEach(function (s, k) {
         var el = fig.querySelector('[data-salida="' + k + '"]');
-        if (el) el.textContent = s.veredicto ? (ys[k] >= 0 ? s.veredicto.si : s.veredicto.no) : formatear(ys[k], s.formato, s.decimales);
+        if (el) el.textContent = s.veredicto ? (ys[k] >= 0 ? s.veredicto.si : s.veredicto.no) : (s.sinValor && !isFinite(ys[k])) ? s.sinValor : formatear(ys[k], s.formato, s.decimales);
         if (s.veredicto) { var caja = fig.querySelector('[data-caja="' + k + '"]'); if (caja) { caja.classList.toggle('cx-out--si', ys[k] >= 0); caja.classList.toggle('cx-out--no', !(ys[k] >= 0)); } }
         var b = fig.querySelector('[data-barra="' + k + '"]');
         if (b) { var w = s.formato === 'pct' ? ys[k] : Math.abs(ys[k]) / maxB; b.style.width = (Math.max(0, Math.min(1, isFinite(w) ? w : 0)) * 100).toFixed(1) + '%'; }

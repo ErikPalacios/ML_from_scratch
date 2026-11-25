@@ -24,6 +24,8 @@
 //     "nota": "…" }] }: una lista que, al elegir, pone varios controles de una vez (y dice de dónde salen sus números).
 //   en una salida, "cuenta": la cuenta paso a paso con los números de ese momento. Cada {{expresión}} o
 //     {{expresión|formato|decimales}} se evalúa como una fórmula y se reescribe al mover los controles.
+//   en una salida, "sin_valor": "Nunca": el texto que se muestra cuando la fórmula no da un número finito (en las cuentas,
+//     una división entre cero se escribe ∞).
 //   en una salida, "veredicto": { "si": "Cabe", "no": "No cabe" }: en vez de un número dice «si» cuando la fórmula da
 //     0 o más y «no» cuando da menos de 0.
 //   "preajustes" también puede ser una lista de listas ([{ modelos }, { GPUs }]): cada una con su propio selector. El build
@@ -59,6 +61,8 @@ export function evaluar(c, valores) {
 }
 
 export function formatear(x, formato = 'num', dec) {
+  if (x === Infinity) return '∞';
+  if (x === -Infinity) return '−∞';
   if (typeof x !== 'number' || !isFinite(x)) return '—';
   const fijo = (n, d) => n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
   const auto = (n) => (Math.abs(n) >= 100 ? 0 : Math.abs(n) >= 10 ? 1 : 2);
@@ -175,7 +179,7 @@ export function dibujar(c, id, pie, inline) {
     const tipo = x.tipo === 'numero' ? 'number' : 'range';
     return `<label class="cx-in"><span class="cx-in__l">${inline(x.label)}</span><input type="${tipo}" data-id="${esc(x.id)}" min="${x.min}" max="${x.max}" step="${paso}" value="${x.valor}" aria-label="${esc(x.label.replace(/\\[()]/g, '').replace(/[*`[\]]/g, ''))}"><output class="cx-in__v" data-out="${esc(x.id)}">${esc(formatear(x.valor, 'num', decimalesDe(paso)))}${x.unidad ? ` ${esc(x.unidad)}` : ''}</output></label>`;
   }).join('');
-  const texto = (s, y) => (s.veredicto ? (y >= 0 ? s.veredicto.si : s.veredicto.no) : formatear(y, s.formato, s.decimales));
+  const texto = (s, y) => (s.veredicto ? (y >= 0 ? s.veredicto.si : s.veredicto.no) : s.sin_valor && !isFinite(y) ? s.sin_valor : formatear(y, s.formato, s.decimales));
   const clase = (s, y) => (s.veredicto ? (y >= 0 ? ' cx-out--si' : ' cx-out--no') : '');
   const outs = c.salidas.map((s, k) => `<div class="cx-out${s.barra ? ' cx-out--barra' : ''}${s.veredicto ? ' cx-out--veredicto' : ''}${clase(s, salidas[k])}" data-caja="${k}"><span class="cx-out__l"><span>${inline(s.label)}</span>${s.nota ? `<small>${inline(s.nota)}</small>` : ''}</span><b class="cx-out__v" data-salida="${k}">${esc(texto(s, salidas[k]))}</b>${s.barra ? `<span class="cx-bar"><i data-barra="${k}" style="width:${ancho(s, salidas[k]).toFixed(1)}%"></i></span>` : ''}${s.cuenta ? `<span class="cx-cuenta" data-cuenta="${k}">${cuentaHtml(s.cuenta, valores, inline)}</span>` : ''}</div>`).join('');
   const listas = listasDe(c);
@@ -183,7 +187,7 @@ export function dibujar(c, id, pie, inline) {
   const cm = c.comparar;
   const tabla = cm ? `<div class="cx-cmp"><p class="cx-cmp__t">${inline(cm.titulo || 'Comparación')}</p><div class="cx-cmp__scroll"><table><thead><tr><th scope="col">${esc(listas[cm.lista].label.replace(/\s*\(.*$/, ''))}</th>${cm.columnas.map((col) => `<th scope="col">${inline(col.label)}</th>`).join('')}</tr></thead><tbody data-comparar>${filasComparar(c, valores).map((f) => `<tr data-fila="${f.k}"${f.k === (listas[cm.lista].inicial ?? 0) ? ' class="is-sel"' : ''}><th scope="row">${esc(f.label)}</th>${f.celdas.map((t) => `<td>${esc(t)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>${cm.nota ? `<p class="cx-cmp__nota">${inline(cm.nota)}</p>` : ''}</div>` : '';
   const spec = { entradas: c.entradas.map((x) => ({ id: x.id, unidad: x.unidad || '', paso: x.paso })), calculos: c.calculos || [],
-    salidas: c.salidas.map((s) => ({ formula: s.formula, formato: s.formato || 'num', decimales: s.decimales, barra: !!s.barra, veredicto: s.veredicto || null, cuenta: trozos(s.cuenta) })),
+    salidas: c.salidas.map((s) => ({ formula: s.formula, formato: s.formato || 'num', decimales: s.decimales, barra: !!s.barra, veredicto: s.veredicto || null, sinValor: s.sin_valor || null, cuenta: trozos(s.cuenta) })),
     preajustes: listas.map((pa) => pa.opciones.map((o) => ({ valores: o.valores, nota: o.nota ? inline(o.nota) : '', label: o.label }))),
     comparar: cm ? { lista: cm.lista, orden: cm.orden ?? null, desc: !!cm.desc, columnas: cm.columnas.map((col) => ({ formula: col.formula, formato: col.formato || 'num', decimales: col.decimales })) } : null };
   return `<figure class="cx-calc" id="calc-${esc(id)}" data-calc="${esc(JSON.stringify(spec))}">
