@@ -36,7 +36,7 @@
       "termino": "Ancho de banda de memoria",
       "en": "memory bandwidth",
       "corto": "Cuántos bytes por segundo pueden pasar de la [[vram|VRAM]] a los núcleos de la GPU. Es el número que decide la velocidad del [[decode]].",
-      "largo": "Se publica en GB/s o TB/s en la hoja de datos. La memoria HBM de las GPUs de centro de datos da ≈ 1,500 a 8,000 GB/s; la GDDR de las tarjetas de escritorio, 300 a 1,800; la memoria unificada de una Mac, 120 a 800. Ninguna GPU logra el 100 %: la parte que sí se logra es la [[eficiencia]].",
+      "largo": "Se publica en GB/s o TB/s en la hoja de datos. La memoria HBM de las GPUs de centro de datos da ≈ 1,500 a 8,000 GB/s; la GDDR de las tarjetas de escritorio, 300 a 1,800; la memoria unificada de una Mac, 120 a 1,200. Ninguna GPU logra el 100 %: la parte que sí se logra es la [[eficiencia]].",
       "analogia": "El ancho de la escalera entre la despensa y la cocina: cuántos ingredientes suben por segundo.",
       "ejemplo": "H100 SXM: 3,350 GB/s. L4: 300 GB/s. Con el mismo modelo, la H100 escribe ≈ 11 veces más rápido.",
       "sensei": "flops"

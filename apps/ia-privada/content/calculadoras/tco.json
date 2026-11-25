@@ -28,7 +28,7 @@
     { "id": "hr", "label": "Horas rentadas al mes, \\(h\\) (730 = todo el mes; menos si la apagas fuera de horario)", "min": 0, "max": 730, "paso": 10, "valor": 730, "unidad": "h" },
     { "id": "K", "label": "**Compra** de cada GPU, en US$", "min": 0, "max": 1000000, "paso": 1, "valor": 0, "tipo": "numero" },
     { "id": "gs", "label": "GPUs por servidor", "min": 1, "max": 8, "paso": 1, "valor": 4 },
-    { "id": "S", "label": "El resto de cada servidor (CPU, RAM, discos, fuente, chasis), en US$ (supuesto)", "min": 0, "max": 200000, "paso": 100, "valor": 8000, "tipo": "numero" },
+    { "id": "S", "label": "El resto de cada servidor (CPU, RAM, discos, fuente, chasis), en US$ (supuesto: de ≈ 8,000 a 40,000; 0 con GPUs SXM)", "min": 0, "max": 200000, "paso": 100, "valor": 15000, "tipo": "numero" },
     { "id": "V", "label": "Vida útil en que se deprecia, \\(V\\)", "min": 12, "max": 72, "paso": 6, "valor": 36, "unidad": "meses" },
     { "id": "res", "label": "Valor de reventa al final, como parte de la compra (supuesto)", "min": 0, "max": 0.8, "paso": 0.05, "valor": 0.2 },
     { "id": "Wg", "label": "Consumo máximo de cada GPU", "unidad": "W", "min": 0, "max": 3000, "paso": 1, "valor": 350, "tipo": "numero" },

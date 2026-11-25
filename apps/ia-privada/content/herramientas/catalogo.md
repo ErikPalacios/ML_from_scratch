@@ -55,7 +55,7 @@ No hay una GPU «mejor»: depende de qué modelo, cuántas personas y cuánto di
 - **Para una oficina, con modelos medianos: tarjetas PCIe de workstation o L40S.** Una RTX PRO 6000 Blackwell (96 GB, 1,792 GB/s) o una L40S (48 GB, 864 GB/s) caben en un servidor normal, se enfrían con aire y atienden a decenas de personas con un modelo de 8B a 32B cuantizado. La herramienta de sizing dice cuántas.
 - **Para cientos de usuarios o modelos de 70B en adelante: servidores de 8 GPUs.** H100, H200 o B200 en su servidor, unidas por NVLink. Cuestan cientos de miles de dólares, consumen como 10 kW o más y piden un cuarto con enfriamiento serio, o rentarlas.
 
-Las tarjetas de jugador (RTX 4090 y 5090) tienen mucho ancho de banda por dólar, pero poca memoria, sin ECC, con licencias de NVIDIA que limitan su uso en centros de datos y precios muy por encima de su lanzamiento. Sirven para un laboratorio; para un cliente, con cuidado.
+Las tarjetas de jugador (RTX 4090 y 5090) tienen mucho ancho de banda por dólar, pero poca memoria, sin el ECC con reporte y registro de las de centro de datos, con licencias de NVIDIA que limitan su uso en centros de datos y precios muy por encima de su lanzamiento. Sirven para un laboratorio; para un cliente, con cuidado.
 
 ## Errores comunes {Common mistakes}
 
@@ -75,7 +75,7 @@ Con una tarjeta te alcanza: 48 GB por US$9,005, o sea ≈ 5.3 GB por cada US$1,0
 ? [medio] Llama 3.3 70B en INT4 de AWQ pesa ≈ 39.8 GB (la cuenta de «¿Cabe en la GPU?»). ¿Cabe en una DGX Spark de 128 GB, y a cuántos tokens por segundo escribiría con una conversación, si su eficiencia de memoria es 0.5?
 Cabe de sobra: 39.8 GB más KV cache contra 128 GB compartidos. Techo: 273 GB/s ÷ 39.8 GB ≈ 6.9 tokens por segundo; con \(η_m\) = 0.5, **≈ 3.4 tokens por segundo**. Más lento de lo que una persona lee cómoda: cabe, pero no sirve para un chat.
 ? [reto] Un cliente dice: «compremos 4 RTX 5090 en vez de una H100, salen más baratas y suman más VRAM». ¿Qué le contestas con la tabla?
-4 RTX 5090: 128 GB y 4 × 1,792 GB/s ≈ 7,170 GB/s en total, por ≈ 4 × US$7,350 = US$29,400 solo en tarjetas. Una H100 SXM: 80 GB y 3,350 GB/s, ≈ US$38,269 con su servidor. En números, las 5090 ganan. Pero: se conectan por PCIe, sin NVLink, así que repartir un modelo entre las 4 pierde mucho en cada paso; consumen 4 × 575 = 2,300 W; no tienen ECC; la licencia de su driver no permite usarlas en un centro de datos; y su precio es casi 4 veces el de lanzamiento. **Para un laboratorio, sí; para producción en un cliente, es un riesgo que hay que explicarle.**
+4 RTX 5090: 128 GB y 4 × 1,792 GB/s ≈ 7,170 GB/s en total, por ≈ 4 × US$7,350 = US$29,400 solo en tarjetas, a su precio de escasez de hoy (su mediana de los últimos 3 meses fue ≈ US$2,000). Una H100 SXM: 80 GB y 3,350 GB/s, ≈ US$38,269 con su servidor. En números, las 5090 ganan. Pero: se conectan por PCIe, sin NVLink, así que repartir un modelo entre las 4 pierde mucho en cada paso; consumen 4 × 575 = 2,300 W; su memoria corrige errores sola, pero no los reporta ni registra como una GPU de centro de datos; la licencia de su driver no permite usarlas en un centro de datos; y su precio es casi 4 veces el de lanzamiento. **Para un laboratorio, sí; para producción en un cliente, es un riesgo que hay que explicarle.**
 :::
 
 ## Palabras que vas a oír {Words you'll hear}

@@ -1376,13 +1376,13 @@
       "potencia_w": 450,
       "fp16_tflops_denso": 165.2,
       "fp8_tflops_denso": 330.3,
-      "int8_tops_denso": 330.3,
+      "int8_tops_denso": 660.6,
       "bf16": true,
       "fp8": true,
       "fp4": false,
       "mig": 0,
       "interconexion": "PCIe Gen4 x16; sin NVLink",
-      "notas": "Whitepaper de Ada: FP16/BF16 tensor con acumulación FP32 = 165.2 TFLOPS denso (330.4 con sparsity); con acumulación FP16 sube al doble (330.3), un modo que no sirve para entrenar. FP8 con acumulación FP32: 330.3 denso (660.6 con sparsity). La página del producto da 1,321 AI TOPS (FP8, sparse). TGP 450 W. Su licencia de GeForce prohíbe el uso en centros de datos.",
+      "notas": "Whitepaper de Ada: FP16/BF16 tensor con acumulación FP32 = 165.2 TFLOPS denso (330.4 con sparsity); con acumulación FP16 sube al doble (330.3), un modo que no sirve para entrenar. FP8 con acumulación FP32: 330.3 denso (660.6 con sparsity). La página del producto da 1,321 AI TOPS (FP8, sparse). TGP 450 W. Su licencia de GeForce prohíbe el uso en centros de datos. Corregido 2026-11-25: INT8 denso = 660.6 TOPS (1,321.2 con sparsity) según la tabla del whitepaper de Ada (https://images.nvidia.com/aem-dam/Solutions/Data-Center/l4/nvidia-ada-gpu-architecture-whitepaper-v2.1.pdf); antes decía 330.3, que es el FP8 con acumulación FP32.",
       "fuente": {
         "url": "https://images.nvidia.com/aem-dam/Solutions/Data-Center/l4/nvidia-ada-gpu-architecture-whitepaper-v2.1.pdf",
         "consultado": "2026-11-13",
@@ -1577,22 +1577,22 @@
           "usd_gpu_hora_community": 1.69
         }
       ],
-      "compra_usd": 16290,
+      "compra_usd": 16399,
       "compra_detalle": {
-        "descripcion": "Re-chequeo: gpuprix (25-nov-2026) lista US$16,290 como la nueva más barata (PNY Max-Q en Amazon); BuildCores muestra Amazon US$18,299.95 y B&H US$3,421.95 (casi seguro un error de la tienda); mediana de 12 meses US$11,255 y de 3 meses US$16,300. El configurador de Exxact suma +US$14,080 por la Workstation Edition (+US$11,099 la Server Edition en otro chasis). Newegg y NVIDIA Marketplace no abrieron hoy. Precio al alza (subió desde ≈ US$8,500 al lanzamiento).",
+        "descripcion": "Workstation Edition (600 W), la de estas especificaciones: US$16,399 en Newegg, 'en stock', visto en el agregador BuildCores el 2026-11-13; la NVIDIA Marketplace la lista en US$16,000 desde el 12-ago-2026 (Tom's Hardware, PCMag). Re-chequeo 2026-11-25: el configurador de Exxact suma +US$14,080 por una Workstation Edition; gpuprix da US$16,290 como la nueva más barata, pero es la versión Max-Q (300 W, 438.9 TFLOPS FP16 densos), otra tarjeta. Subió desde ≈ US$8,500 al lanzamiento.",
         "fuente": {
-          "url": "https://gpuprix.com/us/gpus/rtx-pro-6000-blackwell",
-          "consultado": "2026-11-25",
+          "url": "https://www.buildcores.com/products/GPU/eblltkoej/NVIDIA-RTX-PRO-6000-Blackwell-Workstation-Edition-96GB-GDDR7",
+          "consultado": "2026-11-13",
           "fuente_tipo": "secundaria"
         },
         "fuente_extra": [
           {
-            "url": "https://www.buildcores.com/products/GPU/eblltkoej/NVIDIA-RTX-PRO-6000-Blackwell-Workstation-Edition-96GB-GDDR7",
+            "url": "https://configurator.exxactcorp.com/configure/VWS-107355433",
             "consultado": "2026-11-25",
             "fuente_tipo": "secundaria"
           },
           {
-            "url": "https://configurator.exxactcorp.com/configure/VWS-107355433",
+            "url": "https://gpuprix.com/us/gpus/rtx-pro-6000-blackwell",
             "consultado": "2026-11-25",
             "fuente_tipo": "secundaria"
           }
@@ -1636,7 +1636,7 @@
       ],
       "compra_usd": 7350,
       "compra_detalle": {
-        "descripcion": "Muy volátil y muy por encima del MSRP de US$1,999. gpuprix (25-nov-2026): la tarjeta nueva en stock más barata es una ASUS TUF a US$7,350 (la ROG Astral a US$7,000-7,400; el propio sitio marca la inconsistencia); mediana de 3 meses US$2,000 y de 12 meses US$3,330 (fuera de rango por el salto reciente). GPU Poet: promedio de los 3 listados más baratos de eBay US$6,216 (5,866-6,643). Rango actual ≈ US$6,200-7,400.",
+        "descripcion": "Precio de escasez. Muy volátil y muy por encima del MSRP de US$1,999. gpuprix (25-nov-2026): la tarjeta nueva en stock más barata es una ASUS TUF a US$7,350 (la ROG Astral a US$7,000-7,400; el propio sitio marca la inconsistencia); mediana de 3 meses US$2,000 y de 12 meses US$3,330 (fuera de rango por el salto reciente). GPU Poet: promedio de los 3 listados más baratos de eBay US$6,216 (5,866-6,643). Rango actual ≈ US$6,200-7,400.",
         "fuente": {
           "url": "https://gpuprix.com/us/gpus/geforce-rtx-5090",
           "consultado": "2026-11-25",
@@ -1883,7 +1883,7 @@
       ],
       "compra_usd": 10799,
       "compra_detalle": {
-        "descripcion": "US$10,799 = M5 Ultra 36 CPU / 80 GPU con 96 GB y 1 TB (US$6,799, precio de la tienda de Apple EE. UU. visto hoy) + US$4,000 por subir a 256 GB (TweakTown y Notebookcheck). Con el M5 Ultra de 30/64 núcleos (US$5,499 en Apple) sería ≈ US$9,499. Sin impuestos. El precio de la mejora de memoria viene de prensa, no del configurador de Apple (la página no lo mostró al descargarla).",
+        "descripcion": "ESTIMADO. US$10,799 = M5 Ultra 36 CPU / 80 GPU con 96 GB y 1 TB (US$6,799, precio de la tienda de Apple EE. UU. visto hoy) + US$4,000 por subir a 256 GB (TweakTown y Notebookcheck). Con el M5 Ultra de 30/64 núcleos (US$5,499 en Apple) sería ≈ US$9,499. Sin impuestos. El precio de la mejora de memoria viene de prensa, no del configurador de Apple (la página no lo mostró al descargarla).",
         "fuente": {
           "url": "https://www.apple.com/shop/buy-mac/mac-studio",
           "consultado": "2026-11-25",
@@ -2028,13 +2028,18 @@
           "fuente_tipo": "oficial"
         }
       ],
-      "compra_usd": 1899,
+      "compra_usd": 2899,
       "compra_detalle": {
-        "descripcion": "US$1,899 en la tienda de Apple EE. UU. (modelo M5 Pro 18 CPU / 20 GPU, 64 GB, 1 TB; precio visto en la página de compra hoy). Sin impuestos.",
+        "descripcion": "ESTIMADO con los precios de Apple que publica Macworld: Mac mini M5 Pro base (15 CPU / 16 GPU, 24 GB, 512 GB) US$1,699, +US$200 por 18 CPU / 20 GPU, +US$1,000 por 64 GB = US$2,899. Abt lista el de 18/20, 64 GB y 1 TB en US$3,299. La tienda de Apple no mostró el precio de esta configuración al consultarla. Sin impuestos.",
         "fuente": {
-          "url": "https://www.apple.com/shop/buy-mac/mac-mini",
+          "url": "https://macworld.com/article/3220063/apple-launches-new-m6-mac-mini-with-another-price-hike.html",
           "consultado": "2026-11-25",
-          "fuente_tipo": "oficial"
+          "fuente_tipo": "secundaria"
+        },
+        "fuente_extra": {
+          "url": "https://www.abt.com/Apple-Mac-mini-Compact-Desktop-M5-Pro-64GB-Unified-Memory-1TB-SSD-in-Silver-Z1UD00082/p/252371.html",
+          "consultado": "2026-11-25",
+          "fuente_tipo": "secundaria"
         }
       }
     }

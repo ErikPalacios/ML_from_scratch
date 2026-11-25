@@ -109,7 +109,7 @@ El TTFT de la calculadora es el de un prompt que llega solo, con la GPU libre. E
 Ninguna GPU lee su memoria al 100 % ni calcula a su pico. Siempre hay tiempo que se pierde: lanzar cada operación, sincronizar, partes del modelo que no son multiplicaciones grandes. La calculadora lo resume en dos números:
 
 - **\(η_m\), la [[eficiencia]] de la memoria.** La parte del ancho de banda que se aprovecha en el decode. En los benchmarks de abajo va de 0.31 a 0.85 según el servidor y la GPU. La calculadora arranca en 0.7.
-- **\(η_c\), la eficiencia del cálculo.** La parte del pico que se aprovecha en el prefill. Arranca en 0.5.
+- **\(η_c\), la eficiencia del cálculo.** La parte del pico que se aprovecha en el prefill. Arranca en 0.5; en los benchmarks de abajo va de ≈ 0.25 (llama.cpp en una RTX 4090) a ≈ 0.6 (NIM en una H100).
 
 Es como el rendimiento de gasolina de un coche: la agencia publica un número de laboratorio y tú, en el tráfico, logras una parte. Si sabes cuál parte, predices bien. Por eso la calculadora muestra el techo (fila 2, la cuenta de Sensei) y la estimación (fila 3) por separado: el techo es física; la estimación es física más experiencia.
 
@@ -121,7 +121,7 @@ Cada resultado trae su cuenta con los números del momento. Las GPUs salen del a
 
 Tres fuentes públicas, consultadas el 2026-11-25, con la calculadora puesta en las mismas condiciones. En todas va una sola conversación a la vez, que es lo que esas fuentes miden.
 
-**1. NVIDIA NIM, un servidor de producción.** La página de rendimiento de NIM (versión 1.8.0) mide Llama 3.1 8B Instruct con un prompt de 1,000 tokens, una respuesta de 1,000 y una conversación. Dice «H100 80G» sin aclarar cuál; tiene que ser la SXM (o la NVL), porque mide 153 tokens por segundo y el techo de una H100 PCIe, con 2,000 GB/s, es ≈ 123.
+**1. NVIDIA NIM, un servidor de producción.** La página de rendimiento de NIM (versión 1.8.0) mide Llama 3.1 8B Instruct con un prompt de 1,000 tokens, una respuesta de 1,000 y una conversación. Su sección de hardware dice que corrió en un DGX H100 con una «H100 80GB HBM3»: es la SXM. Cuadra con lo medido: 153 tokens por segundo, más que el techo de una H100 PCIe, con 2,000 GB/s, ≈ 123.
 
 | NIM 1.8.0, Llama 3.1 8B | Medido | La calculadora | Desviación |
 |---|---|---|---|
@@ -132,7 +132,7 @@ Tres fuentes públicas, consultadas el 2026-11-25, con la calculadora puesta en 
 | L40S, BF16, tokens/s | 45.2 | 37.2 | −18 % |
 | L40S, BF16, TTFT | 80.8 ms | 90.2 ms | +12 % |
 
-Con las eficiencias de arranque, la calculadora queda dentro de ±20 % de un servidor optimizado. Dividiendo lo medido entre el techo salen las eficiencias reales: 0.74 en la H100 con BF16, 0.61 con FP8 y 0.85 en la L40S. Con FP8 se pierde más porque el paso es tan corto (≈ 4.5 ms) que el tiempo fijo de cada paso pesa más.
+Con las eficiencias de arranque, la calculadora queda dentro de ±20 % de un servidor optimizado. Dividiendo lo medido entre el techo salen las eficiencias reales: 0.74 en la H100 con BF16, 0.61 con FP8 y 0.85 en la L40S. Con FP8 se pierde más porque el paso es tan corto (el techo es de 2.8 ms; NIM mide 4.5) que el tiempo fijo de cada paso pesa más.
 
 **2. llama.cpp en GPUs de NVIDIA.** La discusión «Performance of llama.cpp with CUDA» del repositorio de llama.cpp junta mediciones de la comunidad con el mismo comando: Llama 2 7B en Q4_0 (un archivo de 3.56 GiB), 512 tokens de prompt (pp512) y 128 de respuesta (tg128). En la calculadora: el preajuste de Llama 2 7B, cálculo en INT8 y prompt de 1 para el decode (tg128 empieza sin prompt).
 
@@ -142,7 +142,7 @@ Con las eficiencias de arranque, la calculadora queda dentro de ±20 % de un ser
 | H100 (HBM3, o sea SXM), decode | 876 tokens/s | 267.8 | 0.31 |
 | A100 80 GB, decode | 533 tokens/s | 190.9 | 0.36 |
 
-En la RTX 4090, la estimación con \(η_m\) = 0.7 da 184.5 tokens por segundo: −1 %. En las GPUs de centro de datos, llama.cpp con una conversación aprovecha apenas un tercio de la memoria: el paso es tan corto que domina el tiempo fijo de lanzar cada operación. NIM, en la misma H100 y con un modelo parecido, llega a 0.74. **El mismo hardware rinde el doble o el triple según el programa que lo sirve.** En la A100 no se sabe si es la SXM (2,039 GB/s) o la PCIe (1,935); con la PCIe, la eficiencia sería 0.38.
+En la RTX 4090, la estimación con \(η_m\) = 0.7 da 184.5 tokens por segundo: −1 %. El prefill queda más lejos: con cálculo en INT8 (660.6 TOPS densos) y \(η_c\) = 0.5, la calculadora da ≈ 24,270 tokens por segundo en pp512, y llama.cpp mide 11,993; su \(η_c\) real es ≈ 0.25. En las GPUs de centro de datos, llama.cpp con una conversación aprovecha apenas un tercio de la memoria: el paso es tan corto que domina el tiempo fijo de lanzar cada operación. NIM, en la misma H100 y con un modelo parecido, llega a 0.74. **El mismo hardware rinde el doble o el triple según el programa que lo sirve.** En la A100 no se sabe si es la SXM (2,039 GB/s) o la PCIe (1,935); con la PCIe, la eficiencia sería 0.38.
 
 **3. llama.cpp en Apple.** La discusión «Performance of llama.cpp on Apple Silicon M-series» mide lo mismo en los chips de Apple. Apple no publica sus TFLOPS, así que aquí solo se compara el decode, con el ancho de banda que esa discusión da para cada chip (escríbelo en la calculadora con «Otro»).
 

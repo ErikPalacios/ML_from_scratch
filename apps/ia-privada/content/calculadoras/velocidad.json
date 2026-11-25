@@ -118,5 +118,5 @@
     ],
     "nota": "Con tu modelo, tu prompt y tus eficiencias de arriba. Más de 100 % de memoria: no cabe en \\(n\\) GPUs de ese tipo. Un «—» en TTFT: el fabricante no publica ese pico."
   },
-  "nota": "Prueba: elige Llama 2 7B en Q4_0, la RTX 4090, cálculo INT8, prompt de 512 y \\(η_m\\) = 0.7: la estimación queda cerca de los 186 tokens/s que mide llama.cpp. Después pon la H100 SXM con lo mismo: el techo se triplica, pero llama.cpp mide 268. Con una conversación, llama.cpp no aprovecha la H100; un servidor como NIM o vLLM sí."
+  "nota": "Prueba: elige Llama 2 7B en Q4_0, la RTX 4090, cálculo INT8, prompt de 1 y respuesta de 128, con \\(η_m\\) = 0.7: la estimación queda cerca de los 186 tokens/s que mide llama.cpp. Después pon la H100 SXM con lo mismo: el techo se triplica, pero llama.cpp mide 268. Con una conversación, llama.cpp no aprovecha la H100; un servidor como NIM o vLLM sí."
 }

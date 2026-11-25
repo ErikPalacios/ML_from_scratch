@@ -24,7 +24,7 @@
       "tipo": "open-weight-hospedado",
       "usd_millon_entrada": 0.9,
       "usd_millon_salida": 0.9,
-      "nota": "Tarifa por tamaño (>16B parámetros), mismo precio entrada y salida; el modelo no aparece nombrado en la página, se deduce por tamaño. Lote 50% menos (según fireworks.ai/pricing).",
+      "nota": "Tarifa por tamaño (más de 16B parámetros), mismo precio de entrada y de salida; el modelo no aparece nombrado en la página, se deduce por tamaño. La página no menciona descuento por lote.",
       "fuente": {
         "url": "https://docs.fireworks.ai/serverless/pricing",
         "consultado": "2026-11-25",
@@ -122,7 +122,7 @@
       "tipo": "open-weight-hospedado",
       "usd_millon_entrada": 0.15,
       "usd_millon_salida": 0.6,
-      "nota": "Caché de entrada 0.015; lote 50% menos; nivel Priority 0.18/0.72.",
+      "nota": "Caché de entrada 0.015; nivel Priority 0.18/0.72 (según fireworks.ai/pricing). Descuentos por lote no confirmados en la página de precios serverless.",
       "fuente": {
         "url": "https://fireworks.ai/pricing",
         "consultado": "2026-11-25",
@@ -206,7 +206,7 @@
       "tipo": "cerrado",
       "usd_millon_entrada": 0.75,
       "usd_millon_salida": 4.5,
-      "nota": "Sin niveles por contexto. Lote 0.375/2.25 (-50%). Caché 0.075. Existe además GPT-5.6 Luna más barato (0.20/1.20), no incluido.",
+      "nota": "Sin niveles por contexto. Lote 0.375/2.25 (−50 %). Caché 0.075. La página lista además modelos más baratos (por ejemplo gpt-6-luna a 0.10/0.50), no incluidos aquí.",
       "fuente": {
         "url": "https://developers.openai.com/api/docs/pricing",
         "consultado": "2026-11-25",
