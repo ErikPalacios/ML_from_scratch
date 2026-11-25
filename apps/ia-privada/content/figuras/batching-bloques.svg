@@ -24,7 +24,7 @@
 <rect class="f-o" x="106" y="94" width="16.2" height="34" rx="5"/>
 <text class="f-s" x="132.0" y="110" text-anchor="middle" style="font-size:12px;font-weight:700;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">L1</text>
 <text class="f-s" x="132.0" y="123" text-anchor="middle" style="font-size:12px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">5/16</text>
-<text class="f-l" x="232" y="36">TABLAS DE BLOQUES</text>
+<text class="f-l" x="232" y="36">TABLAS</text>
 <text class="f-s" x="232" y="56" style="font-size:12px;font-weight:700">A</text>
 <rect class="f-chip" x="232" y="64" width="96" height="18" rx="3"/>
 <text class="f-s" x="240" y="77" style="font-size:12px">L0 → físico</text>

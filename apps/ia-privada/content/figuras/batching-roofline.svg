@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 440" role="img" aria-labelledby="f-batching-roofline-t" class="f-svg" style="max-width:420px">
-<title id="f-batching-roofline-t">El roofline de una NVIDIA L40S en FP16 o BF16, con escalas logarítmicas. A lo ancho, la intensidad aritmética en FLOPs por byte, de 1 a 100,000; a lo alto, los TFLOPS alcanzables, de 1 a 1,000. La rampa sube como intensidad por 864 GB/s hasta el punto de quiebre, cerca de 419 FLOPs por byte, y luego el techo es plano en 362 TFLOPS. Cuatro puntos del despacho con Qwen3 32B en INT4, contando los FLOPs de las capas lineales: el decode con 1 conversación, intensidad 3.1, alcanza 2.7 TFLOPS; con 8 conversaciones, intensidad 16.2, alcanza 14; con muchísimas conversaciones de 6,250 tokens la intensidad no pasa de 40, unos 35 TFLOPS, lejos del quiebre; el prefill de una pregunta de 6,000 tokens, con intensidad de unos 20,000, llega al techo.</title>
+<title id="f-batching-roofline-t">El roofline de una NVIDIA L40S en FP16 o BF16, con escalas logarítmicas. A lo ancho, la intensidad aritmética en FLOPs por byte, de 1 a 100,000; a lo alto, los TFLOPS alcanzables, de 1 a 1,000. La rampa sube como intensidad por 864 GB/s hasta el punto de quiebre, cerca de 419 FLOPs por byte, y luego el techo es plano en 362 TFLOPS. Cuatro puntos del despacho con Qwen3 32B en INT4, contando los FLOPs de las capas lineales: el decode con 1 conversación, intensidad 3.1, alcanza 2.7 TFLOPS; con 8 conversaciones, intensidad 16.2, alcanza 14; con muchísimas conversaciones de 6,250 tokens la intensidad no pasa de 40, unos 35 TFLOPS, lejos del quiebre; el prefill de una pregunta de 6,000 tokens, con intensidad de unos 19,000, llega al techo.</title>
 <rect class="f-card" x="10" y="10" width="340" height="420" rx="16"/>
 <text class="f-l" x="28" y="36">EL ROOFLINE DE UNA L40S · FP16/BF16</text>
 <text class="f-l" x="28" y="56">TFLOPS</text>
@@ -39,7 +39,7 @@
 <circle cx="146.5" cy="177.2" r="6" style="fill:var(--o);stroke:var(--blk);stroke-width:2"/>
 <text class="f-t" x="137.5" y="155.2" text-anchor="end" style="font-size:13px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">tope: ≈ 40</text>
 <text class="f-s" x="137.5" y="169.2" text-anchor="end" style="font-size:12px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">≈ 35 TFLOPS</text>
-<circle cx="292.7" cy="102.4" r="6" style="fill:var(--o);stroke:var(--blk);stroke-width:2"/>
+<circle cx="290.8" cy="102.4" r="6" style="fill:var(--o);stroke:var(--blk);stroke-width:2"/>
 <text class="f-t" x="283.7" y="124.4" text-anchor="end" style="font-size:13px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">prefill</text>
 <text class="f-s" x="283.7" y="139.4" text-anchor="end" style="font-size:12px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">de 6,000</text>
 <text class="f-s" x="28" y="350" style="font-size:12px">Quiebre: 362.05 TFLOPS ÷ 864 GB/s ≈ 419 FLOPs/byte.</text>

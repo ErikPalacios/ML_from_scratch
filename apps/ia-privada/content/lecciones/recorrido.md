@@ -3,7 +3,7 @@ titulo: El recorrido de un proyecto de IA privada
 en: The path of a private AI project
 subtitulo: Las seis etapas de llevar un LLM al hardware de una empresa, de la primera plática con el cliente al día 2, con las cuentas de servilleta que deciden qué se compra y las puertas donde conviene detenerse.
 pregunta: Una empresa quiere «su propia IA, sin que sus datos salgan». ¿Por dónde se empieza, qué se calcula, qué se compra y cuándo se sabe si sirvió?
-sensei: camino-completo, nube, privacidad, maquinas
+sensei: camino-completo, llms, nube, privacidad, maquinas
 ---
 
 :::idea
@@ -14,6 +14,13 @@ Imagina que te llama el socio de un despacho de abogados. Te dice: «Queremos us
 
 Esta lección es el mapa de la app. Vas a ver las seis etapas con un mismo caso de principio a fin, las cuentas mínimas para que el mapa tenga números y dónde se puede detener o regresar el proyecto. Cada etapa tiene después su lección a fondo; aquí aprendes dónde queda cada pieza y por qué va en ese orden.
 
+Cuatro palabras antes de empezar, que se usan en toda la app:
+
+- Un **LLM** (*large language model*, modelo grande de lenguaje) es un programa que lee texto y escribe texto. Es lo que hay detrás de cualquier chatbot. Lo viste a fondo en [Transformers y LLMs](https://sensei.trueml.app/llms/).
+- Un **token** es el pedacito de texto con que trabaja un LLM: una palabra corta, un trozo de palabra o un signo. El modelo lee la pregunta en tokens y escribe la respuesta un token a la vez.
+- Una **GPU** es el chip que hace las cuentas del modelo, millones de operaciones en paralelo. Es la pieza cara del hardware.
+- Un modelo **[[open-weight|open weight]]** es uno cuyo archivo de [[pesos]] (los números que aprendió) se puede descargar y correr en tu propia máquina. Eso es lo que hace posible la IA privada: el modelo vive en la red de la empresa y nadie de fuera ve lo que se le pregunta.
+
 En Sensei viste [El camino completo](https://sensei.trueml.app/camino-completo/): las seis etapas de un *sistema* de ML en producción, de los datos al monitoreo. Aquí las seis etapas son de un *proyecto*: de la primera plática con un cliente a operar su sistema. Se tocan: el despliegue de aquí junta la API, el contenedor y la orquestación de allá; las evals son el examen del modelo, y la operación incluye el monitoreo. Pero el orden de un proyecto lo decide algo que el sistema no tiene: el dinero se gasta una sola vez y el hardware tarda en llegar.
 
 ## Por qué una empresa quiere IA privada {Why a company wants private AI}
@@ -22,11 +29,11 @@ En Sensei viste [El camino completo](https://sensei.trueml.app/camino-completo/)
 
 El hilo de toda la app es un caso ficticio: **el despacho**, un despacho de abogados en la Ciudad de México con **200 abogados y asistentes** y **30,000 expedientes** (≈ 1.5 millones de páginas de contratos, demandas, sentencias y correos), en español con algunos contratos en inglés. Quiere preguntarle a sus expedientes con un LLM **sin que un solo documento salga de su red**. Su equipo de TI son **2 personas** que saben de redes y Windows y nunca han operado una GPU. Todos sus números viven en una sola ficha y se usan igual en todas las páginas; esta lección los presenta todos.
 
-¿Por qué no contrata una API pública, como la de cualquier chatbot comercial, y ya? Tiene tres razones, y una cuarta que la mayoría de las empresas comparte.
+¿Por qué no contrata una API pública, como la de cualquier chatbot comercial, y ya? (Una API es la ventanilla por la que un programa le pide algo a otro por la red; con una API pública, el texto viaja a los servidores del proveedor.) Tiene tres razones, y una cuarta que la mayoría de las empresas comparte.
 
 ### 1. El secreto profesional
 
-Un abogado está obligado a guardar los secretos de sus clientes. En México, la Ley Reglamentaria del Artículo 5º Constitucional, relativo al ejercicio de las profesiones en la Ciudad de México, lo dice en su artículo 36: todo profesionista debe guardar estrictamente el secreto de los asuntos que le confían sus clientes, salvo los informes que las leyes obliguen a dar. El Código Penal Federal, en su artículo 211, castiga con 1 a 5 años de prisión, multa y suspensión de la profesión a quien, prestando servicios profesionales, revela un secreto sin justa causa, con perjuicio y sin consentimiento.
+Un abogado está obligado a guardar los secretos de sus clientes. En México, la Ley Reglamentaria del Artículo 5º Constitucional, relativo al ejercicio de las profesiones en la Ciudad de México, lo dice en su artículo 36: todo profesionista debe guardar estrictamente el secreto de los asuntos que le confían sus clientes, salvo los informes que las leyes obliguen a dar. El Código Penal Federal, en su artículo 211, castiga con 1 a 5 años de prisión, multa y suspensión de la profesión de 2 meses a 1 año a quien, prestando servicios profesionales, revela un secreto sin justa causa, con perjuicio y sin consentimiento.
 
 ¿Pegar un contrato en un chatbot público es «revelarlo»? Esas leyes no hablan de IA, y no hay una respuesta escrita que diga sí o no. Es una pregunta para un abogado, no para un ingeniero. Pero el escenario que describen, mandarle el asunto de un cliente a un tercero, se parece lo bastante como para que un despacho prudente no quiera averiguarlo con un caso real.
 
@@ -38,7 +45,7 @@ Los expedientes están llenos de datos personales: nombres, domicilios, sueldos,
 - **Mandar datos a otro, dentro o fuera del país, tiene reglas.** La ley llama «transferencia» a toda comunicación de datos dentro o fuera del territorio, con su capítulo propio. Cada vez que un expediente viaja a los servidores de un proveedor, hay que poder explicar bajo qué figura lo hace.
 - **Hay un derecho a oponerse a decisiones automatizadas.** El artículo 26, fracción II, deja que una persona se oponga a un tratamiento automatizado que evalúe, sin intervención humana, aspectos como su rendimiento profesional, su situación económica o su salud, y que le produzca efectos jurídicos no deseados o la afecte significativamente. Un asistente que *ayuda* a un abogado no decide solo; uno que calificara a personas sin que nadie revise, sí podría tocar ese artículo.
 
-Y las multas no son simbólicas: según el tipo de infracción, de 100 a 160,000 veces la UMA (la Unidad de Medida y Actualización, el valor en pesos que usan las leyes para fijar multas) o de 200 a 320,000, y pueden aumentar con datos sensibles. Todo esto es contexto para entender al cliente; qué aplica a su caso lo revisa un abogado.
+Y las multas no son simbólicas: según el tipo de infracción, de 100 a 160,000 veces la UMA (la Unidad de Medida y Actualización, el valor en pesos que usan las leyes para fijar multas) o de 200 a 320,000, y con datos sensibles pueden llegar al doble. Todo esto es contexto para entender al cliente; qué aplica a su caso lo revisa un abogado.
 
 ### 3. Los contratos de sus clientes
 
@@ -49,7 +56,7 @@ Algunos clientes del despacho le prohíben **por contrato** mandar sus documento
 El riesgo que disparó el proyecto no está en el futuro: hoy algunos abogados del despacho pegan contratos en chatbots públicos. A eso se le dice [[shadow-ai|shadow AI]] (IA en la sombra): herramientas de IA que la empresa no aprobó ni controla, usadas muchas veces con cuentas personales. Las cifras, con su letra chica:
 
 - **El estudio de MIT NANDA de 2025** (*The GenAI Divide*, entrevistas y encuestas a líderes de empresas): solo el **40 %** de las empresas dijo haber comprado una suscripción oficial a un LLM, pero en **más del 90 %** los trabajadores reportan usar herramientas de IA personales para el trabajo. Es una muestra chica y el propio informe dice que es direccional, no exacta.
-- **El *Cost of a Data Breach Report 2025* de IBM:** **1 de cada 5** organizaciones reportó una brecha ligada a shadow AI, y las que tenían mucho shadow AI pagaron en promedio **US$670,000 más** por brecha que las que tenían poco o nada. El costo promedio mundial de una brecha fue de US$4.44 millones.
+- **El *Cost of a Data Breach Report 2025* de IBM:** **1 de cada 5** organizaciones reportó una brecha (un incidente en que se filtran o roban datos) ligada a shadow AI, y las que tenían mucho shadow AI pagaron en promedio **US$670,000 más** por brecha que las que tenían poco o nada. El costo promedio mundial de una brecha fue de US$4.44 millones.
 - **Un informe de LayerX de 2025** (una empresa de seguridad, que vende justo esto): el 45 % de los empleados usa IA generativa; de *esos*, el 77 % pega datos en sus consultas; el 22 % de lo pegado trae datos personales o de tarjetas, y el 82 % viene de cuentas personales, no de las de la empresa. Ve solo lo que pasa en el navegador.
 
 :::ojo
@@ -89,7 +96,7 @@ Cada etapa responde una pregunta. Lo que sale de una es lo que necesita la sigui
 Toca cada etapa para ver qué sale de ella, o usa «Recorrer» para seguir al despacho de principio a fin. La flecha punteada es la que más se olvida: cada actualización vuelve a evals.
 :::
 
-Fíjate en el orden. Las tres primeras etapas son casi solo papel, cuentas y una GPU rentada: equivocarse ahí cuesta días y unos cientos de dólares. Las tres últimas pasan sobre equipo comprado: equivocarse ahí cuesta el equipo. Por eso cada decisión cara se toma lo más tarde posible, cuando ya hay números que la respalden.
+Fíjate en el orden. Las tres primeras etapas son casi solo papel, cuentas y una GPU rentada: equivocarse ahí cuesta días y, a lo más, un par de miles de dólares de GPU rentada. Las tres últimas pasan sobre equipo comprado: equivocarse ahí cuesta el equipo. Por eso cada decisión cara se toma lo más tarde posible, cuando ya hay números que la respalden.
 
 :::analogia Construir una casa
 El descubrimiento es la plática con el arquitecto: cuántos viven, qué necesitan, cuánto pueden gastar. El sizing son los planos y el cálculo de la estructura. La compra son los materiales (y aquí rentas una casa parecida un mes para probar si de verdad te gusta el barrio). El despliegue es la obra. Las evals son la inspección antes de mudarte. La operación es vivir ahí: goteras, pintura, el plomero.
@@ -253,9 +260,11 @@ Todo crece en proporción: 5 veces más personas, 5 veces más conversaciones a 
 
 ### De conversaciones a la vez a VRAM
 
-Con el 8 ya se puede hacer la cuenta de memoria. Una GPU solo trabaja con lo que tiene en su [[vram|VRAM]], y ahí deben caber los [[pesos]] del modelo, el [[kv-cache|KV cache]] de cada conversación (lo que el modelo recuerda de ella mientras contesta) y el [[overhead]] del programa. La herramienta [¿Cabe en la GPU?](/herramientas/vram/) explica cada pieza desde cero; aquí va el resultado para el despacho.
+Con el 8 ya se puede hacer la cuenta de memoria. Una GPU solo trabaja con lo que tiene en su [[vram|VRAM]], su memoria propia, separada de la RAM de la computadora, y ahí deben caber los [[pesos]] del modelo, el [[kv-cache|KV cache]] de cada conversación (lo que el modelo recuerda de ella mientras contesta) y el [[overhead]] del programa. La herramienta [¿Cabe en la GPU?](/herramientas/vram/) explica cada pieza desde cero; aquí va el resultado para el despacho.
 
-Antes, un dato de la ficha: cada pregunta lleva ≈ 6,000 tokens de entrada (≈ 400 de instrucciones, ≈ 100 de la pregunta y 5 fragmentos de expediente de ≈ 1,000 tokens cada uno, redondeado) y ≈ 500 de salida. Por eso cada conversación se diseña con un [[contexto|tope]] de 8,192 tokens: cabe la primera pregunta (≈ 6,500) y una repregunta corta.
+El modelo candidato es Qwen3 32B: 32 mil millones de parámetros (los números que aprendió). Se guarda en INT4 de AWQ, es decir, con cada número comprimido a ≈ 4 bits en vez de 16: una forma de [[cuantizacion|cuantización]] que la herramienta de VRAM explica paso a paso.
+
+Antes, un dato de la ficha: cada pregunta lleva ≈ 6,000 tokens de entrada (≈ 400 de instrucciones, ≈ 100 de la pregunta y 5 fragmentos de expediente de ≈ 1,000 tokens cada uno, redondeado) y ≈ 500 de salida. Por eso cada conversación se diseña con un tope de [[contexto]] (todo el texto que el modelo tiene a la vista en una conversación) de 8,192 tokens: cabe la primera pregunta (≈ 6,500) y una repregunta corta.
 
 :::cuenta La memoria del despacho, en una L40S
 Pesos, \(W\) // Qwen3 32B en INT4 de AWQ (la cuenta de la herramienta de VRAM) | 19.32 GB | 19.32 GB
@@ -273,7 +282,7 @@ El sizing del despacho de un vistazo: de 200 personas a 8 conversaciones a la ve
 
 La servilleta solo mira memoria: dice cuántas conversaciones **caben**. Que se atiendan **bien** depende de otras dos cosas. Antes de escribir la primera palabra, el modelo tiene que leer completa la pregunta, con sus ≈ 6,000 tokens de fragmentos: a esa primera pasada se le dice *prefill*, y la limita el cómputo de la GPU (cuántas operaciones hace por segundo). Después escribe token por token, y cada token obliga a leer de la VRAM los pesos y el KV cache: eso lo limita el ancho de banda de la memoria (cuántos GB por segundo puede leer). Las operaciones de un modelo las contaste en [Matrices y FLOPs](https://sensei.trueml.app/flops/).
 
-La cuenta del prefill se hace a mano. Un modelo hace ≈ 2 operaciones por parámetro por cada token que lee, y una GPU real no alcanza su pico: la app supone que aprovecha la mitad de sus FLOPs (\(η_c\) = 0.5) y el 70 % de su ancho de banda (\(η_m\) = 0.7).
+La cuenta del prefill se hace a mano. Un modelo hace ≈ 2 operaciones por parámetro por cada token que lee (una multiplicación y una suma). A esas operaciones con decimales se les dice FLOPs, y la velocidad de una GPU se mide en TFLOPS: billones (10¹²) de operaciones por segundo. Una GPU real no alcanza su pico: la app supone que aprovecha la mitad de sus FLOPs (\(η_c\) = 0.5; \(η\) se lee «eta») y el 70 % de su ancho de banda (\(η_m\) = 0.7).
 
 :::formula El tiempo del prefill
 F = 2 × P × n_{in}
@@ -288,12 +297,12 @@ t_{prefill} = frac{F}{η_c × C}
 
 :::cuenta El prefill de una pregunta del despacho, en una L40S
 Operaciones, \(F\) // \(P\) = 32.76 mil millones (Qwen3 32B), \(n_{in}\) = 6,000 tokens | 2 × 32.76 × 10⁹ × 6,000 | ≈ 3.9 × 10¹⁴ FLOPs
-Cómputo útil // \(C\) = 362 TFLOPS en FP16 denso (archivo de GPUs), \(η_c\) = 0.5 | 0.5 × 362 × 10¹² | ≈ 1.81 × 10¹⁴ por s
+Cómputo útil // \(C\) = 362 TFLOPS en FP16 denso (con números de 16 bits y sin el truco que duplica la cifra de catálogo; archivo de GPUs), \(η_c\) = 0.5 | 0.5 × 362 × 10¹² | ≈ 1.81 × 10¹⁴ por s
 Tiempo, \(t_{prefill}\) | 3.9 × 10¹⁴ ÷ 1.81 × 10¹⁴ | **≈ 2.17 s**
 = Con una sola pregunta y la GPU libre, la primera palabra ya tarda más que los 2 s del objetivo. La herramienta de sizing, que cuenta todo lo demás, da ≈ 2.38 s.
 :::
 
-Y hay más: mientras la GPU hace el prefill de una pregunta nueva, las conversaciones que ya escriben se frenan. La cuenta completa de la herramienta de sizing (con cómputo y ancho de banda) dice que, con prefills de 6,000 tokens llegando, una L40S solo mantiene **2** conversaciones a ≥ 20 tokens/s. Para las ≈ 5.6 del despacho hacen falta **3 L40S**, y aun así el tiempo al primer token queda en ≈ 2.4 s: el objetivo de ≤ 2 s **no se cumple** con L40S. El detalle, con la curva de usuarios contra latencia, está en la lección «Concurrencia: la curva de usuarios contra latencia».
+Y hay más: mientras la GPU hace el prefill de una pregunta nueva, las conversaciones que ya escriben se frenan. La cuenta completa de la herramienta de sizing (con cómputo y ancho de banda) dice que, con prefills de 6,000 tokens llegando, una L40S solo mantiene **2** conversaciones a ≥ 20 tokens/s. Para las ≈ 5.6 del despacho en promedio hacen falta **3 L40S** (5.6 ÷ 2, hacia arriba), y aun así el tiempo al primer token queda en ≈ 2.4 s: el objetivo de ≤ 2 s **no se cumple** con L40S. Y si se quiere que las 8 de diseño vayan todas a ≥ 20 tokens/s, como pide el criterio en la prueba de carga, la misma cuenta da 4 (8 ÷ 2). El detalle, con la curva de usuarios contra latencia, está en la lección «Concurrencia: la curva de usuarios contra latencia».
 
 :::ojo
 La memoria dice cuántas **caben**; el cómputo y el ancho de banda, cuántas se atienden **bien**. «Caben 8 en 1 L40S» es cierto y no basta: con lo que pide el despacho, 1 L40S no alcanza.
@@ -301,7 +310,7 @@ La memoria dice cuántas **caben**; el cómputo y el ancho de banda, cuántas se
 
 Esto no es un error del proyecto: es el recorrido funcionando. El sizing encontró que lo que se pidió en descubrimiento no cabe en el hardware candidato, y toca **regresar** a descubrimiento a decidir con el cliente: una GPU con más cómputo, menos tokens de entrada (menos fragmentos por pregunta, o más cortos) o aflojar el objetivo de tiempo al primer token. Esa decisión, con su costo, se toma en el caso del despacho; aquí lo que importa es ver la vuelta.
 
-Qwen3 32B es el candidato, no la decisión: también se evaluarán Mistral Small 24B, Qwen3 30B-A3B (un modelo MoE) y Llama 3.3 70B. Cómo se eligen y qué licencia trae cada uno son las lecciones «Elegir un modelo para la tarea» y «Open weight, open source y licencias». Qwen3 32B, por ejemplo, viene con licencia Apache 2.0.
+Qwen3 32B es el candidato, no la decisión: también se evaluarán Mistral Small 24B, Qwen3 30B-A3B (un modelo [[moe|MoE]], que usa solo una parte de sus parámetros en cada token) y Llama 3.3 70B. Cómo se eligen y qué licencia trae cada uno son las lecciones «Elegir un modelo para la tarea» y «Open weight, open source y licencias». Qwen3 32B, por ejemplo, viene con licencia Apache 2.0.
 
 ## Compra: rentar primero, comprar después {Buying: rent first, buy later}
 
@@ -317,7 +326,7 @@ Rentar una GPU en la nube significa que los documentos del piloto **salen** de l
 
 ### El tiempo de entrega
 
-El [[tiempo-de-entrega|tiempo de entrega]] (*lead time*) es lo que pasa entre pedir el equipo y tenerlo funcionando: fabricarlo, armarlo, enviarlo, importarlo e instalarlo. En 2026 se alargó. En junio de 2026, Dell y HPE dijeron que la escasez de memoria era su principal restricción: Dell dijo que la demanda superaba la oferta y que recotizaba casi a diario, y HPE, que coordinaba los tiempos de entrega con sus clientes (Supply Chain Dive, 11 de junio de 2026). En febrero, la guía de compra de ServeTheHome ya decía que los tiempos de entrega estaban estirados y que hasta conseguir una cotización válida por 30 días era difícil.
+El [[tiempo-de-entrega|tiempo de entrega]] (*lead time*) es lo que pasa entre pedir el equipo y tenerlo funcionando: fabricarlo, armarlo, enviarlo, importarlo e instalarlo. En 2026 se alargó, sobre todo por la escasez de memoria (los chips de RAM que lleva cada servidor). A finales de mayo de 2026, Dell dijo que la demanda superaba la oferta, que la memoria era su principal restricción y que recotizaba casi a diario; HPE reconoció que coordinaba los tiempos de entrega con sus clientes (Supply Chain Dive, 11 de junio de 2026). En febrero, la guía de compra de ServeTheHome ya decía que los tiempos de entrega estaban estirados y que hasta conseguir una cotización válida por 30 días era difícil.
 
 No hay una cifra oficial única. Circulan números de muchas semanas para las GPUs más nuevas que ningún fabricante ha confirmado. Lo honesto con un cliente es esto: **pueden ser semanas o meses; pregunta al proveedor y pide la fecha por escrito.** Y planear para eso: si el piloto termina y el equipo no ha llegado, la GPU rentada sigue mientras tanto.
 
@@ -335,9 +344,9 @@ Las seis capas del despacho, con la lección donde se ve cada una a fondo.
 
 **1 · Hardware.** El servidor con sus GPUs (el candidato de hoy: L40S de 48 GB, 3 según el sizing completo), su CPU, su RAM, su disco y su red. Si el cuarto se calienta o falla la luz, todo lo de arriba se cae. Lecciones: «Comprar hardware: de la workstation al rack» y «El cuarto: energía, enfriamiento y red».
 
-**2 · Sistema y drivers.** Linux, el driver de NVIDIA y CUDA (la plataforma con que los programas usan la GPU), y casi siempre contenedores para empacar lo de arriba. Es la capa más frágil en actualizaciones: un driver que no corresponde con la versión de CUDA que espera el servidor de inferencia y no arranca nada. Para el TI del despacho, que sabe de Windows, es la capa más nueva. Lección: «Seguridad: aislamiento, sin internet y actualizaciones».
+**2 · Sistema y drivers.** Linux, el driver de NVIDIA (el programa que deja al sistema operativo hablar con la GPU) y CUDA (la plataforma con que los programas usan la GPU), y casi siempre contenedores: paquetes que llevan un programa con todo lo que necesita, para que corra igual en cualquier máquina. Es la capa más frágil en actualizaciones: basta un driver que no corresponda con la versión de CUDA que espera el servidor de inferencia para que no arranque nada. Para el TI del despacho, que sabe de Windows, es la capa más nueva. Lección: «Seguridad: aislamiento, sin internet y actualizaciones».
 
-**3 · Servidor de inferencia.** El programa que carga el modelo en la GPU y atiende a muchas conversaciones a la vez, juntándolas para aprovechar la GPU. Es el corazón técnico: decide cuántas caben y qué tan rápido va cada una. Lecciones: «Batching continuo y PagedAttention» y «Del laptop al servidor: llama.cpp, Ollama, vLLM, SGLang y TensorRT-LLM».
+**3 · Servidor de inferencia.** *Inferencia* es usar un modelo ya entrenado para contestar. El servidor de inferencia es el programa que carga el modelo en la GPU y atiende a muchas conversaciones a la vez, juntándolas para aprovechar la GPU. Es el corazón técnico: decide cuántas caben y qué tan rápido va cada una. Lecciones: «Batching continuo y PagedAttention» y «Del laptop al servidor: llama.cpp, Ollama, vLLM, SGLang y TensorRT-LLM».
 
 **4 · La API.** La ventanilla por donde los programas le preguntan al modelo. Se usa casi siempre una API compatible con la de OpenAI, para que cualquier herramienta que ya sepa hablar con OpenAI hable con el servidor propio. Delante va un *gateway* que pide usuario y llave, registra quién preguntó qué y reparte entre modelos. Lección: «Gateway, API compatible con OpenAI y varios modelos».
 
@@ -353,13 +362,13 @@ Cimientos (hardware), estructura e instalaciones (sistema y drivers), el elevado
 
 ## Evals: demostrar que sirve {Evals: proving it works}
 
-Las evals responden dos preguntas distintas, y las dos se contestan contra el criterio de aceptación que se firmó en descubrimiento.
+Las *evals* (evaluaciones) son las pruebas que dicen, con números, si el sistema sirve. Responden dos preguntas distintas, y las dos se contestan contra el criterio de aceptación que se firmó en descubrimiento.
 
 ### ¿Contesta bien?
 
 Se le dan al sistema las **200 preguntas reales** del despacho, escritas por sus abogados con su respuesta correcta y su cita, y se cuenta cuántas contesta bien. Tres reglas:
 
-- **Preguntas del cliente, no de internet.** Un modelo puede brillar en un examen público y fallar con contratos mexicanos. Los benchmarks públicos sirven para elegir candidatos; el examen del despacho decide. Lo ves en «Elegir un modelo para la tarea».
+- **Preguntas del cliente, no de internet.** Un modelo puede brillar en un examen público y fallar con contratos mexicanos. Esos exámenes públicos, iguales para todos los modelos, se llaman *benchmarks*: sirven para elegir candidatos; el examen del despacho decide. Lo ves en «Elegir un modelo para la tarea».
 - **Se evalúa el sistema completo**, búsqueda y modelo juntos. Si falla, hay que saber dónde: ¿no encontró el fragmento o lo encontró y contestó mal?
 - **El examen se guarda** y se repite con cada cambio. Es lo que en la lección «Demostrar que el modelo abierto sirve» se llama un *golden set*, junto con cómo se califica a escala.
 
@@ -386,7 +395,7 @@ El día 1 se instala. El [[operacion|día 2]] son todos los demás, y suele cost
 
 **Actualizaciones.** Del modelo (sale Qwen nuevo), del servidor de inferencia (versión nueva, a veces con valores por omisión distintos), de los drivers y del sistema. Cada una se prueba primero contra el examen de 200 preguntas y la prueba de carga: esa es la flecha de regreso a evals del diagrama. Lección: «Seguridad: aislamiento, sin internet y actualizaciones».
 
-**Respaldos.** De lo que costaría rehacer: el índice de búsqueda de los expedientes, la configuración del servidor, el archivo exacto del modelo que pasó el examen (con su huella, para saber que es el mismo), el examen y los registros de quién preguntó qué, que en un despacho pueden importar.
+**Respaldos.** De lo que costaría rehacer: el índice de búsqueda de los expedientes, la configuración del servidor, el archivo exacto del modelo que pasó el examen (con su huella, un código corto que cambia si cambia un solo byte del archivo, para saber que es el mismo), el examen y los registros de quién preguntó qué, que en un despacho pueden importar.
 
 **Quién atiende cuando falla.** El TI del despacho son 2 personas que saben de redes y Windows y nunca han operado una GPU. No es un defecto: es un dato del diseño. Pide tres cosas:
 
@@ -410,7 +419,7 @@ La [[prueba-piloto|prueba piloto]] es una prueba corta, con fecha de fin, usuari
 | 7 | Rehacer el sizing con lo medido; cotizar el equipo | Informe: ¿pasa el criterio?, sizing final, cotización con fecha de entrega |
 | 8 | Decisión del despacho | Seguir y comprar, regresar o detener |
 
-La GPU se renta de la semana 2 a la 7: **6 semanas**. Para el piloto basta una L40S, aunque la operación completa pida 3: 20 abogados con el mismo uso son 20 × 15 ÷ 10 × 2.5 ÷ 3,600 × 27 ≈ 0.56 conversaciones a la vez, y lo que se mide es cuántas atiende bien cada GPU. ¿Cuánto cuesta? Depende de si se deja prendida todo el tiempo o solo en horario de oficina.
+La GPU se renta de la semana 2 a la 7: **6 semanas**. Para el piloto basta una L40S, aunque la operación completa pida 3: 20 abogados con el mismo uso son 20 × 15 ÷ 10 × 2.5 ÷ 3,600 × 27 ≈ 0.56 conversaciones a la vez, y lo que se mide es cuántas atiende bien cada GPU. En la misma GPU rentada se prueban las salidas que dejó abierta la vuelta del sizing, como pasar menos fragmentos por pregunta, y se ve si la calidad aguanta. ¿Cuánto cuesta? Depende de si se deja prendida todo el tiempo o solo en horario de oficina.
 
 :::formula El costo de rentar la GPU del piloto
 C = H × p
@@ -420,13 +429,16 @@ C = H × p
 :::
 
 :::cuenta Una L40S rentada 6 semanas
-Precio por hora, \(p\) // AWS g6e.xlarge, 1 L40S, us-east-1, on-demand: US$1.861 (archivo de GPUs de la app, consultado el 2026-11-13, precio oficial de AWS) | 1.861 | US$1.861
+Precio por hora, \(p\) // AWS g6e.xlarge, 1 L40S, us-east-1, on-demand (por hora, sin compromiso de plazo): US$1.861 (archivo de GPUs de la app, consultado el 2026-11-13, precio oficial de AWS) | 1.861 | US$1.861
 Prendida todo el tiempo, \(H\) // 6 semanas × 168 horas | 6 × 168 | 1,008 h
 Costo, \(C\) | 1,008 × 1.861 | **≈ US$1,876**
 Solo en horario de oficina // 10 h × 5 días × 6 semanas = 300 h | 300 × 1.861 | **≈ US$558**
-En una neocloud // RunPod Secure Cloud, US$1.09 por hora (misma fecha y archivo, página oficial de RunPod), todo el tiempo | 1,008 × 1.09 | ≈ US$1,099
-= Entre ≈ US$300 y ≈ US$1,900 de GPU para decidir con datos una compra mucho mayor. Los precios cambian: revísalos el día que cotices.
+En una neocloud, todo el tiempo // RunPod Secure Cloud, US$1.09 por hora (misma fecha y archivo, página oficial de RunPod) | 1,008 × 1.09 | ≈ US$1,099
+En la neocloud, solo en horario // las mismas 300 h | 300 × 1.09 | ≈ US$327
+= Entre ≈ US$330 y ≈ US$1,900 de GPU para decidir con datos una compra mucho mayor. Los precios cambian: a noviembre de 2026 son estos; revísalos el día que cotices.
 :::
+
+Una *neocloud* es un proveedor que renta casi solo GPUs, más baratas por hora que en las nubes grandes y con menos servicios alrededor; lo viste en [Qué es la nube](https://sensei.trueml.app/nube/).
 
 Dos letras chicas. Primero, `us-east-1` es Virginia, en Estados Unidos: el piloto ahí manda documentos fuera de México, y eso entra en la plática con el abogado de la sección «Compra». Segundo, apagar la GPU fuera de horario ahorra, pero alguien tiene que prenderla cada mañana (o un programa que lo haga), y una instancia apagada puede seguir cobrando su disco. La diferencia entre la hora facturada y la hora trabajando la viste en «Máquinas, GPUs y cómo se cobran».
 
@@ -507,7 +519,7 @@ El recorrido no es nuevo. Así se compra un sistema de nómina, se instala un co
 - Preguntas al día: 300 × 15 = 4,500.
 - Por hora: 4,500 ÷ 10 = 450; en el pico: 450 × 2.5 = 1,125.
 - \(λ\) = 1,125 ÷ 3,600 ≈ **0.31 por segundo**.
-- \(u\) = 0.3125 × 27 ≈ **8.4 a la vez**; con margen de 1.4, ⌈11.8⌉ = 12 de diseño. Ya ni por memoria caben en una L40S con 8,192 tokens cada una (caben 10), y por velocidad harían falta todavía más GPUs que las 3 de hoy.
+- \(u\) = 0.3125 × 27 ≈ **8.4 a la vez**; con margen de 1.4, ⌈11.8⌉ = 12 de diseño. Ya ni por memoria caben en una L40S con 8,192 tokens cada una (caben 10). Y por velocidad, si cada L40S atiende bien ≈ 2, para las 8.4 del promedio harían falta ≈ 5 (8.4 ÷ 2 = 4.2, hacia arriba), en vez de las 3 de hoy.
 
 ? [facil] Ordena estas tareas en las seis etapas: a) medir el tiempo al primer token con 8 conversaciones; b) preguntar cuántas preguntas hace cada abogado al día; c) instalar el driver de NVIDIA; d) pedir la fecha de entrega por escrito; e) calcular las conversaciones a la vez; f) decidir quién contesta el teléfono cuando el servidor se cae.
 b) descubrimiento · e) sizing · d) compra · c) despliegue · a) evals · f) operación.
@@ -532,6 +544,12 @@ Necesita números, la muestra con que se mide y la carga: «Con un examen de 200
 - 8 conversaciones: ≈ 34.36 GB.
 - Total: 19.32 + 34.36 + 2 ≈ **55.68 GB**, contra 43.2 útiles: **no cabe**, faltan ≈ 12.5 GB.
 - Caben ⌊(43.2 − 19.32 − 2) ÷ 4.295⌋ = ⌊5.09⌋ = 5 conversaciones de ese tamaño. Opciones: acotar el contexto, una GPU más grande o dos. Es la puerta «no cabe: acotar».
+
+? [medio] Una de las salidas de la vuelta a descubrimiento: pasar 3 fragmentos de expediente por pregunta en vez de 5. ¿Cuántos tokens de entrada quedan, cuánto tarda el prefill en la L40S con la fórmula de la sección «Sizing» y qué hay que medir antes de aceptarlo?
+- Tokens de entrada: ≈ 400 de instrucciones + ≈ 100 de la pregunta + 3 × 1,000 = **3,500**.
+- \(F\) = 2 × 32.76 × 10⁹ × 3,500 ≈ 2.29 × 10¹⁴ FLOPs.
+- \(t_{prefill}\) = 2.29 × 10¹⁴ ÷ (0.5 × 362 × 10¹²) ≈ **1.27 s**: queda debajo de los 2 s del objetivo, con la GPU libre.
+- Lo que hay que medir: si la calidad aguanta. Con menos fragmentos es más probable que la página correcta no llegue al modelo, y entonces no la puede citar. Se corre el examen de 200 preguntas con 3 fragmentos y se compara contra el criterio (≥ 85 %) antes de aceptar el cambio.
 
 ? [medio] La clínica de «En la vida real»: 60 médicos, 20 resúmenes al día cada uno, 8 horas, pico de 3 y 20 s por resumen. Haz la servilleta.
 - \(Q\) = 60 × 20 = 1,200 al día; por hora, 1,200 ÷ 8 = 150; en el pico, 150 × 3 = 450.

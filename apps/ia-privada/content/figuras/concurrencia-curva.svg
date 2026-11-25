@@ -58,7 +58,7 @@
 <text class="f-s" x="279.6" y="428" text-anchor="middle" style="font-size:12px">200</text>
 <text class="f-s" x="334" y="428" text-anchor="middle" style="font-size:12px">250</text>
 <line x1="62" y1="380" x2="334" y2="380" style="stroke:var(--ink);stroke-width:1.5;stroke-dasharray:4 3"/>
-<text class="f-s" x="334" y="400" text-anchor="end" style="font-size:12px">línea: 20 tok/s, la meta del despacho</text>
+<text class="f-s" x="334" y="400" text-anchor="end" style="font-size:12px">20 tok/s: la meta</text>
 <polyline points="63.1,302.6 67.4,309.4 89.2,329.3 116.4,346.4 170.8,366 225.2,376.2 279.6,382.9 334,386.1" style="fill:none;stroke:var(--b);stroke-width:2.5"/>
 <circle cx="63.1" cy="302.6" r="3.2" style="fill:var(--b)"/>
 <circle cx="67.4" cy="309.4" r="3.2" style="fill:var(--b)"/>

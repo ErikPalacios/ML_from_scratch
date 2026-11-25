@@ -395,7 +395,7 @@ function portada() {
 </section>
 <section class="home-sec" id="lecciones" aria-labelledby="h-lec">
   <h2 id="h-lec">Lecciones</h2>
-  <p>Cada concepto explicado desde cero, con el estándar de Sensei: diagramas, figuras, calculadoras y ejercicios con solución. No repiten lo que Sensei ya explica: cada módulo dice qué lecciones de Sensei da por leídas y desde ahí va más a fondo. Todavía no hay ninguna publicada; cada módulo dice en qué fase llega.</p>
+  <p>Cada concepto explicado desde cero, con el estándar de Sensei: diagramas, figuras, calculadoras y ejercicios con solución. No repiten lo que Sensei ya explica: cada módulo dice qué lecciones de Sensei da por leídas y desde ahí va más a fondo. ${LECCIONES.length ? `Van ${LECCIONES.length} de ${ORDEN.length}; los módulos que faltan dicen en qué fase llegan.` : 'Todavía no hay ninguna publicada; cada módulo dice en qué fase llega.'}</p>
   <ol class="mods">${mods}</ol>
 </section>
 <section class="home-sec" id="casos" aria-labelledby="h-casos">

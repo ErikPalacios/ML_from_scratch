@@ -155,7 +155,7 @@
       "id": "sizing",
       "dato": "Resultado del sizing con L40S",
       "valor": "3 × L40S",
-      "nota": "Herramienta de sizing: 5.2–5.6 conversaciones a la vez; por memoria caben 8 por L40S con el tope de 8,192 tokens (≈ 12 con el largo típico de ≈ 6,500), pero con los prefills de 6,000 tokens solo 2 mantienen ≥ 20 tokens/s → 3 L40S, y aun así TTFT ≈ 2.4 s. La lección: la memoria dice cuántas caben; el cómputo y el ancho de banda dicen cuántas se atienden bien."
+      "nota": "Herramienta de sizing: 5.2–5.6 conversaciones a la vez; por memoria caben 8 por L40S con el tope de 8,192 tokens (≈ 12 con el largo típico de ≈ 6,500), pero con los prefills de 6,000 tokens solo 2 mantienen ≥ 20 tokens/s → 3 L40S, y aun así TTFT ≈ 2.4 s. La lección: la memoria dice cuántas caben; el cómputo y el ancho de banda dicen cuántas se atienden bien. Matiz: 3 L40S cubren el promedio de 5.6 conversaciones a la vez; para que las 8 de diseño vayan todas a ≥ 20 tokens/s (lo que pide la prueba de carga del criterio) hacen falta 4 (8 ÷ 2)."
     },
     {
       "id": "examen",
@@ -173,6 +173,13 @@
       "dato": "Prueba piloto",
       "valor": "8 semanas, 20 abogados; la GPU rentada de la semana 2 a la 7 (6 semanas)",
       "nota": "El calendario semana a semana es un supuesto del ejemplo."
+    },
+    {
+      "id": "margen_diseno",
+      "dato": "Margen de diseño",
+      "valor": "≈ 1.4",
+      "unidad": "veces",
+      "nota": "8 conversaciones de diseño ÷ 5.6 en promedio en la hora pico."
     }
   ]
 }
