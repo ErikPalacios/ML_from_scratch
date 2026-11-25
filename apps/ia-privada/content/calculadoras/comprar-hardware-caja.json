@@ -1,0 +1,66 @@
+{
+  "titulo": "Armar el equipo: precio y potencia",
+  "intro": "Junta las cuentas de la lección: lo que cuesta el equipo, \\(C = S + n × K + n × L × a\\), y si la fuente aguanta, \\(P_{eq} = n × P_{GPU} + P_{resto}\\) contra \\(P_{fuente} = (N_f − N_r) × P_f(V)\\). Elige una caja y una tarjeta (sus datos salen de gpus.json) o mueve los controles. Arranca con el servidor 4U de Exxact a 127 V y 3 L40S.",
+  "preajustes": [
+    {
+      "label": "Caja",
+      "inicial": 0,
+      "opciones": [
+        { "label": "Servidor 4U Exxact sin GPUs, a 127 V", "valores": { "S": 40461.3, "Nf": 4, "Nr": 1, "Pf": 1000, "Pr": 400 },
+          "nota": "Exxact TensorEX 4U, 2× AMD EPYC 9124 y 384 GB de RAM, configuración Essential sin GPU: US$40,461.30 (equipos.json, 2026-11-25). Fuentes 4 × 3,000 W en 3 + 1, que entregan 1,000 W cada una a 100–127 V. El resto del equipo, 400 W, es el supuesto de la herramienta de TCO." },
+        { "label": "El mismo servidor, a 220 V", "valores": { "S": 40461.3, "Nf": 4, "Nr": 1, "Pf": 2600, "Pr": 400 },
+          "nota": "Las mismas fuentes entregan 2,600 W cada una a 200–220 V (equipos.json)." },
+        { "label": "Torre de workstation (supuesto)", "valores": { "S": 9076, "Nf": 1, "Nr": 0, "Pf": 1600, "Pr": 350 },
+          "nota": "Precio «desde» de una Bizon X5500 G2 sin GPU profesional, US$9,076 (2026-11-25). La fuente de 1,600 W y los 350 W del resto son supuestos. Una torre solo acepta tarjetas activas: la L40S es pasiva." }
+      ]
+    },
+    {
+      "label": "Tarjeta (datos de gpus.json)",
+      "datos": "gpus",
+      "inicial": "l40s",
+      "ids": ["l40s", "rtx-pro-6000-blackwell", "rtx-6000-ada", "h100-pcie", "h100-nvl", "radeon-pro-w7900", "radeon-ai-pro-r9700", "rtx-5090", "rtx-4090", "l4"],
+      "campos": { "K": "compra_usd", "Wg": "potencia_w", "M": "vram_gb" }
+    }
+  ],
+  "entradas": [
+    { "id": "n", "label": "Tarjetas, \\(n\\)", "min": 1, "max": 10, "paso": 1, "valor": 3 },
+    { "id": "K", "label": "Precio de cada tarjeta, \\(K\\), en US$ (Exxact cobra US$8,910 por L40S)", "min": 0, "max": 1000000, "paso": 1, "valor": 9005.4, "tipo": "numero" },
+    { "id": "M", "label": "VRAM de cada tarjeta", "unidad": "GB", "min": 1, "max": 2000, "paso": 1, "valor": 48, "tipo": "numero" },
+    { "id": "Wg", "label": "TDP de cada tarjeta, \\(P_{GPU}\\)", "unidad": "W", "min": 0, "max": 2000, "paso": 1, "valor": 350, "tipo": "numero" },
+    { "id": "S", "label": "La caja sin GPUs, \\(S\\), en US$ (chasis, CPUs, RAM, discos y fuentes)", "min": 0, "max": 500000, "paso": 1, "valor": 40461.3, "tipo": "numero" },
+    { "id": "Pr", "label": "El resto del equipo, \\(P_{resto}\\) (CPUs, RAM, discos, ventiladores)", "unidad": "W", "min": 0, "max": 5000, "paso": 50, "valor": 400 },
+    { "id": "Nf", "label": "Fuentes de poder, \\(N_f\\)", "min": 1, "max": 12, "paso": 1, "valor": 4 },
+    { "id": "Nr", "label": "Fuentes de repuesto (redundancia), \\(N_r\\)", "min": 0, "max": 6, "paso": 1, "valor": 1 },
+    { "id": "Pf", "label": "Lo que entrega cada fuente al voltaje de tu contacto, \\(P_f(V)\\)", "unidad": "W", "min": 100, "max": 5000, "paso": 50, "valor": 1000 },
+    { "id": "u0", "label": "Carga máxima que aceptas en las fuentes (supuesto prudente: 0.8)", "min": 0.5, "max": 1, "paso": 0.05, "valor": 0.8 },
+    { "id": "L", "label": "Licencia de software por GPU y año, \\(L\\), en US$ (NVIDIA AI Enterprise: 4,500 a 1 año; 3,600 al año en el plan de 5)", "min": 0, "max": 20000, "paso": 100, "valor": 0, "tipo": "numero" },
+    { "id": "a", "label": "Años de licencia, \\(a\\)", "min": 0, "max": 5, "paso": 1, "valor": 5 }
+  ],
+  "calculos": [
+    { "id": "hw", "formula": "S + n * K" },
+    { "id": "C", "formula": "hw + n * L * a" },
+    { "id": "Peq", "formula": "n * Wg + Pr" },
+    { "id": "Pfu", "formula": "max(0, Nf - Nr) * Pf" },
+    { "id": "u", "formula": "Pfu > 0 ? Peq / Pfu : 1 / 0" }
+  ],
+  "salidas": [
+    { "label": "1 · El equipo, sin licencia", "formula": "hw", "formato": "int", "barra": true,
+      "nota": "US$ sin impuestos ni envío: \\(S + n × K\\)",
+      "cuenta": "US${{S|corto|2}} + {{n|int}} × US${{K|corto|2}} = **US${{hw|int}}**" },
+    { "label": "2 · Con la licencia de software", "formula": "C", "formato": "int", "barra": true,
+      "nota": "\\(C = S + n × K + n × L × a\\); la licencia es opcional",
+      "cuenta": "US${{hw|int}} + {{n|int}} × US${{L|int}} × {{a|int}} años = **US${{C|int}}**" },
+    { "label": "3 · VRAM del equipo", "formula": "n * M", "formato": "int", "nota": "GB",
+      "cuenta": "{{n|int}} × {{M|corto}} GB = **{{n * M|int}} GB**, a US${{hw / (n * M)|num|0}} por GB con todo el equipo" },
+    { "label": "4 · Lo que pide el equipo, \\(P_{eq}\\)", "formula": "Peq", "formato": "int", "nota": "W",
+      "cuenta": "{{n|int}} × {{Wg|int}} W + {{Pr|int}} W = **{{Peq|int}} W**" },
+    { "label": "5 · Lo que entregan las fuentes que trabajan, \\(P_{fuente}\\)", "formula": "Pfu", "formato": "int", "nota": "W, sin contar las de repuesto",
+      "cuenta": "({{Nf|int}} − {{Nr|int}}) × {{Pf|int}} W = **{{Pfu|int}} W**" },
+    { "label": "6 · Carga de las fuentes, \\(u\\)", "formula": "u", "formato": "pct", "barra": true, "sin_valor": "Sin fuente",
+      "cuenta": "{{Peq|int}} W ÷ {{Pfu|int}} W = **{{u * 100|num|0}} %**" },
+    { "label": "¿Aguanta la fuente?", "formula": "u0 * Pfu - Peq",
+      "veredicto": { "si": "Sí aguanta", "no": "No aguanta" },
+      "cuenta": "{{u0|corto}} × {{Pfu|int}} W − {{Peq|int}} W = {{u0 * Pfu - Peq|int}} W de margen (negativo: falta fuente o voltaje)" }
+  ],
+  "nota": "Lo que no cuenta: si la caja acepta esa tarjeta (pasiva o activa, número de ranuras, certificación), la garantía y el tiempo de entrega. Esas se preguntan al integrador. Cuántos amperes jala del contacto y cuánto aire acondicionado hace falta lo ve la lección del cuarto."
+}

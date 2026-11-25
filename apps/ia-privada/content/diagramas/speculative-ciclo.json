@@ -1,0 +1,41 @@
+{
+  "titulo": "Un ciclo de speculative decoding: proponer barato, verificar una vez",
+  "width": 78,
+  "height": 46,
+  "lanes": [
+    { "id": "proponer", "label": "Proponer (barato)", "kind": "offline", "x": 0, "y": 0, "w": 78, "h": 16 },
+    { "id": "verificar", "label": "Verificar y decidir (una pasada del grande)", "kind": "online", "x": 0, "y": 19, "w": 78, "h": 27 }
+  ],
+  "nodes": [
+    { "id": "ctx", "label": "Lo escrito hasta ahora", "sub": "prompt + respuesta", "kind": "store", "x": 2, "y": 5, "w": 20, "h": 8,
+      "note": "El prompt de la abogada (≈ 6,000 tokens en el despacho) y los tokens de la respuesta que ya salieron. El [[kv-cache|KV cache]] del modelo grande guarda lo que recuerda de cada uno." },
+    { "id": "borr", "label": "Borrador", "sub": "propone γ = 3 tokens", "kind": "model", "x": 30, "y": 5, "w": 18, "h": 8,
+      "note": "El [[modelo-borrador|borrador]]: algo mucho más barato que el modelo grande (un modelo chico, una cabeza [[eagle|EAGLE]] o una búsqueda en el prompt). Escribe γ tokens uno tras otro, como un decode normal pero en una fracción \\(c\\) del tiempo." },
+    { "id": "grande", "label": "Modelo grande", "sub": "verifica γ + 1 posiciones", "kind": "gpu", "x": 58, "y": 5, "w": 18, "h": 8,
+      "note": "Una sola pasada del modelo grande sobre los γ tokens propuestos, como un [[prefill|prefill]] chiquito: lee los 19.32 GB de pesos **una vez** y saca su probabilidad para cada posición, más una de regalo después de la última. Es la [[verificacion-en-paralelo|verificación en paralelo]]." },
+    { "id": "regla", "label": "Regla de aceptación", "sub": "acepta con min(1, p ÷ q)", "kind": "service", "x": 58, "y": 26, "w": 18, "h": 8,
+      "note": "Recorre las propuestas en orden. Cada una se acepta con probabilidad min(1, p ÷ q), donde p es lo que daba el grande y q lo que daba el borrador. En el primer rechazo se detiene y saca un token de la diferencia entre las dos distribuciones. Así la respuesta sale **con la misma distribución** que sin borrador." },
+    { "id": "abogada", "label": "Abogada", "sub": "recibe de 1 a γ + 1 tokens", "kind": "client", "x": 30, "y": 26, "w": 18, "h": 8,
+      "note": "En cada ciclo le llegan los tokens aceptados más uno que escribe el grande: al menos 1 (si rechaza el primero) y a lo más γ + 1 (si acepta todos). El promedio lo da la [[tasa-de-aceptacion|tasa de aceptación]]." },
+    { "id": "recorta", "label": "Recortar el KV", "sub": "tira lo rechazado", "kind": "job", "x": 2, "y": 26, "w": 20, "h": 8,
+      "note": "Las posiciones rechazadas ya se habían calculado en la verificación: su K y su V se descartan del [[kv-cache|KV cache]] (en el grande y en el borrador) y el siguiente ciclo arranca desde el último token bueno." }
+  ],
+  "edges": [
+    { "from": "ctx", "to": "borr", "kind": "offline", "label": "últimos tokens", "fromSide": "r", "toSide": "l" },
+    { "from": "borr", "to": "grande", "kind": "offline", "label": "3 propuestas", "fromSide": "r", "toSide": "l" },
+    { "from": "grande", "to": "regla", "kind": "online", "label": "p en cada posición", "fromSide": "b", "toSide": "t" },
+    { "from": "regla", "to": "abogada", "kind": "online", "label": "aceptados + 1", "fromSide": "l", "toSide": "r" },
+    { "from": "abogada", "to": "recorta", "kind": "neutral", "fromSide": "l", "toSide": "r" },
+    { "from": "recorta", "to": "ctx", "kind": "neutral", "label": "siguiente ciclo", "fromSide": "t", "toSide": "b" }
+  ],
+  "flows": [
+    { "id": "ciclo", "label": "Un ciclo con «según la cláusula 14»",
+      "steps": [
+        { "nodes": ["ctx", "borr"], "edges": ["ctx>borr"], "text": "La respuesta va en «…según». El borrador mira los últimos tokens y propone tres: **«la», «cláusula», «15»**. Le cuesta tres pasos chiquitos, ≈ 5 % de un paso del grande cada uno (\\(c\\) = 0.05, supuesto)." },
+        { "nodes": ["borr", "grande"], "edges": ["borr>grande"], "text": "El modelo grande recibe las tres propuestas y las calcula **juntas en una pasada**: lee sus pesos una vez, como si fuera un prefill de 3 tokens. Con una conversación del despacho esa pasada tarda lo mismo que un paso normal, ≈ 34.7 ms." },
+        { "nodes": ["grande", "regla"], "edges": ["grande>regla"], "text": "De esa pasada salen 4 distribuciones: qué escribiría el grande después de «según», después de «según la», de «según la cláusula» y de «según la cláusula 15». La regla compara cada propuesta con lo que el grande habría hecho." },
+        { "nodes": ["regla", "abogada"], "edges": ["regla>abogada"], "text": "Acepta «la» y «cláusula». Rechaza «15»: el grande casi seguro habría escrito otro número. En su lugar saca **«14»** de su propia distribución. La abogada recibe 3 tokens de un ciclo que costó ≈ 1.15 pasos." },
+        { "nodes": ["abogada", "recorta", "ctx"], "edges": ["abogada>recorta", "recorta>ctx"], "text": "La K y la V calculadas para «15» se tiran. El contexto ahora termina en «…según la cláusula 14» y el ciclo empieza otra vez. Si el borrador hubiera atinado las tres, habrían salido 4 tokens: las tres y la de regalo." }
+      ] }
+  ]
+}

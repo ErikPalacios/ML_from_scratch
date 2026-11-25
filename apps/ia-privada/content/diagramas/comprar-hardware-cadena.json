@@ -1,0 +1,65 @@
+{
+  "titulo": "Del chip al cuarto de TI: quién pone qué",
+  "width": 78,
+  "height": 76,
+  "lanes": [
+    { "id": "fabrica", "label": "Quién hace la GPU", "kind": "neutral", "x": 0, "y": 0, "w": 78, "h": 18 },
+    { "id": "arma", "label": "Quién hace y arma el equipo", "kind": "offline", "x": 0, "y": 20, "w": 78, "h": 32 },
+    { "id": "usa", "label": "Quién lo usa", "kind": "online", "x": 0, "y": 54, "w": 78, "h": 22 }
+  ],
+  "nodes": [
+    {
+      "id": "chip", "label": "Fabricante del chip", "sub": "NVIDIA · AMD · Apple", "badge": "1", "kind": "external",
+      "x": 4, "y": 5, "w": 22, "h": 9,
+      "note": "Diseña la GPU y vende tarjetas, placas de 8 ([[hgx|HGX]] u [[oam|OAM]]) o equipos completos (Apple, las DGX). Casi nunca le vende directo a una empresa mediana."
+    },
+    {
+      "id": "software", "label": "Software", "sub": "driver · CUDA · licencia", "badge": "2", "kind": "store",
+      "x": 52, "y": 5, "w": 22, "h": 9,
+      "note": "El driver y [[cuda|CUDA]] se descargan sin costo. NVIDIA AI Enterprise es una licencia **por GPU**, opcional, con soporte del fabricante: US$18,000 por 5 años de lista."
+    },
+    {
+      "id": "oem", "label": "OEM", "sub": "Dell · HPE · Lenovo · Supermicro", "badge": "3", "kind": "service",
+      "x": 4, "y": 25, "w": 22, "h": 9,
+      "note": "El [[oem|OEM]] diseña el servidor alrededor de la GPU: tarjeta madre, chasis, fuentes, ventiladores y firmware. Su modelo puede ser un [[sistema-certificado|sistema certificado]] por NVIDIA para esa tarjeta."
+    },
+    {
+      "id": "integrador", "label": "Integrador", "sub": "arma, prueba y garantiza", "badge": "4", "kind": "service",
+      "x": 28, "y": 39, "w": 22, "h": 9,
+      "note": "El [[integrador]] pone las tarjetas, la RAM y los discos que pides, instala sistema y drivers y entrega el equipo probado, con una sola [[garantia-de-hardware|garantía]]. Cobra por tarjeta casi lo de la tienda."
+    },
+    {
+      "id": "revendedor", "label": "Revendedor", "sub": "tarjetas sueltas", "kind": "queue",
+      "x": 52, "y": 25, "w": 22, "h": 9,
+      "note": "Tiendas y mayoristas: tarjetas y servidores nuevos o reacondicionados, casi siempre sin armar. Una L40S nueva en empaque OEM: US$9,005.40 (gpus.json, noviembre de 2026)."
+    },
+    {
+      "id": "despacho", "label": "El despacho", "sub": "2 personas de TI", "badge": "5", "kind": "client",
+      "x": 28, "y": 60, "w": 22, "h": 9,
+      "note": "Recibe un servidor que ya funciona. Sus 2 personas de TI nunca han operado una GPU: lo que compran al integrador es, sobre todo, no tener que armarlo ni adivinar de quién es la culpa cuando algo falla."
+    }
+  ],
+  "edges": [
+    { "from": "chip", "to": "oem", "kind": "offline", "label": "GPUs y placas" },
+    { "from": "chip", "to": "software", "kind": "neutral", "label": "publica" },
+    { "from": "oem", "to": "integrador", "kind": "offline", "label": "chasis", "fromSide": "b", "toSide": "l", "via": [[15, 43]] },
+    { "from": "chip", "to": "revendedor", "kind": "neutral", "dashed": true, "label": "tarjetas", "fromSide": "r", "toSide": "t", "via": [[40, 9], [40, 20], [63, 20]] },
+    { "from": "revendedor", "to": "integrador", "kind": "offline", "label": "tarjetas", "fromSide": "b", "toSide": "r", "via": [[63, 43]] },
+    { "from": "integrador", "to": "despacho", "kind": "online", "label": "equipo probado" },
+    { "from": "despacho", "to": "integrador", "kind": "monitor", "dashed": true, "label": "falla: un solo teléfono", "fromSide": "l", "toSide": "l", "via": [[20, 64], [20, 46]] }
+  ],
+  "flows": [
+    {
+      "id": "compra",
+      "label": "La compra del despacho y su primera falla",
+      "steps": [
+        { "nodes": ["chip"], "edges": [], "text": "**El chip.** NVIDIA fabrica la L40S, una tarjeta [[tarjeta-pasiva|pasiva]] de 350 W. No se la vende al despacho." },
+        { "nodes": ["chip", "oem"], "edges": ["chip>oem"], "text": "**El OEM.** Un fabricante de servidores diseña un 2U o 4U con ranuras, aire y fuentes para 4 o más de esas tarjetas, y lo certifica con NVIDIA." },
+        { "nodes": ["chip", "revendedor"], "edges": ["chip>revendedor"], "text": "**El otro camino.** Las tarjetas también llegan a tiendas y mayoristas. Comprarlas ahí no ahorra: cuestan casi lo mismo que lo que cobra el integrador por cada una." },
+        { "nodes": ["oem", "revendedor", "integrador"], "edges": ["oem>integrador", "revendedor>integrador"], "text": "**El integrador.** Junta el chasis y las 3 L40S, instala el sistema y los drivers, y prueba el equipo encendido antes de enviarlo." },
+        { "nodes": ["integrador", "despacho"], "edges": ["integrador>despacho"], "text": "**La entrega.** El despacho recibe el servidor funcionando y lo conecta en su cuarto de TI. El software (driver, CUDA, vLLM) no cuesta; la licencia de NVIDIA AI Enterprise es opcional." },
+        { "nodes": ["despacho", "integrador"], "edges": ["despacho>integrador"], "text": "**La primera falla.** Un año y medio después falla una fuente. Con fuentes redundantes, el servidor sigue. El despacho llama a **un** teléfono; lo que diga la garantía de piezas por escrito decide si la fuente nueva se paga o no." }
+      ]
+    }
+  ]
+}

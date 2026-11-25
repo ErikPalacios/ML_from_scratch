@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 330" role="img" aria-labelledby="f-speculative-aceptacion-t" class="f-svg" style="max-width:420px">
+<title id="f-speculative-aceptacion-t">Gráfica de barras: tokens que salen por cada verificación de Qwen3 32B con el borrador EAGLE-3 de Red Hat, medidos por ellos en resumen de noticias (CNN/DailyMail), según cuántos tokens propone el borrador, de 1 a 7. Medido: 1.62, 1.95, 2.15, 2.23, 2.27, 2.32 y 2.33. Los puntos son la fórmula de Leviathan con una tasa de aceptación de 0.59: 1.59, 1.94, 2.14, 2.26, 2.34, 2.38 y 2.40. Las dos curvas casi coinciden y se aplanan: pasar de 3 a 7 propuestas apenas suma 0.18 tokens por paso.</title>
+<rect class="f-card" x="10" y="10" width="340" height="310" rx="16"/>
+<text class="f-l" x="28" y="36">QWEN3 32B + EAGLE-3 · RESUMEN</text>
+<text class="f-l" x="28" y="56">TOKENS POR VERIFICACIÓN</text>
+<line x1="56" y1="250.0" x2="336" y2="250.0" style="stroke:var(--tm-line);stroke-width:1"/>
+<text class="f-s" x="48" y="254.0" text-anchor="end" style="font-size:12px">0</text>
+<line x1="56" y1="183.3" x2="336" y2="183.3" style="stroke:var(--tm-line);stroke-width:1"/>
+<text class="f-s" x="48" y="187.3" text-anchor="end" style="font-size:12px">1</text>
+<line x1="56" y1="116.7" x2="336" y2="116.7" style="stroke:var(--tm-line);stroke-width:1"/>
+<text class="f-s" x="48" y="120.7" text-anchor="end" style="font-size:12px">2</text>
+<line x1="56" y1="50.0" x2="336" y2="50.0" style="stroke:var(--tm-line);stroke-width:1"/>
+<text class="f-s" x="48" y="54.0" text-anchor="end" style="font-size:12px">3</text>
+<rect class="f-b" x="61" y="142.0" width="30" height="108.0" rx="3"/>
+<text class="f-pill-t" x="76" y="158.0" text-anchor="middle" style="font-size:11px;font-weight:700">1.62</text>
+<circle class="f-y" style="stroke:var(--blk);stroke-width:1.5" cx="76" cy="144.0" r="4"/>
+<text class="f-s" x="76" y="266" text-anchor="middle" style="font-size:12px">1</text>
+<rect class="f-b" x="101" y="120.0" width="30" height="130.0" rx="3"/>
+<text class="f-pill-t" x="116" y="136.0" text-anchor="middle" style="font-size:11px;font-weight:700">1.95</text>
+<circle class="f-y" style="stroke:var(--blk);stroke-width:1.5" cx="116" cy="120.7" r="4"/>
+<text class="f-s" x="116" y="266" text-anchor="middle" style="font-size:12px">2</text>
+<rect class="f-b" x="141" y="106.7" width="30" height="143.3" rx="3"/>
+<text class="f-pill-t" x="156" y="122.7" text-anchor="middle" style="font-size:11px;font-weight:700">2.15</text>
+<circle class="f-y" style="stroke:var(--blk);stroke-width:1.5" cx="156" cy="107.3" r="4"/>
+<text class="f-s" x="156" y="266" text-anchor="middle" style="font-size:12px">3</text>
+<rect class="f-b" x="181" y="101.3" width="30" height="148.7" rx="3"/>
+<text class="f-pill-t" x="196" y="117.3" text-anchor="middle" style="font-size:11px;font-weight:700">2.23</text>
+<circle class="f-y" style="stroke:var(--blk);stroke-width:1.5" cx="196" cy="99.3" r="4"/>
+<text class="f-s" x="196" y="266" text-anchor="middle" style="font-size:12px">4</text>
+<rect class="f-b" x="221" y="98.7" width="30" height="151.3" rx="3"/>
+<text class="f-pill-t" x="236" y="114.7" text-anchor="middle" style="font-size:11px;font-weight:700">2.27</text>
+<circle class="f-y" style="stroke:var(--blk);stroke-width:1.5" cx="236" cy="94.0" r="4"/>
+<text class="f-s" x="236" y="266" text-anchor="middle" style="font-size:12px">5</text>
+<rect class="f-b" x="261" y="95.3" width="30" height="154.7" rx="3"/>
+<text class="f-pill-t" x="276" y="111.3" text-anchor="middle" style="font-size:11px;font-weight:700">2.32</text>
+<circle class="f-y" style="stroke:var(--blk);stroke-width:1.5" cx="276" cy="91.3" r="4"/>
+<text class="f-s" x="276" y="266" text-anchor="middle" style="font-size:12px">6</text>
+<rect class="f-b" x="301" y="94.7" width="30" height="155.3" rx="3"/>
+<text class="f-pill-t" x="316" y="110.7" text-anchor="middle" style="font-size:11px;font-weight:700">2.33</text>
+<circle class="f-y" style="stroke:var(--blk);stroke-width:1.5" cx="316" cy="90.0" r="4"/>
+<text class="f-s" x="316" y="266" text-anchor="middle" style="font-size:12px">7</text>
+<text class="f-s" x="196" y="284" text-anchor="middle" style="font-size:12px">tokens que propone el borrador, γ</text>
+<rect class="f-b" x="28" y="296" width="12" height="12" rx="3"/><text class="f-s" x="46" y="307" style="font-size:12px">medido (Red Hat)</text>
+<circle class="f-y" style="stroke:var(--blk);stroke-width:1.5" cx="190" cy="302" r="5"/><text class="f-s" x="200" y="307" style="font-size:12px">fórmula con α = 0.59</text>
+</svg>

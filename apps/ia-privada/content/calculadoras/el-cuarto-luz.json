@@ -1,0 +1,61 @@
+{
+  "titulo": "Lo que cuesta la luz al mes",
+  "intro": "La energía del mes \\(E = (P_{uso} × h_{uso} + P_{rep} × h_{rep}) × PUE\\) y su costo \\(C = E × p + P_{uso} × PUE × d\\), con las tarifas de CFE para la división Valle de México Centro a partir del 1 de octubre de 2026, en pesos y **antes de IVA**, sin el cargo fijo. Arranca con el despacho: 4 L40S, 220 horas de uso al mes, PUE 2.0 y tarifa GDMTO (supuesto del ejemplo).",
+  "preajustes": [
+    {
+      "label": "Tarifa de CFE (Valle de México Centro, oct-2026)",
+      "inicial": 1,
+      "opciones": [
+        { "label": "PDBT · baja tensión, hasta ≈ 25 kW", "valores": { "p": 3.565, "d": 0 }, "nota": "Suma de transmisión, distribución, CENACE, suministro y generación: ≈ $3.565 por kWh; cargo fijo de $54.05 al mes aparte. DOF, tarifas a partir del 1 de octubre de 2026." },
+        { "label": "GDMTO · media tensión", "valores": { "p": 1.542, "d": 395.29 }, "nota": "≈ $1.542 por kWh de energía más ≈ $395.29 por kW de demanda al mes (distribución 60.82 + capacidad 334.47); cargo fijo de $540.49 aparte. Qué kW factura CFE lo dice el contrato: aquí se aproxima con lo que el servidor y su aire jalan en horas de uso." }
+      ]
+    },
+    {
+      "label": "GPU (datos de gpus.json)",
+      "datos": "gpus",
+      "inicial": "l40s",
+      "campos": { "T": "potencia_w" }
+    }
+  ],
+  "entradas": [
+    { "id": "p", "label": "Precio de la energía, \\(p\\), en pesos por kWh", "min": 0, "max": 10, "paso": 0.001, "valor": 1.542, "tipo": "numero" },
+    { "id": "d", "label": "Precio de la demanda, \\(d\\), en pesos por kW al mes (0 en PDBT)", "min": 0, "max": 1000, "paso": 0.01, "valor": 395.29, "tipo": "numero" },
+    { "id": "T", "label": "TDP de cada GPU, \\(T_{GPU}\\)", "unidad": "W", "min": 0, "max": 2000, "paso": 1, "valor": 350, "tipo": "numero" },
+    { "id": "n", "label": "GPUs en el servidor, \\(n\\)", "min": 1, "max": 10, "paso": 1, "valor": 4 },
+    { "id": "gu", "label": "GPUs en horas de uso, como parte de su TDP (supuesto)", "min": 0.1, "max": 1, "paso": 0.05, "valor": 0.6 },
+    { "id": "gr", "label": "GPUs en reposo, como parte de su TDP (≈ 0.2 medido en otras GPUs)", "min": 0, "max": 1, "paso": 0.05, "valor": 0.2 },
+    { "id": "ru", "label": "Resto del servidor en horas de uso (CPU, RAM, ventiladores; supuesto)", "unidad": "W", "min": 0, "max": 5000, "paso": 50, "valor": 800 },
+    { "id": "rr", "label": "Resto del servidor en reposo (supuesto)", "unidad": "W", "min": 0, "max": 5000, "paso": 50, "valor": 550 },
+    { "id": "hu", "label": "Horas de uso al mes, \\(h_{uso}\\) (10 h × 22 días = 220; de 730)", "min": 0, "max": 730, "paso": 10, "valor": 220 },
+    { "id": "pue", "label": "PUE: lo que gasta el cuarto ÷ lo que gasta el servidor (2.0 cuarto de oficina; 1.56 promedio de centros de datos)", "min": 1, "max": 3, "paso": 0.01, "valor": 2 },
+    { "id": "q", "label": "Preguntas al mes (3,000 al día × 22 días)", "min": 1, "max": 10000000, "paso": 1, "valor": 66000, "tipo": "numero" }
+  ],
+  "calculos": [
+    { "id": "Pu", "formula": "(n * T * gu + ru) / 1000" },
+    { "id": "Pr", "formula": "(n * T * gr + rr) / 1000" },
+    { "id": "hr", "formula": "730 - hu" },
+    { "id": "Es", "formula": "Pu * hu + Pr * hr" },
+    { "id": "E", "formula": "Es * pue" },
+    { "id": "Ce", "formula": "E * p" },
+    { "id": "Cd", "formula": "Pu * pue * d" }
+  ],
+  "salidas": [
+    { "label": "1 · En uso, \\(P_{uso}\\), en kW", "formula": "Pu", "formato": "num", "decimales": 2,
+      "cuenta": "({{n|int}} × {{T|int}} W × {{gu|corto}} + {{ru|int}} W) ÷ 1,000 = **{{Pu|num|2}} kW**" },
+    { "label": "2 · En reposo, \\(P_{rep}\\), en kW", "formula": "Pr", "formato": "num", "decimales": 2,
+      "cuenta": "({{n|int}} × {{T|int}} W × {{gr|corto}} + {{rr|int}} W) ÷ 1,000 = **{{Pr|num|2}} kW**" },
+    { "label": "3 · Energía del servidor solo, en kWh al mes", "formula": "Es", "formato": "int", "barra": true,
+      "cuenta": "{{Pu|num|2}} × {{hu|int}} h + {{Pr|num|2}} × {{hr|int}} h = **{{Es|int}} kWh**" },
+    { "label": "4 · Con el aire, \\(E\\), en kWh al mes", "formula": "E", "formato": "int", "barra": true,
+      "cuenta": "{{Es|int}} kWh × {{pue|corto}} = **{{E|int}} kWh**" },
+    { "label": "5 · Energía, \\(E × p\\), en pesos", "formula": "Ce", "formato": "int",
+      "cuenta": "{{E|int}} kWh × ${{p|corto}} = **${{Ce|int}}**" },
+    { "label": "6 · Demanda, \\(P_{uso} × PUE × d\\), en pesos", "formula": "Cd", "formato": "int",
+      "cuenta": "{{Pu|num|2}} kW × {{pue|corto}} × ${{d|corto}} = **${{Cd|int}}**" },
+    { "label": "Al mes, \\(C\\), en pesos antes de IVA", "formula": "Ce + Cd", "formato": "int",
+      "cuenta": "${{Ce|int}} + ${{Cd|int}} = **${{Ce + Cd|int}}**" },
+    { "label": "Por pregunta, en centavos", "formula": "(Ce + Cd) / q * 100", "formato": "num", "decimales": 1,
+      "cuenta": "${{Ce + Cd|int}} ÷ {{q|int}} preguntas × 100 = **{{(Ce + Cd) / q * 100|num|1}} centavos**" }
+  ],
+  "nota": "Con PDBT, el despacho pagaría ≈ $5,591; con GDMTO, ≈ $3,715. Baja la PUE a 1.56 y mira cuánto se va en el aire de un cuarto de oficina. Sube las horas de uso a 730: la energía crece, pero la demanda no, porque cobra lo más que jalaste, no cuánto rato."
+}

@@ -1,0 +1,135 @@
+{
+ "terminos": [
+  {
+   "id": "speculative-decoding",
+   "termino": "Speculative decoding",
+   "en": "speculative decoding, speculative sampling",
+   "corto": "Un truco para que un LLM escriba varios tokens por cada lectura de sus pesos: algo barato propone los siguientes tokens y el modelo grande los revisa todos en una sola pasada, sin que cambie la respuesta.",
+   "largo": "Lo publicaron casi a la vez Leviathan, Kalman y Matias (Google, 2022–2023) y Chen y otros (DeepMind, 2023). Funciona porque el [[decode|decode]] está [[memory-bound|limitado por memoria]]: verificar 4 tokens en una pasada lee los mismos pesos que escribir uno. Un [[modelo-borrador|borrador]] propone γ tokens, la [[verificacion-en-paralelo|verificación en paralelo]] los califica y una regla de aceptación decide cuántos se quedan. La salida tiene la **misma distribución** que sin el truco. Ayuda con pocas conversaciones a la vez; con un [[batch|batch]] grande que ya ocupa el cálculo, puede frenar.",
+   "analogia": "Una pasante escribe las siguientes palabras de un escrito y la socia las revisa de una sola leída: tacha desde la primera que ella no habría escrito y pone la suya. Se rompe en que la socia no «revisa a ojo»: el resultado es exactamente el que ella habría escrito sola.",
+   "ejemplo": "Qwen3 32B en una L40S con una conversación: un paso normal tarda ≈ 34.7 ms y da 1 token. Con un borrador que acierta el 60 % (α = 0.6) y propone 3, cada ciclo da ≈ 2.18 tokens por ≈ 1.15 pasos: ≈ 1.9 veces más rápido en la cuenta de techo.",
+   "ver": ["modelo-borrador", "tasa-de-aceptacion", "verificacion-en-paralelo", "eagle", "prompt-lookup"],
+   "leccion": "speculative"
+  },
+  {
+   "id": "modelo-borrador",
+   "termino": "Modelo borrador",
+   "en": "draft model, drafter, speculator",
+   "corto": "Lo que propone los tokens en el speculative decoding: algo mucho más barato que el modelo grande, que adivina lo que este va a escribir.",
+   "largo": "Puede ser un modelo chico de la misma familia (que comparta el tokenizador), unas cabezas extra entrenadas sobre el propio modelo ([[eagle|EAGLE]], Medusa, [[mtp|MTP]]) o ni siquiera un modelo: una búsqueda de texto en el prompt ([[prompt-lookup|prompt lookup]]). Lo que importa de él son dos números: su [[tasa-de-aceptacion|tasa de aceptación]] α y su costo relativo c (lo que tarda un paso suyo entre lo que tarda un paso del grande). Un borrador sirve solo para el modelo con el que se entrenó.",
+   "ejemplo": "RedHatAI/Qwen3-32B-speculator.eagle3 es un borrador EAGLE-3 para Qwen3 32B, con licencia Apache 2.0. Con 3 propuestas por ciclo, salen en promedio 2.15 tokens por verificación en resumen de noticias (medición de Red Hat).",
+   "ver": ["speculative-decoding", "tasa-de-aceptacion", "eagle"],
+   "leccion": "speculative"
+  },
+  {
+   "id": "tasa-de-aceptacion",
+   "termino": "Tasa de aceptación",
+   "en": "acceptance rate (α)",
+   "corto": "La probabilidad de que el modelo grande acepte un token que propuso el borrador. Entre más alta, más tokens salen de cada verificación.",
+   "largo": "Leviathan y otros la llaman α y, suponiendo que cada propuesta se acepta con la misma probabilidad, dan los tokens esperados por ciclo: (1 − α^(γ+1)) ÷ (1 − α), donde γ es cuántos propone el borrador. Depende del borrador, del texto (sube cuando la salida es predecible o copia de la entrada) y de cómo se muestrea. Los servidores suelen reportar la **longitud de aceptación**: los tokens que salen en promedio por verificación, de donde se despeja α.",
+   "ejemplo": "Con α = 0.6 y γ = 3: (1 − 0.6⁴) ÷ (1 − 0.6) = 0.8704 ÷ 0.4 ≈ 2.18 tokens por ciclo. Con α = 0.8: ≈ 2.95.",
+   "ver": ["speculative-decoding", "modelo-borrador"],
+   "leccion": "speculative"
+  },
+  {
+   "id": "verificacion-en-paralelo",
+   "termino": "Verificación en paralelo",
+   "en": "parallel verification",
+   "corto": "Calcular en una sola pasada del modelo grande las probabilidades de todas las posiciones que propuso el borrador, como un prefill chiquito.",
+   "largo": "El modelo no puede **escribir** varios tokens a la vez, porque cada uno depende del anterior. Pero sí puede **calificar** varios tokens ya escritos a la vez: es lo que hace en el [[prefill|prefill]]. Con γ propuestas, la pasada calcula γ + 1 distribuciones (una más de regalo al final). Mientras el paso esté [[memory-bound|limitado por memoria]], esa pasada tarda casi lo mismo que un paso normal: lee los mismos pesos.",
+   "ejemplo": "Qwen3 32B en una L40S, una conversación: el cálculo de 4 tokens toma ≈ 1.45 ms y leer la memoria ≈ 34.7 ms. La verificación de 3 propuestas cuesta lo mismo que escribir un token.",
+   "ver": ["speculative-decoding", "prefill", "memory-bound"],
+   "leccion": "speculative"
+  },
+  {
+   "id": "eagle",
+   "termino": "EAGLE",
+   "en": "EAGLE (Extrapolation Algorithm for Greater Language-model Efficiency)",
+   "corto": "Una familia de borradores para speculative decoding que no es un modelo aparte: una capa chica que mira las representaciones internas del modelo grande para adivinar sus siguientes tokens.",
+   "largo": "EAGLE (Li y otros, 2024) especula a nivel de *features*, las representaciones de la penúltima capa del modelo, en vez de tokens. EAGLE-2 arma un árbol de candidatos que cambia según el contexto. EAGLE-3 (2025) vuelve a predecir tokens, junta features de varias capas y se entrena simulando cómo se usará. Hay que entrenarlo para cada modelo; vLLM y SGLang lo soportan. Medusa es una idea parecida: cabezas extra sobre el modelo que predicen varios tokens a la vez.",
+   "ejemplo": "Los autores reportan 2.7–3.5× con EAGLE en LLaMA2-Chat 70B, 3.05–4.26× con EAGLE-2 y hasta 6.5× con EAGLE-3, en sus pruebas. Para Qwen3 32B, el EAGLE-3 de AngelSlim midió 43.3 → 74.1 tokens por segundo con una conversación (≈ 1.71×).",
+   "ver": ["modelo-borrador", "mtp", "speculative-decoding"],
+   "leccion": "speculative"
+  },
+  {
+   "id": "mtp",
+   "termino": "MTP (predicción de varios tokens)",
+   "en": "multi-token prediction",
+   "corto": "Entrenar al modelo para que, además del siguiente token, prediga los que siguen con unos módulos extra. Al servirlo, esos módulos pueden hacer de borrador.",
+   "largo": "DeepSeek-V3 (2024) lo usa primero como objetivo de entrenamiento. Al servir, los módulos MTP se pueden tirar, o reutilizar para [[speculative-decoding|speculative decoding]]: DeepSeek reporta que su segundo token predicho se acepta entre 85 % y 90 % de las veces, y que eso da ≈ 1.8 veces los tokens por segundo. Solo sirve si el modelo trae esos módulos: no es algo que se le agregue a cualquiera.",
+   "ejemplo": "vLLM lo activa con `\"method\": \"mtp\"` en `--speculative-config`, para los modelos que traen las cabezas.",
+   "ver": ["eagle", "modelo-borrador"],
+   "leccion": "speculative"
+  },
+  {
+   "id": "prompt-lookup",
+   "termino": "Prompt lookup (n-gram)",
+   "en": "prompt lookup decoding, n-gram speculation",
+   "corto": "Speculative decoding sin modelo borrador: si los últimos tokens escritos ya aparecen en el prompt, se proponen los que les siguen ahí.",
+   "largo": "Lo popularizó Apoorv Saxena (2023). Es casi gratis (una búsqueda de texto, c ≈ 0) y funciona bien cuando la salida **copia** de la entrada: resúmenes, preguntas sobre un documento, citas, edición de código. Con texto nuevo casi no atina. vLLM lo llama `ngram`, con `prompt_lookup_min` y `prompt_lookup_max` como largos mínimo y máximo del pedazo a buscar.",
+   "ejemplo": "El resumen de un expediente cita «la cláusula décima segunda del contrato de arrendamiento»: después de «la cláusula», el prompt ya contiene «décima segunda del contrato…», y esos tokens se proponen. vLLM midió hasta 2.8× con n-gram en resumen de noticias con Llama 3 70B.",
+   "ver": ["speculative-decoding", "modelo-borrador"],
+   "leccion": "speculative"
+  },
+  {
+   "id": "rope",
+   "termino": "RoPE",
+   "en": "rotary position embedding",
+   "corto": "La forma en que la mayoría de los LLMs abiertos saben el orden de los tokens: giran los vectores Q y K un ángulo que crece con la posición, así que al compararlos queda la distancia entre los dos.",
+   "largo": "Lo propusieron Su y otros (RoFormer, 2021). Cada cabeza parte sus números en pares y cada par gira con su propia velocidad: los primeros dan muchas vueltas en pocos tokens (distinguen el orden cercano) y los últimos casi no giran (distinguen lo lejano). El modelo aprende a leer los ángulos que vio en el entrenamiento; con posiciones más lejanas, los pares lentos llegan a ángulos que nunca vio. Por eso estirar el contexto requiere una [[extension-de-contexto|extensión de contexto]].",
+   "ejemplo": "Qwen3 32B: `rope_theta` = 1,000,000 y 64 pares por cabeza. El par 0 da una vuelta cada ≈ 6 tokens; el par 40, cada ≈ 35,333. En los 32,768 tokens de su contexto nativo, 24 de los 64 pares no completan ni una vuelta.",
+   "ver": ["extension-de-contexto", "yarn", "contexto"],
+   "leccion": "speculative"
+  },
+  {
+   "id": "extension-de-contexto",
+   "termino": "Extensión de contexto",
+   "en": "context extension, RoPE scaling",
+   "corto": "Técnicas para que un modelo lea más tokens de los que vio en su entrenamiento, ajustando cómo gira RoPE para que las posiciones nuevas caigan en ángulos conocidos.",
+   "largo": "La interpolación de posiciones (Chen y otros, 2023) comprime todas las posiciones por un factor s: la 131,072 se trata como la 32,768. Así no hay ángulos nuevos, pero los pares rápidos pierden detalle. NTK-aware reparte el estiramiento: casi nada a los pares rápidos y mucho a los lentos, cambiando la base de RoPE. [[yarn|YaRN]] lo hace por partes y ajusta la temperatura de la atención. Con unos cuantos pasos de ajuste fino funcionan mejor; algunos modelos ya vienen validados con una.",
+   "ejemplo": "Qwen3 32B lee 32,768 tokens de forma nativa y, según su model card, 131,072 con YaRN y factor 4.",
+   "ver": ["rope", "yarn", "contexto-efectivo"],
+   "leccion": "speculative"
+  },
+  {
+   "id": "yarn",
+   "termino": "YaRN",
+   "en": "YaRN (Yet another RoPE extensioN)",
+   "corto": "Un método para estirar el contexto de un modelo con RoPE: deja igual los pares que giran rápido, estira los lentos y ajusta la temperatura de la atención.",
+   "largo": "Peng y otros (2023). Divide los pares de [[rope|RoPE]] según cuántas vueltas dan en el contexto original: los que dan muchas (más de 32 en la propuesta para Llama) no se tocan, los que no dan ni una se estiran por el factor completo, y los de en medio siguen una rampa. Además multiplica la atención por un factor, \\(sqrt{1/t}\\) = 0.1 × ln(s) + 1. Los servidores abiertos lo aplican **estático**: el mismo factor para todos los textos, también los cortos, y eso puede empeorarlos.",
+   "ejemplo": "Para Qwen3 32B: `\"rope_scaling\": {\"rope_type\": \"yarn\", \"factor\": 4.0, \"original_max_position_embeddings\": 32768}` da 131,072 tokens. Para contextos típicos de ≈ 65,536, la model card recomienda factor 2.",
+   "ver": ["rope", "extension-de-contexto"],
+   "leccion": "speculative"
+  },
+  {
+   "id": "contexto-efectivo",
+   "termino": "Contexto efectivo",
+   "en": "effective context length",
+   "corto": "Hasta cuántos tokens un modelo de verdad usa bien lo que le diste, que suele ser menos que el contexto que anuncia.",
+   "largo": "El contexto anunciado es cuántos tokens acepta; el efectivo, con cuántos sigue contestando bien. Las pruebas sintéticas lo miden: RULER (NVIDIA, 2024) encontró que de 17 modelos que anunciaban 32 mil tokens o más, solo la mitad se sostenía bien a 32 mil; NoLiMa (2025), que quita el atajo de las palabras repetidas, vio que a 32 mil tokens 11 de 13 modelos caían a menos de la mitad de lo que lograban con textos cortos. Para un caso real, se mide con un examen propio a varios largos.",
+   "ejemplo": "En NoLiMa, GPT-4o baja de 99.3 % con textos cortos a 69.7 % a 32 mil tokens.",
+   "ver": ["lost-in-the-middle", "contexto", "extension-de-contexto"],
+   "leccion": "speculative"
+  },
+  {
+   "id": "lost-in-the-middle",
+   "termino": "Lost in the middle",
+   "en": "lost in the middle",
+   "corto": "Los LLMs usan mejor lo que está al principio o al final de un contexto largo que lo que está en medio.",
+   "largo": "Lo midieron Liu y otros (2023): con la información relevante al principio o al final, el modelo contesta mejor; en medio de un contexto largo, bastante peor. La curva tiene forma de U. Por eso, en un prompt largo, lo importante va al inicio o al final, y un examen de contexto largo pone la respuesta en distintas posiciones.",
+   "ejemplo": "Un expediente de 40 mil tokens en un solo prompt: la cláusula de penalización de la página 25 cae justo en medio. Un resumen puede omitirla aunque el modelo «la vio».",
+   "ver": ["contexto-efectivo", "map-reduce"],
+   "leccion": "speculative"
+  },
+  {
+   "id": "map-reduce",
+   "termino": "Map-reduce (resumen por partes)",
+   "en": "map-reduce summarization, hierarchical summarization",
+   "corto": "Resumir un documento largo por partes: resumir cada trozo por separado (map) y luego resumir los resúmenes (reduce), hasta que quepa.",
+   "largo": "Es la descomposición que usó OpenAI para resumir libros enteros (Wu y otros, 2021): resúmenes de secciones y luego resúmenes de esos resúmenes. Cada llamada es corta, así que cabe en un contexto chico, no necesita estirar el contexto y la atención casi no pesa. A cambio escribe más tokens en total y pierde las relaciones entre trozos. Si los resúmenes juntos no caben, se agrupan y se resumen otra vez.",
+   "ejemplo": "Un expediente de ≈ 40 mil tokens en 8 trozos de ≈ 5,031 más 400 de instrucciones: cada uno cabe en 8,192. En una L40S, ≈ 56 s en total contra ≈ 49 s de una sola llamada larga.",
+   "ver": ["lost-in-the-middle", "contexto"],
+   "leccion": "speculative"
+  }
+ ]
+}

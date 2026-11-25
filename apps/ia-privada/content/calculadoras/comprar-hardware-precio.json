@@ -1,0 +1,59 @@
+{
+  "titulo": "Cuánto pagas por cada GB y cada GB/s",
+  "intro": "Aplica \\(c_M = K ÷ M\\) y \\(c_B = K ÷ B\\) a las GPUs de gpus.json que tienen precio de compra, cada una con su fecha y fuente. Dile cuánta VRAM quieres en total y te dice cuántas tarjetas son y cuánto cuestan, y cuánto tardaría en cada una el prefill de una pregunta del despacho, \\(t_{pre} = 2 × P × N_p ÷ (η_c × F)\\). Arranca con la L40S y los 144 GB de las 3 del despacho.",
+  "preajustes": [
+    {
+      "label": "GPU (datos de gpus.json, solo las que tienen precio)",
+      "datos": "gpus",
+      "inicial": "l40s",
+      "requiere": ["compra_usd"],
+      "campos": { "K": "compra_usd", "M": "vram_gb", "B": "ancho_banda_gbs", "F": "fp16_tflops_denso" }
+    }
+  ],
+  "entradas": [
+    { "id": "K", "label": "Precio de compra de una tarjeta, \\(K\\), en US$", "min": 0, "max": 1000000, "paso": 1, "valor": 9005.4, "tipo": "numero" },
+    { "id": "M", "label": "VRAM de una tarjeta, \\(M\\)", "unidad": "GB", "min": 1, "max": 2000, "paso": 1, "valor": 48, "tipo": "numero" },
+    { "id": "B", "label": "Ancho de banda de una tarjeta, \\(B\\)", "unidad": "GB/s", "min": 1, "max": 20000, "paso": 1, "valor": 864, "tipo": "numero" },
+    { "id": "F", "label": "Pico FP16 denso de una tarjeta, \\(F\\) (0 = no publicado)", "unidad": "TFLOPS", "min": 0, "max": 20000, "paso": 0.1, "valor": 362.05, "tipo": "numero" },
+    { "id": "Mq", "label": "VRAM que quieres en total, \\(M_{total}\\)", "unidad": "GB", "min": 1, "max": 4000, "paso": 1, "valor": 144, "tipo": "numero" },
+    { "id": "P", "label": "Parámetros del modelo, \\(P\\), en miles de millones (Qwen3 32B)", "min": 0.1, "max": 1000, "paso": 0.001, "valor": 32.762, "tipo": "numero" },
+    { "id": "Np", "label": "Tokens de la pregunta, \\(N_p\\)", "min": 1, "max": 200000, "paso": 1, "valor": 6000, "tipo": "numero" },
+    { "id": "ec", "label": "Eficiencia del cálculo, \\(η_c\\)", "min": 0.05, "max": 1, "paso": 0.05, "valor": 0.5 }
+  ],
+  "calculos": [
+    { "id": "cM", "formula": "K / M" },
+    { "id": "cB", "formula": "K / B" },
+    { "id": "n", "formula": "ceil(Mq / M)" },
+    { "id": "tpre", "formula": "F > 0 ? 2 * P * 1e9 * Np / (ec * F * 1e12) : 1 / 0" }
+  ],
+  "salidas": [
+    { "label": "US$ por GB de VRAM, \\(c_M\\)", "formula": "cM", "formato": "num", "decimales": 1,
+      "cuenta": "US${{K|corto|2}} ÷ {{M|corto}} GB = **US${{cM|num|1}} por GB**" },
+    { "label": "US$ por GB/s de ancho de banda, \\(c_B\\)", "formula": "cB", "formato": "num", "decimales": 2,
+      "cuenta": "US${{K|corto|2}} ÷ {{B|int}} GB/s = **US${{cB|num|2}} por GB/s**" },
+    { "label": "Tarjetas para la VRAM que quieres, \\(n\\)", "formula": "n", "formato": "int",
+      "cuenta": "⌈{{Mq|int}} GB ÷ {{M|corto}} GB⌉ = **{{n|int}}**" },
+    { "label": "Lo que cuestan esas tarjetas (sin servidor)", "formula": "n * K", "formato": "int", "barra": true,
+      "nota": "US$; en las SXM el precio ya incluye un servidor de 8, y en las Mac y la DGX Spark es el equipo entero",
+      "cuenta": "{{n|int}} × US${{K|corto|2}} = **US${{n * K|int}}**" },
+    { "label": "Ancho de banda de las \\(n\\) juntas", "formula": "n * B", "formato": "int",
+      "nota": "GB/s; solo se suman si el servidor reparte el trabajo entre ellas (una copia del modelo por tarjeta, o un modelo repartido)" },
+    { "label": "Prefill de una pregunta en una tarjeta, \\(t_{pre}\\)", "formula": "tpre * 1000", "formato": "ms", "sin_valor": "Sin pico publicado",
+      "nota": "solo las capas lineales; el objetivo del despacho es TTFT ≤ 2 s",
+      "cuenta": "2 × {{P|corto}} × 10⁹ × {{Np|int}} ÷ ({{ec|corto}} × {{F|corto}} × 10¹²) = **{{tpre|num|2}} s**" }
+  ],
+  "comparar": {
+    "titulo": "Todas las GPUs con precio en gpus.json",
+    "lista": 0,
+    "orden": 0,
+    "columnas": [
+      { "label": "US$ por GB", "formula": "cM", "formato": "num", "decimales": 0 },
+      { "label": "US$ por GB/s", "formula": "cB", "formato": "num", "decimales": 2 },
+      { "label": "Tarjetas", "formula": "n", "formato": "int" },
+      { "label": "Costo, US$", "formula": "n * K", "formato": "int" },
+      { "label": "Prefill, s", "formula": "tpre", "formato": "num", "decimales": 2 }
+    ],
+    "nota": "Ordenada por US$ por GB, de la más barata a la más cara. Los precios son de referencia, con fecha y fuente en gpus.json, y no son todos lo mismo: en las SXM (H100 SXM, H200, B200) es un servidor de 8 entre 8; en las Mac y la DGX Spark, el equipo completo. «—» en el prefill: el fabricante no publica el pico de cálculo."
+  },
+  "nota": "Prueba: con 144 GB, la Mac Studio de 256 GB sale más barata por GB que cualquier tarjeta, pero no tiene cifra de cálculo publicada. La Radeon AI PRO R9700 es la tarjeta más barata por GB y por GB/s, y su prefill es de ≈ 4 s. Ninguna columna sola decide: la que manda es la cifra que te limita."
+}

@@ -1,0 +1,81 @@
+{
+  "titulo": "Las preguntas, en orden, de la necesidad a la caja",
+  "width": 78,
+  "height": 80,
+  "lanes": [
+    { "id": "preguntas", "label": "Preguntas", "kind": "neutral", "x": 0, "y": 0, "w": 50, "h": 80 },
+    { "id": "salidas", "label": "Lo que se compra", "kind": "online", "x": 52, "y": 0, "w": 26, "h": 80 }
+  ],
+  "nodes": [
+    {
+      "id": "memoria", "label": "¿Cabe en una GPU?", "sub": "pesos + KV por copia", "badge": "1", "kind": "job",
+      "x": 14, "y": 5, "w": 22, "h": 9,
+      "note": "Primero la memoria: [[pesos]], [[kv-cache|KV cache]] y programa de una copia del servidor. Si no cabe en ninguna tarjeta de 96 GB o menos, el modelo se reparte entre varias GPUs, y ahí el NVLink de una placa de 8 pesa mucho."
+    },
+    {
+      "id": "lugar", "label": "¿Dónde vive?", "sub": "oficina o cuarto con rack", "badge": "2", "kind": "human",
+      "x": 14, "y": 22, "w": 22, "h": 9,
+      "note": "Un servicio para toda una empresa, todo el día, va en un cuarto con rack: fuentes redundantes, gestión remota y el aire que piden las tarjetas pasivas. Un equipo para pocas personas, de día, puede vivir bajo un escritorio."
+    },
+    {
+      "id": "software", "label": "¿Qué software corre?", "sub": "CUDA, ROCm o MLX", "badge": "3", "kind": "job",
+      "x": 14, "y": 39, "w": 22, "h": 9,
+      "note": "Tu modelo, en tu formato, con tu servidor de inferencia. Con [[cuda|CUDA]] casi todo funciona; con [[rocm|ROCm]] se revisa la matriz de compatibilidad; con [[mlx|MLX]] no hay vLLM oficial de GPU."
+    },
+    {
+      "id": "tarjeta", "label": "¿Qué tarjeta?", "sub": "TTFT, tokens/s y US$", "badge": "4", "kind": "gpu",
+      "x": 14, "y": 56, "w": 22, "h": 9,
+      "note": "La que cumple el objetivo con menos dinero: el ancho de banda para el decode, el cálculo para el prefill y el TTFT, y el precio por la cifra que te limita."
+    },
+    {
+      "id": "hgx", "label": "HGX u OAM de 8", "sub": "servidor de 6U–8U", "kind": "gpu",
+      "x": 54, "y": 5, "w": 22, "h": 9,
+      "note": "Para modelos que no caben en una tarjeta o para miles de usuarios. US$306,152 el de 8 H100 SXM de Exxact (noviembre de 2026)."
+    },
+    {
+      "id": "torre", "label": "Workstation", "sub": "1–4 tarjetas activas", "kind": "client",
+      "x": 54, "y": 22, "w": 22, "h": 9,
+      "note": "Torre bajo el escritorio con tarjetas activas: desarrollo, pilotos, oficinas sin cuarto. Dos tarjetas de 600 W ya llenan una fuente de escritorio."
+    },
+    {
+      "id": "mac", "label": "Mac o DGX Spark", "sub": "memoria unificada", "kind": "client",
+      "x": 54, "y": 39, "w": 22, "h": 9,
+      "note": "Mucha memoria barata por GB y poco cálculo publicado. Para un desarrollador o una oficina chica con prompts cortos, no para el TTFT del despacho."
+    },
+    {
+      "id": "servidor", "label": "Servidor 2U/4U", "sub": "4–10 tarjetas PCIe", "kind": "service",
+      "x": 54, "y": 56, "w": 22, "h": 9,
+      "note": "La caja del despacho: rack, fuentes redundantes, certificado, armado por un integrador, con una ranura libre para crecer."
+    },
+    {
+      "id": "piloto", "label": "Piloto rentado", "sub": "mide antes de firmar", "badge": "5", "kind": "monitor",
+      "x": 14, "y": 70, "w": 22, "h": 8,
+      "note": "Las cuentas dicen qué cotizar. La [[prueba-piloto|prueba piloto]] en la misma GPU rentada dice qué comprar."
+    }
+  ],
+  "edges": [
+    { "from": "memoria", "to": "lugar", "kind": "neutral", "label": "sí cabe" },
+    { "from": "memoria", "to": "hgx", "kind": "neutral", "label": "no cabe" },
+    { "from": "lugar", "to": "software", "kind": "neutral", "label": "cuarto con rack" },
+    { "from": "lugar", "to": "torre", "kind": "async", "dashed": true, "label": "oficina" },
+    { "from": "software", "to": "tarjeta", "kind": "neutral", "label": "CUDA o ROCm" },
+    { "from": "software", "to": "mac", "kind": "async", "dashed": true, "label": "MLX" },
+    { "from": "tarjeta", "to": "servidor", "kind": "online", "label": "cotizar" },
+    { "from": "tarjeta", "to": "piloto", "kind": "monitor", "label": "medir" }
+  ],
+  "flows": [
+    {
+      "id": "despacho",
+      "label": "El camino del despacho",
+      "steps": [
+        { "nodes": ["memoria"], "edges": [], "text": "**¿Cabe?** Qwen3 32B en INT4 de AWQ pesa ≈ 19.32 GB; con 8 conversaciones de 8,192 tokens, la copia pide ≈ 38.5 GB. Cabe en una tarjeta de 48 GB: no hace falta una placa de 8." },
+        { "nodes": ["memoria", "hgx"], "edges": ["memoria>hgx"], "text": "**El camino que no toma.** Un modelo de 70 mil millones en 16 bits, o miles de usuarios, sí llevarían a un HGX u OAM de 8 GPUs." },
+        { "nodes": ["lugar"], "edges": ["memoria>lugar"], "text": "**¿Dónde?** 200 personas, todos los días, en el cuarto de TI de la oficina: va en un rack, no bajo un escritorio." },
+        { "nodes": ["software"], "edges": ["lugar>software"], "text": "**¿Qué software?** vLLM con INT4 de AWQ: el camino más transitado es [[cuda|CUDA]]. Una Mac queda fuera; AMD, posible pero sin nadie en TI que conozca ROCm." },
+        { "nodes": ["tarjeta"], "edges": ["software>tarjeta"], "text": "**¿Qué tarjeta?** El sizing dice 3 L40S, pero su prefill tarda ≈ 2.2–2.4 s. Una RTX PRO 6000 lo hace en ≈ 1.6 s y es más barata por GB y por GB/s." },
+        { "nodes": ["tarjeta", "servidor"], "edges": ["tarjeta>servidor"], "text": "**Cotizar.** Un servidor de 2U o 4U certificado, armado por un integrador, con al menos 4 ranuras: una cotización con 3 L40S y otra con 2 RTX PRO 6000 Server Edition." },
+        { "nodes": ["tarjeta", "piloto"], "edges": ["tarjeta>piloto"], "text": "**Medir.** Las dos GPUs se rentan. Una semana del piloto en cada una, con el examen de 200 preguntas y la prueba de carga, decide cuál se compra." }
+      ]
+    }
+  ]
+}

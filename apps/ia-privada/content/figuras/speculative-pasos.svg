@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 352" role="img" aria-labelledby="f-speculative-pasos-t" class="f-svg" style="max-width:420px">
+<title id="f-speculative-pasos-t">Tres tokens de una respuesta del despacho, «la cláusula 14», escritos de dos formas en una L40S con una sola conversación. Arriba, el decode normal: tres pasadas del modelo grande, cada una lee los 19.32 GB de pesos y tarda ≈ 34.7 ms; en total ≈ 104 ms para tres tokens. Abajo, speculative decoding: un borrador barato propone «la», «cláusula» y «15» en tres pasos chicos de ≈ 1.7 ms; el modelo grande verifica las tres propuestas y una posición más en una sola pasada de ≈ 34.7 ms; acepta «la» y «cláusula», rechaza «15» y en su lugar escribe «14». Salen los mismos tres tokens en ≈ 40 ms.</title>
+<rect class="f-card" x="10" y="10" width="340" height="332" rx="16"/>
+<text class="f-l" x="28" y="36">NORMAL: UN TOKEN POR LECTURA DE PESOS</text>
+<rect class="f-dark" x="28" y="50" width="96" height="32" rx="6"/>
+<text class="f-dark-t" x="76" y="70" text-anchor="middle" style="font-size:12px">pasada · 34.7 ms</text>
+<rect class="f-dark" x="132" y="50" width="96" height="32" rx="6"/>
+<text class="f-dark-t" x="180" y="70" text-anchor="middle" style="font-size:12px">pasada · 34.7 ms</text>
+<rect class="f-dark" x="236" y="50" width="96" height="32" rx="6"/>
+<text class="f-dark-t" x="284" y="70" text-anchor="middle" style="font-size:12px">pasada · 34.7 ms</text>
+<rect class="f-b" x="52" y="90" width="48" height="24" rx="6"/>
+<text class="f-pill-t" x="76" y="107" text-anchor="middle" style="font-size:13px">la</text>
+<rect class="f-b" x="144" y="90" width="72" height="24" rx="6"/>
+<text class="f-pill-t" x="180" y="107" text-anchor="middle" style="font-size:13px">cláusula</text>
+<rect class="f-b" x="260" y="90" width="48" height="24" rx="6"/>
+<text class="f-pill-t" x="284" y="107" text-anchor="middle" style="font-size:13px">14</text>
+<text class="f-s" x="28" y="140" style="font-size:12px">3 lecturas de 19.32 GB · 3 tokens · ≈ 104 ms</text>
+<line x1="28" y1="158" x2="332" y2="158" style="stroke:var(--tm-line);stroke-width:1"/>
+<text class="f-l" x="28" y="182">ESPECULATIVO: BORRADOR Y UNA VERIFICACIÓN</text>
+<rect class="f-y" x="28" y="196" width="20" height="32" rx="4"/>
+<rect class="f-y" x="52" y="196" width="20" height="32" rx="4"/>
+<rect class="f-y" x="76" y="196" width="20" height="32" rx="4"/>
+<text class="f-s" x="62" y="244" text-anchor="middle" style="font-size:12px">borrador</text>
+<text class="f-s" x="62" y="258" text-anchor="middle" style="font-size:12px">3 × 1.7 ms</text>
+<rect class="f-dark" x="108" y="196" width="224" height="32" rx="6"/>
+<text class="f-dark-t" x="220" y="216" text-anchor="middle" style="font-size:12px">una pasada verifica 4 posiciones · 34.7 ms</text>
+<rect class="f-g" x="112" y="238" width="44" height="24" rx="6"/>
+<text class="f-pill-t" x="134" y="255" text-anchor="middle" style="font-size:13px">la ✓</text>
+<rect class="f-g" x="162" y="238" width="86" height="24" rx="6"/>
+<text class="f-pill-t" x="205" y="255" text-anchor="middle" style="font-size:13px">cláusula ✓</text>
+<rect class="f-o" x="254" y="238" width="36" height="24" rx="6"/>
+<text class="f-pill-t" x="272" y="255" text-anchor="middle" style="font-size:13px">15 ✗</text>
+<rect class="f-b" x="296" y="238" width="36" height="24" rx="6"/>
+<text class="f-pill-t" x="314" y="255" text-anchor="middle" style="font-size:13px">14</text>
+<text class="f-s" x="28" y="288" style="font-size:12px">1 lectura de 19.32 GB · los mismos 3 tokens · ≈ 40 ms</text>
+<rect class="f-g" x="28" y="304" width="12" height="12" rx="3"/>
+<text class="f-s" x="46" y="315" style="font-size:12px">aceptado</text>
+<rect class="f-o" x="112" y="304" width="12" height="12" rx="3"/>
+<text class="f-s" x="130" y="315" style="font-size:12px">rechazado</text>
+<rect class="f-b" x="204" y="304" width="12" height="12" rx="3"/>
+<text class="f-s" x="222" y="315" style="font-size:12px">lo escribe el grande</text>
+</svg>

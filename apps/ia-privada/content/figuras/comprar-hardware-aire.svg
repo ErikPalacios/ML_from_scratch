@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 446" role="img" aria-labelledby="f-comprar-hardware-aire-t" class="f-svg" style="max-width:420px">
+<title id="f-comprar-hardware-aire-t">Dos formas de enfriar una GPU. Arriba, una torre de oficina con dos tarjetas activas: cada tarjeta trae sus propios ventiladores, que jalan aire del gabinete y lo sacan; funciona en cualquier torre con algo de ventilación. Abajo, un servidor de rack visto desde arriba con tres tarjetas pasivas, que solo tienen aletas: una fila de ventiladores del chasis, en el frente, empuja el aire de adelante hacia atrás a través de todas las aletas y lo saca por la parte de atrás. Una tarjeta pasiva en una torre, sin esa corriente, se sobrecalienta.</title>
+<rect class="f-card" x="10" y="10" width="340" height="190" rx="16"/>
+<text class="f-l" x="26" y="34">TORRE · TARJETAS ACTIVAS</text>
+<rect class="f-chip" x="26" y="48" width="120" height="140" rx="8"/>
+<rect class="f-g" x="38" y="84" width="96" height="26" rx="4"/>
+<circle class="f-linea" cx="62" cy="97" r="9" style="fill:none"/>
+<circle class="f-linea" cx="98" cy="97" r="9" style="fill:none"/>
+<path class="f-linea" d="M62 88 L62 106 M53 97 L71 97 M98 88 L98 106 M89 97 L107 97"/>
+<rect class="f-g" x="38" y="132" width="96" height="26" rx="4"/>
+<circle class="f-linea" cx="62" cy="145" r="9" style="fill:none"/>
+<circle class="f-linea" cx="98" cy="145" r="9" style="fill:none"/>
+<path class="f-linea" d="M62 136 L62 154 M53 145 L71 145 M98 136 L98 154 M89 145 L107 145"/>
+<line class="f-flecha" x1="80" y1="122" x2="80" y2="114"/><path class="f-punta" d="M75,116 L85,116 L80,110 Z"/>
+<line class="f-flecha" x1="80" y1="170" x2="80" y2="162"/><path class="f-punta" d="M75,164 L85,164 L80,158 Z"/>
+<text class="f-l" x="38" y="70">CON VENTILADOR</text>
+<text class="f-t" x="162" y="78">Cada tarjeta</text>
+<text class="f-t" x="162" y="96">mueve su aire</text>
+<text class="f-s" x="162" y="122">Jala aire del gabinete,</text>
+<text class="f-s" x="162" y="140">lo pasa por sus aletas</text>
+<text class="f-s" x="162" y="158">y lo saca. Funciona en</text>
+<text class="f-s" x="162" y="176">cualquier torre ventilada.</text>
+<rect class="f-card" x="10" y="212" width="340" height="224" rx="16"/>
+<text class="f-l" x="26" y="236">SERVIDOR DE RACK · TARJETAS PASIVAS</text>
+<rect class="f-chip" x="26" y="250" width="308" height="104" rx="8"/>
+<circle class="f-b2" cx="48" cy="270" r="10"/>
+<circle class="f-b2" cx="48" cy="302" r="10"/>
+<circle class="f-b2" cx="48" cy="334" r="10"/>
+<rect class="f-g" x="104" y="262" width="150" height="18" rx="3"/>
+<rect class="f-g" x="104" y="293" width="150" height="18" rx="3"/>
+<rect class="f-g" x="104" y="324" width="150" height="18" rx="3"/>
+<path class="f-linea" d="M119 262 L119 280 M134 262 L134 280 M149 262 L149 280 M164 262 L164 280 M179 262 L179 280 M194 262 L194 280 M209 262 L209 280 M224 262 L224 280 M239 262 L239 280"/>
+<path class="f-linea" d="M119 293 L119 311 M134 293 L134 311 M149 293 L149 311 M164 293 L164 311 M179 293 L179 311 M194 293 L194 311 M209 293 L209 311 M224 293 L224 311 M239 293 L239 311"/>
+<path class="f-linea" d="M119 324 L119 342 M134 324 L134 342 M149 324 L149 342 M164 324 L164 342 M179 324 L179 342 M194 324 L194 342 M209 324 L209 342 M224 324 L224 342 M239 324 L239 342"/>
+<line class="f-flecha" x1="64" y1="287" x2="302" y2="287"/><path class="f-punta" d="M300,282 L300,292 L310,287 Z"/>
+<line class="f-flecha" x1="64" y1="318" x2="302" y2="318"/><path class="f-punta" d="M300,313 L300,323 L310,318 Z"/>
+<text class="f-l" x="30" y="372">FRENTE</text>
+<text class="f-l" x="330" y="372" text-anchor="end">ATRÁS</text>
+<text class="f-l" x="179" y="372" text-anchor="middle">SOLO ALETAS</text>
+<text class="f-s" x="26" y="394">Los ventiladores del chasis empujan</text>
+<text class="f-s" x="26" y="410">el aire por todas las aletas, de frente</text>
+<text class="f-s" x="26" y="426">hacia atrás.</text>
+</svg>
