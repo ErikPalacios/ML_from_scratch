@@ -28,28 +28,32 @@ La práctica vive en el Dojo para no duplicar su método, sus kits ni su tablero
 
 - **De Sensei:** el formato de lectura (barra lateral, hoja con secciones numeradas, «En esta página»), el motor de diagramas, el glosario con globos, las calculadoras, `tools/build.mjs` y `tools/check.mjs`, y las reglas de [apps/sensei/GUIA-CONTENIDO.md](../apps/sensei/GUIA-CONTENIDO.md) (8–11k palabras, figuras a mano, ejercicios con solución, hechos verificados).
 - **Lecciones de Sensei que ya existen y se enlazan, no se repiten:** CPU y GPU · Cómo guarda números una computadora · Matrices y FLOPs · Memoria, caché y disco · Latencia y throughput · Transformers y LLMs · Embeddings · Balanceadores y gateways · APIs y streaming.
-- **De Sensei, cuando estén:** fase 8 (*La nube*: Máquinas, GPUs y precios) y fase 9 (*Seguridad*: Datos personales y la ley). Son la base del TCO y del discurso de privacidad.
+- **De Sensei, ya terminadas (2026-11-15):** *Qué es la nube* (comprar o rentar, CapEx y OpEx, on-premises, neoclouds), *Máquinas, GPUs y cómo se cobran* y *Datos personales y la ley*. Son la base del TCO y del discurso de privacidad.
+- **Lo que Sensei ya cubre a fondo y aquí no se repite (revisión 2026-11-25):** prefill y decode, KV cache, pesos en la GPU y MoE (*Transformers y LLMs*); INT4, FP8, punto cero y el examen de calidad (*Cómo guarda números una computadora*); HBM, PCIe y NVLink (*CPU y GPU*); las GPUs que se rentan y sus precios (*Máquinas*); comprar o rentar (*Qué es la nube*). Las lecciones de esta app parten de ahí y van más a fondo.
+- **Datos y calculadoras de Sensei:** `apps/sensei/content/datos/gpus.json` es la única fuente de especificaciones y precios de renta de GPUs (ya dice que también es para esta app). Las calculadoras de esta app extienden las de Sensei en vez de duplicarlas: `llms-kv`, `pytorch-vram`, `numeros-maquina-cuantizar`, `flops-tokens` y `nube-comprar-rentar`. Lo que falta y se agrega aquí: precios de **compra** de hardware, con fecha y fuente.
 - **Del Atlas:** la calculadora de arquitecturas, como punto de partida de la calculadora de VRAM.
 - **Del Taller:** el molde de 7 piezas por estación, `verificar.py`, `romper.py`, los prompts y el tablero.
 - **De TrueML:** el Dojo design (`tokens.css`, `trueml-mark.js`), el encabezado común y `sync.mjs`.
 
-## 3. Lecciones (≈ 24, en 11 módulos)
+## 3. Lecciones (≈ 21, en 11 módulos)
 
-Cada módulo dice qué lecciones de Sensei da por leídas. Los nombres exactos de modelos, GPUs, licencias y precios se verifican en la fase que los escribe, nunca de memoria.
+Cada módulo dice qué lecciones de Sensei da por leídas. Los nombres exactos de modelos, GPUs, licencias y precios se verifican en la fase que los escribe, nunca de memoria. Cada concepto se define desde cero antes de usarlo, con una analogía, como en Sensei.
+
+**Revisión 2026-11-25:** de ≈ 24 a ≈ 21 lecciones. Lo que Sensei ya explica a fondo (sección 2) se da por leído, y las lecciones de aquí van a lo que Sensei no cubre: batching continuo, formatos de cuantización en la práctica, comprar hardware, sizing, serving y el negocio.
 
 | # | Módulo | Lecciones | Da por leído (Sensei) |
 |---|---|---|---|
 | 1 | El mapa | El recorrido de un proyecto de IA privada: descubrimiento → sizing → compra → despliegue → evals → operación | El camino completo |
-| 2 | Los modelos abiertos | Open weight, open source y licencias · Familias, tamaños, dense y MoE · Elegir un modelo para la tarea | Transformers y LLMs |
-| 3 | La inferencia por dentro | Prefill y decode · KV cache · Batching continuo y concurrencia | Matrices y FLOPs · Memoria · Latencia y throughput |
-| 4 | Que quepa y que vuele | Cuantización y su costo en calidad · Speculative decoding y contexto largo | Cómo guarda números una computadora |
-| 5 | El hardware | La GPU vista para inferencia (VRAM, ancho de banda, interconexión) · El catálogo: de la workstation al rack, NVIDIA, AMD y Apple · El cuarto: energía, enfriamiento y red | CPU y GPU · fase 8 |
+| 2 | Los modelos abiertos | Open weight, open source y licencias · Elegir un modelo para la tarea: familias, tamaños y benchmarks | Transformers y LLMs (incluye dense y MoE) |
+| 3 | La inferencia por dentro | Batching continuo y PagedAttention · Concurrencia: la curva de usuarios contra latencia | Transformers y LLMs (prefill, decode y KV cache) · Matrices y FLOPs · Latencia y throughput |
+| 4 | Que quepa y que vuele | Formatos de cuantización en la práctica (GGUF, AWQ, GPTQ, FP8) y su calidad medida · Speculative decoding y contexto largo | Cómo guarda números una computadora (INT4, FP8, el examen) |
+| 5 | El hardware | Comprar hardware: de la workstation al rack, NVIDIA, AMD y Apple · El cuarto: energía, enfriamiento y red | CPU y GPU (HBM, NVLink) · Máquinas, GPUs y cómo se cobran |
 | 6 | Dimensionar | De requisitos a hardware (usuarios, tokens, latencia) · Varias GPUs: tensor y pipeline parallel | Percentiles · Unidades y estimaciones |
 | 7 | El stack de serving | Del laptop al servidor: llama.cpp, Ollama, vLLM, SGLang y TensorRT-LLM · Gateway, API compatible con OpenAI, autenticación y varios modelos | APIs · Balanceadores y gateways |
 | 8 | Lo que el cliente pide encima | RAG privado: embeddings y vector DB locales · Agentes, tools y guardrails | Embeddings |
 | 9 | Evals | Demostrar que el modelo abierto sirve: golden sets, LLM-as-judge y regresiones · Pruebas de carga y benchmarks honestos | ¿Aprendió de verdad? · Ruido, muestras y pruebas A/B |
-| 10 | Operar | Observabilidad de GPUs e inferencia · Seguridad: aislamiento, sin internet (air-gapped), datos personales y actualizaciones | fase 9 |
-| 11 | El negocio | TCO: API vs. nube vs. servidor propio y punto de equilibrio · Cotizar, proponer y dar soporte (SLAs, contrato, importación de hardware en México) | fase 8 |
+| 10 | Operar | Observabilidad de GPUs e inferencia · Seguridad: aislamiento, sin internet (air-gapped) y actualizaciones | Datos personales y la ley |
+| 11 | El negocio | TCO: API vs. nube vs. servidor propio, con depreciación, y punto de equilibrio · Cotizar, proponer y dar soporte (SLAs, contrato, importación de hardware en México) | Qué es la nube (comprar o rentar) |
 
 ## 4. Herramientas
 
@@ -110,37 +114,55 @@ Sigue el molde del Taller ([plan-taller-ai.md](plan-taller-ai.md), secciones 3�
 
 El caso de referencia de la rama es el despacho de abogados (caso 1 de la sección 5): los precálculos de cada estación van en dos escalas, «En el despacho» y «En el dojo». Cada página vive en `/ia-privada/<id>/` (por ejemplo `/ia-privada/rag/`). Para hacer una estación: su kit en `apps/taller-ai/kits/ia-privada-<id>/` y su contenido en `content/estaciones/ia-privada-<id>.json` con `"rama": "ia-privada"` y su `etapa`; el resto (portada, tablero, `sync.mjs`) la toma sola.
 
+**Dependencia con el entrenamiento RAG (revisión 2026-11-25):** las estaciones 5 y 6 dan por hecho el RAG del Dojo, que tiene sus 12 estaciones declaradas en `ramas.json` pero ninguna construida. Hacen falta por lo menos sus estaciones 1–9. Su estación 7 («Un LLM local por API») es la misma que la estación 1 de esta rama: se construye una vez, aquí, y el RAG la reutiliza. Por eso la estación 4 va sola en su fase y las estaciones del RAG van antes de las 5–6 (sección 7).
+
 **Hardware de práctica:** lo diario en la Mac con modelos chicos. Las estaciones 3, 7 y 8 usan una GPU NVIDIA rentada por horas, en sesiones cortas y planeadas. Cada una dice antes cuánto tiempo y costo estimado lleva, y trae un script que apaga la máquina al terminar. El proveedor y el precio se eligen en la fase de la estación 3. Comprar hardware propio se decide después de validar el negocio.
 
 ## 7. Fases
 
 Cada fase cabe en una ventana de 5 horas y termina con la app construida, revisada en el navegador (375, 768 y 1024 px, claro y oscuro, sin conexión), con commit y publicada. Las lecciones usan el proceso ahorrador de Sensei ([plan-sensei.md](plan-sensei.md), sección 4) con los ajustes de la fase 7: escritores con esfuerzo medio, lanzados al inicio de una ventana y guardando sus pendientes en disco.
 
+**Revisión 2026-11-25: 24 fases.** Un módulo por fase no conviene: los módulos son chicos (1–3 lecciones) y cada fase tiene un costo fijo (paquetes, revisión de fondo, build, chequeos y deploy). Se agrupan 4–5 lecciones por fase, como en Sensei. Las dependencias con Sensei ya se cumplieron (Sensei terminó el 2026-11-15) y las fases del entrenamiento RAG entran antes de las estaciones 5–6.
+
 | Fase | Contenido | Depende de |
 |---|---|---|
 | 0 ✓ | Este plan | — |
-| 1 | Esqueleto de la app (copia del armazón de Sensei, Dojo design, portada con las 4 secciones) y calculadora de VRAM | — |
-| 2 | Calculadoras de velocidad, sizing y TCO, más el catálogo de hardware, verificadas contra fuentes | 1 |
-| 3 | Módulos 1–2 (4 lecciones) | 1 |
-| 4 | Módulos 3–4 (5 lecciones) | 3 |
-| 5 | Módulo 5 (3 lecciones) | Sensei fase 8 |
-| 6 | Módulos 6–7 (4 lecciones) | 5 |
-| 7 | Módulos 8–9 (4 lecciones) | 6 |
-| 8 | Módulos 10–11 (4 lecciones) | Sensei fase 9 |
-| 9 | Casos 1–3 | 2, 6 |
-| 10 | Casos 4–6 | 9 |
-| 11 | Dojo: molde de la rama y estaciones 1–2 (Mac) | 4 |
-| 12 | Dojo: estación 3 (primera sesión con GPU rentada) | 11 |
-| 13 | Dojo: estaciones 4–5 | 12 |
-| 14 | Dojo: estaciones 6–7 | 13 |
-| 15 | Dojo: estación 8 (entrega a un cliente) | 14 |
-| 16 | Integración: enlaces con Sensei, Ronda, Atlas y Dojo; glosario compartido; revisión final de hechos | Todo |
+| **App y herramientas** | | |
+| 1 | Esqueleto de la app (armazón de Sensei, Dojo design, portada con las 4 secciones, su subdominio en trueml.app) y calculadora de VRAM | — |
+| 2 | Calculadoras de velocidad, sizing y TCO, más el catálogo de hardware con precios de compra, verificadas contra fuentes | 1 |
+| **Lecciones** | | |
+| 3 | Módulos 1–3 (5 lecciones): el mapa · licencias y open weight · elegir modelo · batching continuo y PagedAttention · concurrencia | 1 |
+| 4 | Módulos 4–5 (4 lecciones): formatos de cuantización · speculative decoding y contexto largo · comprar hardware · el cuarto | 3 |
+| 5 | Módulos 6–7 (4 lecciones): de requisitos a hardware · varias GPUs · el stack de serving · gateway | 4 |
+| 6 | Módulos 8–9 (4 lecciones): RAG privado · agentes y guardrails · evals · pruebas de carga | 5 |
+| 7 | Módulos 10–11 (4 lecciones): observabilidad · seguridad y air-gapped · TCO y punto de equilibrio · cotizar y soporte | 6 |
+| **Casos** | | |
+| 8 | Casos 1–3: despacho, clínica, fábrica | 2, 5 |
+| 9 | Casos 4–6: financiera, gobierno, startup multi-tenant | 8 |
+| **Dojo IA Privada, primera parte** | | |
+| 10 | Molde de la rama y estaciones 1–2: un modelo local por API · medir y cuantizar (Mac) | 4 |
+| 11 | Estación 3: vLLM bajo carga (primera sesión con GPU rentada; se elige el proveedor) | 10 |
+| 12 | Estación 4: gateway de modelos | 11 |
+| **Entrenamiento RAG** (lo que piden las estaciones 5–6) | | |
+| 13 | RAG · estación 1: conectores y parsing | — |
+| 14 | RAG · estación 2: chunking con contexto | 13 |
+| 15 | RAG · estación 3: permisos en cada chunk | 14 |
+| 16 | RAG · estación 4: golden set | 15 |
+| 17 | RAG · estación 5: embeddings e índice híbrido | 16 |
+| 18 | RAG · estación 6: retrieval y reranker | 17 |
+| 19 | RAG · estación 8: la API con citas (su estación 7 reutiliza la estación 1 de IA Privada, fase 10) | 10, 18 |
+| 20 | RAG · estación 9: gate de evals | 19 |
+| **Dojo IA Privada, cierre** | | |
+| 21 | Estaciones 5–6: tu RAG en el despacho · el gate con el modelo propio | 12, 20 |
+| 22 | Estación 7: observabilidad y fallas (GPU rentada) | 21 |
+| 23 | Estación 8: entrega sin internet | 22 |
+| 24 | Integración: enlaces con Sensei, Ronda, Atlas y Dojo; glosario compartido; revisión final de hechos | Todo |
 
-**Orden con lo demás de TrueML:**
+Opcional, después: las estaciones 10–12 del RAG (Docker, índice nuevo sin cortes y monitoreo), 3 fases más.
 
-1. Sensei fase 8 (*La nube*), que ya era lo siguiente, escrita dejando listos los números de GPUs y precios que usa esta app.
-2. Fases 1–2 de esta app (las herramientas).
-3. Después se alterna, según el presupuesto de cada semana: una fase de Sensei, una de IA Privada y una del Dojo.
+**Orden con lo demás de TrueML:** Sensei ya terminó, así que las fases van seguidas. Las fases 1–9 no dependen de nada externo. Las del RAG (13–20) también pueden ir antes o en paralelo si urge practicar, salvo la 19, que necesita la fase 10.
+
+**Lo que toda fase de app cumple (desde la fase 1):** el Dojo design (`dojo.css`, `trueml-mark.js`, la T de vidrio donde quepa), el botón de Ko-fi como las otras apps, la regla de explicar cada concepto desde cero, y el deploy como en las demás apps (merge a main + push, Vercel conectado a Git, verificar en vivo). El subdominio sale del nombre final (sección 10); mientras tanto, el de trabajo.
 
 **Costo estimado:** ≈ 24 lecciones a 1.4–3.5 % del límite semanal cada una (lo medido en Sensei) son ≈ 35–85 % de una semana, repartido entre varias. Las herramientas, los casos y las estaciones se miden al terminar cada fase, igual que en Sensei.
 
@@ -224,6 +246,6 @@ Con lo medido en Sensei, una fase de 5–6 lecciones costó entre 8 y 21 puntos 
 
 ## 10. Pendientes por decidir
 
-- El nombre final de la app.
+- El nombre final de la app (define también su subdominio en trueml.app).
 - El proveedor de GPU rentada (en la fase 12).
 - Si los casos se vuelven también material de venta (propuestas de ejemplo para clientes reales).
