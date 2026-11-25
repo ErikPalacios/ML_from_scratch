@@ -1,0 +1,45 @@
+{
+  "titulo": "Un paso de decode con varias conversaciones",
+  "intro": "Aplica \\(t_{paso} = max(t_{mem}, t_{cálc})\\) con \\(t_{mem} = (W + b × K) ÷ B_W\\) y \\(t_{cálc} = 2 × P × b ÷ F\\). Arranca con el despacho: Qwen3 32B en INT4 de AWQ en una L40S, con 8 conversaciones a media respuesta (≈ 6,250 tokens cada una).",
+  "entradas": [
+    { "id": "W", "label": "Pesos del modelo, \\(W\\), en GB (Qwen3 32B en INT4 de AWQ: 19.32)", "min": 0.5, "max": 400, "paso": 0.01, "valor": 19.32, "tipo": "numero" },
+    { "id": "P", "label": "Parámetros, \\(P\\), en miles de millones (para los FLOPs)", "min": 0.5, "max": 1000, "paso": 0.001, "valor": 32.762, "tipo": "numero" },
+    { "id": "K", "label": "KV cache que lee cada conversación por paso, \\(K\\), en GB (6,250 tokens × 256 KiB = 1.64)", "min": 0, "max": 50, "paso": 0.01, "valor": 1.64, "tipo": "numero" },
+    { "id": "b", "label": "Conversaciones en el batch, \\(b\\)", "min": 1, "max": 256, "paso": 1, "valor": 8 },
+    { "id": "V", "label": "GPU, para ver si caben (datos de gpus.json: da la VRAM)", "opciones": "gpus", "inicial": "l40s" },
+    { "id": "BW", "label": "Ancho de banda de esa GPU, \\(B_W\\), en GB/s (la lista solo da la VRAM: escríbelo; L40S = 864)", "min": 50, "max": 10000, "paso": 1, "valor": 864, "tipo": "numero" },
+    { "id": "F", "label": "Pico de cálculo de esa GPU, \\(F\\), en TFLOPS densos de FP16 (L40S = 362.05)", "min": 10, "max": 5000, "paso": 0.01, "valor": 362.05, "tipo": "numero" }
+  ],
+  "calculos": [
+    { "id": "D", "formula": "(W + b * K) * 1e9" },
+    { "id": "tmem", "formula": "D / (BW * 1e9) * 1000" },
+    { "id": "tcal", "formula": "2 * P * 1e9 * b / (F * 1e12) * 1000" },
+    { "id": "t", "formula": "max(tmem, tcal)" },
+    { "id": "sobra", "formula": "0.9 * V - 2 - W - b * K" }
+  ],
+  "salidas": [
+    { "label": "Bytes que se leen en cada paso, \\(D\\)", "formula": "D", "formato": "bytes", "barra": true,
+      "nota": "\\(D = W + b × K\\): los pesos una vez, el KV cache de cada una",
+      "cuenta": "{{W|corto}} GB + {{b|int}} × {{K|corto}} GB = **{{D|bytes|2}}**" },
+    { "label": "Reloj de la memoria, \\(t_{mem}\\)", "formula": "tmem", "formato": "ms", "decimales": 2,
+      "cuenta": "{{D|bytes|2}} ÷ {{BW|int}} GB/s = **{{tmem|num|2}} ms**" },
+    { "label": "Reloj del cálculo, \\(t_{cálc}\\)", "formula": "tcal", "formato": "ms", "decimales": 2,
+      "nota": "solo las capas lineales; la atención suma ≈ 20 % más con 6,250 tokens",
+      "cuenta": "2 × {{P|corto}} mil millones × {{b|int}} ÷ {{F|corto}} TFLOPS = **{{tcal|num|2}} ms**" },
+    { "label": "¿Manda la memoria?", "formula": "tmem - tcal", "veredicto": { "si": "Sí: el paso espera a la memoria", "no": "No: ahora manda el cálculo" },
+      "cuenta": "{{tmem|num|2}} ms contra {{tcal|num|2}} ms: el paso dura lo que el mayor, **{{t|num|2}} ms**" },
+    { "label": "Tokens por segundo de cada persona", "formula": "1000 / t", "formato": "num", "decimales": 1, "barra": true,
+      "nota": "\\(1 ÷ t_{paso}\\): un token por paso a cada una",
+      "cuenta": "1 ÷ {{t|num|2}} ms = **{{1000 / t|num|1}} tokens/s**" },
+    { "label": "Tokens por segundo de toda la GPU", "formula": "1000 * b / t", "formato": "num", "decimales": 0, "barra": true,
+      "nota": "\\(b ÷ t_{paso}\\)",
+      "cuenta": "{{b|int}} ÷ {{t|num|2}} ms = **{{1000 * b / t|num|0}} tokens/s**" },
+    { "label": "Intensidad del paso, contra el punto de quiebre", "formula": "2 * P * 1e9 * b / D", "formato": "num", "decimales": 1,
+      "nota": "FLOPs ÷ bytes; quiebre = \\(F ÷ B_W\\)",
+      "cuenta": "2 × {{P|corto}} mil millones × {{b|int}} ÷ {{D|bytes|2}} = **{{2 * P * 1e9 * b / D|num|1}} FLOPs/byte**, contra un quiebre de {{F * 1000 / BW|num|0}}" },
+    { "label": "¿Caben en la VRAM?", "formula": "sobra", "veredicto": { "si": "Sí caben", "no": "No caben" },
+      "nota": "con 10 % de margen y 2 GB de programa, como en la herramienta de VRAM; \\(K\\) es el KV de este momento, no el máximo",
+      "cuenta": "0.9 × {{V|corto}} GB − 2 GB − {{W|corto}} GB − {{b|int}} × {{K|corto}} GB = {{sobra|num|2}} GB" }
+  ],
+  "nota": "Prueba con \\(b\\) = 1: ≈ 41 tokens/s para una sola persona y nada más. Con 8, cada una baja a ≈ 27 pero la GPU da ≈ 213: cinco veces más. Sube \\(b\\) hasta 256 y mira que la memoria sigue mandando: el KV cache de cada conversación no se comparte. Pon \\(K\\) en 0.26 (1,000 tokens) para ver conversaciones cortas."
+}

@@ -1,0 +1,41 @@
+{
+  "titulo": "El camino de un modelo: de base a instruct, a razonamiento y a destilado",
+  "width": 76,
+  "height": 66,
+  "lanes": [
+    { "id": "pre", "label": "Preentrenamiento", "kind": "offline", "x": 0, "y": 0, "w": 76, "h": 13 },
+    { "id": "post", "label": "Post-entrenamiento del fabricante", "kind": "offline", "x": 0, "y": 14, "w": 76, "h": 26 },
+    { "id": "dest", "label": "Destilación", "kind": "neutral", "x": 0, "y": 41, "w": 76, "h": 25 }
+  ],
+  "nodes": [
+    { "id": "base", "label": "Modelo base", "sub": "solo continúa texto", "badge": "1", "kind": "model", "x": 6, "y": 3, "w": 24, "h": 8,
+      "note": "El [[modelo-base]]: adivinó el siguiente token en billones de ejemplos. Sabe mucho, pero no sabe que existe una conversación. Se publica con el sufijo «-Base» (Qwen) o sin «-it» (Gemma)." },
+    { "id": "instruct", "label": "Instruct", "sub": "sigue instrucciones", "badge": "2", "kind": "model", "x": 6, "y": 17, "w": 24, "h": 8,
+      "note": "El [[modelo-instruct]]: el base ajustado con conversaciones de ejemplo y con preferencias de personas. Contesta directo. Mistral Small 3.2 24B Instruct es uno." },
+    { "id": "razona", "label": "Razonamiento", "sub": "piensa antes de contestar", "badge": "3", "kind": "model", "x": 6, "y": 30, "w": 24, "h": 8,
+      "note": "El [[modelo-razonamiento]]: entrenado (con refuerzo, sobre todo) para escribir una cadena de pensamiento antes de la respuesta. Puede ser un modelo aparte («-Thinking»), un interruptor dentro del mismo modelo o niveles low, medium y high." },
+    { "id": "maestro", "label": "DeepSeek-R1", "sub": "671 B · 37 B activos", "badge": "4", "kind": "model", "x": 44, "y": 17, "w": 26, "h": 8,
+      "note": "Un modelo de razonamiento enorme (enero de 2025, licencia MIT). Ninguna GPU de 48 GB lo carga, pero sirve de **maestro**: lo que escribe se puede usar para enseñarle a uno chico." },
+    { "id": "muestras", "label": "Sus respuestas", "sub": "con todo y razonamiento", "kind": "store", "x": 44, "y": 44, "w": 26, "h": 8,
+      "note": "Muestras generadas por R1: preguntas, la cadena de pensamiento y la respuesta. Son los datos de entrenamiento del alumno." },
+    { "id": "destilado", "label": "R1-Distill-Qwen-32B", "sub": "SFT, sin RL", "badge": "5", "kind": "model", "x": 6, "y": 55, "w": 24, "h": 8,
+      "note": "La [[destilacion]]: la base Qwen2.5-32B ajustada con las respuestas de R1. En las tablas de DeepSeek (auto-reportadas) sacó 72.6 en AIME 2024 contra 63.6 de o1-mini. Hoy, a noviembre de 2026, lo superan los Qwen y Gemma de su tamaño." }
+  ],
+  "edges": [
+    { "from": "base", "to": "instruct", "kind": "offline", "fromSide": "b", "toSide": "t" },
+    { "from": "instruct", "to": "razona", "kind": "offline", "fromSide": "b", "toSide": "t" },
+    { "from": "maestro", "to": "muestras", "kind": "offline", "fromSide": "b", "toSide": "t", "label": "escribe" },
+    { "from": "muestras", "to": "destilado", "kind": "offline", "fromSide": "b", "toSide": "r", "label": "SFT" },
+    { "from": "base", "to": "destilado", "kind": "async", "dashed": true, "fromSide": "l", "toSide": "l", "via": [[2, 7], [2, 59]], "label": "misma base" }
+  ],
+  "flows": [
+    { "id": "camino", "label": "De base a destilado",
+      "steps": [
+        { "nodes": ["base"], "edges": [], "text": "Todo empieza en un **modelo base**: preentrenado para adivinar el siguiente token. Es la etapa más cara y casi nadie la repite." },
+        { "nodes": ["instruct"], "edges": ["base>instruct"], "text": "El fabricante lo ajusta con conversaciones y preferencias: sale el **instruct**, el que contesta directo." },
+        { "nodes": ["razona"], "edges": ["instruct>razona"], "text": "Con más entrenamiento, sobre todo por refuerzo en problemas que se pueden revisar (matemáticas, código), sale el de **razonamiento**: escribe miles de tokens pensando antes de contestar." },
+        { "nodes": ["maestro", "muestras"], "edges": ["maestro>muestras"], "text": "Un modelo de razonamiento enorme, como DeepSeek-R1, escribe muchas respuestas con todo y su razonamiento." },
+        { "nodes": ["destilado"], "edges": ["muestras>destilado", "base>destilado"], "text": "Con esas respuestas se ajusta un modelo base chico: es la **destilación**. El alumno aprende a imitar al maestro sin pasar por el refuerzo. Por eso «Distill» en el nombre dice de dónde salió, no qué tan bueno es hoy." }
+      ] }
+  ]
+}

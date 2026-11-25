@@ -1,0 +1,74 @@
+{
+  "titulo": "Revisar la licencia de un modelo en 10 minutos: las preguntas, en orden",
+  "width": 78, "height": 74,
+  "lanes": [
+    { "id": "preguntas", "label": "Las preguntas", "kind": "online", "x": 0, "y": 0, "w": 37, "h": 74 },
+    { "id": "salidas", "label": "Dónde te saca cada una", "kind": "neutral", "x": 39, "y": 0, "w": 39, "h": 74 }
+  ],
+  "nodes": [
+    { "id": "q1", "label": "¿De dónde viene?", "sub": "oficial o derivado", "badge": "1", "kind": "service", "x": 2, "y": 4, "w": 32, "h": 7,
+      "note": "¿Es el repo del autor o un [[modelo-derivado]] (fine-tune, cuantizado, merge)? Si es derivado, junta **dos** licencias: la suya y la de la base." },
+    { "id": "q2", "label": "¿Qué licencia?", "sub": "nombre y versión", "badge": "2", "kind": "service", "x": 2, "y": 14, "w": 32, "h": 7,
+      "note": "Abre el archivo LICENSE y la [[model-card]]. La etiqueta de la página es una pista, no el texto: «other» o «modified-mit» obligan a leer." },
+    { "id": "q3", "label": "¿Uso comercial?", "sub": "producción, no solo pruebas", "badge": "3", "kind": "service", "x": 2, "y": 24, "w": 32, "h": 7,
+      "note": "Una [[licencia-no-comercial]] o de investigación no sirve para un despacho que cobra, aunque el uso sea interno." },
+    { "id": "q4", "label": "¿Umbrales?", "sub": "usuarios · ingresos · MaaS", "badge": "4", "kind": "service", "x": 2, "y": 34, "w": 32, "h": 7,
+      "note": "Usuarios activos mensuales (Llama, 700 millones), ingresos o [[model-as-a-service|Model as a Service]]. Compáralos con tu caso con números." },
+    { "id": "q5", "label": "¿Política de uso?", "sub": "¿tu caso está prohibido?", "badge": "5", "kind": "service", "x": 2, "y": 44, "w": 32, "h": 7,
+      "note": "La [[politica-de-uso]] puede vivir en otro archivo y prohibir usos o lugares. La restricción de la Unión Europea de Llama 3.2 y 4 está ahí, no en el LICENSE." },
+    { "id": "q6", "label": "¿Qué pide al entregar?", "sub": "avisos · nombre · copia", "badge": "6", "kind": "service", "x": 2, "y": 54, "w": 32, "h": 7,
+      "note": "Si vas a distribuir (instalar en otra empresa, publicar un derivado): avisos, NOTICE, copia del acuerdo, «Built with…», nombre de los derivados." },
+    { "id": "fin", "label": "Decidir con el abogado", "sub": "con tu hoja de hallazgos", "kind": "human", "x": 2, "y": 64, "w": 32, "h": 8,
+      "note": "Tú llegas con el texto, las cláusulas que aplican y los números. La decisión final la revisa un abogado: esta lista sirve para no llegarle con las manos vacías." },
+    { "id": "r3", "label": "Descartar", "sub": "o licencia aparte", "kind": "external", "x": 50, "y": 24, "w": 26, "h": 7,
+      "note": "Sin uso comercial, el modelo queda fuera o hay que negociar una licencia con el autor." },
+    { "id": "r4", "label": "Pedir licencia", "sub": "al proveedor", "kind": "external", "x": 50, "y": 34, "w": 26, "h": 7,
+      "note": "Si un umbral te alcanza, la licencia pública ya no te cubre: hay que pedir otra, y el proveedor puede negarla." },
+    { "id": "r5", "label": "Descartar", "sub": "tu uso está prohibido", "kind": "external", "x": 50, "y": 44, "w": 26, "h": 7,
+      "note": "Si tu caso cae en lo que prohíbe la política de uso, no hay cuenta que lo arregle." },
+    { "id": "r6", "label": "Lista de obligaciones", "sub": "lo que harás en cada entrega", "kind": "store", "x": 50, "y": 54, "w": 26, "h": 7,
+      "note": "Lo que tendrás que cumplir cada vez que entregues. Si solo usas el modelo dentro de tu red, casi siempre queda corta." }
+  ],
+  "edges": [
+    { "from": "q1", "to": "q2", "kind": "online", "fromSide": "b", "toSide": "t" },
+    { "from": "q2", "to": "q3", "kind": "online", "fromSide": "b", "toSide": "t" },
+    { "from": "q3", "to": "q4", "kind": "online", "fromSide": "b", "toSide": "t" },
+    { "from": "q4", "to": "q5", "kind": "online", "fromSide": "b", "toSide": "t" },
+    { "from": "q5", "to": "q6", "kind": "online", "fromSide": "b", "toSide": "t" },
+    { "from": "q6", "to": "fin", "kind": "online", "fromSide": "b", "toSide": "t" },
+    { "from": "q3", "to": "r3", "kind": "neutral", "label": "no", "fromSide": "r", "toSide": "l" },
+    { "from": "q4", "to": "r4", "kind": "neutral", "label": "te alcanza", "fromSide": "r", "toSide": "l" },
+    { "from": "q5", "to": "r5", "kind": "neutral", "label": "prohibido", "fromSide": "r", "toSide": "l" },
+    { "from": "q6", "to": "r6", "kind": "neutral", "label": "anota", "fromSide": "r", "toSide": "l" }
+  ],
+  "flows": [
+    { "id": "qwen32", "label": "Qwen3 32B",
+      "steps": [
+        { "nodes": ["q1", "q2"], "edges": ["q1>q2"], "text": "Repo oficial `Qwen/Qwen3-32B`. El LICENSE es [[apache-2|Apache 2.0]], sin cambios." },
+        { "nodes": ["q3", "q4", "q5"], "edges": ["q2>q3", "q3>q4", "q4>q5"], "text": "Uso comercial: sí. Umbrales: ninguno. Política de uso aparte: ninguna." },
+        { "nodes": ["q6", "r6", "fin"], "edges": ["q5>q6", "q6>r6", "q6>fin"], "text": "Para uso interno no hay casi nada que entregar. Pasa a la revisión del abogado como el candidato más limpio." }
+      ] },
+    { "id": "mistral", "label": "Mistral Small 24B",
+      "steps": [
+        { "nodes": ["q1", "q2"], "edges": ["q1>q2"], "text": "Repo oficial de Mistral. Las versiones 3.1 y 3.2, de 24B, son **Apache 2.0**. Revisa la versión exacta: otros modelos de Mistral (Codestral, Large 2) tienen licencias que no permiten producción." },
+        { "nodes": ["q3", "q4", "q5", "q6", "fin"], "edges": ["q2>q3", "q3>q4", "q4>q5", "q5>q6", "q6>fin"], "text": "Mismo camino que Qwen3 32B: comercial, sin umbrales, obligaciones de Apache 2.0. Al abogado." }
+      ] },
+    { "id": "qwen30", "label": "Qwen3 30B-A3B",
+      "steps": [
+        { "nodes": ["q1", "q2"], "edges": ["q1>q2"], "text": "De la misma familia Qwen3: **Apache 2.0**. Ojo con las generaciones de al lado: Qwen2.5 3B es de investigación y Qwen2.5 72B tiene umbral de 100 millones de usuarios." },
+        { "nodes": ["q3", "q4", "q5", "q6", "fin"], "edges": ["q2>q3", "q3>q4", "q4>q5", "q5>q6", "q6>fin"], "text": "Pasa igual que Qwen3 32B. Que sea [[moe|MoE]] cambia la memoria, no la licencia." }
+      ] },
+    { "id": "llama", "label": "Llama 3.3 70B",
+      "steps": [
+        { "nodes": ["q1", "q2"], "edges": ["q1>q2"], "text": "Repo oficial de Meta, [[modelo-gated|gated]] con aprobación manual: pide acceso con tiempo. Licencia: [[licencia-llama|Llama 3.3 Community License]]." },
+        { "nodes": ["q3", "q4"], "edges": ["q2>q3", "q3>q4"], "text": "Comercial: sí. Umbral: 700 millones de usuarios activos mensuales; el despacho tiene 200. No le alcanza." },
+        { "nodes": ["q5"], "edges": ["q4>q5"], "text": "Política de uso aceptable: hay que leerla contra el caso. Llama 3.3 es solo texto, así que la cláusula de la Unión Europea (que es para los multimodales de 3.2 y 4) no aplica." },
+        { "nodes": ["q6", "r6", "fin"], "edges": ["q5>q6", "q6>r6", "q6>fin"], "text": "Para uso interno pesa poco; si un integrador lo entrega a otros despachos: copia del acuerdo, «Built with Llama» y el nombre de los derivados. Al abogado, con esa lista." }
+      ] },
+    { "id": "codestral", "label": "Codestral 22B (para comparar)",
+      "steps": [
+        { "nodes": ["q1", "q2"], "edges": ["q1>q2"], "text": "Repo oficial de Mistral, de mayo de 2024. Licencia: MNPL, la Mistral AI Non-Production License." },
+        { "nodes": ["q3", "r3"], "edges": ["q2>q3", "q3>r3"], "text": "Uso en producción: **no** sin una licencia aparte. Se descarta aquí, en la pregunta 3, aunque sea de la misma empresa que Mistral Small." }
+      ] }
+  ]
+}

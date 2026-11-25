@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 372" role="img" aria-labelledby="f-elegir-modelo-activos-t" class="f-svg" style="max-width:420px">
+<title id="f-elegir-modelo-activos-t">Parámetros totales contra activos de cinco modelos, en miles de millones, con lo que ocupan sus pesos en 4 bits. Qwen3 32B es denso: 32.8 totales y 32.8 activos, unos 19 GB. Qwen3 30B-A3B: 30.5 totales y 3.3 activos, unos 16 GB. gpt-oss-20b: 20.9 totales y 3.6 activos, unos 13 a 14 GB. Gemma 4 26B-A4B: 25.2 totales y 3.8 activos, unos 13 GB. Mistral Small 4: 119.4 totales y 6.5 activos, unos 62 GB, que no caben en los 43.2 GB útiles de una L40S. Los totales deciden la memoria; los activos, el trabajo por token.</title>
+<rect class="f-card" x="10" y="10" width="340" height="352" rx="16"/>
+<text class="f-l" x="28" y="36">TOTALES CONTRA ACTIVOS · MILES DE MILLONES</text>
+<rect class="f-b2" x="28" y="50" width="16" height="12" rx="3"/><text class="f-s" x="50" y="61" style="font-size:12px">totales: la memoria</text>
+<rect class="f-o" x="196" y="50" width="16" height="12" rx="3"/><text class="f-s" x="218" y="61" style="font-size:12px">activos: el trabajo</text>
+<text class="f-t" x="28" y="92" style="font-size:13px">Qwen3 32B</text><text class="f-s" x="28" y="108" style="font-size:12px">denso · ≈ 19 GB</text>
+<rect class="f-b2" x="140" y="82" width="52" height="11" rx="3"/><text class="f-s" x="198" y="92" style="font-size:12px">32.8</text>
+<rect class="f-o" x="140" y="97" width="52" height="11" rx="3"/><text class="f-s" x="198" y="107" style="font-size:12px">32.8</text>
+<text class="f-t" x="28" y="140" style="font-size:13px">Qwen3 30B-A3B</text><text class="f-s" x="28" y="156" style="font-size:12px">MoE · ≈ 16 GB</text>
+<rect class="f-b2" x="140" y="130" width="49" height="11" rx="3"/><text class="f-s" x="195" y="140" style="font-size:12px">30.5</text>
+<rect class="f-o" x="140" y="145" width="5" height="11" rx="2"/><text class="f-s" x="151" y="155" style="font-size:12px">3.3</text>
+<text class="f-t" x="28" y="188" style="font-size:13px">gpt-oss-20b</text><text class="f-s" x="28" y="204" style="font-size:12px">MoE · ≈ 13–14 GB</text>
+<rect class="f-b2" x="140" y="178" width="33" height="11" rx="3"/><text class="f-s" x="179" y="188" style="font-size:12px">20.9</text>
+<rect class="f-o" x="140" y="193" width="6" height="11" rx="2"/><text class="f-s" x="152" y="203" style="font-size:12px">3.6</text>
+<text class="f-t" x="28" y="236" style="font-size:13px">Gemma 4 26B-A4B</text><text class="f-s" x="28" y="252" style="font-size:12px">MoE · ≈ 13 GB</text>
+<rect class="f-b2" x="140" y="226" width="40" height="11" rx="3"/><text class="f-s" x="186" y="236" style="font-size:12px">25.2</text>
+<rect class="f-o" x="140" y="241" width="6" height="11" rx="2"/><text class="f-s" x="152" y="251" style="font-size:12px">3.8</text>
+<text class="f-t" x="28" y="284" style="font-size:13px">Mistral Small 4</text><text class="f-s" x="28" y="300" style="font-size:12px">MoE · ≈ 62 GB</text>
+<rect class="f-b2" x="140" y="274" width="192" height="11" rx="3"/><text class="f-s" x="326" y="284" text-anchor="end" style="font-size:12px">119.4</text>
+<rect class="f-o" x="140" y="289" width="10" height="11" rx="2"/><text class="f-s" x="156" y="299" style="font-size:12px">6.5 · no cabe en 48 GB</text>
+<rect class="f-chip" x="28" y="314" width="304" height="36" rx="10"/>
+<text class="f-s" x="40" y="337" style="font-size:12px">GB: los pesos en 4 bits, cuenta aproximada.</text>
+</svg>

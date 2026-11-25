@@ -1,0 +1,27 @@
+{
+  "titulo": "¿Cuántas conversaciones a la vez? La ley de Little",
+  "intro": "Aplica \\(λ = frac{personas × preguntas}{horas × 3,600} × pico\\) y la [[ley-de-little|ley de Little]], \\(L = λ × W\\). Arranca con el despacho: 200 personas, 15 preguntas al día cada una, 10 horas, una hora pico de 2.5 veces el promedio y 27 s por respuesta.",
+  "entradas": [
+    { "id": "per", "label": "Personas que lo usan", "min": 1, "max": 100000, "paso": 1, "valor": 200, "tipo": "numero" },
+    { "id": "q", "label": "Preguntas por persona al día", "min": 1, "max": 200, "paso": 1, "valor": 15 },
+    { "id": "h", "label": "Horas de uso al día", "min": 1, "max": 24, "paso": 1, "valor": 10 },
+    { "id": "pk", "label": "Factor de la hora pico (veces el promedio)", "min": 1, "max": 10, "paso": 0.1, "valor": 2.5 },
+    { "id": "W", "label": "Duración de una respuesta, \\(W\\) (TTFT + escribirla)", "min": 1, "max": 300, "paso": 1, "valor": 27, "unidad": "s" },
+    { "id": "c", "label": "Conversaciones a la vez de diseño, \\(c\\)", "min": 1, "max": 512, "paso": 1, "valor": 8 }
+  ],
+  "calculos": [
+    { "id": "dia", "formula": "per * q" },
+    { "id": "lam", "formula": "dia / (h * 3600) * pk" },
+    { "id": "L", "formula": "lam * W" }
+  ],
+  "salidas": [
+    { "label": "Preguntas al día", "formula": "dia", "formato": "int", "cuenta": "{{per|int}} × {{q|int}} = **{{dia|int}}**" },
+    { "label": "Preguntas en la hora pico", "formula": "dia / h * pk", "formato": "int", "cuenta": "{{dia|int}} ÷ {{h|int}} h × {{pk|corto}} = **{{dia / h * pk|int}}**" },
+    { "label": "Tasa de llegada en la hora pico, \\(λ\\)", "formula": "lam", "formato": "num", "decimales": 3, "nota": "preguntas por segundo", "cuenta": "{{dia / h * pk|int}} ÷ 3,600 s = **{{lam|num|3}} por segundo**" },
+    { "label": "Conversaciones a la vez, en promedio, \\(L\\)", "formula": "L", "formato": "num", "decimales": 2, "barra": true, "cuenta": "\\(L = λ × W\\) = {{lam|num|3}} × {{W|int}} s = **{{L|num|2}}**" },
+    { "label": "El promedio contra el diseño", "formula": "L / c", "formato": "pct", "barra": true, "nota": "más de 100 %: la fila crece sin parar", "cuenta": "{{L|num|2}} ÷ {{c|int}} = **{{L / c * 100|num|0}} %**" },
+    { "label": "¿El promedio cabe en el diseño?", "formula": "c - L", "veredicto": { "si": "Sí, en promedio (los picos pasan de ahí)", "no": "No: ni el promedio cabe" }, "cuenta": "{{c|int}} − {{L|num|2}} = {{c - L|num|2}}" },
+    { "label": "Personas con las que el promedio llegaría a \\(c\\)", "formula": "c / W / pk * h * 3600 / q", "formato": "int", "nota": "un techo, no un objetivo: ahí los picos ya hacen fila", "cuenta": "{{c|int}} ÷ {{W|int}} s ÷ {{pk|corto}} × {{h|int}} h × 3,600 ÷ {{q|int}} = **{{c / W / pk * h * 3600 / q|int}} personas**" }
+  ],
+  "nota": "Prueba: duplica las personas a 400 y mira el promedio pasar de 8. Después deja 200 y sube la duración a 45 s, como si la GPU escribiera a 11 tokens por segundo: más lento también es más gente adentro."
+}

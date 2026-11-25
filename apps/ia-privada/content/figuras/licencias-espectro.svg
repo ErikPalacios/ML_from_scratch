@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 452" role="img" aria-labelledby="f-licencias-espectro-t" class="f-svg" style="max-width:420px">
+<title id="f-licencias-espectro-t">El espectro de apertura de un modelo, de cerrado a open source, en cuatro escalones. Cerrado, por API: no entrega pesos, ni código de entrenamiento, ni información de los datos, y se usa con términos de servicio. Open weight con licencia propia, como Llama 3.3: entrega los pesos, pero no el código de entrenamiento ni la información de los datos, y su licencia no está aprobada por la OSI. Open weight con licencia permisiva, como Qwen3 32B: entrega los pesos con Apache 2.0, una licencia aprobada por la OSI, pero no el código de entrenamiento ni la información completa de los datos. Open source según la definición de la OSI, como OLMo 3: entrega pesos, código, información de los datos y licencia aprobada.</title>
+<rect class="f-card" x="10" y="10" width="340" height="432" rx="16"/>
+<text class="f-l" x="26" y="34">DE CERRADO A ABIERTO · QUÉ TE ENTREGAN</text>
+<text class="f-t" x="24" y="64">Cerrado, por API</text>
+<text class="f-s" x="24" y="82">Solo mandas texto y recibes respuestas</text>
+<rect class="f-off" x="24" y="92" width="72" height="24" rx="6"/><text class="f-s" x="60" y="109" text-anchor="middle">✗ pesos</text>
+<rect class="f-off" x="103" y="92" width="72" height="24" rx="6"/><text class="f-s" x="139" y="109" text-anchor="middle">✗ código</text>
+<rect class="f-off" x="182" y="92" width="72" height="24" rx="6"/><text class="f-s" x="218" y="109" text-anchor="middle">✗ datos</text>
+<rect class="f-off" x="261" y="92" width="72" height="24" rx="6"/><text class="f-s" x="297" y="109" text-anchor="middle">✗ OSI</text>
+<text class="f-t" x="24" y="148">Open weight, licencia propia</text>
+<text class="f-s" x="24" y="166">Llama 3.3 70B</text>
+<rect class="f-g" x="24" y="176" width="72" height="24" rx="6"/><text class="f-s" x="60" y="193" text-anchor="middle" style="font-weight:700">✓ pesos</text>
+<rect class="f-off" x="103" y="176" width="72" height="24" rx="6"/><text class="f-s" x="139" y="193" text-anchor="middle">✗ código</text>
+<rect class="f-off" x="182" y="176" width="72" height="24" rx="6"/><text class="f-s" x="218" y="193" text-anchor="middle">✗ datos</text>
+<rect class="f-off" x="261" y="176" width="72" height="24" rx="6"/><text class="f-s" x="297" y="193" text-anchor="middle">✗ OSI</text>
+<text class="f-t" x="24" y="232">Open weight, licencia permisiva</text>
+<text class="f-s" x="24" y="250">Qwen3 32B, con Apache 2.0</text>
+<rect class="f-g" x="24" y="260" width="72" height="24" rx="6"/><text class="f-s" x="60" y="277" text-anchor="middle" style="font-weight:700">✓ pesos</text>
+<rect class="f-off" x="103" y="260" width="72" height="24" rx="6"/><text class="f-s" x="139" y="277" text-anchor="middle">✗ código</text>
+<rect class="f-off" x="182" y="260" width="72" height="24" rx="6"/><text class="f-s" x="218" y="277" text-anchor="middle">✗ datos</text>
+<rect class="f-g" x="261" y="260" width="72" height="24" rx="6"/><text class="f-s" x="297" y="277" text-anchor="middle" style="font-weight:700">✓ OSI</text>
+<text class="f-t" x="24" y="316">Open source (definición OSI)</text>
+<text class="f-s" x="24" y="334">OLMo 3, de AI2</text>
+<rect class="f-g" x="24" y="344" width="72" height="24" rx="6"/><text class="f-s" x="60" y="361" text-anchor="middle" style="font-weight:700">✓ pesos</text>
+<rect class="f-g" x="103" y="344" width="72" height="24" rx="6"/><text class="f-s" x="139" y="361" text-anchor="middle" style="font-weight:700">✓ código</text>
+<rect class="f-g" x="182" y="344" width="72" height="24" rx="6"/><text class="f-s" x="218" y="361" text-anchor="middle" style="font-weight:700">✓ datos</text>
+<rect class="f-g" x="261" y="344" width="72" height="24" rx="6"/><text class="f-s" x="297" y="361" text-anchor="middle" style="font-weight:700">✓ OSI</text>
+<text class="f-s" x="24" y="398">código = el de entrenamiento · datos = la</text>
+<text class="f-s" x="24" y="416">información de los datos · OSI = licencia</text>
+<text class="f-s" x="24" y="434">aprobada por la Open Source Initiative</text>
+</svg>

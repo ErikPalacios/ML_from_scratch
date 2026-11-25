@@ -1,0 +1,56 @@
+{
+  "titulo": "¿Te alcanza una cláusula de la licencia?",
+  "intro": "Aplica las dos cuentas de la lección: las veces que estás por debajo del umbral de usuarios, \\(k = U_{lic} ÷ U\\), y la cláusula de Model as a Service, que solo mira el negocio de vender acceso al modelo a terceros. Elige una licencia o mueve los controles. Arranca con el despacho (200 personas, uso interno) y Llama 3.3 70B.",
+  "preajustes": {
+    "label": "Licencia de ejemplo (cláusulas según su texto, leído el 25 nov 2026)",
+    "inicial": 0,
+    "opciones": [
+      { "label": "Llama 3.3 70B · Llama 3.3 Community License", "valores": { "Um": 700000000, "Rq": -2 },
+        "nota": "Umbral de 700 millones de usuarios activos mensuales, contados en el mes anterior a la fecha de lanzamiento de la versión. Arriba de eso hay que pedirle licencia a Meta, que puede negarla. Sin cláusula de MaaS. Las demás condiciones (copia del acuerdo, «Built with Llama», nombre de los derivados, política de uso) aplican siempre." },
+      { "label": "Qwen3 32B · Apache 2.0", "valores": { "Um": 0, "Rq": -2 },
+        "nota": "Sin umbral de usuarios y sin cláusula de MaaS. Solo las condiciones de Apache 2.0: copia de la licencia, marcar los archivos que cambiaste y conservar los avisos y el NOTICE." },
+      { "label": "Qwen2.5 72B · Qwen License", "valores": { "Um": 100000000, "Rq": -2 },
+        "nota": "Uso comercial permitido; si tu producto pasa de 100 millones de usuarios activos mensuales, hay que pedirle licencia a Alibaba." },
+      { "label": "Muse Spark Open · Muse Model License", "valores": { "Um": 0, "Rq": 20 },
+        "nota": "MIT modificada (Meta, 15 oct 2026). Un negocio de Model as a Service con más de US$20 millones de ingresos brutos en 12 meses necesita un acuerdo aparte. El uso interno y el modelo como pieza de tu propio producto quedan fuera. Además: mostrar «Built with Muse Spark Open»." },
+      { "label": "Qwen3.8-Max · Qwen3.8-Max License", "valores": { "Um": 0, "Rq": 50 },
+        "nota": "MIT con condiciones. MaaS o asistente de trabajo con IA con más de US$50 millones en 12 meses necesita licencia aparte; uso interno exento. Aparte, con más de 100 millones de usuarios o US$20 millones al mes hay que mostrar el nombre del modelo en la interfaz (no es pedir licencia, y esta calculadora no lo cuenta)." },
+      { "label": "Mistral Large 4 · Mistral Ecosystem Open-Weight License", "valores": { "Um": 0, "Rq": -1 },
+        "nota": "MIT modificada. Cualquier negocio de Model as a Service necesita licencia comercial aparte, sin umbral de ingresos. Uso interno exento." }
+    ]
+  },
+  "entradas": [
+    { "id": "U", "label": "Usuarios activos mensuales de tu producto, \\(U\\)", "tipo": "numero", "min": 1, "max": 5000000000, "paso": 1, "valor": 200 },
+    { "id": "Um", "label": "Umbral de usuarios de la licencia, \\(U_{lic}\\)", "tipo": "opcion", "valor": 700000000, "opciones": [
+      { "valor": 0, "label": "No tiene umbral de usuarios" },
+      { "valor": 100000000, "label": "100 millones (Qwen License)" },
+      { "valor": 700000000, "label": "700 millones (Llama)" } ] },
+    { "id": "maas", "label": "¿Vendes a terceros acceso al modelo por API?", "tipo": "opcion", "valor": 0, "opciones": [
+      { "valor": 0, "label": "No: lo usas dentro de tu empresa o dentro de tu propio producto" },
+      { "valor": 1, "label": "Sí: es un negocio de Model as a Service" } ] },
+    { "id": "R", "label": "Ingresos de ese negocio en 12 meses, \\(R\\)", "tipo": "numero", "min": 0, "max": 100000, "paso": 0.01, "valor": 0, "unidad": "millones de US$" },
+    { "id": "Rq", "label": "Cláusula de Model as a Service de la licencia, \\(R_{lic}\\)", "tipo": "opcion", "valor": -2, "opciones": [
+      { "valor": -2, "label": "No tiene cláusula de MaaS" },
+      { "valor": -1, "label": "Cualquier negocio de MaaS necesita licencia aparte" },
+      { "valor": 20, "label": "Más de US$20 millones en 12 meses" },
+      { "valor": 50, "label": "Más de US$50 millones en 12 meses" } ] }
+  ],
+  "calculos": [
+    { "id": "k", "formula": "Um > 0 ? Um / U : 0" },
+    { "id": "okU", "formula": "Um > 0 ? (U > Um ? -1 : 1) : 1" },
+    { "id": "okQ", "formula": "(Rq === -2 || maas === 0) ? 1 : (Rq === -1 ? -1 : (R > Rq ? -1 : 1))" },
+    { "id": "falta", "formula": "Rq > 0 ? max(0, Rq - R) : 0" }
+  ],
+  "salidas": [
+    { "label": "1 · Veces por debajo del umbral, \\(k\\)", "formula": "k", "formato": "int",
+      "nota": "\\(k = U_{lic} ÷ U\\); da 0 si la licencia no tiene umbral",
+      "cuenta": "{{Um|int}} ÷ {{U|int}} usuarios = **{{k|int}} veces**" },
+    { "label": "2 · Cláusula de usuarios", "formula": "okU", "veredicto": { "si": "No te alcanza", "no": "Te alcanza: hay que pedir licencia" },
+      "nota": "Te alcanza si \\(U > U_{lic}\\)" },
+    { "label": "3 · Cláusula de Model as a Service", "formula": "okQ", "veredicto": { "si": "No te alcanza", "no": "Te alcanza: hay que pedir licencia" },
+      "nota": "Solo cuenta si vendes acceso al modelo a terceros; el uso interno queda fuera",
+      "cuenta": "Margen hasta el umbral de MaaS: **{{falta|num|2}} millones de US$** en 12 meses (0 si no hay umbral numérico)" },
+    { "label": "¿La licencia, tal como está, te cubre?", "formula": "min(okU, okQ)", "veredicto": { "si": "Sí, con sus condiciones de siempre", "no": "No: necesitas un acuerdo aparte" } }
+  ],
+  "nota": "Prueba: con Llama, pon 4,000 usuarios (un integrador con 20 despachos de 200 personas) y mira que sigues 175,000 veces abajo. Después elige Mistral Large 4 y cambia a «Sí: es un negocio de Model as a Service»: aunque ganes US$0.01 millones, ya te alcanza. Esta calculadora solo mira estas dos cláusulas: las demás condiciones de cada licencia aplican siempre, y la decisión final la revisa un abogado."
+}

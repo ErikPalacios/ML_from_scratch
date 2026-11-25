@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 462" role="img" aria-labelledby="f-elegir-modelo-nombre-t" class="f-svg" style="max-width:420px">
+<title id="f-elegir-modelo-nombre-t">Anatomía del nombre Qwen3-30B-A3B-Instruct-2507, partido en cinco piezas. Qwen3: la familia Qwen, de Alibaba, en su generación 3. 30B: 30.5 mil millones de parámetros totales, que van todos a la memoria. A3B: unos 3.3 mil millones de parámetros activos por token, porque es una mezcla de expertos; sin esa pieza, el modelo es denso. Instruct: ajustado para seguir instrucciones; Base sería sin ajustar y Thinking, el que razona. 2507: año y mes de la revisión, julio de 2025. Abajo, otro nombre: gemma-4-31B-it, donde it quiere decir ajustado con instrucciones.</title>
+<rect class="f-card" x="10" y="10" width="340" height="442" rx="16"/>
+<text class="f-l" x="28" y="36">ANATOMÍA DE UN NOMBRE</text>
+<rect class="f-o" x="24" y="50" width="62" height="32" rx="8"/><text class="f-t" x="55" y="71" text-anchor="middle" style="font-size:14px">Qwen3</text>
+<rect class="f-b" x="90" y="50" width="44" height="32" rx="8"/><text class="f-t" x="112" y="71" text-anchor="middle" style="font-size:14px">30B</text>
+<rect class="f-g" x="138" y="50" width="46" height="32" rx="8"/><text class="f-t" x="161" y="71" text-anchor="middle" style="font-size:14px">A3B</text>
+<rect class="f-y" x="188" y="50" width="78" height="32" rx="8"/><text class="f-t" x="227" y="71" text-anchor="middle" style="font-size:14px">Instruct</text>
+<rect class="f-p" x="270" y="50" width="66" height="32" rx="8"/><text class="f-t" x="303" y="71" text-anchor="middle" style="font-size:14px">2507</text>
+<rect class="f-o" x="28" y="106" width="14" height="14" rx="3"/>
+<text class="f-t" x="52" y="118" style="font-size:13px">Qwen3 · familia y generación</text>
+<text class="f-s" x="52" y="136" style="font-size:12px">La familia Qwen, de Alibaba, generación 3.</text>
+<text class="f-s" x="52" y="152" style="font-size:12px">Qwen3.6 y Qwen3.8 vinieron después.</text>
+<rect class="f-b" x="28" y="170" width="14" height="14" rx="3"/>
+<text class="f-t" x="52" y="182" style="font-size:13px">30B · parámetros totales</text>
+<text class="f-s" x="52" y="200" style="font-size:12px">30.5 mil millones. Todos van a la</text>
+<text class="f-s" x="52" y="216" style="font-size:12px">memoria de la GPU: deciden si cabe.</text>
+<rect class="f-g" x="28" y="234" width="14" height="14" rx="3"/>
+<text class="f-t" x="52" y="246" style="font-size:13px">A3B · parámetros activos</text>
+<text class="f-s" x="52" y="264" style="font-size:12px">≈ 3.3 mil millones trabajan por token:</text>
+<text class="f-s" x="52" y="280" style="font-size:12px">es un MoE. Sin «A…», es denso.</text>
+<rect class="f-y" x="28" y="298" width="14" height="14" rx="3"/>
+<text class="f-t" x="52" y="310" style="font-size:13px">Instruct · cómo se ajustó</text>
+<text class="f-s" x="52" y="328" style="font-size:12px">Sigue instrucciones. «Base»: sin ajustar.</text>
+<text class="f-s" x="52" y="344" style="font-size:12px">«Thinking»: piensa antes de contestar.</text>
+<rect class="f-p" x="28" y="362" width="14" height="14" rx="3"/>
+<text class="f-t" x="52" y="374" style="font-size:13px">2507 · la revisión</text>
+<text class="f-s" x="52" y="392" style="font-size:12px">Año y mes: julio de 2025. Sucede al</text>
+<text class="f-s" x="52" y="408" style="font-size:12px">Qwen3-30B-A3B de abril, que era híbrido.</text>
+<line x1="28" y1="420" x2="332" y2="420" style="stroke:var(--tm-line);stroke-width:1.5"/>
+<text class="f-s" x="28" y="440" style="font-size:12px">Otro: gemma-4-31B-it, donde «it» = Instruct.</text>
+</svg>

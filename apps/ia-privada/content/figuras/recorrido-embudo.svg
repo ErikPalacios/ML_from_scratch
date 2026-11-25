@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 728" role="img" aria-labelledby="f-recorrido-embudo-t" class="f-svg" style="max-width:420px">
+<title id="f-recorrido-embudo-t">El sizing del despacho de abogados como un embudo. 200 personas por 15 preguntas son 3,000 preguntas al día; entre 10 horas de uso, 300 por hora en promedio; por 2.5, el factor de la hora pico, 750 en la hora pico; entre 3,600 segundos, 0.21 llegadas por segundo; por los 27 segundos que dura cada respuesta, 5.6 conversaciones a la vez en promedio; con margen y redondeando hacia arriba, 8 de diseño. Abajo, una barra de 48 GB, la VRAM de una L40S: pesos de Qwen3 32B en INT4 de AWQ, 19.32 GB; KV cache de 8 conversaciones de 8,192 tokens, 17.18 GB; programa, 2 GB; libres 4.70 GB hasta la raya de 43.2 GB útiles, el 90 por ciento. Se necesitan 38.50 GB: cabe.</title>
+<rect class="f-card" x="10" y="10" width="340" height="474" rx="16"/>
+<text class="f-l" x="28" y="36">DE PERSONAS A CONVERSACIONES A LA VEZ</text>
+<rect class="f-chip" x="28" y="54" width="304" height="30" rx="10"/>
+<text class="f-t" x="40" y="75">200</text>
+<text class="f-s" x="108" y="74">personas</text>
+<line class="f-flecha" x1="44" y1="90" x2="44" y2="104"/><path class="f-punta" d="M38,102 L50,102 L44,110 Z"/>
+<text class="f-s" x="62" y="105">× 15 preguntas por persona</text>
+<rect class="f-chip" x="28" y="118" width="304" height="30" rx="10"/>
+<text class="f-t" x="40" y="139">3,000</text>
+<text class="f-s" x="108" y="138">preguntas al día</text>
+<line class="f-flecha" x1="44" y1="154" x2="44" y2="168"/><path class="f-punta" d="M38,166 L50,166 L44,174 Z"/>
+<text class="f-s" x="62" y="169">÷ 10 horas de uso</text>
+<rect class="f-chip" x="28" y="182" width="304" height="30" rx="10"/>
+<text class="f-t" x="40" y="203">300</text>
+<text class="f-s" x="108" y="202">por hora, en promedio</text>
+<line class="f-flecha" x1="44" y1="218" x2="44" y2="232"/><path class="f-punta" d="M38,230 L50,230 L44,238 Z"/>
+<text class="f-s" x="62" y="233">× 2.5, el factor pico</text>
+<rect class="f-chip" x="28" y="246" width="304" height="30" rx="10"/>
+<text class="f-t" x="40" y="267">750</text>
+<text class="f-s" x="108" y="266">en la hora pico</text>
+<line class="f-flecha" x1="44" y1="282" x2="44" y2="296"/><path class="f-punta" d="M38,294 L50,294 L44,302 Z"/>
+<text class="f-s" x="62" y="297">÷ 3,600 segundos</text>
+<rect class="f-chip" x="28" y="310" width="304" height="30" rx="10"/>
+<text class="f-t" x="40" y="331">0.21</text>
+<text class="f-s" x="108" y="330">por segundo en el pico (λ)</text>
+<line class="f-flecha" x1="44" y1="346" x2="44" y2="360"/><path class="f-punta" d="M38,358 L50,358 L44,366 Z"/>
+<text class="f-s" x="62" y="361">× 27 s que dura cada una</text>
+<rect class="f-chip" x="28" y="374" width="304" height="30" rx="10"/>
+<text class="f-t" x="40" y="395">5.6</text>
+<text class="f-s" x="108" y="394">conversaciones a la vez</text>
+<line class="f-flecha" x1="44" y1="410" x2="44" y2="424"/><path class="f-punta" d="M38,422 L50,422 L44,430 Z"/>
+<text class="f-s" x="62" y="425">+ margen, hacia arriba</text>
+<rect class="f-chip" x="28" y="438" width="304" height="30" rx="10"/>
+<text class="f-t" x="40" y="459">8</text>
+<text class="f-s" x="108" y="458">de diseño</text>
+<rect class="f-card" x="10" y="500" width="340" height="218" rx="16"/>
+<text class="f-l" x="28" y="526">8 CONVERSACIONES EN UNA L40S DE 48 GB</text>
+<rect class="f-off" x="28" y="540" width="304" height="26" rx="6"/>
+<rect class="f-b" x="28.0" y="540" width="122.4" height="26"/>
+<rect class="f-o" x="150.4" y="540" width="108.8" height="26"/>
+<rect class="f-y" x="259.2" y="540" width="12.7" height="26"/>
+<line class="f-flecha" x1="301.6" y1="534" x2="301.6" y2="572" style="stroke-width:2"/>
+<rect class="f-b" x="28" y="577" width="14" height="14" rx="3"/>
+<text class="f-s" x="50" y="588">Pesos: 19.32 GB</text>
+<rect class="f-o" x="28" y="599" width="14" height="14" rx="3"/>
+<text class="f-s" x="50" y="610">KV cache de 8: 17.18 GB</text>
+<rect class="f-y" x="28" y="621" width="14" height="14" rx="3"/>
+<text class="f-s" x="50" y="632">Programa: 2 GB</text>
+<rect class="f-off" x="28" y="643" width="14" height="14" rx="3"/>
+<text class="f-s" x="50" y="654">Libre hasta 43.2 útiles: 4.70 GB</text>
+<text class="f-s" x="28" y="676">La raya: 43.2 GB útiles (90 % de 48).</text>
+<text class="f-t" x="28" y="700">Necesitas 38.50 GB: cabe.</text>
+</svg>

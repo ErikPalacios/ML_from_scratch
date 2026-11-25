@@ -1,0 +1,35 @@
+{
+  "titulo": "Reservar el máximo o repartir en bloques",
+  "intro": "Compara \\(c_{fija} = ⌊M_{KV} ÷ (N_{máx} × m)⌋\\) con \\(c_{bloques} = ⌊M_{KV} ÷ (⌈N_{real} ÷ s⌉ × s × m)⌋\\). Arranca con el despacho: los 21.88 GB que le quedan a la L40S para KV cache, Qwen3 32B en BF16 y conversaciones a media respuesta.",
+  "entradas": [
+    { "id": "M", "label": "VRAM libre para el KV cache, \\(M_{KV}\\), en GB (43.2 útiles − 19.32 de pesos − 2 de programa)", "min": 1, "max": 1000, "paso": 0.01, "valor": 21.88, "tipo": "numero" },
+    { "id": "mk", "label": "KV cache por token, \\(m\\), en KiB (Qwen3 32B en BF16: 256)", "min": 8, "max": 2048, "paso": 1, "valor": 256, "tipo": "numero" },
+    { "id": "Nmax", "label": "Contexto máximo que se reserva, \\(N_{máx}\\), en tokens", "min": 256, "max": 131072, "paso": 1, "valor": 8192, "tipo": "numero" },
+    { "id": "Nr", "label": "Largo real promedio de cada conversación, \\(N_{real}\\), en tokens", "min": 1, "max": 131072, "paso": 1, "valor": 6250, "tipo": "numero" },
+    { "id": "s", "label": "Tamaño de bloque, \\(s\\), en tokens", "tipo": "opcion", "valor": 16,
+      "opciones": [ { "valor": 1, "label": "1 (un token por página, como SGLang)" }, { "valor": 8, "label": "8" }, { "valor": 16, "label": "16 (el del paper de PagedAttention)" }, { "valor": 32, "label": "32" }, { "valor": 64, "label": "64" }, { "valor": 128, "label": "128" } ] }
+  ],
+  "calculos": [
+    { "id": "m", "formula": "mk * 1024" },
+    { "id": "lib", "formula": "M * 1e9" },
+    { "id": "real", "formula": "min(Nr, Nmax)" },
+    { "id": "ocupa", "formula": "ceil(real / s) * s" },
+    { "id": "cf", "formula": "floor(lib / (Nmax * m))" },
+    { "id": "cb", "formula": "floor(lib / (ocupa * m))" },
+    { "id": "blq", "formula": "floor(lib / (s * m))" }
+  ],
+  "salidas": [
+    { "label": "Con reserva fija: conversaciones que caben, \\(c_{fija}\\)", "formula": "cf", "formato": "int", "barra": true,
+      "cuenta": "⌊{{lib|bytes|2}} ÷ ({{Nmax|int}} × {{m|int}} bytes)⌋ = ⌊{{lib / (Nmax * m)|num|2}}⌋ = **{{cf|int}}**" },
+    { "label": "Con bloques: conversaciones que caben, \\(c_{bloques}\\)", "formula": "cb", "formato": "int", "barra": true,
+      "cuenta": "cada una usa ⌈{{real|int}} ÷ {{s|int}}⌉ = {{ceil(real / s)|int}} bloques = {{ocupa|int}} tokens; ⌊{{lib|bytes|2}} ÷ ({{ocupa|int}} × {{m|int}} bytes)⌋ = **{{cb|int}}**" },
+    { "label": "Cuántas veces más caben con bloques", "formula": "cb / max(cf, 1)", "formato": "x", "decimales": 2 },
+    { "label": "Memoria reservada que guarda tokens de verdad, con reserva fija", "formula": "real / Nmax", "formato": "pct", "barra": true,
+      "nota": "\\(N_{real} ÷ N_{máx}\\); el resto se reservó y nunca se usa" },
+    { "label": "Lo mismo, con bloques", "formula": "real / ocupa", "formato": "pct", "barra": true,
+      "nota": "solo se pierde el final del último bloque" },
+    { "label": "Bloques en la VRAM libre", "formula": "blq", "formato": "int",
+      "cuenta": "⌊{{lib|bytes|2}} ÷ ({{s|int}} × {{m|int}} bytes)⌋ = **{{blq|int}} bloques** = {{blq * s|int}} tokens de KV cache" }
+  ],
+  "nota": "Con las preguntas largas del despacho la ganancia es modesta (10 → 13): sus conversaciones llenan casi todo lo reservado. Pon \\(N_{real}\\) en 1,000, como un chat corto: con reserva fija siguen cabiendo 10; con bloques, 82. Luego cambia el bloque de 16 a 128 y mira que casi no cambia nada: el desperdicio de bloques es solo el final del último."
+}

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 388" role="img" aria-labelledby="f-elegir-modelo-intervalos-t" class="f-svg" style="max-width:420px">
+<title id="f-elegir-modelo-intervalos-t">Dos modelos que sacan 86 y 84 por ciento, medidos con exámenes de tres tamaños, con su intervalo de 95 por ciento. Con 200 preguntas, el de 86 va de 81.2 a 90.8 y el de 84 de 78.9 a 89.1: casi se tapan, y la diferencia de 2 puntos no se distingue del ruido. Con 2,000 preguntas, van de 84.5 a 87.5 y de 82.4 a 85.6: todavía se enciman y la diferencia sigue sin distinguirse. Con 10,000 preguntas, van de 85.3 a 86.7 y de 83.3 a 84.7: ya no se tocan y la diferencia es real.</title>
+<rect class="f-card" x="10" y="10" width="340" height="368" rx="16"/>
+<text class="f-l" x="28" y="36">LOS MISMOS 2 PUNTOS · TRES EXÁMENES</text>
+<rect class="f-o" x="28" y="50" width="16" height="12" rx="3"/><text class="f-s" x="50" y="61" style="font-size:12px">modelo A: 86 %</text>
+<rect class="f-b" x="196" y="50" width="16" height="12" rx="3"/><text class="f-s" x="218" y="61" style="font-size:12px">modelo B: 84 %</text>
+<text class="f-t" x="28" y="96" style="font-size:13px">200 preguntas</text><text class="f-s" x="332" y="96" text-anchor="end" style="font-size:12px">no se distinguen</text>
+<line x1="141" y1="114" x2="315" y2="114" style="stroke:var(--o);stroke-width:4;stroke-linecap:round"/><circle class="f-o" cx="228" cy="114" r="6"/>
+<line x1="101" y1="132" x2="283" y2="132" style="stroke:var(--b);stroke-width:4;stroke-linecap:round"/><circle class="f-b" cx="192" cy="132" r="6"/>
+<text class="f-t" x="28" y="176" style="font-size:13px">2,000 preguntas</text><text class="f-s" x="332" y="176" text-anchor="end" style="font-size:12px">todavía no</text>
+<line x1="201" y1="194" x2="255" y2="194" style="stroke:var(--o);stroke-width:4;stroke-linecap:round"/><circle class="f-o" cx="228" cy="194" r="6"/>
+<line x1="163" y1="212" x2="221" y2="212" style="stroke:var(--b);stroke-width:4;stroke-linecap:round"/><circle class="f-b" cx="192" cy="212" r="6"/>
+<text class="f-t" x="28" y="256" style="font-size:13px">10,000 preguntas</text><text class="f-s" x="332" y="256" text-anchor="end" style="font-size:12px">sí se distinguen</text>
+<line x1="216" y1="274" x2="240" y2="274" style="stroke:var(--o);stroke-width:4;stroke-linecap:round"/><circle class="f-o" cx="228" cy="274" r="6"/>
+<line x1="179" y1="292" x2="205" y2="292" style="stroke:var(--b);stroke-width:4;stroke-linecap:round"/><circle class="f-b" cx="192" cy="292" r="6"/>
+<line x1="84" y1="318" x2="336" y2="318" class="f-linea" style="stroke-width:1.5"/>
+<line x1="84" y1="314" x2="84" y2="322" class="f-linea"/><text class="f-s" x="84" y="338" text-anchor="middle" style="font-size:12px">78</text>
+<line x1="156" y1="314" x2="156" y2="322" class="f-linea"/><text class="f-s" x="156" y="338" text-anchor="middle" style="font-size:12px">82</text>
+<line x1="228" y1="314" x2="228" y2="322" class="f-linea"/><text class="f-s" x="228" y="338" text-anchor="middle" style="font-size:12px">86</text>
+<line x1="300" y1="314" x2="300" y2="322" class="f-linea"/><text class="f-s" x="300" y="338" text-anchor="middle" style="font-size:12px">90</text>
+<text class="f-s" x="180" y="362" text-anchor="middle" style="font-size:12px">puntaje, % · la línea es el intervalo del 95 %</text>
+</svg>

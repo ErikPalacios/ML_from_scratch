@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 440" role="img" aria-labelledby="f-batching-roofline-t" class="f-svg" style="max-width:420px">
+<title id="f-batching-roofline-t">El roofline de una NVIDIA L40S en FP16 o BF16, con escalas logarítmicas. A lo ancho, la intensidad aritmética en FLOPs por byte, de 1 a 100,000; a lo alto, los TFLOPS alcanzables, de 1 a 1,000. La rampa sube como intensidad por 864 GB/s hasta el punto de quiebre, cerca de 419 FLOPs por byte, y luego el techo es plano en 362 TFLOPS. Cuatro puntos del despacho con Qwen3 32B en INT4, contando los FLOPs de las capas lineales: el decode con 1 conversación, intensidad 3.1, alcanza 2.7 TFLOPS; con 8 conversaciones, intensidad 16.2, alcanza 14; con muchísimas conversaciones de 6,250 tokens la intensidad no pasa de 40, unos 35 TFLOPS, lejos del quiebre; el prefill de una pregunta de 6,000 tokens, con intensidad de unos 20,000, llega al techo.</title>
+<rect class="f-card" x="10" y="10" width="340" height="420" rx="16"/>
+<text class="f-l" x="28" y="36">EL ROOFLINE DE UNA L40S · FP16/BF16</text>
+<text class="f-l" x="28" y="56">TFLOPS</text>
+<line x1="60.0" y1="70" x2="60.0" y2="290" style="stroke:var(--tm-line);stroke-width:1"/>
+<line x1="114.0" y1="70" x2="114.0" y2="290" style="stroke:var(--tm-line);stroke-width:1"/>
+<line x1="168.0" y1="70" x2="168.0" y2="290" style="stroke:var(--tm-line);stroke-width:1"/>
+<line x1="222.0" y1="70" x2="222.0" y2="290" style="stroke:var(--tm-line);stroke-width:1"/>
+<line x1="276.0" y1="70" x2="276.0" y2="290" style="stroke:var(--tm-line);stroke-width:1"/>
+<line x1="330.0" y1="70" x2="330.0" y2="290" style="stroke:var(--tm-line);stroke-width:1"/>
+<line x1="60" y1="290.0" x2="330" y2="290.0" style="stroke:var(--tm-line);stroke-width:1"/>
+<line x1="60" y1="216.7" x2="330" y2="216.7" style="stroke:var(--tm-line);stroke-width:1"/>
+<line x1="60" y1="143.3" x2="330" y2="143.3" style="stroke:var(--tm-line);stroke-width:1"/>
+<line x1="60" y1="70.0" x2="330" y2="70.0" style="stroke:var(--tm-line);stroke-width:1"/>
+<polygon points="60,290 60,294.7 201.6,102.4 330,102.4 330,290" style="fill:var(--b);opacity:.10"/>
+<line x1="201.6" y1="102.4" x2="201.6" y2="290" style="stroke:var(--tm-ink3);stroke-width:1.5;stroke-dasharray:5 5"/>
+<polyline points="60,294.7 201.6,102.4 330,102.4" style="fill:none;stroke:var(--b);stroke-width:3;stroke-linejoin:round"/>
+<text class="f-s" x="60.0" y="306" text-anchor="middle" style="font-size:12px">1</text>
+<text class="f-s" x="114.0" y="306" text-anchor="middle" style="font-size:12px">10</text>
+<text class="f-s" x="168.0" y="306" text-anchor="middle" style="font-size:12px">100</text>
+<text class="f-s" x="222.0" y="306" text-anchor="middle" style="font-size:12px">1,000</text>
+<text class="f-s" x="276.0" y="306" text-anchor="middle" style="font-size:12px">10k</text>
+<text class="f-s" x="330.0" y="306" text-anchor="middle" style="font-size:12px">100k</text>
+<text class="f-s" x="54" y="294.0" text-anchor="end" style="font-size:12px">1</text>
+<text class="f-s" x="54" y="220.7" text-anchor="end" style="font-size:12px">10</text>
+<text class="f-s" x="54" y="147.3" text-anchor="end" style="font-size:12px">100</text>
+<text class="f-s" x="54" y="74.0" text-anchor="end" style="font-size:12px">1,000</text>
+<text class="f-s" x="195" y="324" text-anchor="middle" style="font-size:12px">intensidad aritmética: FLOPs por byte</text>
+<text class="f-s" x="195.6" y="96.4" text-anchor="end" style="font-size:12px;font-weight:700">pico: 362 TFLOPS</text>
+<text class="f-s" x="207.6" y="262" style="font-size:12px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">quiebre</text>
+<text class="f-s" x="207.6" y="278" style="font-size:12px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">≈ 419</text>
+<circle cx="86.8" cy="258.3" r="6" style="fill:var(--o);stroke:var(--blk);stroke-width:2"/>
+<text class="f-t" x="95.8" y="276.3" style="font-size:13px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">1 conversación</text>
+<text class="f-s" x="95.8" y="291.3" style="font-size:12px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">≈ 2.7 TFLOPS</text>
+<circle cx="125.3" cy="206.0" r="6" style="fill:var(--o);stroke:var(--blk);stroke-width:2"/>
+<text class="f-t" x="134.3" y="224.0" style="font-size:13px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">8 conversaciones</text>
+<text class="f-s" x="134.3" y="239.0" style="font-size:12px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">≈ 14 TFLOPS</text>
+<circle cx="146.5" cy="177.2" r="6" style="fill:var(--o);stroke:var(--blk);stroke-width:2"/>
+<text class="f-t" x="137.5" y="155.2" text-anchor="end" style="font-size:13px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">tope: ≈ 40</text>
+<text class="f-s" x="137.5" y="169.2" text-anchor="end" style="font-size:12px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">≈ 35 TFLOPS</text>
+<circle cx="292.7" cy="102.4" r="6" style="fill:var(--o);stroke:var(--blk);stroke-width:2"/>
+<text class="f-t" x="283.7" y="124.4" text-anchor="end" style="font-size:13px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">prefill</text>
+<text class="f-s" x="283.7" y="139.4" text-anchor="end" style="font-size:12px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">de 6,000</text>
+<text class="f-s" x="28" y="350" style="font-size:12px">Quiebre: 362.05 TFLOPS ÷ 864 GB/s ≈ 419 FLOPs/byte.</text>
+<text class="f-s" x="28" y="368" style="font-size:12px">Qwen3 32B en INT4: el decode nunca llega, porque</text>
+<text class="f-s" x="28" y="386" style="font-size:12px">cada conversación suma su propio KV cache.</text>
+<text class="f-s" x="28" y="404" style="font-size:12px">A la izquierda del quiebre manda la memoria.</text>
+</svg>

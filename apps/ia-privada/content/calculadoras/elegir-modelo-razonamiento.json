@@ -1,0 +1,50 @@
+{
+  "titulo": "Lo que cuesta pensar",
+  "intro": "Aplica \\(t_{resp} = t_0 + N_p ÷ v\\), \\(t_{total} = t_0 + (N_p + N_r) ÷ v\\) y \\(m_{extra} = N_p × m_{token}\\). Arranca en el despacho: Qwen3 32B escribiendo a 20 tokens por segundo, con un modelo que piensa 1,500 tokens antes de contestar 500.",
+  "preajustes": {
+    "label": "Modelo (KV cache por token en BF16, de su config.json)",
+    "inicial": 0,
+    "opciones": [
+      { "label": "Qwen3 32B · 256 KiB", "valores": { "mkib": 256 }, "nota": "64 bloques × 8 juegos de K y V × 128 números × 2 (K y V) × 2 bytes = 262,144 bytes." },
+      { "label": "Mistral Small 3.2 24B · 160 KiB", "valores": { "mkib": 160 }, "nota": "40 bloques × 8 juegos × 128 × 2 × 2 bytes = 163,840 bytes. No razona: este preajuste sirve para ver cuánto costaría si lo hiciera." },
+      { "label": "Qwen3 30B-A3B (MoE) · 96 KiB", "valores": { "mkib": 96 }, "nota": "48 bloques × 4 juegos × 128 × 2 × 2 bytes = 98,304 bytes." },
+      { "label": "Qwen3.6 27B · 64 KiB", "valores": { "mkib": 64 }, "nota": "Solo 16 de sus 64 bloques usan atención completa: 16 × 4 × 256 × 2 × 2 = 65,536 bytes. Los otros 48 guardan un estado fijo por conversación que esta cuenta no incluye." },
+      { "label": "gpt-oss-20b · 24 KiB", "valores": { "mkib": 24 }, "nota": "12 bloques de atención completa × 8 × 64 × 2 × 2 = 24,576 bytes. Los otros 12 solo recuerdan los últimos 128 tokens: unos 3 MB fijos por conversación." }
+    ]
+  },
+  "entradas": [
+    { "id": "Np", "label": "Tokens que piensa antes de contestar, \\(N_p\\)", "min": 0, "max": 40000, "paso": 100, "valor": 1500, "tipo": "numero" },
+    { "id": "Nr", "label": "Tokens de la respuesta, \\(N_r\\)", "min": 1, "max": 8000, "paso": 50, "valor": 500, "tipo": "numero" },
+    { "id": "v", "label": "Velocidad de escritura por persona, \\(v\\), en tokens/s", "min": 1, "max": 200, "paso": 1, "valor": 20 },
+    { "id": "t0", "label": "Tiempo al primer token, \\(t_0\\), en s", "min": 0, "max": 30, "paso": 0.5, "valor": 2 },
+    { "id": "mkib", "label": "KV cache por token, \\(m_{token}\\), en KiB", "min": 1, "max": 1024, "paso": 1, "valor": 256, "tipo": "numero" },
+    { "id": "Nin", "label": "Tokens de entrada, \\(N_{in}\\) (instrucciones, pregunta y fragmentos)", "min": 0, "max": 200000, "paso": 100, "valor": 6000, "tipo": "numero" },
+    { "id": "ctx", "label": "Tope de contexto por conversación, \\(N_{max}\\)", "min": 512, "max": 1048576, "paso": 512, "valor": 8192, "tipo": "numero" },
+    { "id": "u", "label": "Conversaciones a la vez, \\(u\\)", "min": 1, "max": 256, "paso": 1, "valor": 8 }
+  ],
+  "calculos": [
+    { "id": "tresp", "formula": "t0 + Np / v" },
+    { "id": "ttotal", "formula": "t0 + (Np + Nr) / v" },
+    { "id": "tsin", "formula": "t0 + Nr / v" },
+    { "id": "mtok", "formula": "mkib * 1024" },
+    { "id": "kvx", "formula": "Np * mtok" },
+    { "id": "tokconv", "formula": "Nin + Np + Nr" }
+  ],
+  "salidas": [
+    { "label": "1 · Espera hasta que empieza la respuesta, \\(t_{resp}\\)", "formula": "tresp * 1000", "formato": "ms", "decimales": 1, "barra": true,
+      "cuenta": "{{t0|corto}} s + {{Np|int}} tokens ÷ {{v|corto}} tokens/s = **{{tresp|num|1}} s** ({{tresp / 60|num|1}} min)" },
+    { "label": "2 · Respuesta completa, \\(t_{total}\\)", "formula": "ttotal * 1000", "formato": "ms", "decimales": 1, "barra": true,
+      "cuenta": "{{t0|corto}} s + ({{Np|int}} + {{Nr|int}}) tokens ÷ {{v|corto}} tokens/s = **{{ttotal|num|1}} s**" },
+    { "label": "3 · Contra no pensar", "formula": "ttotal / tsin", "formato": "x", "nota": "\\(t_{total}\\) entre \\(t_0 + N_r ÷ v\\)",
+      "cuenta": "{{ttotal|num|1}} s ÷ ({{t0|corto}} + {{Nr|int}} ÷ {{v|corto}}) s = {{ttotal|num|1}} ÷ {{tsin|num|1}} = **{{ttotal / tsin|num|1}}×**" },
+    { "label": "4 · KV cache extra por conversación, \\(m_{extra}\\)", "formula": "kvx", "formato": "bytes", "barra": true,
+      "cuenta": "{{Np|int}} tokens × {{mtok|int}} bytes = **{{kvx|bytes|2}}**" },
+    { "label": "5 · KV cache extra de las \\(u\\) conversaciones", "formula": "kvx * u", "formato": "bytes", "barra": true,
+      "cuenta": "{{kvx|bytes|2}} × {{u|int}} = **{{kvx * u|bytes|2}}**, si todas piensan a la vez" },
+    { "label": "6 · Tokens de una conversación", "formula": "tokconv", "formato": "int", "nota": "\\(N_{in} + N_p + N_r\\)",
+      "cuenta": "{{Nin|int}} + {{Np|int}} + {{Nr|int}} = **{{tokconv|int}} tokens**" },
+    { "label": "¿Cabe en el tope de contexto?", "formula": "ctx - tokconv", "veredicto": { "si": "Sí cabe", "no": "No cabe" },
+      "cuenta": "{{ctx|int}} − {{tokconv|int}} = {{ctx - tokconv|int}} tokens (si sale negativo, la respuesta se corta o el servidor la rechaza)" }
+  ],
+  "nota": "Prueba: pon \\(N_p\\) en 20,000, lo que gasta en promedio gpt-oss-20b en un problema de AIME según su paper: con 20 tokens/s son más de 16 minutos de espera. Después elige gpt-oss-20b y mira cuánto menos KV cache cuesta lo mismo."
+}

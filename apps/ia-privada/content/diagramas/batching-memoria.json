@@ -1,0 +1,48 @@
+{
+  "titulo": "Quién reparte los bloques del KV cache",
+  "width": 78,
+  "height": 50,
+  "lanes": [
+    { "id": "pide", "label": "Lo que pide memoria", "kind": "online", "x": 0, "y": 0, "w": 78, "h": 15 },
+    { "id": "reparte", "label": "Lo que la reparte", "kind": "neutral", "x": 0, "y": 18, "w": 78, "h": 32 }
+  ],
+  "nodes": [
+    { "id": "pregunta", "label": "Pregunta nueva", "sub": "400 de instrucciones + 5,600", "kind": "client", "x": 2, "y": 4, "w": 20, "h": 8,
+      "note": "Una pregunta del despacho: ≈ 400 tokens de instrucciones, iguales en todas, más la pregunta y los fragmentos de expediente, ≈ 6,000 en total." },
+    { "id": "scheduler", "label": "Scheduler", "sub": "¿entra en este paso?", "kind": "service", "x": 30, "y": 4, "w": 18, "h": 8,
+      "note": "El [[scheduler]] solo admite la petición si el gestor de bloques puede darle memoria. Si a media respuesta ya no hay, decide a quién sacar." },
+    { "id": "cpu", "label": "RAM de la CPU", "sub": "solo si hay swap", "kind": "store", "x": 58, "y": 4, "w": 18, "h": 8,
+      "note": "Una memoria más grande y mucho más lenta que la [[vram|VRAM]]. Con *swap*, los bloques de una conversación sacada esperan aquí. vLLM, por omisión, no la usa: recalcula." },
+    { "id": "prefijos", "label": "Caché de prefijos", "sub": "hash → bloque", "kind": "store", "x": 2, "y": 22, "w": 20, "h": 8,
+      "note": "El índice del [[prefix-caching|prefix caching]]: a cada bloque **lleno** le corresponde un hash de sus tokens y de todos los anteriores. Si una petición nueva empieza igual, reutiliza esos bloques." },
+    { "id": "gestor", "label": "Gestor de bloques", "sub": "una tabla por conversación", "kind": "service", "x": 30, "y": 22, "w": 18, "h": 8,
+      "note": "Lleva la [[tabla-de-bloques|tabla de bloques]] de cada conversación (bloque lógico → bloque físico) y un contador de cuántas conversaciones usan cada bloque." },
+    { "id": "libres", "label": "Bloques libres", "sub": "la lista de huecos", "kind": "queue", "x": 58, "y": 22, "w": 18, "h": 8,
+      "note": "Los [[bloque-kv|bloques]] que nadie usa. Cualquier bloque sirve para cualquier conversación: no hace falta que estén juntos." },
+    { "id": "vram", "label": "KV cache en la VRAM", "sub": "bloques de 16 tokens", "kind": "gpu", "x": 30, "y": 40, "w": 18, "h": 8,
+      "note": "La memoria física. Con Qwen3 32B en BF16, cada bloque de 16 tokens ocupa 16 × 256 KiB = 4 MiB, y en los ≈ 21.9 GB libres de la L40S del despacho caben 5,216." }
+  ],
+  "edges": [
+    { "from": "pregunta", "to": "scheduler", "kind": "online", "fromSide": "r", "toSide": "l" },
+    { "from": "scheduler", "to": "gestor", "kind": "neutral", "label": "¿cabe?", "fromSide": "b", "toSide": "t" },
+    { "from": "gestor", "to": "prefijos", "kind": "neutral", "label": "busca", "fromSide": "l", "toSide": "r" },
+    { "from": "gestor", "to": "libres", "kind": "neutral", "label": "toma", "fromSide": "r", "toSide": "l", "bidir": true },
+    { "from": "gestor", "to": "vram", "kind": "neutral", "label": "tabla", "fromSide": "b", "toSide": "t" },
+    { "from": "vram", "to": "cpu", "kind": "async", "label": "swap", "fromSide": "r", "toSide": "b", "dashed": true, "via": [[67, 44]] }
+  ],
+  "flows": [
+    { "id": "prefijo", "label": "Una pregunta que empieza igual que otra",
+      "steps": [
+        { "nodes": ["pregunta", "scheduler", "gestor"], "edges": ["pregunta>scheduler", "scheduler>gestor"], "text": "Llega una pregunta de ≈ 6,000 tokens. El scheduler pregunta al gestor si hay memoria para ella." },
+        { "nodes": ["gestor", "prefijos"], "edges": ["gestor>prefijos"], "text": "El gestor calcula el hash de cada bloque lleno de su prompt y los busca. Las **≈ 400 tokens de instrucciones** son 25 bloques de 16 que ya están ahí, de otra pregunta: **acierto**." },
+        { "nodes": ["gestor", "libres", "vram"], "edges": ["gestor>libres", "gestor>vram"], "text": "Su tabla apunta esos 25 bloques a los que ya existen (su contador sube a 2) y solo toma bloques libres para el resto. El prefill se salta esos 400 tokens." }
+      ] },
+    { "id": "preempcion", "label": "No hay bloques: preemption",
+      "steps": [
+        { "nodes": ["vram", "libres"], "edges": [], "text": "Las conversaciones crecen un token por paso y cada 16 tokens piden un bloque nuevo. Llega un paso en que la lista de libres está **vacía**." },
+        { "nodes": ["scheduler", "gestor"], "edges": ["scheduler>gestor"], "text": "El scheduler elige una conversación para sacar (normalmente, la que entró al último) y el gestor devuelve sus bloques a la lista." },
+        { "nodes": ["vram", "cpu"], "edges": ["vram>cpu"], "text": "Con *swap*, sus bloques se copiarían a la RAM de la CPU. Con *recompute*, lo que vLLM hace por omisión, se tiran: cuando vuelva a entrar, se recalcula su KV cache con un prefill." },
+        { "nodes": ["scheduler"], "edges": [], "text": "Para esa persona, la respuesta **se congela** unos momentos y luego sigue. En el registro del servidor aparece un aviso de preemption: señal de que faltó memoria." }
+      ] }
+  ]
+}

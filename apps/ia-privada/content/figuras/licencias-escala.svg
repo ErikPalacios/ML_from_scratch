@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 290" role="img" aria-labelledby="f-licencias-escala-t" class="f-svg" style="max-width:420px">
+<title id="f-licencias-escala-t">Usuarios activos mensuales en una escala donde cada marca vale diez veces la anterior, de 100 a mil millones. El despacho, con 200 personas, queda casi en el arranque; un integrador con 20 despachos, 4,000 usuarios, un poco más adelante. El umbral de la Qwen License, 100 millones, y el de Llama, 700 millones, quedan al otro extremo. Entre el despacho y el umbral de Llama hay 3,500,000 veces: seis escalones y medio de diez veces.</title>
+<rect class="f-card" x="10" y="10" width="340" height="270" rx="16"/>
+<text class="f-l" x="26" y="34">USUARIOS ACTIVOS MENSUALES · CADA MARCA ×10</text>
+<path class="f-linea" d="M41 120 L41 160"/>
+<circle class="f-o" cx="41" cy="160" r="6"/>
+<text class="f-t" x="36" y="100">despacho</text>
+<text class="f-s" x="36" y="116">200</text>
+<path class="f-linea" d="M90 82 L90 160"/>
+<circle class="f-o" cx="90" cy="160" r="6"/>
+<text class="f-t" x="86" y="62">integrador</text>
+<text class="f-s" x="86" y="78">4,000</text>
+<path class="f-linea" d="M255 120 L255 160"/>
+<circle class="f-p" cx="255" cy="160" r="6"/>
+<text class="f-t" x="262" y="100" text-anchor="end">Qwen License</text>
+<text class="f-s" x="262" y="116" text-anchor="end">100 M</text>
+<path class="f-linea" d="M287 120 L287 160"/>
+<circle class="f-p" cx="287" cy="160" r="6"/>
+<text class="f-t" x="330" y="100" text-anchor="end">Llama</text>
+<text class="f-s" x="330" y="116" text-anchor="end">700 M</text>
+<path class="f-flecha" d="M30 160 L332 160"/>
+<g class="f-l" text-anchor="middle">
+<text x="30" y="182">10²</text><text x="67.5" y="182">10³</text><text x="105" y="182">10⁴</text><text x="142.5" y="182">10⁵</text><text x="180" y="182">10⁶</text><text x="217.5" y="182">10⁷</text><text x="255" y="182">10⁸</text><text x="292.5" y="182">10⁹</text>
+</g>
+<path class="f-linea" d="M30 154 L30 166 M67.5 154 L67.5 166 M105 154 L105 166 M142.5 154 L142.5 166 M180 154 L180 166 M217.5 154 L217.5 166 M255 154 L255 166 M292.5 154 L292.5 166"/>
+<path class="f-linea" d="M41 200 L41 208 L287 208 L287 200"/>
+<text class="f-s" x="164" y="232" text-anchor="middle" style="font-weight:700">700,000,000 ÷ 200 = 3,500,000 veces</text>
+<text class="f-s" x="164" y="252" text-anchor="middle">seis escalones y medio de ×10</text>
+</svg>

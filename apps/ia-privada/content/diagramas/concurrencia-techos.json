@@ -1,0 +1,41 @@
+{
+  "titulo": "Los tres techos de una GPU que atiende a muchas personas",
+  "width": 78,
+  "height": 50,
+  "lanes": [
+    { "id": "pregunta", "label": "Por cada pregunta", "kind": "online", "x": 0, "y": 0, "w": 78, "h": 17 },
+    { "id": "gpu", "label": "Dentro de la GPU", "kind": "neutral", "x": 0, "y": 19, "w": 78, "h": 31 }
+  ],
+  "nodes": [
+    { "id": "gente", "label": "Los abogados", "sub": "λ = 0.21 preguntas/s", "kind": "client", "x": 1, "y": 6, "w": 19, "h": 8,
+      "note": "En la hora pico del despacho llegan ≈ 750 preguntas en una hora: λ ≈ 0.21 por segundo, al azar. Cada una dura ≈ 27 s de principio a fin, así que en promedio hay \\(L = λ × W\\) ≈ 5.6 [[concurrencia|conversaciones a la vez]]." },
+    { "id": "fila", "label": "Fila de espera", "sub": "techo 3: la cola", "badge": "3", "kind": "queue", "x": 30, "y": 6, "w": 18, "h": 8,
+      "note": "**Techo 3.** Una pregunta entra al lote cuando hay lugar para su KV cache y cuando la GPU termina el [[prefill]] de las que llegaron antes. Si \\(λ × W\\) pasa de lo que cabe, la fila crece sin parar y el [[ttft|TTFT]] explota, aunque cada token siga saliendo igual de rápido." },
+    { "id": "lote", "label": "El lote de N", "sub": "un token para cada una", "kind": "gpu", "x": 58, "y": 6, "w": 19, "h": 8,
+      "note": "En cada paso de [[decode]] la GPU calcula un token para cada una de las \\(N\\) conversaciones del lote. El cálculo es barato; lo caro es traer de la memoria todo lo que ese paso necesita." },
+    { "id": "banda", "label": "Ancho de banda", "sub": "techo 2: 864 GB/s", "badge": "2", "kind": "gpu", "x": 58, "y": 24, "w": 19, "h": 8,
+      "note": "**Techo 2.** Cada paso lee los pesos una vez y el KV cache de **cada** conversación. Con 8 conversaciones de 6,500 tokens son ≈ 33 GB por paso: ≈ 38 ms en una L40S, ≈ 26 tokens por segundo para cada persona en el mejor caso. Más conversaciones, más bytes, y cada persona recibe menos." },
+    { "id": "pesos", "label": "Pesos", "sub": "19.32 GB, una vez por paso", "kind": "store", "x": 30, "y": 39, "w": 18, "h": 8,
+      "note": "Los [[pesos]] de Qwen3 32B en INT4 de AWQ. Se leen una vez por paso y los comparten todas las conversaciones del lote: por eso juntar conversaciones casi no cuesta mientras los pesos sean la mayor parte de lo que se lee." },
+    { "id": "kv", "label": "KV cache", "sub": "techo 1: ≈ 12 caben", "badge": "1", "kind": "store", "x": 58, "y": 39, "w": 19, "h": 8,
+      "note": "**Techo 1.** Cada conversación tiene su propio [[kv-cache|KV cache]]: 256 KiB por token en Qwen3 32B. Después de pesos y programa le quedan ≈ 21.9 GB de los 43.2 útiles de la L40S: ≈ 12 conversaciones de 6,500 tokens, 10 si cada una llenara sus 8,192. La que no cabe, espera en la fila." }
+  ],
+  "edges": [
+    { "from": "gente", "to": "fila", "kind": "online", "label": "pregunta", "fromSide": "r", "toSide": "l" },
+    { "from": "fila", "to": "lote", "kind": "online", "label": "entra", "fromSide": "r", "toSide": "l" },
+    { "from": "banda", "to": "lote", "kind": "neutral", "label": "cada paso", "fromSide": "t", "toSide": "b" },
+    { "from": "kv", "to": "banda", "kind": "neutral", "label": "K y V", "fromSide": "t", "toSide": "b" },
+    { "from": "pesos", "to": "banda", "kind": "neutral", "fromSide": "r", "toSide": "l", "via": [[53, 43], [53, 28]] },
+    { "from": "lote", "to": "gente", "kind": "online", "label": "tokens", "fromSide": "t", "toSide": "t", "via": [[67.5, 2], [10.5, 2]] }
+  ],
+  "flows": [
+    { "id": "subir", "label": "Subir la gente hasta que algo se rompa", "steps": [
+      { "nodes": ["gente", "fila", "lote"], "edges": ["gente>fila", "fila>lote"], "text": "Con poca gente, cada pregunta llega, encuentra lugar y entra directo al lote. La fila casi siempre está vacía." },
+      { "nodes": ["pesos", "banda", "lote"], "edges": ["pesos>banda", "banda>lote"], "text": "Cada paso lee los 19.32 GB de pesos una vez, sin importar cuántas conversaciones vayan en el lote. Con 1 conversación el paso tarda ≈ 24 ms; con 8, ≈ 38 ms: **8 veces más tokens en total por 1.6 veces más tiempo**." },
+      { "nodes": ["kv", "banda", "lote"], "edges": ["kv>banda", "banda>lote"], "text": "**Techo 2, el ancho de banda.** Lo que sí crece con cada conversación es su KV cache, que también se lee en cada paso. Con 16 a la vez el paso tarda ≈ 54 ms: ≈ 18.5 tokens por segundo por persona, por debajo de la promesa de 20." },
+      { "nodes": ["kv", "fila"], "edges": [], "text": "**Techo 1, la memoria.** Con ≈ 12 conversaciones de 6,500 tokens el KV cache llena la VRAM. La número 13 no entra: espera en la fila aunque la GPU tenga cálculo de sobra." },
+      { "nodes": ["gente", "fila"], "edges": ["gente>fila"], "text": "**Techo 3, la cola.** Si llegan más preguntas por segundo de las que la GPU termina, \\(λ × W\\) pasa de lo que cabe y la fila crece sin parar. Lo primero que se rompe es el TTFT: las respuestas salen igual de rápido, pero empiezan cada vez más tarde." },
+      { "nodes": ["lote", "gente"], "edges": ["lote>gente"], "text": "Lo que la persona siente de los tres techos: el **techo 2** baja su velocidad de lectura; los **techos 1 y 3** la hacen esperar antes del primer token." }
+    ] }
+  ]
+}

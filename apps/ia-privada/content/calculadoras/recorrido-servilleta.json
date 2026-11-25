@@ -1,0 +1,69 @@
+{
+  "titulo": "Sizing en una servilleta",
+  "intro": "Aplica las tres ecuaciones de la sección: preguntas al día \\(Q = N × q\\), llegadas en el pico \\(λ = Q ÷ h × k ÷ 3,600\\) y conversaciones a la vez \\(u = λ × D\\) (la Ley de Little). Arranca con los números del despacho.",
+  "entradas": [
+    { "id": "N", "label": "Personas que lo usan, \\(N\\)", "min": 1, "max": 5000, "paso": 1, "valor": 200, "tipo": "numero" },
+    { "id": "q", "label": "Preguntas por persona al día, \\(q\\)", "min": 1, "max": 100, "paso": 1, "valor": 15 },
+    { "id": "h", "label": "Horas de uso al día, \\(h\\)", "min": 1, "max": 24, "paso": 1, "valor": 10, "unidad": "h" },
+    { "id": "k", "label": "Factor de la hora pico, \\(k\\) (veces el promedio)", "min": 1, "max": 6, "paso": 0.1, "valor": 2.5 },
+    { "id": "D", "label": "Duración de una respuesta, \\(D\\) (primer token más escritura)", "min": 1, "max": 120, "paso": 1, "valor": 27, "unidad": "s" },
+    { "id": "m", "label": "Margen para los picos dentro de la hora pico, \\(m\\)", "min": 1, "max": 3, "paso": 0.1, "valor": 1.4 }
+  ],
+  "calculos": [
+    { "id": "Q", "formula": "N * q" },
+    { "id": "prom", "formula": "Q / h" },
+    { "id": "pico", "formula": "prom * k" },
+    { "id": "lam", "formula": "pico / 3600" },
+    { "id": "u", "formula": "lam * D" }
+  ],
+  "salidas": [
+    {
+      "label": "Preguntas al día, \\(Q\\)",
+      "formula": "Q",
+      "formato": "int",
+      "nota": "\\(Q = N × q\\)",
+      "cuenta": "{{N|int}} personas × {{q|int}} preguntas = **{{Q|int}} al día**"
+    },
+    {
+      "label": "Preguntas por hora, en promedio",
+      "formula": "prom",
+      "formato": "int",
+      "nota": "\\(Q ÷ h\\)",
+      "cuenta": "{{Q|int}} ÷ {{h|int}} h = **{{prom|int}} por hora**"
+    },
+    {
+      "label": "Preguntas en la hora pico",
+      "formula": "pico",
+      "formato": "int",
+      "barra": true,
+      "nota": "\\(Q ÷ h × k\\)",
+      "cuenta": "{{prom|int}} × {{k|corto}} = **{{pico|int}} en la hora pico**"
+    },
+    {
+      "label": "Llegadas por segundo en el pico, \\(λ\\)",
+      "formula": "lam",
+      "formato": "num",
+      "decimales": 3,
+      "nota": "preguntas por segundo: lo de la hora pico ÷ 3,600 s",
+      "cuenta": "{{pico|int}} ÷ 3,600 s = **{{lam|num|3}} por segundo** (una cada {{1 / max(lam, 1e-9)|num|1}} s)"
+    },
+    {
+      "label": "Conversaciones a la vez, en promedio, \\(u\\)",
+      "formula": "u",
+      "formato": "num",
+      "decimales": 1,
+      "barra": true,
+      "nota": "\\(u = λ × D\\), la Ley de Little",
+      "cuenta": "{{lam|num|3}} por segundo × {{D|int}} s = **{{u|num|2}} a la vez**"
+    },
+    {
+      "label": "Conversaciones a la vez, de diseño",
+      "formula": "ceil(u * m)",
+      "formato": "int",
+      "barra": true,
+      "nota": "\\(⌈u × m⌉\\): el promedio con margen, redondeado hacia arriba. Este número va a la herramienta de VRAM",
+      "cuenta": "⌈{{u|num|2}} × {{m|corto}}⌉ = ⌈{{u * m|num|2}}⌉ = **{{ceil(u * m)|int}} conversaciones**"
+    }
+  ],
+  "nota": "Prueba: sube las personas a 300 y mira cuántas conversaciones de diseño salen. Después regresa a 200 y baja la duración a 22 s (respuestas escritas a 25 tokens/s): el mismo despacho necesita menos lugares a la vez. El margen \\(m\\) es un juicio; la lección «Concurrencia» lo hace con cuidado."
+}

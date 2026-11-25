@@ -1,0 +1,53 @@
+{
+  "titulo": "De un modelo base a lo que se entrega: qué licencia rige en cada paso",
+  "width": 78, "height": 52,
+  "lanes": [
+    { "id": "modelos", "label": "La cadena de modelos", "kind": "offline", "x": 0, "y": 0, "w": 78, "h": 25 },
+    { "id": "reglas", "label": "La licencia que rige en ese paso", "kind": "neutral", "x": 0, "y": 27, "w": 78, "h": 25 }
+  ],
+  "nodes": [
+    { "id": "base", "label": "Modelo base", "sub": "Llama 3.3 70B", "badge": "1", "kind": "model", "x": 1, "y": 8, "w": 15, "h": 9,
+      "note": "El modelo que publicó Meta, con su [[licencia-llama|Llama 3.3 Community License]]. Todo lo que sale de aquí carga esa licencia: un [[modelo-derivado]] no se la puede quitar." },
+    { "id": "ft", "label": "Fine-tune", "sub": "afinado con contratos", "badge": "2", "kind": "job", "x": 21, "y": 8, "w": 15, "h": 9,
+      "note": "Alguien siguió entrenando el modelo con sus ejemplos. Los pesos cambiaron, pero salen de los de Meta: es un derivado. El que afinó puede **sumar** sus propios términos; no puede **restar** los de Meta." },
+    { "id": "cu", "label": "Cuantizado", "sub": "INT4 · un GGUF", "badge": "3", "kind": "job", "x": 41, "y": 8, "w": 15, "h": 9,
+      "note": "Los mismos pesos guardados con menos bits ([[cuantizacion]]). Es una copia comprimida, no un modelo nuevo: un GGUF de Llama sigue bajo la licencia de Llama, aunque lo haya subido otra persona con otro nombre." },
+    { "id": "dist", "label": "Lo que entregas", "sub": "a 20 despachos", "badge": "4", "kind": "client", "x": 61, "y": 8, "w": 16, "h": 9,
+      "note": "Instalar el modelo en la red de otra empresa es **distribuirlo**. Ahí se activan las obligaciones de entrega de la licencia: copia del acuerdo, «Built with Llama» y el nombre de los derivados." },
+    { "id": "lbase", "label": "Llama 3.3 License", "sub": "+ su política de uso", "kind": "store", "x": 1, "y": 36, "w": 15, "h": 9,
+      "note": "Uso comercial permitido, umbral de 700 millones de usuarios activos mensuales y la [[politica-de-uso|política de uso aceptable]] incorporada por referencia." },
+    { "id": "lft", "label": "Llama + lo suyo", "sub": "suma, no resta", "kind": "store", "x": 21, "y": 36, "w": 15, "h": 9,
+      "note": "Todas las condiciones de Meta más las que agregue el que afinó (por ejemplo, citar su trabajo). Si publica su fine-tune y su nombre no empieza con «Llama», ya incumplió." },
+    { "id": "lcu", "label": "Las mismas", "sub": "cuantizar no cambia nada", "kind": "store", "x": 41, "y": 36, "w": 15, "h": 9,
+      "note": "Las condiciones del paso anterior, completas. Cambiar el formato de los pesos no es una forma de lavar la licencia." },
+    { "id": "ldist", "label": "Obligaciones al entregar", "sub": "copia · Built with Llama", "kind": "store", "x": 61, "y": 36, "w": 16, "h": 9,
+      "note": "Lo que el integrador debe hacer en cada entrega: dar copia del acuerdo y mostrar «Built with Llama» en la interfaz o en la documentación. Si solo usaras el modelo dentro de tu red, esta caja casi no pesa." }
+  ],
+  "edges": [
+    { "from": "base", "to": "ft", "kind": "offline", "label": "afina", "fromSide": "r", "toSide": "l" },
+    { "from": "ft", "to": "cu", "kind": "offline", "label": "comprime", "fromSide": "r", "toSide": "l" },
+    { "from": "cu", "to": "dist", "kind": "offline", "label": "instala", "fromSide": "r", "toSide": "l" },
+    { "from": "base", "to": "lbase", "kind": "neutral", "dashed": true, "fromSide": "b", "toSide": "t" },
+    { "from": "ft", "to": "lft", "kind": "neutral", "dashed": true, "fromSide": "b", "toSide": "t" },
+    { "from": "cu", "to": "lcu", "kind": "neutral", "dashed": true, "fromSide": "b", "toSide": "t" },
+    { "from": "dist", "to": "ldist", "kind": "neutral", "dashed": true, "fromSide": "b", "toSide": "t" },
+    { "from": "lbase", "to": "lft", "kind": "neutral", "label": "hereda", "fromSide": "r", "toSide": "l" },
+    { "from": "lft", "to": "lcu", "kind": "neutral", "label": "hereda", "fromSide": "r", "toSide": "l" },
+    { "from": "lcu", "to": "ldist", "kind": "neutral", "label": "hereda", "fromSide": "r", "toSide": "l" }
+  ],
+  "flows": [
+    { "id": "llama", "label": "Un Llama afinado, hasta 20 despachos",
+      "steps": [
+        { "nodes": ["base", "lbase"], "edges": ["base>lbase"], "text": "Todo empieza en **Llama 3.3 70B** y su licencia: uso comercial, umbral de 700 millones de usuarios y la política de uso." },
+        { "nodes": ["ft", "lft"], "edges": ["base>ft", "ft>lft", "lbase>lft"], "text": "Un laboratorio lo **afina** con contratos y lo publica. Es un derivado: lleva la licencia de Meta completa y, encima, lo que el laboratorio pida. Su nombre tiene que empezar con «Llama»." },
+        { "nodes": ["cu", "lcu"], "edges": ["ft>cu", "cu>lcu", "lft>lcu"], "text": "Otra persona lo **cuantiza** a INT4 y lo sube como GGUF. Mismas condiciones: el formato no cambia de quién son los pesos." },
+        { "nodes": ["dist", "ldist"], "edges": ["cu>dist", "dist>ldist", "lcu>ldist"], "text": "Un integrador lo **instala** en 20 despachos. Eso es distribuir: en cada uno entrega copia del acuerdo y muestra «Built with Llama». Responde ante las condiciones de los tres pasos anteriores." }
+      ] },
+    { "id": "apache", "label": "El mismo camino con Qwen3 32B",
+      "steps": [
+        { "nodes": ["base"], "edges": [], "text": "Ahora la base es **Qwen3 32B**, con [[apache-2|Apache 2.0]]: sin umbrales, sin nombre obligatorio, sin política de uso aparte." },
+        { "nodes": ["ft", "lft"], "edges": ["base>ft", "ft>lft"], "text": "Ojo: Apache 2.0 deja que quien afina publique **sus cambios con otros términos**, mientras conserve los avisos del original. Un fine-tune de Qwen3 puede salir con una licencia no comercial. Se lee la licencia del derivado, no solo la de la base." },
+        { "nodes": ["cu", "dist", "ldist"], "edges": ["ft>cu", "cu>dist", "dist>ldist"], "text": "Si el fine-tune sí es Apache 2.0, entregar es sencillo: copia de la licencia, el archivo NOTICE si existe y los avisos de qué archivos cambiaron." }
+      ] }
+  ]
+}

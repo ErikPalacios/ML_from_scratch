@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 787" role="img" aria-labelledby="f-recorrido-preguntas-t" class="f-svg" style="max-width:420px">
+<title id="f-recorrido-preguntas-t">La hoja de descubrimiento del despacho de abogados, ejemplo ficticio, llena. 1, tareas: preguntar a los expedientes con cita, resumir un expediente y encontrar cláusulas parecidas. 2, usuarios: 200 abogados y asistentes, no a la vez. 3, volumen: 15 preguntas por persona al día, 3,000 en total, de 9:00 a 19:00, con una hora pico de 2.5 veces el promedio. 4, datos: 30,000 expedientes, unos 1.5 millones de páginas. 5, idioma: español, algunos contratos en inglés. 6, latencia: primer token en 2 segundos o menos en el p95 y al menos 20 tokens por segundo. 7, restricciones: ningún documento sale de la red, secreto profesional y datos personales, y un equipo de TI de 2 personas que nunca ha operado una GPU. Abajo, lo que se elige y se firma: el caso de uso, preguntar a los expedientes con documento y página citados, y el criterio de aceptación: al menos 85 % de 200 preguntas reales bien contestadas y con la cita correcta, a lo más 2 % con una cita inventada, y con 8 conversaciones a la vez, primer token en 2 segundos o menos y al menos 20 tokens por segundo.</title>
+<rect class="f-card" x="10" y="10" width="340" height="536" rx="16"/>
+<text class="f-l" x="28" y="36">HOJA DE DESCUBRIMIENTO · EL DESPACHO</text>
+<text class="f-s" x="28" y="56" style="font-style:italic">Ejemplo ficticio, lleno en la primera visita</text>
+<text class="f-l" x="28" y="94">1 · TAREAS</text>
+<text class="f-s" x="28" y="113">1) Preguntar a los expedientes, con cita</text>
+<text class="f-s" x="28" y="132">2) Resumir un expediente</text>
+<text class="f-s" x="28" y="151">3) Encontrar cláusulas parecidas</text>
+<line class="f-linea" x1="28" y1="161" x2="332" y2="161"/>
+<text class="f-l" x="28" y="179">2 · USUARIOS</text>
+<text class="f-s" x="28" y="198">200 abogados y asistentes (no a la vez)</text>
+<line class="f-linea" x1="28" y1="208" x2="332" y2="208"/>
+<text class="f-l" x="28" y="226">3 · VOLUMEN</text>
+<text class="f-s" x="28" y="245">15 preguntas por persona al día = 3,000</text>
+<text class="f-s" x="28" y="264">9:00 a 19:00 · pico: 2.5 × el promedio</text>
+<line class="f-linea" x1="28" y1="274" x2="332" y2="274"/>
+<text class="f-l" x="28" y="292">4 · DATOS</text>
+<text class="f-s" x="28" y="311">30,000 expedientes ≈ 1.5 M páginas</text>
+<text class="f-s" x="28" y="330">contratos, demandas, sentencias, correos</text>
+<line class="f-linea" x1="28" y1="340" x2="332" y2="340"/>
+<text class="f-l" x="28" y="358">5 · IDIOMA</text>
+<text class="f-s" x="28" y="377">Español; algunos contratos en inglés</text>
+<line class="f-linea" x1="28" y1="387" x2="332" y2="387"/>
+<text class="f-l" x="28" y="405">6 · LATENCIA</text>
+<text class="f-s" x="28" y="424">Primer token ≤ 2 s (p95)</text>
+<text class="f-s" x="28" y="443">Escritura ≥ 20 tokens/s por persona</text>
+<line class="f-linea" x1="28" y1="453" x2="332" y2="453"/>
+<text class="f-l" x="28" y="471">7 · RESTRICCIONES</text>
+<text class="f-s" x="28" y="490">Ningún documento sale de la red</text>
+<text class="f-s" x="28" y="509">Secreto profesional y datos personales</text>
+<text class="f-s" x="28" y="528">TI: 2 personas, nunca han operado una GPU</text>
+<line class="f-flecha" x1="180" y1="552" x2="180" y2="572"/><path class="f-punta" d="M172,570 L188,570 L180,580 Z"/>
+<text class="f-s" x="196" y="570">se elige y se firma</text>
+<rect class="f-dark" x="10" y="590" width="340" height="187" rx="16"/>
+<text class="f-dark-l" x="28" y="616">CASO DE USO ELEGIDO</text>
+<text class="f-dark-t" x="28" y="636">Preguntar a los expedientes,</text>
+<text class="f-dark-t" x="28" y="655">con documento y página citados</text>
+<text class="f-dark-l" x="28" y="683">CRITERIO DE ACEPTACIÓN</text>
+<text class="f-dark-t" x="28" y="702" style="font-size:13px">≥ 85 % de 200 preguntas reales, bien</text>
+<text class="f-dark-t" x="28" y="721" style="font-size:13px">y con la cita correcta (170 o más)</text>
+<text class="f-dark-t" x="28" y="740" style="font-size:13px">≤ 2 % con una cita inventada (4 o menos)</text>
+<text class="f-dark-t" x="28" y="759" style="font-size:13px">Con 8 a la vez: ≤ 2 s y ≥ 20 tokens/s</text>
+</svg>

@@ -1,0 +1,78 @@
+{ "terminos": [
+  {
+    "id": "descubrimiento", "termino": "Descubrimiento", "en": "discovery",
+    "corto": "La primera etapa de un proyecto: entrevistar al cliente para saber qué tareas quiere resolver, para cuántas personas, con qué datos y con qué restricciones, antes de hablar de hardware.",
+    "largo": "Se hace con una lista fija de preguntas: tareas, usuarios, volumen, datos, idioma, latencia y restricciones (legales, de red, de presupuesto). Termina con un [[caso-de-uso]] elegido y un [[criterio-de-aceptacion|criterio de aceptación]] con números. Todo lo que sigue, del [[sizing]] a la compra, se calcula con lo que sale de aquí.",
+    "analogia": "Es la consulta antes de la receta: el médico pregunta qué te duele, desde cuándo y qué tomas antes de recetar. Se rompe en que aquí el «paciente» muchas veces no sabe qué le duele: hay que ayudarle a elegir una sola tarea para empezar.",
+    "ejemplo": "El despacho de abogados pidió tres cosas; en descubrimiento se eligió empezar por preguntar a sus 30,000 expedientes con respuestas que citan documento y página.",
+    "leccion": "recorrido"
+  },
+  {
+    "id": "caso-de-uso", "termino": "Caso de uso", "en": "use case",
+    "corto": "Una tarea concreta que el sistema va a resolver para alguien concreto: quién pregunta, qué pregunta, con qué datos y qué recibe de vuelta.",
+    "largo": "«Usar IA en el despacho» no es un caso de uso; «que un abogado pregunte sobre los expedientes y reciba una respuesta que cita el documento y la página» sí lo es. Un buen primer caso de uso es frecuente, se puede medir y no es el más riesgoso. Se elige uno; los demás esperan a que el primero funcione.",
+    "ejemplo": "Del despacho: 1) preguntar sobre los expedientes con cita; 2) resumir un expediente; 3) encontrar cláusulas parecidas en otros contratos. Se empieza por el 1.",
+    "leccion": "recorrido"
+  },
+  {
+    "id": "sizing", "termino": "Sizing (dimensionar)", "en": "sizing",
+    "corto": "Calcular cuánto hardware hace falta: de cuántas personas y preguntas hay, a cuántas conversaciones atiende el servidor a la vez, y de ahí a cuánta memoria de GPU y cuáles GPUs.",
+    "largo": "La cuenta corta tiene tres pasos: preguntas al día, llegadas por segundo en la hora pico y conversaciones a la vez con la Ley de Little (llegadas por segundo × lo que dura cada una). Ese número de [[concurrencia|conversaciones a la vez]] entra a la cuenta de [[vram|VRAM]]. Un sizing a fondo agrega la velocidad: si la GPU escribe lo bastante rápido para todas.",
+    "ejemplo": "Despacho: 200 × 15 = 3,000 preguntas al día; 750 en la hora pico ≈ 0.21 por segundo; × 27 s ≈ 5.6 a la vez; se diseña para 8; caben en una L40S de 48 GB.",
+    "ver": ["concurrencia", "vram"],
+    "leccion": "recorrido"
+  },
+  {
+    "id": "prueba-piloto", "termino": "Prueba piloto", "en": "pilot",
+    "corto": "Una prueba corta y con fecha de fin, con usuarios reales y datos reales, en hardware rentado, para decidir con números si el proyecto sigue y qué se compra.",
+    "largo": "Tiene un grupo chico de usuarios, un calendario con entregables por semana y una decisión al final: pasa el [[criterio-de-aceptacion|criterio de aceptación]] o no. Se corre en una GPU rentada por horas para que equivocarse cueste poco. Ojo: si la GPU está en la nube, los documentos que se usen en el piloto salen de la red del cliente, y eso se decide antes con el cliente y su abogado.",
+    "analogia": "Es la prueba de manejo antes de comprar el coche. Se rompe en que aquí puedes probar varios coches a la vez (varios modelos en la misma GPU rentada), y en que la prueba también mide si tu cochera (tu equipo de TI) puede mantenerlo.",
+    "ejemplo": "El piloto del despacho: 8 semanas, 20 abogados, una L40S rentada durante 6 de ellas y un examen de 200 preguntas reales.",
+    "leccion": "recorrido"
+  },
+  {
+    "id": "criterio-de-aceptacion", "termino": "Criterio de aceptación", "en": "acceptance criteria",
+    "corto": "La regla con números, firmada antes de empezar, que dice cuándo el sistema sirve: qué tanto debe acertar, qué tan rápido debe contestar y con qué preguntas se mide.",
+    "largo": "Se escribe en descubrimiento y se mide en evals. Tiene dos partes: la calidad (por ejemplo, qué parte de un examen de preguntas reales contesta bien) y el servicio (tiempo al primer token y velocidad de escritura con la carga de diseño). Sin él, el piloto termina en opiniones; con él, en un sí o un no.",
+    "ejemplo": "Despacho: ≥ 85 % de 200 preguntas reales contestadas bien y con la cita correcta (170 o más), a lo más 2 % con una cita inventada (4 o menos), primer token en ≤ 2 s en el p95 y ≥ 20 tokens/s por persona con 8 conversaciones a la vez.",
+    "leccion": "recorrido"
+  },
+  {
+    "id": "soberania-de-datos", "termino": "Soberanía de datos", "en": "data sovereignty",
+    "corto": "Que los datos de una organización estén bajo su control: dónde viven, quién puede verlos y bajo las leyes de qué país, sin depender de lo que decida un tercero.",
+    "largo": "Es la razón de fondo de la IA privada. No es solo «que no salgan de México»: es saber en qué máquina están, quién tiene acceso y poder demostrarlo. Con una API pública, el texto que mandas lo procesan los servidores del proveedor, donde estén. Con el modelo en tu propia red, el flujo de datos es tuyo. Ninguna ley mexicana obliga a usar hardware propio para IA: es una forma de control, y lo legal lo revisa un abogado.",
+    "ejemplo": "El despacho quiere que ni un solo documento de sus 30,000 expedientes salga de su red: algunos clientes se lo exigen por contrato.",
+    "sensei": "privacidad",
+    "leccion": "recorrido"
+  },
+  {
+    "id": "shadow-ai", "termino": "Shadow AI (IA en la sombra)", "en": "shadow AI",
+    "corto": "Cuando los empleados usan herramientas de IA que la empresa no aprobó ni controla, muchas veces con cuentas personales, y les pegan datos del trabajo.",
+    "largo": "Viene de *shadow IT*, el software que la gente usa por su cuenta. Es el riesgo que suele disparar un proyecto de IA privada: la gente ya usa IA, solo que fuera de control. Prohibirla sin dar una alternativa casi nunca funciona; darles una herramienta interna que sirva, sí ayuda.",
+    "ejemplo": "En el despacho, algunos abogados pegan contratos en chatbots públicos. El IBM Cost of a Data Breach Report 2025 dice que 1 de cada 5 organizaciones reportó una brecha ligada a shadow AI.",
+    "leccion": "recorrido"
+  },
+  {
+    "id": "operacion", "termino": "Operación (el día 2)", "en": "operations, day 2",
+    "corto": "Todo lo que pasa después de que el sistema arranca: vigilar que funcione, actualizarlo, respaldarlo y atenderlo cuando falla, todos los días que siga vivo.",
+    "largo": "Se le dice «día 2» porque el día 1 es instalarlo y el día 2 son todos los demás. Incluye monitoreo (memoria de la GPU, tiempos de respuesta, errores), actualizaciones del modelo, del servidor y de los drivers (cada una repite las evals), respaldos y un responsable con nombre para cuando algo se cae. Suele costar más horas que la instalación.",
+    "analogia": "Comprar un coche es el día 1; los servicios, las llantas y las fallas son el día 2. Se rompe en que el coche no cambia solo, y el software sí: salen versiones nuevas cada pocas semanas y hay que decidir cuáles instalar.",
+    "ejemplo": "El despacho tiene 2 personas de TI que saben de redes y Windows y nunca han operado una GPU: la operación necesita un manual, capacitación y a quién llamar.",
+    "leccion": "recorrido"
+  },
+  {
+    "id": "stack-de-ia", "termino": "Stack de IA privada", "en": "private AI stack",
+    "corto": "Las capas de software y hardware, una encima de otra, que hacen falta para que una persona le pregunte algo a un modelo en el servidor de su empresa.",
+    "largo": "De abajo hacia arriba: el hardware (la GPU y su servidor), el sistema operativo y los drivers, el servidor de inferencia que carga el modelo y atiende a muchos a la vez, la API por donde se le pregunta, la aplicación (por ejemplo, un buscador con RAG que cita documentos) y los usuarios con sus permisos. Cada capa depende de la de abajo; una falla abajo tumba todo lo de arriba.",
+    "analogia": "Es como un edificio: cimientos, estructura, instalaciones, oficinas y la gente. Se rompe en que en un edificio casi nunca cambias los cimientos, y aquí cambias el modelo o el servidor de inferencia cada pocos meses.",
+    "ejemplo": "Despacho: una L40S de 48 GB → Linux y el driver de NVIDIA → un servidor de inferencia con Qwen3 32B → una API compatible con OpenAI → la aplicación que busca en los expedientes → 200 abogados y asistentes.",
+    "leccion": "recorrido"
+  },
+  {
+    "id": "tiempo-de-entrega", "termino": "Tiempo de entrega", "en": "lead time",
+    "corto": "Lo que pasa entre que pides un equipo y lo tienes funcionando en tu cuarto: fabricarlo, armarlo, enviarlo, importarlo e instalarlo.",
+    "largo": "En 2026 los tiempos de entrega de servidores se alargaron por la escasez de memoria, y las cotizaciones caducan rápido. No hay una cifra oficial única: pueden ser semanas o meses según el equipo y el proveedor. Se pide la fecha por escrito y se planea el proyecto para que el piloto siga en una GPU rentada mientras llega.",
+    "ejemplo": "Si el piloto del despacho termina en la semana 8 y el servidor llega meses después, la GPU rentada sigue mientras tanto, o los abogados esperan.",
+    "leccion": "recorrido"
+  }
+]}

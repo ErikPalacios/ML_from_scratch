@@ -1,0 +1,65 @@
+{
+  "titulo": "Las seis etapas de un proyecto de IA privada",
+  "width": 78,
+  "height": 48,
+  "lanes": [
+    { "id": "decidir", "label": "Decidir · papel, cuentas y una GPU rentada", "kind": "neutral", "x": 0, "y": 0, "w": 78, "h": 21 },
+    { "id": "construir", "label": "Construir y operar · el equipo propio", "kind": "online", "x": 0, "y": 25, "w": 78, "h": 23 }
+  ],
+  "nodes": [
+    {
+      "id": "descubrimiento", "label": "Descubrimiento", "sub": "¿qué tarea y cómo sé que sirve?", "badge": "1", "kind": "human",
+      "x": 3, "y": 7, "w": 20, "h": 9,
+      "note": "Se entrevista al cliente: tareas, usuarios, volumen, datos, idioma, latencia y restricciones. **Sale:** un [[caso-de-uso]] elegido y un [[criterio-de-aceptacion|criterio de aceptación]] con números."
+    },
+    {
+      "id": "sizing", "label": "Sizing", "sub": "¿cuánto hardware?", "badge": "2", "kind": "job",
+      "x": 29, "y": 7, "w": 20, "h": 9,
+      "note": "De personas y preguntas a [[concurrencia|conversaciones a la vez]] y de ahí a [[vram|VRAM]]. **Sale:** un modelo candidato, una GPU candidata y la cuenta que lo justifica."
+    },
+    {
+      "id": "compra", "label": "Compra", "sub": "rentar, probar, comprar", "badge": "3", "kind": "gpu",
+      "x": 55, "y": 7, "w": 20, "h": 9,
+      "note": "Primero se renta una GPU para la [[prueba-piloto|prueba piloto]]; se compra solo cuando el piloto pasa. **Sale:** una orden de compra con fecha de entrega por escrito."
+    },
+    {
+      "id": "despliegue", "label": "Despliegue", "sub": "el stack en capas", "badge": "4", "kind": "service",
+      "x": 55, "y": 32, "w": 20, "h": 9,
+      "note": "Hardware, sistema y drivers, servidor de inferencia, API, la aplicación con RAG y los usuarios: el [[stack-de-ia|stack]]. **Sale:** el sistema respondiendo dentro de la red del cliente."
+    },
+    {
+      "id": "evals", "label": "Evals", "sub": "¿sirve y aguanta?", "badge": "5", "kind": "model",
+      "x": 29, "y": 32, "w": 20, "h": 9,
+      "note": "Preguntas reales del cliente contra el criterio de aceptación, y una prueba de carga contra los objetivos de velocidad. **Sale:** un sí o un no con números."
+    },
+    {
+      "id": "operacion", "label": "Operación", "sub": "el día 2 y los siguientes", "badge": "6", "kind": "monitor",
+      "x": 3, "y": 32, "w": 20, "h": 9,
+      "note": "Monitoreo, actualizaciones, respaldos y quién atiende cuando falla: la [[operacion|operación]]. Cada cambio de modelo o de servidor regresa a evals antes de llegar a los usuarios."
+    }
+  ],
+  "edges": [
+    { "from": "descubrimiento", "to": "sizing", "kind": "neutral", "label": "requisitos" },
+    { "from": "sizing", "to": "compra", "kind": "neutral", "label": "GPU candidata" },
+    { "from": "compra", "to": "despliegue", "kind": "online", "fromSide": "b", "toSide": "t", "label": "el equipo" },
+    { "from": "despliegue", "to": "evals", "kind": "online", "label": "en marcha" },
+    { "from": "evals", "to": "operacion", "kind": "online", "label": "aprobado" },
+    { "from": "operacion", "to": "evals", "kind": "monitor", "dashed": true, "fromSide": "t", "toSide": "t", "via": [[13, 28], [39, 28]], "label": "cada actualización" }
+  ],
+  "flows": [
+    {
+      "id": "despacho",
+      "label": "El recorrido del despacho",
+      "steps": [
+        { "nodes": ["descubrimiento"], "edges": [], "text": "**1 · Descubrimiento.** El despacho tiene 200 abogados y asistentes y 30,000 expedientes. Piden tres cosas; se elige primero preguntar a los expedientes con respuestas que citan documento y página." },
+        { "nodes": ["descubrimiento", "sizing"], "edges": ["descubrimiento>sizing"], "text": "**2 · Sizing.** 200 personas × 15 preguntas = 3,000 al día; en la hora pico, ≈ 0.21 por segundo. Cada respuesta dura ≈ 27 s: ≈ 5.6 conversaciones a la vez, y se diseña para 8." },
+        { "nodes": ["sizing"], "edges": [], "text": "**La VRAM.** Qwen3 32B en INT4 de AWQ con 8 conversaciones de 8,192 tokens: 19.32 GB de pesos + 17.18 de KV cache + 2 del programa = 38.50 GB. Una L40S de 48 GB deja 43.2 útiles: cabe." },
+        { "nodes": ["sizing", "compra"], "edges": ["sizing>compra"], "text": "**3 · Compra.** Antes de comprar, se renta una L40S por horas para el piloto. La compra se pide con fecha de entrega por escrito: puede tardar semanas o meses." },
+        { "nodes": ["compra", "despliegue"], "edges": ["compra>despliegue"], "text": "**4 · Despliegue.** El servidor se instala en la red del despacho: drivers, servidor de inferencia, la API y la aplicación que busca en los expedientes y cita la página." },
+        { "nodes": ["despliegue", "evals"], "edges": ["despliegue>evals"], "text": "**5 · Evals.** 200 preguntas reales del despacho contra el criterio de aceptación, y una prueba de carga con 8 conversaciones a la vez: primer token en ≤ 2 s y ≥ 20 tokens/s por persona." },
+        { "nodes": ["evals", "operacion"], "edges": ["evals>operacion"], "text": "**6 · Operación.** El equipo de TI, 2 personas que nunca han operado una GPU, lo monitorea, lo respalda y lo actualiza, con un manual y alguien a quién llamar." },
+        { "nodes": ["operacion", "evals"], "edges": ["operacion>evals"], "text": "**Y de vuelta.** Sale una versión nueva del modelo o del servidor: antes de cambiarla, se repiten las evals. Solo si pasa, llega a los abogados." }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "titulo": "El scheduler decide en cada paso quién va en el batch",
+  "width": 78,
+  "height": 50,
+  "lanes": [
+    { "id": "llegan", "label": "Llegan las peticiones", "kind": "online", "x": 0, "y": 0, "w": 78, "h": 15 },
+    { "id": "paso", "label": "Cada paso del modelo", "kind": "neutral", "x": 0, "y": 18, "w": 78, "h": 32 }
+  ],
+  "nodes": [
+    { "id": "abogados", "label": "Abogados", "sub": "8 conversaciones a la vez", "kind": "client", "x": 2, "y": 4, "w": 18, "h": 8,
+      "note": "En la hora pico del despacho llegan ≈ 0.21 preguntas por segundo y se diseña para 8 [[concurrencia|conversaciones a la vez]]. Cada una ve su respuesta llegar token por token." },
+    { "id": "api", "label": "API del servidor", "sub": "recibe y responde", "kind": "edge", "x": 30, "y": 4, "w": 18, "h": 8,
+      "note": "La puerta del servidor de inferencia: recibe la pregunta, la convierte en tokens y devuelve los tokens de la respuesta en streaming." },
+    { "id": "fila", "label": "Fila de espera", "sub": "peticiones sin lugar", "kind": "queue", "x": 58, "y": 4, "w": 18, "h": 8,
+      "note": "Las peticiones que llegaron pero todavía no entran al batch. En vLLM el orden por omisión es FCFS: la primera que llega es la primera que entra." },
+    { "id": "gpu", "label": "Un paso del modelo", "sub": "pesos leídos una vez", "kind": "gpu", "x": 2, "y": 22, "w": 18, "h": 8,
+      "note": "Una pasada por la red con todas las conversaciones del batch: los [[pesos]] se leen una vez de la [[vram|VRAM]] y sale un token para cada una. Si una recién entró, en ese paso también se hace su prefill (o un trozo)." },
+    { "id": "scheduler", "label": "Scheduler", "sub": "arma el batch del paso", "kind": "service", "x": 30, "y": 22, "w": 18, "h": 8,
+      "note": "El [[scheduler]]: antes de **cada** paso decide qué conversaciones van. Mete las de la fila si hay lugar y memoria, y saca las que terminaron. Es el batching por iteración de Orca." },
+    { "id": "kv", "label": "Bloques de KV cache", "sub": "en la VRAM", "kind": "store", "x": 58, "y": 22, "w": 18, "h": 8,
+      "note": "La memoria de lo que recuerda cada conversación, el [[kv-cache|KV cache]], partida en bloques. Una petición solo entra si hay bloques libres para ella." },
+    { "id": "termina", "label": "Una termina", "sub": "token de fin o tope", "kind": "job", "x": 30, "y": 40, "w": 18, "h": 8,
+      "note": "Una conversación termina cuando el modelo escribe su token de fin o llega al tope de tokens. Su lugar en el batch y sus bloques quedan libres para el siguiente paso." }
+  ],
+  "edges": [
+    { "from": "abogados", "to": "api", "kind": "online", "label": "pregunta", "fromSide": "r", "toSide": "l" },
+    { "from": "api", "to": "fila", "kind": "online", "fromSide": "r", "toSide": "l" },
+    { "from": "fila", "to": "scheduler", "kind": "online", "label": "entra", "fromSide": "b", "toSide": "t", "via": [[67, 17], [39, 17]] },
+    { "from": "scheduler", "to": "kv", "kind": "neutral", "label": "¿hay bloques?", "fromSide": "r", "toSide": "l" },
+    { "from": "scheduler", "to": "gpu", "kind": "online", "label": "batch", "fromSide": "l", "toSide": "r" },
+    { "from": "gpu", "to": "abogados", "kind": "online", "label": "1 token c/u", "fromSide": "t", "toSide": "b" },
+    { "from": "gpu", "to": "termina", "kind": "neutral", "fromSide": "b", "toSide": "l", "via": [[11, 44]] },
+    { "from": "termina", "to": "kv", "kind": "neutral", "label": "libera", "fromSide": "r", "toSide": "b", "via": [[67, 44]] },
+    { "from": "termina", "to": "scheduler", "kind": "neutral", "fromSide": "t", "toSide": "b" }
+  ],
+  "flows": [
+    { "id": "paso", "label": "Llega una, entra en el siguiente paso, otra sale",
+      "steps": [
+        { "nodes": ["abogados", "api", "fila"], "edges": ["abogados>api", "api>fila"], "text": "Una abogada pregunta por una cláusula. Su petición, de **≈ 6,000 tokens** de entrada, llega a la API y se forma en la fila." },
+        { "nodes": ["fila", "scheduler", "kv"], "edges": ["fila>scheduler", "scheduler>kv"], "text": "Antes del siguiente paso, el scheduler mira si hay lugar en el batch y **bloques libres** de KV cache para ella. Si los hay, entra ya: no espera a que acaben las otras." },
+        { "nodes": ["scheduler", "gpu", "abogados"], "edges": ["scheduler>gpu", "gpu>abogados"], "text": "El paso corre con todas las conversaciones del batch: los pesos se leen **una vez** y cada una recibe su token. La nueva hace en este paso su prefill (o un trozo de él)." },
+        { "nodes": ["gpu", "termina"], "edges": ["gpu>termina"], "text": "Otra conversación escribe su token de fin: su respuesta de ≈ 500 tokens está completa." },
+        { "nodes": ["termina", "kv", "scheduler"], "edges": ["termina>kv", "termina>scheduler"], "text": "Sus bloques vuelven a estar libres y su lugar queda vacío. En el **siguiente** paso el scheduler lo llena con la primera de la fila. Así el batch nunca espera a la conversación más larga." }
+      ] }
+  ]
+}

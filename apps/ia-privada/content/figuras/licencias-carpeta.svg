@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 524" role="img" aria-labelledby="f-licencias-carpeta-t" class="f-svg" style="max-width:420px">
+<title id="f-licencias-carpeta-t">Los archivos de un repositorio de Hugging Face, como el de Qwen3 32B, agrupados en cuatro partes. Lo legal: LICENSE, la licencia completa, y README.md, la model card con para qué sirve el modelo, sus datos y sus límites. Cómo está armado: config.json, la arquitectura, y generation_config.json, los valores por omisión al generar. El tokenizer: tokenizer.json, vocab.json y merges.txt, que convierten texto en tokens, y tokenizer_config.json, con la plantilla de chat. Los pesos: varios archivos .safetensors de pocos GB cada uno y un índice que dice qué parte guarda cada tensor. Solo LICENSE y la model card dicen qué se permite hacer.</title>
+<rect class="f-card" x="10" y="10" width="340" height="504" rx="16"/>
+<text class="f-l" x="26" y="36">UN REPO DE HUGGING FACE · Qwen/Qwen3-32B</text>
+<text class="f-l" x="26" y="64">LO LEGAL · QUÉ PUEDES HACER</text>
+<rect class="f-o" x="24" y="74" width="6" height="34" rx="3"/>
+<text x="40" y="88" style="fill:var(--ink);font:700 12px var(--mono)">LICENSE</text>
+<text class="f-s" x="40" y="104">La licencia completa: aquí, Apache 2.0</text>
+<rect class="f-o" x="24" y="114" width="6" height="34" rx="3"/>
+<text x="40" y="128" style="fill:var(--ink);font:700 12px var(--mono)">README.md</text>
+<text class="f-s" x="40" y="144">La model card: uso, datos, límites</text>
+<text class="f-l" x="26" y="176">CÓMO ESTÁ ARMADO</text>
+<rect class="f-b" x="24" y="186" width="6" height="34" rx="3"/>
+<text x="40" y="200" style="fill:var(--ink);font:700 12px var(--mono)">config.json</text>
+<text class="f-s" x="40" y="216">La arquitectura: bloques, cabezas…</text>
+<rect class="f-b" x="24" y="226" width="6" height="34" rx="3"/>
+<text x="40" y="240" style="fill:var(--ink);font:700 12px var(--mono)">generation_config.json</text>
+<text class="f-s" x="40" y="256">Valores por omisión al generar</text>
+<text class="f-l" x="26" y="288">EL TOKENIZER</text>
+<rect class="f-p" x="24" y="298" width="6" height="34" rx="3"/>
+<text x="40" y="312" style="fill:var(--ink);font:700 12px var(--mono)">tokenizer.json · vocab.json · merges.txt</text>
+<text class="f-s" x="40" y="328">Cómo el texto se vuelve tokens</text>
+<rect class="f-p" x="24" y="338" width="6" height="34" rx="3"/>
+<text x="40" y="352" style="fill:var(--ink);font:700 12px var(--mono)">tokenizer_config.json</text>
+<text class="f-s" x="40" y="368">Ajustes y la plantilla de chat</text>
+<text class="f-l" x="26" y="400">LOS PESOS · CASI TODOS LOS GB</text>
+<rect class="f-g" x="24" y="410" width="6" height="34" rx="3"/>
+<text x="40" y="424" style="fill:var(--ink);font:700 12px var(--mono)">model-00001-of-000NN.safetensors …</text>
+<text class="f-s" x="40" y="440">Los pesos, en partes de pocos GB</text>
+<rect class="f-g" x="24" y="450" width="6" height="34" rx="3"/>
+<text x="40" y="464" style="fill:var(--ink);font:700 12px var(--mono)">model.safetensors.index.json</text>
+<text class="f-s" x="40" y="480">Qué parte guarda cada tensor</text>
+<text class="f-s" x="180" y="504" text-anchor="middle" style="font-weight:700">Solo lo naranja dice qué se permite.</text>
+</svg>

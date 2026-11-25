@@ -1,0 +1,41 @@
+{
+  "titulo": "¿Es real la diferencia?",
+  "intro": "Aplica \\(SE = sqrt{p(1 − p) ÷ n}\\), el intervalo \\(p ± 1.96 × SE\\) y, para dos modelos, \\(SE_{dif} = sqrt{SE_A^2 + SE_B^2}\\). Arranca con dos modelos que sacan 86 % y 84 % en un examen de 200 preguntas.",
+  "preajustes": {
+    "label": "Ejemplo",
+    "inicial": 1,
+    "opciones": [
+      { "label": "AIME: 94.1 contra 89.2, 30 problemas", "valores": { "pA": 94.1, "nA": 30, "pB": 89.2, "nB": 30 }, "nota": "Qwen3.6 27B y Gemma 4 31B en AIME 2026, en la tabla de Qwen (auto-reportado, a noviembre de 2026). Con tan pocos problemas, la aproximación de campana se pasa de 100 %: el ruido es enorme de todos modos." },
+      { "label": "200 preguntas: 86 contra 84", "valores": { "pA": 86, "nA": 200, "pB": 84, "nB": 200 }, "nota": "Un benchmark chico, del tamaño de muchos subconjuntos que se publican." },
+      { "label": "12,000 preguntas: 86.2 contra 85.2", "valores": { "pA": 86.2, "nA": 12000, "pB": 85.2, "nB": 12000 }, "nota": "Qwen3.6 27B y Qwen3.6 35B-A3B en MMLU-Pro (auto-reportado por Qwen), suponiendo un examen de ≈ 12,000 preguntas." },
+      { "label": "El examen del despacho: 88 contra 85, 150 preguntas", "valores": { "pA": 88, "nA": 150, "pB": 85, "nB": 150 }, "nota": "Supuesto del ejemplo: dos modelos de la shortlist en las 150 preguntas propias del despacho." }
+    ]
+  },
+  "entradas": [
+    { "id": "pA", "label": "Puntaje del modelo A, \\(p_A\\), en %", "min": 0, "max": 100, "paso": 0.1, "valor": 86, "tipo": "numero" },
+    { "id": "nA", "label": "Preguntas del examen de A, \\(n_A\\)", "min": 1, "max": 100000, "paso": 1, "valor": 200, "tipo": "numero" },
+    { "id": "pB", "label": "Puntaje del modelo B, \\(p_B\\), en %", "min": 0, "max": 100, "paso": 0.1, "valor": 84, "tipo": "numero" },
+    { "id": "nB", "label": "Preguntas del examen de B, \\(n_B\\)", "min": 1, "max": 100000, "paso": 1, "valor": 200, "tipo": "numero" }
+  ],
+  "calculos": [
+    { "id": "a", "formula": "pA / 100" },
+    { "id": "b", "formula": "pB / 100" },
+    { "id": "seA", "formula": "sqrt(a * (1 - a) / nA)" },
+    { "id": "seB", "formula": "sqrt(b * (1 - b) / nB)" },
+    { "id": "sed", "formula": "sqrt(seA * seA + seB * seB)" }
+  ],
+  "salidas": [
+    { "label": "1 · Margen de A, \\(1.96 × SE_A\\), en puntos", "formula": "196 * seA", "formato": "num", "decimales": 1, "barra": true,
+      "cuenta": "1.96 × √({{a|corto}} × {{1 - a|corto}} ÷ {{nA|int}}) = ±{{196 * seA|num|1}} · intervalo: de **{{pA - 196 * seA|num|1}}** a **{{pA + 196 * seA|num|1}}**" },
+    { "label": "2 · Margen de B, \\(1.96 × SE_B\\), en puntos", "formula": "196 * seB", "formato": "num", "decimales": 1, "barra": true,
+      "cuenta": "1.96 × √({{b|corto}} × {{1 - b|corto}} ÷ {{nB|int}}) = ±{{196 * seB|num|1}} · intervalo: de **{{pB - 196 * seB|num|1}}** a **{{pB + 196 * seB|num|1}}**" },
+    { "label": "3 · Diferencia, \\(p_A − p_B\\), en puntos", "formula": "pA - pB", "formato": "num", "decimales": 1 },
+    { "label": "4 · Ruido de la diferencia, \\(1.96 × SE_{dif}\\), en puntos", "formula": "196 * sed", "formato": "num", "decimales": 1,
+      "cuenta": "1.96 × √({{100 * seA|num|2}}² + {{100 * seB|num|2}}²) = **±{{196 * sed|num|1}} puntos**" },
+    { "label": "¿Se distinguen?", "formula": "abs(pA - pB) - 196 * sed", "veredicto": { "si": "Sí: la diferencia es más grande que el ruido", "no": "No: puede ser puro ruido" },
+      "cuenta": "|{{pA - pB|num|1}}| − {{196 * sed|num|1}} = {{abs(pA - pB) - 196 * sed|num|1}} (si sale negativo, el ruido es más grande que la diferencia)" },
+    { "label": "Preguntas que harían falta (las mismas \\(n\\) para los dos)", "formula": "ceil(3.8416 * (a * (1 - a) + b * (1 - b)) / max((a - b) * (a - b), 1e-9))", "formato": "int",
+      "nota": "\\(n = 1.96^2 × (p_A(1 − p_A) + p_B(1 − p_B)) ÷ (p_A − p_B)^2\\)" }
+  ],
+  "nota": "Es la versión sencilla: trata los dos exámenes como si fueran independientes. Cuando los dos modelos contestan exactamente las mismas preguntas, una prueba pareada distingue un poco mejor; la ves en «Ruido, muestras y pruebas A/B» de Sensei. Cerca de 0 % o 100 % y con pocas preguntas, la campana se pasa de los extremos: el intervalo real es asimétrico."
+}

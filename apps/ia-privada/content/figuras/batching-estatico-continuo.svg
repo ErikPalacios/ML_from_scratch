@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 430" role="img" aria-labelledby="f-batching-estatico-continuo-t" class="f-svg" style="max-width:420px">
+<title id="f-batching-estatico-continuo-t">Cuatro lugares de un batch durante 500 pasos de decode, de dos formas. Arriba, batching estático: entran cuatro conversaciones que escriben 500, 200, 350 y 100 tokens; el batch dura 500 pasos, hasta que termina la más larga, y los lugares de las que ya acabaron quedan vacíos: solo el 57.5 % de los lugares-paso hace trabajo útil, y las peticiones nuevas esperan afuera. Abajo, batching continuo: en cuanto una conversación termina, en el siguiente paso entra otra de la fila (E, F, G y H), y los cuatro lugares van llenos todo el tiempo.</title>
+<rect class="f-card" x="10" y="10" width="340" height="410" rx="16"/>
+<text class="f-l" x="28" y="36">ESTÁTICO: ESPERAR AL MÁS LARGO</text>
+<text class="f-s" x="56" y="67" text-anchor="end" style="font-size:12px">lugar 1</text>
+<rect class="f-b" x="64.0" y="52" width="266.0" height="22" rx="4"/>
+<text class="f-s" x="70.0" y="67" style="font-size:12px;font-weight:700">A · 500</text>
+<text class="f-s" x="56" y="95" text-anchor="end" style="font-size:12px">lugar 2</text>
+<rect class="f-b" x="64.0" y="80" width="106.4" height="22" rx="4"/>
+<text class="f-s" x="70.0" y="95" style="font-size:12px;font-weight:700">B · 200</text>
+<rect x="170.4" y="80" width="159.6" height="22" rx="4" style="fill:none;stroke:var(--tm-ink3);stroke-width:1.2;stroke-dasharray:4 3"/>
+<text class="f-s" x="56" y="123" text-anchor="end" style="font-size:12px">lugar 3</text>
+<rect class="f-b" x="64.0" y="108" width="186.2" height="22" rx="4"/>
+<text class="f-s" x="70.0" y="123" style="font-size:12px;font-weight:700">C · 350</text>
+<rect x="250.2" y="108" width="79.8" height="22" rx="4" style="fill:none;stroke:var(--tm-ink3);stroke-width:1.2;stroke-dasharray:4 3"/>
+<text class="f-s" x="56" y="151" text-anchor="end" style="font-size:12px">lugar 4</text>
+<rect class="f-b" x="64.0" y="136" width="53.2" height="22" rx="4"/>
+<text class="f-s" x="70.0" y="151" style="font-size:12px;font-weight:700">D · 100</text>
+<rect x="117.2" y="136" width="212.8" height="22" rx="4" style="fill:none;stroke:var(--tm-ink3);stroke-width:1.2;stroke-dasharray:4 3"/>
+<text class="f-s" x="237.0" y="95" style="font-size:12px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">vacío</text>
+<text class="f-s" x="28" y="184" style="font-size:12px">Útil: (500 + 200 + 350 + 100) ÷ (4 × 500) = 57.5 %.</text>
+<text class="f-s" x="28" y="202" style="font-size:12px">E, F, G y H esperan afuera hasta el paso 500.</text>
+<line x1="28" y1="218" x2="332" y2="218" style="stroke:var(--tm-line);stroke-width:1"/>
+<text class="f-l" x="28" y="242">CONTINUO: ENTRA OTRA EN EL SIGUIENTE PASO</text>
+<text class="f-s" x="56" y="273" text-anchor="end" style="font-size:12px">lugar 1</text>
+<rect class="f-b" x="64.0" y="258" width="266.0" height="22" rx="4"/>
+<text class="f-s" x="70.0" y="273" style="font-size:12px;font-weight:700">A</text>
+<text class="f-s" x="56" y="301" text-anchor="end" style="font-size:12px">lugar 2</text>
+<rect class="f-b" x="64.0" y="286" width="105.6" height="22" rx="4"/>
+<text class="f-s" x="70.0" y="301" style="font-size:12px;font-weight:700">B</text>
+<rect class="f-g" x="170.4" y="286" width="159.6" height="22" rx="4"/>
+<text class="f-s" x="176.4" y="301" style="font-size:12px;font-weight:700">E</text>
+<text class="f-s" x="56" y="329" text-anchor="end" style="font-size:12px">lugar 3</text>
+<rect class="f-b" x="64.0" y="314" width="185.4" height="22" rx="4"/>
+<text class="f-s" x="70.0" y="329" style="font-size:12px;font-weight:700">C</text>
+<rect class="f-g" x="250.2" y="314" width="79.8" height="22" rx="4"/>
+<text class="f-s" x="256.2" y="329" style="font-size:12px;font-weight:700">F</text>
+<text class="f-s" x="56" y="357" text-anchor="end" style="font-size:12px">lugar 4</text>
+<rect class="f-b" x="64.0" y="342" width="52.4" height="22" rx="4"/>
+<text class="f-s" x="70.0" y="357" style="font-size:12px;font-weight:700">D</text>
+<rect class="f-g" x="117.2" y="342" width="158.8" height="22" rx="4"/>
+<text class="f-s" x="123.2" y="357" style="font-size:12px;font-weight:700">G</text>
+<rect class="f-g" x="276.8" y="342" width="53.2" height="22" rx="4"/>
+<text class="f-s" x="282.8" y="357" style="font-size:12px;font-weight:700">H</text>
+<text class="f-s" x="64.0" y="384" text-anchor="middle" style="font-size:12px">0</text>
+<text class="f-s" x="117.2" y="384" text-anchor="middle" style="font-size:12px">100</text>
+<text class="f-s" x="170.4" y="384" text-anchor="middle" style="font-size:12px">200</text>
+<text class="f-s" x="223.6" y="384" text-anchor="middle" style="font-size:12px">300</text>
+<text class="f-s" x="276.8" y="384" text-anchor="middle" style="font-size:12px">400</text>
+<text class="f-s" x="330.0" y="384" text-anchor="middle" style="font-size:12px">500</text>
+<text class="f-s" x="197" y="400" text-anchor="middle" style="font-size:12px">pasos de decode (un token por lugar en cada paso)</text>
+</svg>

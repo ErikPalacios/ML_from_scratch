@@ -1,0 +1,67 @@
+{
+  "titulo": "Dónde se puede detener o regresar el proyecto",
+  "width": 78,
+  "height": 82,
+  "lanes": [
+    { "id": "barato", "label": "Barato de cambiar · papel y GPU rentada", "kind": "neutral", "x": 0, "y": 0, "w": 78, "h": 47 },
+    { "id": "caro", "label": "Caro de cambiar · equipo comprado", "kind": "online", "x": 0, "y": 49, "w": 78, "h": 33 }
+  ],
+  "nodes": [
+    {
+      "id": "descubrimiento", "label": "Descubrimiento", "sub": "caso de uso y criterio", "badge": "1", "kind": "human",
+      "x": 29, "y": 4, "w": 20, "h": 8,
+      "note": "La primera puerta: ¿hay una tarea que valga la pena y un [[criterio-de-aceptacion|criterio de aceptación]] con números? Si no, aquí se detiene, y detenerse aquí casi no cuesta."
+    },
+    {
+      "id": "sizing", "label": "Sizing", "sub": "¿cabe en el presupuesto?", "badge": "2", "kind": "job",
+      "x": 29, "y": 20, "w": 20, "h": 8,
+      "note": "Si la cuenta pide más hardware del que el cliente puede pagar, se regresa a descubrimiento a acotar: menos tareas, menos contexto, menos personas al inicio."
+    },
+    {
+      "id": "piloto", "label": "Piloto rentado", "sub": "¿pasa el examen y la carga?", "badge": "3", "kind": "model",
+      "x": 29, "y": 36, "w": 20, "h": 8,
+      "note": "La [[prueba-piloto|prueba piloto]] en una GPU rentada. Si no pasa el criterio, se regresa a sizing con otro modelo u otra GPU. Rentar hace barato equivocarse."
+    },
+    {
+      "id": "compra", "label": "Compra", "sub": "orden con fecha", "badge": "4", "kind": "gpu",
+      "x": 29, "y": 55, "w": 20, "h": 8,
+      "note": "Se compra solo lo que pasó el piloto. Si la entrega tarda, el piloto sigue en la GPU rentada mientras llega el equipo."
+    },
+    {
+      "id": "operacion", "label": "Operación", "sub": "despliegue, evals y día 2", "badge": "5", "kind": "monitor",
+      "x": 29, "y": 71, "w": 20, "h": 8,
+      "note": "Ya en el equipo propio. Cada modelo o servidor nuevo regresa a repetir el examen del piloto antes de cambiar."
+    },
+    {
+      "id": "detener", "label": "Detener", "sub": "o comprar a un proveedor", "kind": "external",
+      "x": 2, "y": 36, "w": 18, "h": 8,
+      "note": "No todo proyecto debe seguir. Con poco volumen o sin quién lo opere, puede convenir más contratar un servicio que cumpla las restricciones del cliente."
+    }
+  ],
+  "edges": [
+    { "from": "descubrimiento", "to": "sizing", "kind": "neutral", "label": "hay caso" },
+    { "from": "sizing", "to": "piloto", "kind": "neutral", "label": "cabe" },
+    { "from": "piloto", "to": "compra", "kind": "online", "label": "pasa" },
+    { "from": "compra", "to": "operacion", "kind": "online", "label": "llega" },
+    { "from": "sizing", "to": "descubrimiento", "kind": "async", "dashed": true, "fromSide": "r", "toSide": "r", "via": [[56, 24], [56, 8]], "label": "no cabe: acotar" },
+    { "from": "piloto", "to": "sizing", "kind": "async", "dashed": true, "fromSide": "l", "toSide": "l", "via": [[24, 40], [24, 24]], "label": "no pasa" },
+    { "from": "operacion", "to": "piloto", "kind": "monitor", "dashed": true, "fromSide": "r", "toSide": "r", "via": [[62, 75], [62, 40]], "label": "modelo nuevo: repetir examen" },
+    { "from": "descubrimiento", "to": "detener", "kind": "async", "dashed": true, "fromSide": "l", "toSide": "t", "via": [[11, 8]], "label": "no hay caso" }
+  ],
+  "flows": [
+    {
+      "id": "puertas",
+      "label": "Las puertas del despacho",
+      "steps": [
+        { "nodes": ["descubrimiento"], "edges": [], "text": "**Puerta 1.** El despacho tiene una tarea clara (preguntar a sus expedientes con cita) y un criterio con números. Pasa. Si solo hubiera dicho «queremos IA», aquí se detenía." },
+        { "nodes": ["descubrimiento", "detener"], "edges": ["descubrimiento>detener"], "text": "**La salida temprana.** Sin una tarea con valor, o con muy poco volumen, lo honesto es detenerse o recomendar un servicio de un proveedor. Cuesta unas semanas de pláticas, no un servidor." },
+        { "nodes": ["sizing"], "edges": ["descubrimiento>sizing"], "text": "**Puerta 2.** 8 conversaciones a la vez caben en una L40S con 38.50 de 43.2 GB. Pasa. Si hubieran pedido 30,000 tokens de contexto por conversación, no cabría, y se regresaría a acotar." },
+        { "nodes": ["sizing", "descubrimiento"], "edges": ["sizing>descubrimiento"], "text": "**Regresar a acotar.** Acotar es elegir: menos tareas a la vez, conversaciones más cortas, un grupo piloto más chico. Se cambia el papel, no el hardware." },
+        { "nodes": ["piloto"], "edges": ["sizing>piloto"], "text": "**Puerta 3.** El piloto corre en una L40S rentada por horas. El modelo contesta 200 preguntas reales del despacho y aguanta la prueba de carga, o no." },
+        { "nodes": ["piloto", "sizing"], "edges": ["piloto>sizing"], "text": "**Si no pasa.** Se prueba otro candidato (por ejemplo Llama 3.3 70B, que pide más memoria) y se rehace el sizing. Equivocarse aquí cuesta horas de GPU rentada." },
+        { "nodes": ["compra", "operacion"], "edges": ["piloto>compra", "compra>operacion"], "text": "**Lo caro, al final.** Solo lo que pasó se compra. Ya instalado, se repite la prueba de carga en el equipo propio y empieza la operación." },
+        { "nodes": ["operacion", "piloto"], "edges": ["operacion>piloto"], "text": "**El ciclo.** Cada versión nueva del modelo o del servidor vuelve a hacer el examen del piloto antes de llegar a los abogados." }
+      ]
+    }
+  ]
+}
