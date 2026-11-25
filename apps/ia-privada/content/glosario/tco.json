@@ -8,7 +8,7 @@
       "corto": "El costo total de tener algo funcionando, no solo lo que cuesta comprarlo: la compra repartida en su vida útil, más luz, espacio, mantenimiento y las personas que lo operan.",
       "largo": "Sirve para comparar opciones que cobran distinto: una API cobra por token, la nube por hora y un servidor propio casi todo al principio. Sumando todo al mes para el mismo trabajo, se comparan en la misma unidad.",
       "analogia": "Un coche no cuesta su precio de agencia: cuesta eso más gasolina, seguro, servicio y estacionamiento, menos lo que te den al venderlo.",
-      "ejemplo": "Dos L40S propias para el despacho del ejemplo: US$26,010 de compra, pero ≈ US$1,913 al mes de TCO.",
+      "ejemplo": "Tres L40S propias para el despacho de los casos: US$35,015 de compra, pero ≈ US$2,147 al mes de TCO.",
       "sensei": "nube"
     },
     {
@@ -18,7 +18,7 @@
       "corto": "Repartir lo que costó un equipo en los meses que va a servir, descontando lo que valdrá al final. Es la parte de la compra que «gastas» cada mes.",
       "largo": "Con depreciación en línea recta: compra × (1 − valor de reventa) ÷ meses de vida útil. En GPUs se usa una vida corta, unos 3 años, porque cada generación nueva rinde mucho más por el mismo dinero.",
       "analogia": "Si compras un coche de US$30,000 y lo vendes en US$12,000 a los 3 años, cada mes te costó US$500 de coche, aunque lo hayas pagado todo el primer día.",
-      "ejemplo": "US$26,010 × (1 − 0.2) ÷ 36 meses ≈ US$578 al mes.",
+      "ejemplo": "US$35,015 × (1 − 0.2) ÷ 36 meses ≈ US$778 al mes.",
       "sensei": "nube"
     },
     {
@@ -28,7 +28,7 @@
       "corto": "Lo que gasta de luz el cuarto o centro de datos entero entre lo que gastan solo los equipos. 1.0 sería perfecto; lo de más es enfriamiento, luces y pérdidas.",
       "largo": "Cada watt que consume una GPU se vuelve calor que hay que sacar del cuarto, y sacarlo gasta más watts. Los centros de datos grandes presumen PUE cercanos a 1.1 o 1.2; un cuarto de servidores de oficina con aire acondicionado normal suele andar bastante arriba.",
       "analogia": "Calentar agua en una olla sin tapa: una parte del gas calienta el agua y otra se va al aire. El PUE dice cuánto gas usaste por cada parte que llegó al agua.",
-      "ejemplo": "Equipos que consumen 0.82 kW en un cuarto con PUE de 1.5: el recibo cobra 1.23 kW."
+      "ejemplo": "Equipos que consumen 1.03 kW en un cuarto con PUE de 1.5: el recibo cobra ≈ 1.55 kW."
     },
     {
       "id": "punto-de-equilibrio",
@@ -37,7 +37,7 @@
       "corto": "El volumen de uso en que dos opciones cuestan lo mismo. De un lado gana una; del otro, la otra.",
       "largo": "Entre pagar por uso (una API, horas de nube) y pagar fijo (un servidor propio), el fijo gana a partir de cierto volumen. Se puede expresar en horas al mes, en tokens al mes o en meses para recuperar la compra.",
       "analogia": "El taxi contra comprar coche: hay un número de kilómetros al mes a partir del cual el coche sale más barato.",
-      "ejemplo": "Dos L40S propias contra rentarlas a US$1.09 la hora: comprar gana a partir de ≈ 419 horas al mes.",
+      "ejemplo": "Tres L40S propias contra rentarlas a US$1.09 la hora: comprar gana a partir de ≈ 351 horas al mes.",
       "sensei": "nube"
     }
   ]

@@ -755,3 +755,10 @@ a.tl:hover { box-shadow: 0 0 0 2px var(--accent); }
 .cat-notas summary { cursor: pointer; font-weight: 700; color: var(--accent-ink); padding: 6px 0; }
 .cat-notas ul { margin: 6px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 8px; }
 .cat-notas .cat-src { display: inline; }
+.cat-tabla thead th { min-width: 92px; }
+.cat-tabla thead th:first-child { min-width: 0; }
+@media (max-width: 600px) {
+  .cat-tabla { min-width: 1080px; }
+  .cat-tabla tbody th { min-width: 128px; max-width: 150px; }
+  .cat-scroll { margin-left: 10px; margin-right: 10px; }
+}

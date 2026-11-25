@@ -1,6 +1,6 @@
 {
   "titulo": "Cuántas GPUs hacen falta",
-  "intro": "Junta las otras dos calculadoras: la memoria de «¿Cabe en la GPU?» y la velocidad de «Qué tan rápido contesta». Del tráfico saca cuántas conversaciones hay a la vez en el pico, \\(c = λ × N_o ÷ v\\), y de la GPU cuántas aguanta cada copia del servidor sin pasarse de memoria ni bajar de la velocidad objetivo. Arranca con un despacho de 200 abogados y Qwen3 32B en INT4 de AWQ en una L40S (los números del despacho son un supuesto del ejemplo).",
+  "intro": "Junta las otras dos calculadoras: la memoria de «¿Cabe en la GPU?» y la velocidad de «Qué tan rápido contesta». Del tráfico saca cuántas conversaciones hay a la vez en el pico, \\(c = λ × N_o ÷ v\\), y de la GPU cuántas aguanta cada copia del servidor sin pasarse de memoria ni bajar de la velocidad objetivo. Arranca con el despacho de abogados de los casos (200 personas, 15 preguntas al día de 9 a 19 h, prompts de 6,000 tokens, al menos 20 tokens por segundo) y Qwen3 32B en INT4 de AWQ en una L40S.",
   "preajustes": [
     {
       "label": "Modelo de ejemplo (arquitectura del config.json oficial)",
@@ -23,12 +23,12 @@
   ],
   "entradas": [
     { "id": "U", "label": "**Personas** que usan el sistema, \\(U\\)", "min": 1, "max": 1000000, "paso": 1, "valor": 200, "tipo": "numero" },
-    { "id": "r", "label": "Preguntas por persona al día, \\(r\\)", "min": 0.1, "max": 1000, "paso": 0.1, "valor": 20, "tipo": "numero" },
-    { "id": "Np", "label": "Tokens de cada prompt, \\(N_p\\) (pregunta + contexto)", "min": 1, "max": 200000, "paso": 1, "valor": 3000, "tipo": "numero" },
+    { "id": "r", "label": "Preguntas por persona al día, \\(r\\)", "min": 0.1, "max": 1000, "paso": 0.1, "valor": 15, "tipo": "numero" },
+    { "id": "Np", "label": "Tokens de cada prompt, \\(N_p\\) (pregunta + contexto)", "min": 1, "max": 200000, "paso": 1, "valor": 6000, "tipo": "numero" },
     { "id": "No", "label": "Tokens de cada respuesta, \\(N_o\\)", "min": 1, "max": 32768, "paso": 1, "valor": 500, "tipo": "numero" },
-    { "id": "h", "label": "Horas del día en que llega el tráfico, \\(H\\)", "min": 1, "max": 24, "paso": 1, "valor": 8, "unidad": "h" },
-    { "id": "pk", "label": "Factor de pico, \\(k_{pico}\\) (la hora más cargada ÷ el promedio)", "min": 1, "max": 10, "paso": 0.5, "valor": 2 },
-    { "id": "v", "label": "**Velocidad objetivo** de cada conversación, \\(v\\)", "min": 1, "max": 200, "paso": 1, "valor": 15, "unidad": "tokens/s" },
+    { "id": "h", "label": "Horas del día en que llega el tráfico, \\(H\\)", "min": 1, "max": 24, "paso": 1, "valor": 10, "unidad": "h" },
+    { "id": "pk", "label": "Factor de pico, \\(k_{pico}\\) (la hora más cargada ÷ el promedio)", "min": 1, "max": 10, "paso": 0.5, "valor": 2.5 },
+    { "id": "v", "label": "**Velocidad objetivo** de cada conversación, \\(v\\)", "min": 1, "max": 200, "paso": 1, "valor": 20, "unidad": "tokens/s" },
     { "id": "P", "label": "Parámetros del modelo, \\(P\\), en miles de millones", "min": 0.1, "max": 1000, "paso": 0.001, "valor": 32.762, "tipo": "numero" },
     { "id": "A", "label": "Parámetros que usa cada token, \\(A\\)", "min": 0.1, "max": 1000, "paso": 0.001, "valor": 32.762, "tipo": "numero" },
     { "id": "Et", "label": "Tablas de tokens, \\(E\\), en miles de millones", "min": 0, "max": 50, "paso": 0.001, "valor": 1.556, "tipo": "numero" },
@@ -61,7 +61,7 @@
     { "id": "Nmax", "formula": "Np + No" },
     { "id": "Nm", "formula": "Np + No / 2" },
     { "id": "lam", "formula": "U * r / (h * 3600) * pk" },
-    { "id": "c", "formula": "lam * No / v" },
+    
     { "id": "nmin", "formula": "M > 0 ? ceil((W + prog * 1e9 + mtok * Nmax) / ((1 - f) * M * 1e9)) : 1 / 0" },
     { "id": "nr", "formula": "max(n0, nmin)" },
     { "id": "n", "formula": "nr <= 1 ? 1 : nr <= 2 ? 2 : nr <= 4 ? 4 : 8" },
@@ -75,6 +75,7 @@
     { "id": "tpm", "formula": "(Wd + mtok * Np) / (n * B * 1e9 * em)" },
     { "id": "tpre", "formula": "pico > 0 ? max(Fpre / (pico * ec), tpm) : 1 / 0" },
     { "id": "carga", "formula": "tpre * v / No" },
+    { "id": "c", "formula": "lam * (tpre + No / v)" },
     { "id": "blm", "formula": "(1 - a0 * v) / (a1 * v + carga)" },
     { "id": "blc", "formula": "c1 > 0 ? 1 / (c1 * v + carga) : 1 / 0" },
     { "id": "blat", "formula": "max(0, floor(min(blm, blc)))" },
@@ -87,8 +88,8 @@
       "nota": "\\(λ = U × r ÷ (H × 3,600) × k_{pico}\\)",
       "cuenta": "{{U|int}} personas × {{r|corto}} preguntas ÷ ({{h|int}} h × 3,600 s) × {{pk|corto}} = **{{lam|num|3}} por segundo**" },
     { "label": "2 · Conversaciones a la vez en el pico, \\(c\\)", "formula": "c", "formato": "num", "decimales": 1,
-      "nota": "ley de Little: llegadas por segundo × lo que dura cada respuesta, \\(N_o ÷ v\\)",
-      "cuenta": "{{lam|num|3}} por segundo × ({{No|int}} tokens ÷ {{v|int}} tokens/s = {{No / v|num|1}} s) = **{{c|num|1}} conversaciones**" },
+      "nota": "ley de Little: llegadas por segundo × lo que dura cada respuesta, TTFT más \\(N_o ÷ v\\)",
+      "cuenta": "{{lam|num|3}} por segundo × ({{tpre|num|2}} s de TTFT + {{No|int}} tokens ÷ {{v|int}} tokens/s = {{tpre + No / v|num|1}} s) = **{{c|num|1}} conversaciones**" },
     { "label": "3 · GPUs por copia del servidor, \\(n\\)", "formula": "n", "formato": "int",
       "nota": "las que hacen falta para que quepan los pesos, el programa y una conversación completa (1, 2, 4 u 8)",
       "cuenta": "({{W|bytes|1}} de pesos + {{prog|corto}} GB + {{mtok * Nmax|bytes|2}} de una conversación) ÷ {{(1 - f) * M|corto}} GB útiles por GPU = {{nmin|num|2}} → **{{n|int}}**" },

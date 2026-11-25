@@ -8,7 +8,7 @@
       "corto": "Cuántas veces más tráfico llega en la hora más cargada que en una hora promedio. Se dimensiona para el pico, no para el promedio.",
       "largo": "Se mide con los registros de un sistema que ya existe: las peticiones de la peor hora entre el promedio de las horas de trabajo. Sin datos, en una oficina se usa de 2 a 3. Dentro de la hora pico todavía hay minutos peores; para eso se deja una copia de sobra.",
       "analogia": "La hora de la comida en una fonda: el mismo número de clientes al día, pero la mitad llega entre la 1 y las 3.",
-      "ejemplo": "4,000 preguntas en 8 horas son 0.14 por segundo en promedio; con un factor de pico de 2, el servidor tiene que aguantar 0.28."
+      "ejemplo": "3,000 preguntas en 10 horas son 0.083 por segundo en promedio; con un factor de pico de 2.5, el servidor tiene que aguantar 0.208."
     },
     {
       "id": "ley-de-little",
@@ -17,7 +17,7 @@
       "corto": "Lo que hay adentro de un sistema, en promedio, es lo que llega por segundo multiplicado por lo que tarda cada uno: \\(c = λ × t\\).",
       "largo": "Vale para cualquier fila estable: clientes en una tienda, peticiones en un servidor, conversaciones abiertas en un LLM. En el sizing, \\(λ\\) son las preguntas por segundo del pico y \\(t\\) lo que dura cada respuesta, sus tokens entre la velocidad.",
       "analogia": "Si a un museo entran 2 personas por minuto y cada una se queda 30 minutos, adentro hay unas 60.",
-      "ejemplo": "0.278 preguntas por segundo × 33.3 s por respuesta ≈ 9.3 conversaciones abiertas a la vez.",
+      "ejemplo": "0.208 preguntas por segundo × 27.4 s por respuesta ≈ 5.7 conversaciones abiertas a la vez.",
       "sensei": "latencia"
     },
     {
@@ -27,7 +27,7 @@
       "corto": "Un modelo cargado y atendiendo, en una GPU o en varias que se lo reparten. Para atender a más gente se ponen más copias iguales detrás de un balanceador.",
       "largo": "Cada copia tiene sus propios pesos en su [[vram|VRAM]] y su propio [[batch]] de conversaciones. Las GPUs de una misma copia se pasan resultados en cada paso (por eso conviene que estén unidas por NVLink); copias distintas no se hablan.",
       "analogia": "Las cajas de un súper: cada una cobra sola, y para atender a más gente abres otra caja igual.",
-      "ejemplo": "El despacho del ejemplo: 2 copias de Qwen3 32B en INT4, cada una en su L40S, con hasta 9 conversaciones cada una.",
+      "ejemplo": "El despacho de los casos: 3 copias de Qwen3 32B en INT4, cada una en su L40S, con hasta 2 conversaciones a 20 tokens por segundo cada una.",
       "sensei": "balanceo"
     },
     {
@@ -37,7 +37,7 @@
       "corto": "Tener una copia más de las que pide el pico, para que si una falla las demás sigan aguantando el tráfico.",
       "largo": "Si el sizing da N copias, se ponen N+1. Cuesta una GPU (o un juego de GPUs) más, y es lo que separa un servicio que se cae una mañana cada vez que algo falla de uno que no. También sirve para actualizar el modelo copia por copia sin apagar el servicio.",
       "analogia": "La llanta de refacción: casi nunca la usas, pero sin ella un ponchado te deja tirado.",
-      "ejemplo": "El despacho necesita 2 L40S para su pico; con N+1 se compran 3."
+      "ejemplo": "El despacho necesita 3 L40S para su pico; con N+1 se compran 4."
     }
   ]
 }

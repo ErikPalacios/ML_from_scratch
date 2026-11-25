@@ -129,7 +129,7 @@ Cada fase cabe en una ventana de 5 horas y termina con la app construida, revisa
 | 0 ✓ | Este plan | — |
 | **App y herramientas** | | |
 | 1 ✓ | Esqueleto de la app (armazón de Sensei, Dojo design, portada con las 4 secciones, su subdominio en trueml.app) y calculadora de VRAM. Hecha el 2026-11-25: en vivo en ia.trueml.app | — |
-| 2 | Calculadoras de velocidad, sizing y TCO, más el catálogo de hardware con precios de compra, verificadas contra fuentes | 1 |
+| 2 ✓ | Calculadoras de velocidad, sizing y TCO, más el catálogo de hardware con precios de compra, verificadas contra fuentes. Hecha el 2026-11-25: en vivo en ia.trueml.app | 1 |
 | **Lecciones** | | |
 | 3 | Módulos 1–3 (5 lecciones): el mapa · licencias y open weight · elegir modelo · batching continuo y PagedAttention · concurrencia | 1 |
 | 4 | Módulos 4–5 (4 lecciones): formatos de cuantización · speculative decoding y contexto largo · comprar hardware · el cuarto | 3 |

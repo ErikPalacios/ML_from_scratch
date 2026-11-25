@@ -39,12 +39,12 @@ Lo que no se ve en la fórmula: **con una API, los datos salen de la red de la e
 Los precios cambian seguido y bajan mucho de un año a otro. Los del archivo de datos son los estándar (sin descuentos por lote ni por caché), del nivel más barato cuando el precio sube con el contexto, cada uno con su fecha y su fuente.
 
 :::cuenta El despacho con Qwen3 32B por API
-Preguntas al mes // 200 personas × 20 al día × 22 días | 200 × 20 × 22 | 88,000
-Tokens de entrada, \(M_e\) // 3,000 por prompt | 88,000 × 3,000 | 264 millones
-Tokens de salida, \(M_s\) // 500 por respuesta | 88,000 × 500 | 44 millones
-API al mes // DeepInfra, Qwen3 32B: US$0.08 entrada, US$0.28 salida (2026-11-25) | 264 × 0.08 + 44 × 0.28 | **≈ US$33**
-Con un modelo cerrado // Claude Sonnet 5.5: US$2 y US$10 (2026-11-25) | 264 × 2 + 44 × 10 | ≈ US$968
-= El mismo trabajo cuesta 29 veces más con un modelo cerrado de primera que con un modelo abierto servido por un tercero. Elegir el modelo mueve el costo más que elegir el hardware.
+Preguntas al mes // 200 personas × 15 al día × 22 días (la ficha del despacho de los casos) | 200 × 15 × 22 | 66,000
+Tokens de entrada, \(M_e\) // 6,000 por prompt | 66,000 × 6,000 | 396 millones
+Tokens de salida, \(M_s\) // 500 por respuesta | 66,000 × 500 | 33 millones
+API al mes // DeepInfra, Qwen3 32B: US$0.08 entrada, US$0.28 salida (2026-11-25) | 396 × 0.08 + 33 × 0.28 | **≈ US$41**
+Con un modelo cerrado // Claude Sonnet 5.5: US$2 y US$10 (2026-11-25) | 396 × 2 + 33 × 10 | ≈ US$1,122
+= El mismo trabajo cuesta 27 veces más con un modelo cerrado de primera que con un modelo abierto servido por un tercero. Elegir el modelo mueve el costo más que elegir el hardware.
 :::
 
 ## La nube: pagar por hora {Paying per hour}
@@ -89,17 +89,17 @@ E = (G × W_{GPU} × u + n_s × W_s) ÷ 1,000 × PUE × 730 × p_{kWh}
 
 Con \(v_r\) = 0 y \(O\) = \(E + O_{esp} + O_{pers}\), es exactamente la de Sensei.
 
-:::cuenta El despacho con 2 L40S propias
-Compra, \(K\) // 2 L40S a US$9,005 (IT Creations, 2026-11-25) + un servidor de US$8,000 (supuesto) | 2 × 9,005 + 8,000 | US$26,010
-Depreciación // 3 años, 20 % de reventa (supuesto) | 26,010 × 0.8 ÷ 36 | US$578 al mes
-Consumo promedio // 350 W cada L40S al 60 % + 400 W del resto (supuestos) | 2 × 350 × 0.6 + 400 | 0.82 kW
-Luz // PUE de 1.5, US$0.15 por kWh (supuestos) | 0.82 × 1.5 × 730 × 0.15 | US$135 al mes
-Propio al mes, \(P\) // + US$200 de espacio y red + US$1,000 de personas (supuestos) | 578 + 135 + 200 + 1,000 | **≈ US$1,913**
-Rentadas // 2 L40S a US$1.09 por hora (RunPod, 2026-11-13), todo el mes, + personas | 2 × 1.09 × 730 + 1,000 | ≈ US$2,591
-= Para el despacho, la API de Qwen3 32B (US$33) es 57 veces más barata que el servidor propio. En dinero no hay discusión: si eligen IA privada, es por sus datos.
+:::cuenta El despacho con 3 L40S propias
+Compra, \(K\) // las 3 L40S que pide la herramienta de sizing, a US$9,005 (IT Creations, 2026-11-25), + un servidor de US$8,000 (supuesto) | 3 × 9,005 + 8,000 | US$35,015
+Depreciación // 3 años, 20 % de reventa (supuesto) | 35,015 × 0.8 ÷ 36 | US$778 al mes
+Consumo promedio // 350 W cada L40S al 60 % + 400 W del resto (supuestos) | 3 × 350 × 0.6 + 400 | 1.03 kW
+Luz // PUE de 1.5, US$0.15 por kWh (supuestos) | 1.03 × 1.5 × 730 × 0.15 | US$169 al mes
+Propio al mes, \(P\) // + US$200 de espacio y red + US$1,000 de personas (supuestos) | 778 + 169 + 200 + 1,000 | **≈ US$2,147**
+Rentadas // 3 L40S a US$1.09 por hora (RunPod, 2026-11-13), todo el mes, + personas | 3 × 1.09 × 730 + 1,000 | ≈ US$3,387
+= Para el despacho, la API de Qwen3 32B (US$41) es 52 veces más barata que el servidor propio. En dinero no hay discusión: si eligen IA privada, es por sus datos.
 :::
 
-Fíjate dónde se va el dinero del propio: más de la mitad son personas. Si la empresa ya tiene a alguien que opera sus servidores y le dedica un rato, ese costo baja mucho. Si hay que contratar, sube.
+Fíjate dónde se va el dinero del propio: casi la mitad son personas. Si la empresa ya tiene a alguien que opera sus servidores y le dedica un rato, ese costo baja mucho. Si hay que contratar, sube.
 
 ## El punto de equilibrio {The break-even point}
 
@@ -116,14 +116,14 @@ m^{*} = K ÷ (A − E − O_{esp} − O_{pers})
 - m^{*}: los meses en que lo que te ahorras frente a la API paga la compra; si el ahorro no cubre ni los gastos fijos, nunca
 :::
 
-\(x^{*}\) tiene una trampa: si el volumen sube 57 veces, también suben las GPUs que hacen falta. Úsalo como señal («estamos lejísimos» o «estamos cerca»), y para el número de verdad vuelve a la herramienta de sizing con el tráfico nuevo.
+\(x^{*}\) tiene una trampa: si el volumen sube 52 veces, también suben las GPUs que hacen falta. Úsalo como señal («estamos lejísimos» o «estamos cerca»), y para el número de verdad vuelve a la herramienta de sizing con el tráfico nuevo.
 
 :::cuenta El mismo despacho, 10 veces más grande y con un modelo cerrado
-GPUs // la herramienta de sizing con 2,000 personas: 92.6 conversaciones a la vez, 9 por L40S | ⌈92.6 ÷ 9⌉ | 11 L40S
-API // Claude Sonnet 5.5, 2,640 millones de entrada y 440 de salida | 2,640 × 2 + 440 × 10 | US$9,680 al mes
-Propio // 11 L40S en 3 servidores de 4: compra de US$123,055 | depreciación 2,735 + luz 577 + 200 + 1,000 | ≈ US$4,511 al mes
-Recuperar la compra, \(m^{*}\) | 123,055 ÷ (9,680 − 577 − 200 − 1,000) | **≈ 15.6 meses**
-= Con muchos usuarios y un modelo caro, el servidor propio se paga en poco más de un año y luego ahorra ≈ US$5,000 al mes. La comparación justa también pregunta si Qwen3 32B contesta tan bien como Sonnet para lo que necesita el despacho; eso se mide con evals.
+GPUs // la herramienta de sizing con 2,000 personas: 55.6 conversaciones a la vez, 7 por RTX PRO 6000 Blackwell (con L40S serían 29) | ⌈55.6 ÷ 7⌉ | 8 RTX PRO 6000
+API // Claude Sonnet 5.5, 3,960 millones de entrada y 330 de salida | 3,960 × 2 + 330 × 10 | US$11,220 al mes
+Propio // 8 tarjetas a US$16,290 (gpuprix, 2026-11-25) en 2 servidores de 4: compra de US$146,320 | depreciación 3,252 + luz 604 + 200 + 1,000 | ≈ US$5,056 al mes
+Recuperar la compra, \(m^{*}\) | 146,320 ÷ (11,220 − 604 − 200 − 1,000) | **≈ 15.5 meses**
+= Con muchos usuarios y un modelo caro, el servidor propio se paga en poco más de un año y luego ahorra ≈ US$6,000 al mes. La comparación justa también pregunta si Qwen3 32B contesta tan bien como Sonnet para lo que necesita el despacho; eso se mide con evals.
 :::
 
 :::calculadora tco
@@ -157,10 +157,10 @@ Preguntas: 50 × 30 × 22 = 33,000. Entrada: 33,000 × 2,000 = **66 millones**. 
 DeepInfra: 66 × 0.10 + 13.2 × 0.32 = 6.60 + 4.22 ≈ **US$10.82**. Fireworks: (66 + 13.2) × 0.90 ≈ **US$71.28**. El mismo modelo cuesta 6.6 veces más según quién lo sirva.
 ? [medio] Un servidor de US$40,000 con 2 GPUs de 600 W, más 500 W del resto, trabaja al 50 % del consumo de las GPUs en promedio, con PUE de 1.4 y luz a US$0.12 por kWh. ¿Cuánto paga de luz al mes?
 Consumo promedio: 2 × 600 × 0.5 + 500 = 1,100 W = 1.1 kW. Con el cuarto: 1.1 × 1.4 = 1.54 kW. Al mes: 1.54 × 730 × 0.12 ≈ **US$135**. La luz casi nunca es lo que más pesa; la depreciación de ese servidor (US$40,000 × 0.8 ÷ 36 ≈ US$889) pesa 6.6 veces más.
-? [medio] Con el despacho de esta página (propio ≈ US$1,913 al mes, US$1,000 de personas, 2 L40S rentables a US$1.09 por hora), ¿a partir de cuántas horas al mes conviene comprar en vez de rentar?
-\(h^{*}\) = (1,913 − 1,000) ÷ (2 × 1.09) ≈ **419 horas**, el 57 % del mes. Si solo las prendes en horario de oficina (≈ 220 horas), rentar sale más barato: 2 × 1.09 × 220 + 1,000 ≈ US$1,480 contra US$1,913.
-? [reto] El despacho grande (11 L40S, propio ≈ US$4,511 al mes, compra de US$123,055) cambia Claude Sonnet 5.5 por Claude Haiku 5.5 (US$0.10 entrada, US$0.50 salida, 2026-11-25). ¿Sigue conviniendo el servidor propio?
-API con Haiku: 2,640 × 0.10 + 440 × 0.50 = 264 + 220 = **US$484 al mes**, contra US$4,511 del propio. Ya no: la API sale ≈ 9 veces más barata, y la compra nunca se recupera (US$484 no cubre ni los US$1,777 de gastos fijos). El equilibrio depende tanto del modelo contra el que compites como de tu volumen. Por eso el argumento de IA privada casi nunca es solo de costo.
+? [medio] Con el despacho de esta página (propio ≈ US$2,147 al mes, US$1,000 de personas, 3 L40S rentables a US$1.09 por hora), ¿a partir de cuántas horas al mes conviene comprar en vez de rentar?
+\(h^{*}\) = (2,147 − 1,000) ÷ (3 × 1.09) ≈ **351 horas**, el 48 % del mes. Si solo las prendes en horario de oficina (≈ 220 horas), rentar sale más barato: 3 × 1.09 × 220 + 1,000 ≈ US$1,719 contra US$2,147.
+? [reto] El despacho grande (8 RTX PRO 6000, propio ≈ US$5,056 al mes, compra de US$146,320) cambia Claude Sonnet 5.5 por Claude Haiku 5.5 (US$0.10 entrada, US$0.50 salida, 2026-11-25). ¿Sigue conviniendo el servidor propio?
+API con Haiku: 3,960 × 0.10 + 330 × 0.50 = 396 + 165 = **US$561 al mes**, contra US$5,056 del propio. Ya no: la API sale ≈ 9 veces más barata, y la compra nunca se recupera (US$561 no cubre ni los US$1,804 de gastos fijos). El equilibrio depende tanto del modelo contra el que compites como de tu volumen. Por eso el argumento de IA privada casi nunca es solo de costo.
 :::
 
 ## Palabras que vas a oír {Words you'll hear}
