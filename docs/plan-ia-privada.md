@@ -164,6 +164,8 @@ Opcional, después: las estaciones 10–12 del RAG (Docker, índice nuevo sin co
 
 **Lo que toda fase de app cumple (desde la fase 1):** el Dojo design (`dojo.css`, `trueml-mark.js`, la T de vidrio donde quepa), el botón de Ko-fi como las otras apps, la regla de explicar cada concepto desde cero, y el deploy como en las demás apps (merge a main + push, Vercel conectado a Git, verificar en vivo). El subdominio sale del nombre final (sección 10); mientras tanto, el de trabajo.
 
+**Medido (fase 1, 2026-11-25):** esqueleto, calculadora de VRAM, revisión de hechos y deploy subieron la ventana de 5 horas de 1 % a 7 % y el límite semanal total de 82 % a 83 %; Fable no se usó. Código en Opus esfuerzo medio; la verificación de modelos y la revisión de hechos, en Sonnet.
+
 **Costo estimado:** ≈ 24 lecciones a 1.4–3.5 % del límite semanal cada una (lo medido en Sensei) son ≈ 35–85 % de una semana, repartido entre varias. Las herramientas, los casos y las estaciones se miden al terminar cada fase, igual que en Sensei.
 
 ## 8. Presupuesto: límites, reinicios y cómo aprovecharlos
