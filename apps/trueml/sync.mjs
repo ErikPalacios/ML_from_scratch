@@ -14,7 +14,7 @@ const AQUI = dirname(fileURLToPath(import.meta.url));
 const APPS_DIR = join(AQUI, '..');
 const ARCHIVOS = ['trueml-mark.js', 'lib.mjs', 'etapas.json', 'tokens.css', 'cliente.js', 'codigo.js', 'piezas.js', 'piezas.css', 'mudanza.js', 'mudanza.html'];
 // La carpeta de cada app que se despliega (el tablero copia su web/ entera, también al demo).
-const APPS = ['taller-ai', 'portada', 'sensei', 'ml-system-design', 'atlas-arquitecturas', 'transformer-lab', 'tablero-ml/web', 'cheat-sheets'];
+const APPS = ['taller-ai', 'portada', 'sensei', 'ml-system-design', 'atlas-arquitecturas', 'transformer-lab', 'tablero-ml/web', 'cheat-sheets', 'ia-privada'];
 const DOJO = { carpeta: 'taller-ai', url: 'https://dojo.trueml.app' };
 const check = process.argv.includes('--check');
 
@@ -110,6 +110,25 @@ for (const [de, a] of [['ml-system-design/js/ui/diagram.js', 'diagram.js'], ['ml
 }
 // Sensei enlaza cada lección de estación con su estación del Dojo, si ya está lista.
 salidas.push([join(APPS_DIR, 'sensei', 'content', 'dojo.json'), JSON.stringify(dojo, null, 2) + '\n']);
+
+// IA Privada: usa el mismo motor de diagramas, lee las especificaciones de GPUs de Sensei (la única fuente: se copia tal
+// cual, nunca a mano), enlaza las lecciones de Sensei que da por leídas y pinta su rama del Dojo.
+{
+  const IAP = 'ia-privada', gen = `Generado por apps/trueml/sync.mjs. No se edita a mano.`;
+  for (const a of ['diagram.js', 'components.css']) salidas.push([join(APPS_DIR, IAP, 'vendor', 'ronda', a), readFileSync(join(APPS_DIR, 'sensei', 'vendor', 'ronda', a), 'utf8')]);
+  salidas.push([join(APPS_DIR, IAP, 'content', 'datos', 'gpus.json'), readFileSync(join(APPS_DIR, SENSEI.carpeta, 'content', 'datos', 'gpus.json'), 'utf8')]);
+  const c = join(APPS_DIR, SENSEI.carpeta, 'content');
+  const temario = JSON.parse(readFileSync(join(c, 'temario.json'), 'utf8'));
+  const lecciones = Object.fromEntries(temario.modulos.flatMap((m) => m.lecciones).map((l) => [l.id, { titulo: l.titulo,
+    url: existsSync(join(c, 'lecciones', `${l.id}.md`)) ? `${SENSEI.url}/${l.id}/` : null }]));
+  salidas.push([join(APPS_DIR, IAP, 'content', 'datos', 'sensei.json'), JSON.stringify({ nota: `${gen} Fuente: apps/${SENSEI.carpeta}/content/temario.json.`, url: SENSEI.url, lecciones }, null, 2) + '\n']);
+  const rama = ramas.find((r) => r.id === IAP);
+  if (!rama) throw new Error(`taller-ai/content/ramas.json no tiene la rama «${IAP}»`);
+  const ls = listasDe(IAP);
+  salidas.push([join(APPS_DIR, IAP, 'content', 'dojo.json'), JSON.stringify({ nota: `${gen} Fuente: apps/${DOJO.carpeta}/content/ramas.json.`, url: `${DOJO.url}/${IAP}/`,
+    nombre: rama.nombre, resumen: rama.resumen, caso: rama.caso, sin_gpu: rama.sin_gpu,
+    estaciones: rama.estaciones.map((s) => ({ ...s, lista: ls.has(s.id), url: ls.has(s.id) ? `${DOJO.url}/${IAP}/${s.id}/` : null })) }, null, 2) + '\n']);
+}
 
 let malos = 0;
 for (const [ruta, texto] of salidas) {

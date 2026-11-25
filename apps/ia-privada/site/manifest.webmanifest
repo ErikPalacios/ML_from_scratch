@@ -1,0 +1,12 @@
+{
+  "name": "IA Privada · TrueML",
+  "short_name": "IA Privada",
+  "description": "Llevar modelos open weight al hardware propio de una empresa, explicado desde cero, con calculadoras.",
+  "lang": "es-MX",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#EDEFF7",
+  "theme_color": "#0E1530",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

@@ -1,0 +1,10 @@
+{
+  "nota": "Las herramientas de la app (docs/plan-ia-privada.md, sección 4), en orden. Una herramienta existe cuando está su página content/herramientas/<id>.md; mientras no, sale como «próximamente» con su fase.",
+  "herramientas": [
+    { "id": "vram", "titulo": "¿Cabe en la GPU?", "corto": "VRAM", "resumen": "Pesos, KV cache y overhead de un modelo, y si caben en la GPU que elijas.", "fase": 1 },
+    { "id": "velocidad", "titulo": "Qué tan rápido contesta", "corto": "Velocidad", "resumen": "Tokens por segundo en decode y tiempo al primer token, contra benchmarks publicados.", "fase": 2 },
+    { "id": "sizing", "titulo": "Cuántas GPUs hacen falta", "corto": "Sizing", "resumen": "De usuarios, tokens por día y latencia objetivo a cuántas GPUs y de cuál tipo.", "fase": 2 },
+    { "id": "tco", "titulo": "API, nube o servidor propio", "corto": "TCO", "resumen": "El costo total de cada opción, con depreciación, energía y operación, y su punto de equilibrio.", "fase": 2 },
+    { "id": "catalogo", "titulo": "Catálogo de hardware", "corto": "Catálogo", "resumen": "GPUs y equipos con VRAM, ancho de banda, consumo y precio de referencia, con fecha y fuente.", "fase": 2 }
+  ]
+}

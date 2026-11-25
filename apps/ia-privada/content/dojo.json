@@ -1,0 +1,100 @@
+{
+  "nota": "Generado por apps/trueml/sync.mjs. No se edita a mano. Fuente: apps/taller-ai/content/ramas.json.",
+  "url": "https://dojo.trueml.app/ia-privada/",
+  "nombre": "IA Privada",
+  "resumen": "Llevar un modelo open weight a una empresa y operarlo en su propio hardware: servirlo, medirlo, ponerle un gateway, un RAG con sus documentos, evals, observabilidad y la entrega sin internet. Da por sabido el entrenamiento RAG y le suma lo que cambia cuando el modelo vive en hardware propio.",
+  "caso": {
+    "nombre": "Despacho de abogados",
+    "resumen": "Un despacho quiere preguntarle a sus expedientes con un LLM, sin que un solo documento salga de su red: el modelo, el índice y los logs viven en un servidor suyo."
+  },
+  "sin_gpu": {
+    "estaciones": [
+      1,
+      5,
+      6
+    ],
+    "texto": "Sin rentar GPU: el modelo local con su API (1), tu RAG llevado al despacho (5) y su gate con el modelo propio (6) corren solo en tu Mac."
+  },
+  "estaciones": [
+    {
+      "num": 1,
+      "id": "modelo-local",
+      "titulo": "Un modelo local por API",
+      "sale": "un modelo chico que contesta por una API compatible con OpenAI",
+      "etapa": "api",
+      "donde": "mac",
+      "lista": false,
+      "url": null
+    },
+    {
+      "num": 2,
+      "id": "cuantizacion",
+      "titulo": "Medir y cuantizar",
+      "sale": "TTFT, tokens/s y calidad de 3 cuantizaciones, lado a lado",
+      "etapa": "modelo",
+      "donde": "mac",
+      "lista": false,
+      "url": null
+    },
+    {
+      "num": 3,
+      "id": "vllm",
+      "titulo": "Servir con vLLM bajo carga",
+      "sale": "vLLM sirviendo y su curva de usuarios contra latencia",
+      "etapa": "api",
+      "donde": "gpu",
+      "lista": false,
+      "url": null
+    },
+    {
+      "num": 4,
+      "id": "gateway",
+      "titulo": "Gateway de modelos",
+      "sale": "un gateway con llaves, límites y ruteo entre modelos",
+      "etapa": "orquestacion",
+      "donde": "mac",
+      "lista": false,
+      "url": null
+    },
+    {
+      "num": 5,
+      "id": "rag",
+      "titulo": "Tu RAG, al despacho",
+      "sale": "el RAG del entrenamiento RAG en el servidor del despacho, sin internet, con el modelo propio",
+      "etapa": "datos",
+      "donde": "mac",
+      "lista": false,
+      "url": null
+    },
+    {
+      "num": 6,
+      "id": "evals",
+      "titulo": "El gate, con el modelo propio",
+      "sale": "el mismo golden set contra el modelo del despacho, y guardrails para que nada salga de su red",
+      "etapa": "modelo",
+      "donde": "mac",
+      "lista": false,
+      "url": null
+    },
+    {
+      "num": 7,
+      "id": "observabilidad",
+      "titulo": "Observabilidad y fallas",
+      "sale": "tableros y alertas de GPU e inferencia, con su runbook",
+      "etapa": "monitoreo",
+      "donde": "gpu",
+      "lista": false,
+      "url": null
+    },
+    {
+      "num": 8,
+      "id": "entrega",
+      "titulo": "Entrega sin internet",
+      "sale": "un paquete que se instala sin internet, con su prueba de humo",
+      "etapa": "contenedor",
+      "donde": "mac-gpu",
+      "lista": false,
+      "url": null
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "name": "ia-privada",
+  "private": true,
+  "description": "IA Privada: llevar modelos open weight al hardware propio de una empresa, explicado desde cero, con calculadoras.",
+  "scripts": {
+    "build": "node tools/build.mjs",
+    "check": "node tools/build.mjs && node tools/check.mjs"
+  }
+}

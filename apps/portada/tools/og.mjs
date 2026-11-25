@@ -2,7 +2,7 @@
 // Genera las imágenes para redes (1200×630) con Chrome sin ventana. Salidas:
 //   apps/portada/src/og.png, apps/ml-system-design/web/og.png, apps/atlas-arquitecturas/web/og.png,
 //   apps/transformer-lab/public/og.png, apps/cheat-sheets/site/og.png, apps/tablero-demo/web/og.png, apps/taller-ai/site/og.png,
-//   apps/sensei/site/og.png
+//   apps/sensei/site/og.png, apps/ia-privada/site/og.png
 // Uso: node tools/og.mjs              (todas; necesita Google Chrome en /Applications)
 //      node tools/og.mjs taller-ai    (solo las salidas que contienen ese texto)
 import { writeFileSync, mkdirSync, rmSync } from 'node:fs';
@@ -22,6 +22,7 @@ const IMAGES = [
   { out: 'tablero-demo/web/og.png', etapas: 'todas', kicker: 'Demo en vivo', title: 'ML Board', sub: 'Cada proyecto como un mapa del dato al monitoreo, con cálculos de entrada que se verifican', foot: 'TrueML · tablero.trueml.app' },
   { out: 'taller-ai/site/og.png', etapas: 'todas', kicker: 'Entrenamiento práctico', title: 'Dojo de entrenamiento ML engineer\'s', sub: 'Mini-proyectos en tu Mac: los construyes, los rehaces y los arreglas cuando se rompen', foot: 'TrueML · dojo.trueml.app' },
   { out: 'sensei/site/og.png', etapas: 'todas', kicker: 'Teoría desde cero', title: 'Sensei', sub: 'Lo que hay detrás de poner un modelo en producción, explicado desde cero, con diagramas y el mismo caso del Dojo', foot: 'TrueML · sensei.trueml.app' },
+  { out: 'ia-privada/site/og.png', etapas: 'todas', kicker: 'AI systems engineering', title: 'IA Privada', sub: 'Modelos abiertos en el hardware de la empresa: cuánta VRAM, qué GPU, cómo servirlo y cuánto cuesta', foot: 'TrueML · ia-privada.vercel.app' },
   { out: 'transformer-lab/public/og.png', etapas: ['datos', 'modelo'], kicker: 'Laboratorio', title: 'Laboratorio Transformer', sub: 'Un transformer pequeño entrenándose paso a paso: cada matriz, fórmula y gradiente', foot: 'TrueML · transformer.trueml.app' },
 ];
 // La portada usa la marca TrueML: fondo claro de cuadrícula y la T de vidrio del sistema de diseño compartido.

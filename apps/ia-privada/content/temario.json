@@ -1,0 +1,103 @@
+{
+ "nota": "Los módulos y sus lecciones, en el orden en que se leen (docs/plan-ia-privada.md, sección 3). Una lección existe cuando está su archivo content/lecciones/<id>.md; mientras no, se muestra como «próximamente» con su fase. «sensei»: las lecciones de Sensei que el módulo da por leídas (ids de apps/sensei/content/temario.json; el build las enlaza con content/datos/sensei.json, que escribe apps/trueml/sync.mjs). «etapas»: ids de etapas.json o \"todas\".",
+ "modulos": [
+  {
+   "id": "mapa", "titulo": "El mapa", "fase": 3, "etapas": "todas",
+   "resumen": "El recorrido completo de un proyecto de IA privada, para ubicar todo lo demás.",
+   "sensei": ["camino-completo"],
+   "lecciones": [
+    { "id": "recorrido", "titulo": "El recorrido de un proyecto de IA privada", "etapas": "todas", "resumen": "Descubrimiento, sizing, compra, despliegue, evals y operación." }
+   ]
+  },
+  {
+   "id": "modelos", "titulo": "Los modelos abiertos", "fase": 3, "etapas": ["modelo"],
+   "resumen": "Qué se puede usar, con qué licencia, y cuál conviene para cada tarea.",
+   "sensei": ["llms"],
+   "lecciones": [
+    { "id": "licencias", "titulo": "Open weight, open source y licencias", "etapas": ["modelo"] },
+    { "id": "elegir-modelo", "titulo": "Elegir un modelo para la tarea", "etapas": ["modelo"], "resumen": "Familias, tamaños y benchmarks." }
+   ]
+  },
+  {
+   "id": "inferencia", "titulo": "La inferencia por dentro", "fase": 3, "etapas": ["api"],
+   "resumen": "Cómo un servidor atiende a muchas personas a la vez con la misma GPU.",
+   "sensei": ["llms", "flops", "latencia"],
+   "lecciones": [
+    { "id": "batching", "titulo": "Batching continuo y PagedAttention", "etapas": ["api"] },
+    { "id": "concurrencia", "titulo": "Concurrencia: la curva de usuarios contra latencia", "etapas": ["api"] }
+   ]
+  },
+  {
+   "id": "cuantizar", "titulo": "Que quepa y que vuele", "fase": 4, "etapas": ["modelo"],
+   "resumen": "Los formatos de cuantización que se usan de verdad y cómo se mide lo que cuestan en calidad.",
+   "sensei": ["numeros-maquina"],
+   "lecciones": [
+    { "id": "formatos-cuantizacion", "titulo": "Formatos de cuantización en la práctica", "etapas": ["modelo"], "resumen": "GGUF, AWQ, GPTQ y FP8, con su calidad medida." },
+    { "id": "speculative", "titulo": "Speculative decoding y contexto largo", "etapas": ["modelo", "api"] }
+   ]
+  },
+  {
+   "id": "hardware", "titulo": "El hardware", "fase": 4, "etapas": ["contenedor"],
+   "resumen": "Qué comprar, de la workstation al rack, y dónde ponerlo.",
+   "sensei": ["cpu-gpu", "maquinas"],
+   "lecciones": [
+    { "id": "comprar-hardware", "titulo": "Comprar hardware: de la workstation al rack", "etapas": ["contenedor"], "resumen": "NVIDIA, AMD y Apple." },
+    { "id": "el-cuarto", "titulo": "El cuarto: energía, enfriamiento y red", "etapas": ["contenedor"] }
+   ]
+  },
+  {
+   "id": "dimensionar", "titulo": "Dimensionar", "fase": 5, "etapas": ["orquestacion"],
+   "resumen": "De lo que pide el cliente a cuántas GPUs y de cuál tipo.",
+   "sensei": ["percentiles", "unidades"],
+   "lecciones": [
+    { "id": "requisitos-hardware", "titulo": "De requisitos a hardware", "etapas": ["orquestacion"], "resumen": "Usuarios, tokens y latencia." },
+    { "id": "varias-gpus", "titulo": "Varias GPUs: tensor y pipeline parallel", "etapas": ["orquestacion"] }
+   ]
+  },
+  {
+   "id": "serving", "titulo": "El stack de serving", "fase": 5, "etapas": ["api"],
+   "resumen": "Los programas que sirven el modelo y lo que va delante de ellos.",
+   "sensei": ["apis", "balanceo"],
+   "lecciones": [
+    { "id": "stack-serving", "titulo": "Del laptop al servidor: llama.cpp, Ollama, vLLM, SGLang y TensorRT-LLM", "etapas": ["api"] },
+    { "id": "gateway", "titulo": "Gateway, API compatible con OpenAI y varios modelos", "etapas": ["api", "orquestacion"] }
+   ]
+  },
+  {
+   "id": "encima", "titulo": "Lo que el cliente pide encima", "fase": 6, "etapas": ["datos"],
+   "resumen": "RAG y agentes, sin que nada salga de la red de la empresa.",
+   "sensei": ["embeddings"],
+   "lecciones": [
+    { "id": "rag-privado", "titulo": "RAG privado: embeddings y vector DB locales", "etapas": ["datos"] },
+    { "id": "agentes", "titulo": "Agentes, tools y guardrails", "etapas": ["api"] }
+   ]
+  },
+  {
+   "id": "evals", "titulo": "Evals", "fase": 6, "etapas": ["modelo"],
+   "resumen": "Demostrar con datos que el modelo abierto sirve y que el servidor aguanta.",
+   "sensei": ["aprendio", "ruido"],
+   "lecciones": [
+    { "id": "evals", "titulo": "Demostrar que el modelo abierto sirve", "etapas": ["modelo"], "resumen": "Golden sets, LLM-as-judge y regresiones." },
+    { "id": "pruebas-carga", "titulo": "Pruebas de carga y benchmarks honestos", "etapas": ["monitoreo"] }
+   ]
+  },
+  {
+   "id": "operar", "titulo": "Operar", "fase": 7, "etapas": ["monitoreo"],
+   "resumen": "Mantenerlo funcionando, medido y seguro.",
+   "sensei": ["privacidad"],
+   "lecciones": [
+    { "id": "observabilidad", "titulo": "Observabilidad de GPUs e inferencia", "etapas": ["monitoreo"] },
+    { "id": "seguridad", "titulo": "Seguridad: aislamiento, sin internet y actualizaciones", "etapas": ["contenedor"] }
+   ]
+  },
+  {
+   "id": "negocio", "titulo": "El negocio", "fase": 7, "etapas": "todas",
+   "resumen": "Cuánto cuesta de verdad, cuándo conviene y cómo se vende.",
+   "sensei": ["nube"],
+   "lecciones": [
+    { "id": "costo-total", "titulo": "TCO: API, nube o servidor propio", "etapas": "todas", "resumen": "Con depreciación y punto de equilibrio." },
+    { "id": "cotizar", "titulo": "Cotizar, proponer y dar soporte", "etapas": "todas", "resumen": "SLAs, contrato e importación de hardware en México." }
+   ]
+  }
+ ]
+}

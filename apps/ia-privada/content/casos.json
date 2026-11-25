@@ -1,0 +1,12 @@
+{
+  "nota": "Los casos de dimensionamiento (docs/plan-ia-privada.md, sección 5): empresas ficticias resueltas de principio a fin. Mientras no tengan su página, salen como «próximamente» con su fase.",
+  "pasos": ["Requisitos", "Cálculos con las herramientas", "Propuesta de hardware y stack", "Evals", "Riesgos", "Costo"],
+  "casos": [
+    { "id": "despacho", "titulo": "Despacho de abogados", "resumen": "RAG sobre sus expedientes.", "fase": 8 },
+    { "id": "clinica", "titulo": "Clínica", "resumen": "Datos de salud que no pueden salir de su red.", "fase": 8 },
+    { "id": "fabrica", "titulo": "Fábrica", "resumen": "Un asistente sobre los manuales técnicos, en la planta.", "fase": 8 },
+    { "id": "financiera", "titulo": "Financiera", "resumen": "Resumir y clasificar llamadas, a escala.", "fase": 9 },
+    { "id": "gobierno", "titulo": "Dependencia de gobierno", "resumen": "Todo sin internet (air-gapped).", "fase": 9 },
+    { "id": "saas", "titulo": "Startup SaaS", "resumen": "Varios clientes sobre el mismo servidor (multi-tenant).", "fase": 9 }
+  ]
+}

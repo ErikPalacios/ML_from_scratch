@@ -1,0 +1,56 @@
+/* TrueML · tokens del sistema de diseño (fuente única: apps/trueml). Claro y oscuro.
+   Los colores --tm-* son los de trueml-mark.js (THEMES.claro y THEMES.oscuro). El oscuro aplica con el sistema en
+   oscuro, salvo data-theme="light" en <html>, o siempre con data-theme="dark". Cada app copia este archivo con sync.mjs. */
+:root {
+  --tm-bg: #EDEFF7; --tm-grid: rgba(14,21,48,.055); --tm-card: #FFFFFF; --tm-ink: #0E1530; --tm-ink2: #3A4364; --tm-ink3: #5A6385;
+  --tm-line: #E3E6F0; --tm-chip: #EEF1FF; --tm-acc: #3D5AFE; --tm-nav: rgba(237,239,247,.86); --tm-sh: 0 1px 0 rgba(14,21,48,.08);
+  --tm-btn2: #FFFFFF; --tm-btn2sh: #C9CEE0; --tm-code: #0E1530; --tm-codeink: #E6EAFB; --tm-codeink2: #8F9BC9;
+  --tm-ok: #E3F7EF; --tm-okink: #0C7A5B; --tm-lead: #9AA2C0;
+  --tm-dojo: #B07A0C; --tm-warn: #D9532A; --tm-mon: #1B2550; --tm-off: #DCE0EC;
+  --y: #E8AE36; --yt: #FFC857; --yd: #D99A1E; --o: #EC6A3F; --g: #17B386; --b: #3D5AFE; --p: #7A69EE; --n: #5A6699; --navy: #0E1530;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --tm-bg: #0A0F22; --tm-grid: rgba(255,255,255,.045); --tm-card: #121A36; --tm-ink: #EEF1FB; --tm-ink2: #B4BCDD; --tm-ink3: #8C95BD;
+    --tm-line: #232C52; --tm-chip: #1B2450; --tm-acc: #8FA2FF; --tm-nav: rgba(10,15,34,.82); --tm-sh: 0 0 0 1px #1E2750;
+    --tm-btn2: #1B2450; --tm-btn2sh: #070B1A; --tm-code: #070B1A; --tm-codeink: #DDE3FA; --tm-codeink2: #7F8AB8;
+    --tm-ok: #0F3B30; --tm-okink: #5BE0B5; --tm-lead: #4A5480; --tm-dojo: #FFC857; --tm-warn: #FF8A5C; --tm-mon: #5A6699; --tm-off: #2A3360;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --tm-bg: #0A0F22; --tm-grid: rgba(255,255,255,.045); --tm-card: #121A36; --tm-ink: #EEF1FB; --tm-ink2: #B4BCDD; --tm-ink3: #8C95BD;
+  --tm-line: #232C52; --tm-chip: #1B2450; --tm-acc: #8FA2FF; --tm-nav: rgba(10,15,34,.82); --tm-sh: 0 0 0 1px #1E2750;
+  --tm-btn2: #1B2450; --tm-btn2sh: #070B1A; --tm-code: #070B1A; --tm-codeink: #DDE3FA; --tm-codeink2: #7F8AB8;
+  --tm-ok: #0F3B30; --tm-okink: #5BE0B5; --tm-lead: #4A5480; --tm-dojo: #FFC857; --tm-warn: #FF8A5C; --tm-mon: #5A6699; --tm-off: #2A3360;
+  color-scheme: dark;
+}
+
+/* ---------------------------------------------------------------- piezas compartidas */
+.tm-stripe { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); height: 4px; }
+.tm-c-datos { background: var(--y); } .tm-c-modelo { background: var(--o); } .tm-c-api { background: var(--g); }
+.tm-c-contenedor { background: var(--b); } .tm-c-orquestacion { background: var(--p); } .tm-c-monitoreo { background: var(--n); }
+
+/* la T chica: barra de 3 arriba y el tronco en la columna del centro */
+.tm-mini-wrap { display: inline-flex; gap: 10px; align-items: center; }
+.tm-mini-txt { font: 500 11px/1.3 var(--mono); color: var(--tm-ink3); text-align: right; }
+.tm-mini { display: grid; grid-template-columns: repeat(3, 8px); grid-auto-rows: 8px; gap: 2px; flex: none; }
+.tm-mini i { border-radius: 2px; }
+.tm-mini .tm-mini-api, .tm-mini .tm-mini-modelo, .tm-mini .tm-mini-datos { grid-column: 2; }
+.tm-mini-contenedor { background: var(--b); } .tm-mini-orquestacion { background: var(--p); } .tm-mini-monitoreo { background: var(--tm-mon); }
+.tm-mini-api { background: var(--g); } .tm-mini-modelo { background: var(--o); } .tm-mini-datos { background: var(--y); }
+.tm-mini i.tm-off { background: var(--tm-off); }
+
+/* selector de tema */
+.tm-tema { display: flex; gap: 2px; padding: 4px; border-radius: 999px; background: var(--tm-card); box-shadow: var(--tm-sh); }
+.tm-tema button { border: 0; cursor: pointer; font: 600 13px/1 var(--sans); padding: 8px 12px; border-radius: 999px; background: transparent; color: var(--tm-ink2); }
+.tm-tema button[aria-pressed="true"] { background: var(--tm-ink); color: var(--tm-bg); }
+
+/* donar: el enlace a Ko-fi (lib.mjs donar() en los builds; TrueMLDonar en piezas.js para las apps sin build) */
+.tm-donar { display: inline-flex; align-items: center; gap: 7px; font: 700 13.5px/1.2 var(--sans); color: var(--tm-ink) !important; text-decoration: none !important; padding: 8px 14px; border-radius: 999px; background: var(--tm-chip); box-shadow: inset 0 0 0 1px var(--tm-line); transition: box-shadow .15s ease, color .15s ease; white-space: nowrap; }
+.tm-donar svg { flex: none; color: var(--o); }
+.tm-donar:hover, .tm-donar:focus-visible { box-shadow: inset 0 0 0 2px var(--tm-ink); }
+@media print { .tm-donar { display: none !important; } }

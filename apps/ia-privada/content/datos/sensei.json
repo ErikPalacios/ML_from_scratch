@@ -1,0 +1,242 @@
+{
+  "nota": "Generado por apps/trueml/sync.mjs. No se edita a mano. Fuente: apps/sensei/content/temario.json.",
+  "url": "https://sensei.trueml.app",
+  "lecciones": {
+    "camino-completo": {
+      "titulo": "El camino completo",
+      "url": "https://sensei.trueml.app/camino-completo/"
+    },
+    "modelo": {
+      "titulo": "Qué es un modelo",
+      "url": "https://sensei.trueml.app/modelo/"
+    },
+    "imagenes": {
+      "titulo": "Una foto, vista por un modelo",
+      "url": "https://sensei.trueml.app/imagenes/"
+    },
+    "ejemplos": {
+      "titulo": "Datos, ejemplos, features y etiquetas",
+      "url": "https://sensei.trueml.app/ejemplos/"
+    },
+    "aprender": {
+      "titulo": "Cómo aprende un modelo",
+      "url": "https://sensei.trueml.app/aprender/"
+    },
+    "aprendio": {
+      "titulo": "¿Aprendió de verdad?",
+      "url": "https://sensei.trueml.app/aprendio/"
+    },
+    "redes": {
+      "titulo": "Redes neuronales y CNNs",
+      "url": "https://sensei.trueml.app/redes/"
+    },
+    "embeddings": {
+      "titulo": "Embeddings: el significado como coordenadas",
+      "url": "https://sensei.trueml.app/embeddings/"
+    },
+    "llms": {
+      "titulo": "Transformers y LLMs",
+      "url": "https://sensei.trueml.app/llms/"
+    },
+    "unidades": {
+      "titulo": "Números grandes, unidades y estimaciones",
+      "url": "https://sensei.trueml.app/unidades/"
+    },
+    "percentiles": {
+      "titulo": "Promedios, medianas y percentiles",
+      "url": "https://sensei.trueml.app/percentiles/"
+    },
+    "probabilidad": {
+      "titulo": "Probabilidad para sistemas que fallan",
+      "url": "https://sensei.trueml.app/probabilidad/"
+    },
+    "ruido": {
+      "titulo": "Ruido, muestras y pruebas A/B",
+      "url": "https://sensei.trueml.app/ruido/"
+    },
+    "distribuciones": {
+      "titulo": "Comparar distribuciones: cómo se mide el drift",
+      "url": "https://sensei.trueml.app/distribuciones/"
+    },
+    "numeros-maquina": {
+      "titulo": "Cómo guarda números una computadora",
+      "url": "https://sensei.trueml.app/numeros-maquina/"
+    },
+    "flops": {
+      "titulo": "Matrices, FLOPs y qué tan rápido calcula una GPU",
+      "url": "https://sensei.trueml.app/flops/"
+    },
+    "programa-proceso": {
+      "titulo": "Programa, proceso e hilo",
+      "url": "https://sensei.trueml.app/programa-proceso/"
+    },
+    "memoria": {
+      "titulo": "Memoria, caché y disco",
+      "url": "https://sensei.trueml.app/memoria/"
+    },
+    "cpu-gpu": {
+      "titulo": "CPU y GPU",
+      "url": "https://sensei.trueml.app/cpu-gpu/"
+    },
+    "sistema-operativo": {
+      "titulo": "El sistema operativo: Linux, archivos y permisos",
+      "url": "https://sensei.trueml.app/sistema-operativo/"
+    },
+    "async": {
+      "titulo": "Hacer varias cosas a la vez: async, event loop y GIL",
+      "url": "https://sensei.trueml.app/async/"
+    },
+    "red": {
+      "titulo": "Cómo viaja un mensaje: IP, puertos y DNS",
+      "url": "https://sensei.trueml.app/red/"
+    },
+    "http": {
+      "titulo": "HTTP: requests, respuestas y códigos",
+      "url": "https://sensei.trueml.app/http/"
+    },
+    "apis": {
+      "titulo": "APIs: REST, JSON, gRPC y streaming",
+      "url": "https://sensei.trueml.app/apis/"
+    },
+    "balanceo": {
+      "titulo": "Balanceadores, proxies y gateways",
+      "url": "https://sensei.trueml.app/balanceo/"
+    },
+    "fallas-red": {
+      "titulo": "Timeouts, reintentos e idempotencia",
+      "url": "https://sensei.trueml.app/fallas-red/"
+    },
+    "latencia": {
+      "titulo": "Qué tan rápido y cuánto: latencia y throughput",
+      "url": "https://sensei.trueml.app/latencia/"
+    },
+    "formatos": {
+      "titulo": "Archivos y formatos: JSON, CSV, Parquet y YAML",
+      "url": "https://sensei.trueml.app/formatos/"
+    },
+    "bases-de-datos": {
+      "titulo": "Bases de datos: tablas, SQL y llave-valor",
+      "url": "https://sensei.trueml.app/bases-de-datos/"
+    },
+    "almacenamiento": {
+      "titulo": "Object storage, data lakes y warehouses",
+      "url": "https://sensei.trueml.app/almacenamiento/"
+    },
+    "colas": {
+      "titulo": "Colas y streams: mensajes que esperan",
+      "url": "https://sensei.trueml.app/colas/"
+    },
+    "tiempo-hash": {
+      "titulo": "Tiempo, hashes e identificadores",
+      "url": "https://sensei.trueml.app/tiempo-hash/"
+    },
+    "terminal": {
+      "titulo": "La terminal y la shell",
+      "url": "https://sensei.trueml.app/terminal/"
+    },
+    "python-ecosistema": {
+      "titulo": "Python, paquetes y entornos",
+      "url": "https://sensei.trueml.app/python-ecosistema/"
+    },
+    "pytorch": {
+      "titulo": "PyTorch en lo que toca a producción",
+      "url": "https://sensei.trueml.app/pytorch/"
+    },
+    "git": {
+      "titulo": "Git: versiones del código",
+      "url": "https://sensei.trueml.app/git/"
+    },
+    "pruebas-ci": {
+      "titulo": "Pruebas y CI/CD",
+      "url": "https://sensei.trueml.app/pruebas-ci/"
+    },
+    "config": {
+      "titulo": "Configuración: YAML, variables de entorno y secretos",
+      "url": "https://sensei.trueml.app/config/"
+    },
+    "nube": {
+      "titulo": "Qué es la nube",
+      "url": "https://sensei.trueml.app/nube/"
+    },
+    "regiones": {
+      "titulo": "Regiones, zonas y disponibilidad",
+      "url": "https://sensei.trueml.app/regiones/"
+    },
+    "maquinas": {
+      "titulo": "Máquinas, GPUs y cómo se cobran",
+      "url": "https://sensei.trueml.app/maquinas/"
+    },
+    "redes-nube": {
+      "titulo": "Redes en la nube: VPC, subredes y egress",
+      "url": "https://sensei.trueml.app/redes-nube/"
+    },
+    "gestionados": {
+      "titulo": "Servicios gestionados, serverless y permisos",
+      "url": "https://sensei.trueml.app/gestionados/"
+    },
+    "cifrado": {
+      "titulo": "Cifrado, llaves y certificados",
+      "url": "https://sensei.trueml.app/cifrado/"
+    },
+    "identidad": {
+      "titulo": "Autenticación y permisos",
+      "url": "https://sensei.trueml.app/identidad/"
+    },
+    "privacidad": {
+      "titulo": "Datos personales y la ley",
+      "url": "https://sensei.trueml.app/privacidad/"
+    },
+    "ataques": {
+      "titulo": "Ataques y cadena de suministro",
+      "url": "https://sensei.trueml.app/ataques/"
+    },
+    "e01-datos": {
+      "titulo": "Datos y etiquetas",
+      "url": "https://sensei.trueml.app/e01-datos/"
+    },
+    "e02-versionado": {
+      "titulo": "Versionado y linaje",
+      "url": "https://sensei.trueml.app/e02-versionado/"
+    },
+    "e03-entrenamiento": {
+      "titulo": "Entrenamiento y experimentos",
+      "url": "https://sensei.trueml.app/e03-entrenamiento/"
+    },
+    "e04-gate": {
+      "titulo": "Gate de evaluación y registry",
+      "url": "https://sensei.trueml.app/e04-gate/"
+    },
+    "e05-export": {
+      "titulo": "Export, engine y paridad",
+      "url": "https://sensei.trueml.app/e05-export/"
+    },
+    "e06-serving": {
+      "titulo": "Código de serving",
+      "url": "https://sensei.trueml.app/e06-serving/"
+    },
+    "e07-empaquetado": {
+      "titulo": "Empaquetado con Docker",
+      "url": "https://sensei.trueml.app/e07-empaquetado/"
+    },
+    "e08-cicd": {
+      "titulo": "CI/CD y registro de imágenes",
+      "url": "https://sensei.trueml.app/e08-cicd/"
+    },
+    "e09-kubernetes": {
+      "titulo": "Kubernetes",
+      "url": "https://sensei.trueml.app/e09-kubernetes/"
+    },
+    "e10-rollout": {
+      "titulo": "Rollout seguro",
+      "url": "https://sensei.trueml.app/e10-rollout/"
+    },
+    "e11-request": {
+      "titulo": "La request en vivo",
+      "url": "https://sensei.trueml.app/e11-request/"
+    },
+    "e12-monitoreo": {
+      "titulo": "Monitoreo, drift y reentrenamiento",
+      "url": "https://sensei.trueml.app/e12-monitoreo/"
+    }
+  }
+}
