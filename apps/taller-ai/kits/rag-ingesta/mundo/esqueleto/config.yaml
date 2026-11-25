@@ -1,0 +1,30 @@
+# La configuración de la ingestión. La lee pipeline/_comun.py (config()). Cámbiala solo cuando un paso o un arreglo lo pide.
+fuentes:
+  wiki:
+    url: http://localhost:8120/wiki/api
+    token: wiki-dojo-7f3a           # en C11, en un gestor de secretos; aquí, en claro porque es de juguete
+    espacios: [SOP, OPS, LEG]
+  drive:
+    url: http://localhost:8120/drive/v3
+    token: drive-dojo-2c91
+  jira:
+    url: http://localhost:8120/jira/api
+    token: jira-dojo-b604
+    proyectos: [SOP, SEG]
+    zona: America/Mexico_City     # la zona del perfil de la cuenta del conector: Jira lee las fechas del JQL en esa zona
+  politicas:
+    url: http://localhost:8120/repo/politicas
+    token: repo-dojo-55de
+    leer: [group:soporte@marketplace.test, group:operaciones@marketplace.test]   # el repositorio entero lo leen soporte y operaciones
+
+dominio: marketplace.test           # el dominio de la empresa: el principal domain:marketplace.test lo tiene todo empleado
+
+http:
+  reintentos: 5                     # cuántas veces reintentar un 429 (respetando Retry-After) antes de rendirse
+  timeout: 10                       # segundos por llamada
+
+drive:
+  link_compartido: ignorar          # un permiso «cualquiera con el link» (allowFileDiscovery: false) no da acceso a nadie
+
+freno:
+  max_borrado: 0.20                 # si un barrido quiere borrar más de esta fracción de una fuente, se detiene y avisa

@@ -1,0 +1,8 @@
+# lo que crea el mundo y lo que produce tu ingestión
+fuentes/
+almacen/
+.taller/
+.respaldo/
+.venv/
+__pycache__/
+*.pyc
