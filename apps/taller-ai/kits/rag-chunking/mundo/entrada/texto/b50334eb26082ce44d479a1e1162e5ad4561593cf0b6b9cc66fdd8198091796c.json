@@ -1,0 +1,7 @@
+{
+ "hash_crudo": "b50334eb26082ce44d479a1e1162e5ad4561593cf0b6b9cc66fdd8198091796c",
+ "necesita_ocr": false,
+ "parser": "v1",
+ "sha256_texto": "48f2de537b815f89e2fb8649fb0da6d0551324daadf309c8c92d91d1911aede0",
+ "texto": "# Macro: cancelar un pedido\nSe cancela sin costo si el pedido no ha salido. Si ya salió, se rechaza en la entrega y se reembolsa al regresar al almacén.\n\n## Antes de enviarla\nPersonaliza el saludo y confirma el número de pedido."
+}

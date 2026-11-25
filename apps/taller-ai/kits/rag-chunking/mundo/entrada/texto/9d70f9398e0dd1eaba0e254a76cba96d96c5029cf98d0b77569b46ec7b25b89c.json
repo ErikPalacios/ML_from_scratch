@@ -1,0 +1,7 @@
+{
+ "hash_crudo": "9d70f9398e0dd1eaba0e254a76cba96d96c5029cf98d0b77569b46ec7b25b89c",
+ "necesita_ocr": false,
+ "parser": "v1",
+ "sha256_texto": "8bceb0e04635f68d8633b8173fb65627911814d2c8e7bca17a65d91f15939610",
+ "texto": "# Macro: producto distinto al publicado\nPide fotos y el número de pedido. Si se confirma, el envío de regreso lo paga quien vende y se le descuenta del siguiente pago.\n\n## Antes de enviarla\nPersonaliza el saludo y confirma el número de pedido."
+}

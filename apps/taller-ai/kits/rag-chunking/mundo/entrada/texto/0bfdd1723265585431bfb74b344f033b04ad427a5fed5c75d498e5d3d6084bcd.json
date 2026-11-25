@@ -1,0 +1,7 @@
+{
+ "hash_crudo": "0bfdd1723265585431bfb74b344f033b04ad427a5fed5c75d498e5d3d6084bcd",
+ "necesita_ocr": false,
+ "parser": "v1",
+ "sha256_texto": "6969daa698d98cbf2f7187ca50a17e46ea044d22ecfdcbcf7d016c695d1ea6a4",
+ "texto": "# Clientes VIP y compensaciones\nUn líder puede ofrecer una compensación de hasta 500 pesos en saldo sin aprobación de finanzas. Arriba de eso, se pide aprobación en el ticket.\n\n## Topes por nivel de cliente\nNivel: Oro; Compensación máxima sin aprobación: 500 pesos\nNivel: Plata; Compensación máxima sin aprobación: 300 pesos\nNivel: Sin nivel; Compensación máxima sin aprobación: 150 pesos"
+}

@@ -1,0 +1,7 @@
+{
+ "hash_crudo": "22b8097d137f9d713aef74b937d477a8dda35e5fc96f13e8ea29901e7bad820c",
+ "necesita_ocr": false,
+ "parser": "v1",
+ "sha256_texto": "2c4a833f3ded40b45135c8416b7c44bb7c14fc456ce25e707ced5ec9f6810481",
+ "texto": "# Macro: cobro duplicado\nPide los últimos 4 dígitos de la tarjeta y la fecha del cargo. Los cobros duplicados se reembolsan en 1 a 3 días hábiles.\n\n## Antes de enviarla\nPersonaliza el saludo y confirma el número de pedido."
+}

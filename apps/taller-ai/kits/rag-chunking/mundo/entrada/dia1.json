@@ -1,0 +1,1929 @@
+{
+ "catalogo": {
+  "drive:d01": {
+   "acl": [
+    [
+     "domain:marketplace.test",
+     "user:lucia.mora@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-08-30T16:00:00Z",
+   "borrado": false,
+   "fuente": "drive",
+   "hash": "3dc6252fa388fa81c5122b184ecb0fb6bbf995d258f004af1a98e9eccd61e873",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "pdf",
+   "titulo": "Política de viajes 2026.pdf",
+   "url": "http://localhost:8120/drive/v3/files/d01",
+   "version": "1"
+  },
+  "drive:d02": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "user:sofia.leal@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-09-12T15:00:00Z",
+   "borrado": false,
+   "fuente": "drive",
+   "hash": "40b86ac37b6cfc21ed664ec0cc4f515c09baee2ab73ff8962b636deacd6c7f16",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "pdf",
+   "titulo": "Manual de onboarding de vendedores.pdf",
+   "url": "http://localhost:8120/drive/v3/files/d02",
+   "version": "1"
+  },
+  "drive:d03": {
+   "acl": [
+    [
+     "group:legal@marketplace.test",
+     "user:irene.sol@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-07-15T18:00:00Z",
+   "borrado": false,
+   "fuente": "drive",
+   "hash": "ae5baf065643b9e34fb38f712410efc1d9ec3de38f16547b760b4d5885864817",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "pdf",
+   "titulo": "Contrato marco de logística.pdf",
+   "url": "http://localhost:8120/drive/v3/files/d03",
+   "version": "1"
+  },
+  "drive:d04": {
+   "acl": [
+    [
+     "user:lucia.mora@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-01-20T17:00:00Z",
+   "borrado": false,
+   "fuente": "drive",
+   "hash": "be825e836f2692aab8d1082d2446ec523080acdaf9e8c74f28c06d4f26deb812",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "pdf",
+   "titulo": "Sueldos 2026.pdf",
+   "url": "http://localhost:8120/drive/v3/files/d04",
+   "version": "1"
+  },
+  "drive:d05": {
+   "acl": [
+    [
+     "domain:marketplace.test",
+     "user:sofia.leal@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-08-10T14:00:00Z",
+   "borrado": false,
+   "fuente": "drive",
+   "hash": "3dad472d8f9a6df15e74a1c9301fa309a3cf21e5b932ab7143827302fbd9e468",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "pdf",
+   "titulo": "Guía de tallas.pdf",
+   "url": "http://localhost:8120/drive/v3/files/d05",
+   "version": "1"
+  },
+  "drive:d06": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "user:jorge.paz@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-10-31T23:00:00Z",
+   "borrado": false,
+   "fuente": "drive",
+   "hash": "01884e545e13bc9df0577c37cc35ed0fc38c735c041ec094b7fb9b7b9b523721",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": true,
+   "tipo": "pdf",
+   "titulo": "Acta de inventario octubre (escaneo).pdf",
+   "url": "http://localhost:8120/drive/v3/files/d06",
+   "version": "1"
+  },
+  "drive:d07": {
+   "acl": [
+    [
+     "group:finanzas@marketplace.test",
+     "group:operaciones@marketplace.test",
+     "user:sofia.leal@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-10-01T16:00:00Z",
+   "borrado": false,
+   "fuente": "drive",
+   "hash": "b0a726202f500aa47ed197091ed9b3e51fe1c667d5e2f71a40d881c9f09dd626",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "pdf",
+   "titulo": "Calendario de pagos a vendedores.pdf",
+   "url": "http://localhost:8120/drive/v3/files/d07",
+   "version": "1"
+  },
+  "drive:d08": {
+   "acl": [
+    [
+     "domain:marketplace.test",
+     "user:sofia.leal@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-09-03T15:00:00Z",
+   "borrado": false,
+   "fuente": "drive",
+   "hash": "af0fe1efdfcf0ff07d876ec125abaf1e92201891b5a8e32f90fff4ed5a762b07",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "pdf",
+   "titulo": "Lineamientos de fotos de producto.pdf",
+   "url": "http://localhost:8120/drive/v3/files/d08",
+   "version": "1"
+  },
+  "drive:d09": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "user:jorge.paz@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-10-25T19:00:00Z",
+   "borrado": false,
+   "fuente": "drive",
+   "hash": "89909e2259cbdc44d25ddeec8ba2f807dc33ce38e88747532c00a01d7133d814",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "pdf",
+   "titulo": "Plan de temporada alta.pdf",
+   "url": "http://localhost:8120/drive/v3/files/d09",
+   "version": "1"
+  },
+  "drive:d10": {
+   "acl": [
+    [
+     "domain:marketplace.test",
+     "user:irene.sol@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-03-01T12:00:00Z",
+   "borrado": false,
+   "fuente": "drive",
+   "hash": "f9e6cf4c87f0029d55f595c65e01407f85e27a76b32e7c94cf541d2d4270fd2c",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "pdf",
+   "titulo": "Código de conducta.pdf",
+   "url": "http://localhost:8120/drive/v3/files/d10",
+   "version": "1"
+  },
+  "drive:d11": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "user:jorge.paz@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-10-02T22:00:00Z",
+   "borrado": false,
+   "fuente": "drive",
+   "hash": "cae9ec3f01d8bb60d7e2e1511e65acc2b75e9c31410ed85cc448b95a639fe165",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "markdown",
+   "titulo": "Minuta semanal de operaciones 2026-10-02",
+   "url": "http://localhost:8120/drive/v3/files/d11",
+   "version": "1"
+  },
+  "drive:d12": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "user:jorge.paz@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-10-09T22:00:00Z",
+   "borrado": false,
+   "fuente": "drive",
+   "hash": "9ef9f6bc8e82d54784c0fcc71951f0d4b3d423273caf509d4c5e4e8713abd6d7",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "markdown",
+   "titulo": "Minuta semanal de operaciones 2026-10-09",
+   "url": "http://localhost:8120/drive/v3/files/d12",
+   "version": "1"
+  },
+  "drive:d13": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "user:jorge.paz@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-10-16T22:00:00Z",
+   "borrado": false,
+   "fuente": "drive",
+   "hash": "07fc05ee90cc289a0118a16802c31cda5eb2c7f6ef13cc72914f9136974f99aa",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "markdown",
+   "titulo": "Minuta semanal de operaciones 2026-10-16",
+   "url": "http://localhost:8120/drive/v3/files/d13",
+   "version": "1"
+  },
+  "drive:d14": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "user:jorge.paz@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-10-23T22:00:00Z",
+   "borrado": false,
+   "fuente": "drive",
+   "hash": "9da721d9d84fd65243e44c4567c804aba438d64ee96d6ae0ff5277eeec4663e3",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "markdown",
+   "titulo": "Minuta semanal de operaciones 2026-10-23",
+   "url": "http://localhost:8120/drive/v3/files/d14",
+   "version": "1"
+  },
+  "drive:d15": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "user:jorge.paz@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-10-30T22:00:00Z",
+   "borrado": false,
+   "fuente": "drive",
+   "hash": "8d372beb2c7e8c36ab3dfc9a5f3bd7a2a81197a12270d4874b49bd65337ec04c",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "markdown",
+   "titulo": "Minuta semanal de operaciones 2026-10-30",
+   "url": "http://localhost:8120/drive/v3/files/d15",
+   "version": "1"
+  },
+  "drive:d16": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "user:jorge.paz@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-06T22:00:00Z",
+   "borrado": false,
+   "fuente": "drive",
+   "hash": "b930b3000fb90570340551b10efa3e9d19cd81181563418749768fafabdb9387",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "markdown",
+   "titulo": "Minuta semanal de operaciones 2026-11-06",
+   "url": "http://localhost:8120/drive/v3/files/d16",
+   "version": "1"
+  },
+  "drive:d20": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:sofia.leal@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-12T16:00:00Z",
+   "borrado": false,
+   "fuente": "drive",
+   "hash": "2c95dfe1859a8a753bbf7ab3385b342ef94ae8564edd4e4fe28cfd15219fe802",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "markdown",
+   "titulo": "Manual del vendedor.md",
+   "url": "http://localhost:8120/drive/v3/files/d20",
+   "version": "1"
+  },
+  "drive:d21": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "user:jorge.paz@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-05T18:30:00Z",
+   "borrado": false,
+   "fuente": "drive",
+   "hash": "7f370598fbc7c15dabd531e753b287ef0ac5a954f856bf89acef9743d3853200",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "markdown",
+   "titulo": "Tarifas de envío por estado 2026.md",
+   "url": "http://localhost:8120/drive/v3/files/d21",
+   "version": "1"
+  },
+  "jira:SEG-1": {
+   "acl": [
+    [
+     "group:fraude@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-03T18:30:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "3b2d645d941e20d271fb13c88b59823b3306ea2943be8020de087c068a77cc6d",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Posible cuenta de vendedor duplicada #1",
+   "url": "http://localhost:8120/jira/api/ticket/SEG-1",
+   "version": "2026-11-03T12:30:00.000-0600"
+  },
+  "jira:SEG-10": {
+   "acl": [
+    [
+     "group:fraude@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-12T18:30:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "a94bdbf75a34ce5c92decd359e8b2113729ccc944865cf4c2c393b5b53a817a1",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Posible cuenta de vendedor duplicada #10",
+   "url": "http://localhost:8120/jira/api/ticket/SEG-10",
+   "version": "2026-11-12T12:30:00.000-0600"
+  },
+  "jira:SEG-2": {
+   "acl": [
+    [
+     "group:fraude@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-04T18:30:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "f4fdb233742f9a4b1c8de9d284c62450dc620b85d6ef655f46fdbad340dbd7b8",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Posible cuenta de vendedor duplicada #2",
+   "url": "http://localhost:8120/jira/api/ticket/SEG-2",
+   "version": "2026-11-04T12:30:00.000-0600"
+  },
+  "jira:SEG-3": {
+   "acl": [
+    [
+     "group:fraude@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-05T18:30:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "45e718f8ddcef19173def2ed9eee5d1a31ef8023ce9912c8854823576dc8df48",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Posible cuenta de vendedor duplicada #3",
+   "url": "http://localhost:8120/jira/api/ticket/SEG-3",
+   "version": "2026-11-05T12:30:00.000-0600"
+  },
+  "jira:SEG-4": {
+   "acl": [
+    [
+     "group:fraude@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-06T18:30:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "591f80753d7d93455ffac7501636c2812c4083e2f0949c2d52db51188bef11ef",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Posible cuenta de vendedor duplicada #4",
+   "url": "http://localhost:8120/jira/api/ticket/SEG-4",
+   "version": "2026-11-06T12:30:00.000-0600"
+  },
+  "jira:SEG-5": {
+   "acl": [
+    [
+     "group:fraude@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-07T18:30:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "4942a61d0cc399258f2c3bf7355220228c782c0575f94e3532a50d87750aba08",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Posible cuenta de vendedor duplicada #5",
+   "url": "http://localhost:8120/jira/api/ticket/SEG-5",
+   "version": "2026-11-07T12:30:00.000-0600"
+  },
+  "jira:SEG-6": {
+   "acl": [
+    [
+     "group:fraude@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-08T18:30:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "0b27d3c65e9d2cc1c4d8b4fb5ecb626b6b0b0a273d13f4aca76a218c28efa25c",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Posible cuenta de vendedor duplicada #6",
+   "url": "http://localhost:8120/jira/api/ticket/SEG-6",
+   "version": "2026-11-08T12:30:00.000-0600"
+  },
+  "jira:SEG-7": {
+   "acl": [
+    [
+     "group:fraude@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-09T18:30:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "d79b896edc5947d03ff56519c66f8214a68e6ca5c8f356f76bde4bba1cb70b47",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Posible cuenta de vendedor duplicada #7",
+   "url": "http://localhost:8120/jira/api/ticket/SEG-7",
+   "version": "2026-11-09T12:30:00.000-0600"
+  },
+  "jira:SEG-8": {
+   "acl": [
+    [
+     "group:fraude@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-10T18:30:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "64924c3b03ce84b0565d99ed4629d863a15d7edfa5549c0fa385a244a7ea1574",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Posible cuenta de vendedor duplicada #8",
+   "url": "http://localhost:8120/jira/api/ticket/SEG-8",
+   "version": "2026-11-10T12:30:00.000-0600"
+  },
+  "jira:SEG-9": {
+   "acl": [
+    [
+     "group:fraude@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-11T18:30:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "fc7ee5732022a5a28df6e2ef6a5e1c5e64eaa6d35ed515253bce0dcf4d43a50c",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Posible cuenta de vendedor duplicada #9",
+   "url": "http://localhost:8120/jira/api/ticket/SEG-9",
+   "version": "2026-11-11T12:30:00.000-0600"
+  },
+  "jira:SOP-1": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:ana.ruiz@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-01T10:07:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "f58a6382e94552d8466d6f06343072315b21240bc05cfe80efff80c2e71186b0",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Cliente reporta pedido sin movimiento desde hace 5 días",
+   "url": "http://localhost:8120/jira/api/ticket/SOP-1",
+   "version": "2026-11-01T04:07:00.000-0600"
+  },
+  "jira:SOP-10": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:elena.cruz@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-05T13:10:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "855518052a2c827eb02f8c5099cc71a9f489c5dcaed46b6ed964e6415d406664",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Cobro duplicado en tarjeta de crédito",
+   "url": "http://localhost:8120/jira/api/ticket/SOP-10",
+   "version": "2026-11-05T07:10:00.000-0600"
+  },
+  "jira:SOP-11": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:ana.ruiz@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-06T14:17:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "ba53590c6cbf4d311e8a2d3316944beaec27fb36fddfa578a0e4772c292d6b2a",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Vendedor no responde mensajes",
+   "url": "http://localhost:8120/jira/api/ticket/SOP-11",
+   "version": "2026-11-06T08:17:00.000-0600"
+  },
+  "jira:SOP-12": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:marco.diaz@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-06T09:24:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "3de0fc1d7105ec1c75cac18b5fe5d8f466c3c903fe6af24d1e9009d949edeab1",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Producto llegó dañado",
+   "url": "http://localhost:8120/jira/api/ticket/SOP-12",
+   "version": "2026-11-06T03:24:00.000-0600"
+  },
+  "jira:SOP-13": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:paula.vega@marketplace.test"
+    ],
+    [
+     "group:soporte-lideres@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-07T10:31:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "34a3041a675e0b34d9ef02d45dfc06069d52c805576f8e46736983c928571170",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Cupón de bienvenida no se aplicó",
+   "url": "http://localhost:8120/jira/api/ticket/SOP-13",
+   "version": "2026-11-07T04:31:00.000-0600"
+  },
+  "jira:SOP-14": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:tomas.rey@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-07T11:38:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "5a79a2b3b9a0c2f90ff7cd1c0efb1933d75e945cb119782d85b06affb3b97379",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Cambio de dirección después de enviado",
+   "url": "http://localhost:8120/jira/api/ticket/SOP-14",
+   "version": "2026-11-07T05:38:00.000-0600"
+  },
+  "jira:SOP-15": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:elena.cruz@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-08T12:45:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "9fd05c3316f89beeddee72d2ff2b9a043f771c36c4dfd205ce41136e749c06b6",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Factura de un pedido del mes pasado",
+   "url": "http://localhost:8120/jira/api/ticket/SOP-15",
+   "version": "2026-11-08T06:45:00.000-0600"
+  },
+  "jira:SOP-16": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:ana.ruiz@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-08T13:52:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "88513665f9f67ef613729322417824a3ebc99e6372715d3e6aee6d4d1f3d153d",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Talla equivocada en la publicación",
+   "url": "http://localhost:8120/jira/api/ticket/SOP-16",
+   "version": "2026-11-08T07:52:00.000-0600"
+  },
+  "jira:SOP-17": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:marco.diaz@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-09T14:59:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "41f2b3a97f02311d5ed63b5fa57960d20676b4cbf430113086724681db698f47",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Cliente reporta pedido sin movimiento desde hace 5 días",
+   "url": "http://localhost:8120/jira/api/ticket/SOP-17",
+   "version": "2026-11-09T08:59:00.000-0600"
+  },
+  "jira:SOP-18": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:paula.vega@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-09T09:06:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "2cd6ffc4da691f4935dea50f29c2b88838352c12bedad6e538b6213857e33d85",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Cobro duplicado en tarjeta de crédito",
+   "url": "http://localhost:8120/jira/api/ticket/SOP-18",
+   "version": "2026-11-09T03:06:00.000-0600"
+  },
+  "jira:SOP-19": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:tomas.rey@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-10T10:13:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "ab12758fa400dd866537f3a54a4dde8660e4b77d357d31db12da1015b3eda112",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Vendedor no responde mensajes",
+   "url": "http://localhost:8120/jira/api/ticket/SOP-19",
+   "version": "2026-11-10T04:13:00.000-0600"
+  },
+  "jira:SOP-2": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:marco.diaz@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-01T11:14:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "b2bdc368d7fb477b5d7dc51c11e28cc0a0d9908c95fd7f824df9e7d7f74e74df",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Cobro duplicado en tarjeta de crédito",
+   "url": "http://localhost:8120/jira/api/ticket/SOP-2",
+   "version": "2026-11-01T05:14:00.000-0600"
+  },
+  "jira:SOP-20": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:elena.cruz@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-10T11:20:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "dc5ee0f72eb7550ee69344cd3e8b885ec16c9bc03642b991b2487cc1bcebcd0e",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Producto llegó dañado",
+   "url": "http://localhost:8120/jira/api/ticket/SOP-20",
+   "version": "2026-11-10T05:20:00.000-0600"
+  },
+  "jira:SOP-21": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:ana.ruiz@marketplace.test"
+    ],
+    [
+     "group:soporte-lideres@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-11T12:27:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "b621286eb5f27597698499a1c2dcc5e6a895bb864765d14e2b5b51be448f317b",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Cupón de bienvenida no se aplicó",
+   "url": "http://localhost:8120/jira/api/ticket/SOP-21",
+   "version": "2026-11-11T06:27:00.000-0600"
+  },
+  "jira:SOP-22": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:marco.diaz@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-11T13:34:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "d1e1b24e481531b67c085722556bc929d57bc4732edcb4b9404265c9f3dd7913",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Cambio de dirección después de enviado",
+   "url": "http://localhost:8120/jira/api/ticket/SOP-22",
+   "version": "2026-11-11T07:34:00.000-0600"
+  },
+  "jira:SOP-23": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:paula.vega@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-12T14:41:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "a5ec19970acd2ad70fae7149f3dde78a4767e26ca2dd5f7ecb81f578fa8de029",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Factura de un pedido del mes pasado",
+   "url": "http://localhost:8120/jira/api/ticket/SOP-23",
+   "version": "2026-11-12T08:41:00.000-0600"
+  },
+  "jira:SOP-24": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:tomas.rey@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-12T09:48:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "e7317a2b172374e4373af60c109a0b10fe08bd9f2fa1c4a5218c5a44ad6416bd",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Talla equivocada en la publicación",
+   "url": "http://localhost:8120/jira/api/ticket/SOP-24",
+   "version": "2026-11-12T03:48:00.000-0600"
+  },
+  "jira:SOP-25": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:elena.cruz@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-13T10:55:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "7131c39d1a1b24093cd47c9309acb383271111167abd13020fd44ad938126173",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Cliente reporta pedido sin movimiento desde hace 5 días",
+   "url": "http://localhost:8120/jira/api/ticket/SOP-25",
+   "version": "2026-11-13T04:55:00.000-0600"
+  },
+  "jira:SOP-26": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:ana.ruiz@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-13T11:02:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "b4172b8968c066b38f70c1896b63362c7b4e4705e8f1c7c57f4081c402943050",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Cobro duplicado en tarjeta de crédito",
+   "url": "http://localhost:8120/jira/api/ticket/SOP-26",
+   "version": "2026-11-13T05:02:00.000-0600"
+  },
+  "jira:SOP-27": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:marco.diaz@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-14T12:09:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "55d7ad9b09ecf43b412c9645f895dd406f2be713c546c6503c5d83c3ad23de59",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Vendedor no responde mensajes",
+   "url": "http://localhost:8120/jira/api/ticket/SOP-27",
+   "version": "2026-11-14T06:09:00.000-0600"
+  },
+  "jira:SOP-28": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:paula.vega@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-14T13:16:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "d713bc985d7fc6c8486a8b850ca58f74ec79e06b61f0013a23e50cd907c192eb",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Producto llegó dañado",
+   "url": "http://localhost:8120/jira/api/ticket/SOP-28",
+   "version": "2026-11-14T07:16:00.000-0600"
+  },
+  "jira:SOP-29": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:tomas.rey@marketplace.test"
+    ],
+    [
+     "group:soporte-lideres@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-15T14:23:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "946dfc105c76646dd940d9ebb010fd9f81691f6e2f79c550a4780cba42285f1f",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Cupón de bienvenida no se aplicó",
+   "url": "http://localhost:8120/jira/api/ticket/SOP-29",
+   "version": "2026-11-15T08:23:00.000-0600"
+  },
+  "jira:SOP-3": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:paula.vega@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-02T12:21:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "261d98d7f3d3038774eeb173f85a1c1f88ca9363f145df9b0b8f815f9b2b484e",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Vendedor no responde mensajes",
+   "url": "http://localhost:8120/jira/api/ticket/SOP-3",
+   "version": "2026-11-02T06:21:00.000-0600"
+  },
+  "jira:SOP-30": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:elena.cruz@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-15T09:30:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "f46325d46014fa3a5b40743bc326b51aa2f8d94c94b559a2b99c47b324d19dc9",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Cambio de dirección después de enviado",
+   "url": "http://localhost:8120/jira/api/ticket/SOP-30",
+   "version": "2026-11-15T03:30:00.000-0600"
+  },
+  "jira:SOP-31": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:ana.ruiz@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-16T10:37:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "5a6416b7b6c888c308d6b277532692d72c2da5da0f1ba867b428edffcbb6ccbf",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Factura de un pedido del mes pasado",
+   "url": "http://localhost:8120/jira/api/ticket/SOP-31",
+   "version": "2026-11-16T04:37:00.000-0600"
+  },
+  "jira:SOP-32": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:marco.diaz@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-16T11:44:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "df76d931da14d8d51d94af257baf416cba83685447bac1fcd76b9a90499d8bbc",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Talla equivocada en la publicación",
+   "url": "http://localhost:8120/jira/api/ticket/SOP-32",
+   "version": "2026-11-16T05:44:00.000-0600"
+  },
+  "jira:SOP-33": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:paula.vega@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-17T12:51:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "ffe591416f22ea9c0b994f43fbb5e80da4d4a3b8bfb259544699fb6edc04dbef",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Cliente reporta pedido sin movimiento desde hace 5 días",
+   "url": "http://localhost:8120/jira/api/ticket/SOP-33",
+   "version": "2026-11-17T06:51:00.000-0600"
+  },
+  "jira:SOP-34": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:tomas.rey@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-17T13:58:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "8c6becee8550e91a80bc2abbce7373d26725ab3c9de3d1daf76804a958a9d924",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Cobro duplicado en tarjeta de crédito",
+   "url": "http://localhost:8120/jira/api/ticket/SOP-34",
+   "version": "2026-11-17T07:58:00.000-0600"
+  },
+  "jira:SOP-35": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:elena.cruz@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-18T14:05:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "95000704c5a8989067d90df55fd61d7b6ba753442649a892a0124326243781d2",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Vendedor no responde mensajes",
+   "url": "http://localhost:8120/jira/api/ticket/SOP-35",
+   "version": "2026-11-18T08:05:00.000-0600"
+  },
+  "jira:SOP-36": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:ana.ruiz@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-18T09:12:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "be768f9751676bc777e6e0c5bc26c8adc265a9e1d1876a48cde9c279de238423",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Producto llegó dañado",
+   "url": "http://localhost:8120/jira/api/ticket/SOP-36",
+   "version": "2026-11-18T03:12:00.000-0600"
+  },
+  "jira:SOP-37": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:marco.diaz@marketplace.test"
+    ],
+    [
+     "group:soporte-lideres@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-19T10:19:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "e3bf086c3f1026c3a7642e6ced9cc3a818776d912325e1c7ccdbdb933843c444",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Cupón de bienvenida no se aplicó",
+   "url": "http://localhost:8120/jira/api/ticket/SOP-37",
+   "version": "2026-11-19T04:19:00.000-0600"
+  },
+  "jira:SOP-38": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:paula.vega@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-19T11:26:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "0d89868d24c96a60e5b507d18aefa08bd6024de2ed91ff4b930135bf98485c89",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Cambio de dirección después de enviado",
+   "url": "http://localhost:8120/jira/api/ticket/SOP-38",
+   "version": "2026-11-19T05:26:00.000-0600"
+  },
+  "jira:SOP-39": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:tomas.rey@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-20T12:33:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "155ae5893537db64cd481eb885421f708317c48ad9c3b5fa05f503654330f62f",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Factura de un pedido del mes pasado",
+   "url": "http://localhost:8120/jira/api/ticket/SOP-39",
+   "version": "2026-11-20T06:33:00.000-0600"
+  },
+  "jira:SOP-4": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:tomas.rey@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-02T13:28:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "b66e3116eb33c01ab9a560ea673889116d761c749d26d65df7ded9edc2188e68",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Producto llegó dañado",
+   "url": "http://localhost:8120/jira/api/ticket/SOP-4",
+   "version": "2026-11-02T07:28:00.000-0600"
+  },
+  "jira:SOP-40": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:elena.cruz@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-20T14:59:40Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "9f3feb083cbf481b4de7d6d8487be2a69ae3b3941ed83822435f40191a070ac3",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Talla equivocada en la publicación",
+   "url": "http://localhost:8120/jira/api/ticket/SOP-40",
+   "version": "2026-11-20T08:59:40.000-0600"
+  },
+  "jira:SOP-5": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:elena.cruz@marketplace.test"
+    ],
+    [
+     "group:soporte-lideres@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-03T14:35:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "404b098245845634e755d7dcd00e3f7e183bfbb91ca044109070d38b2eab82d6",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Cupón de bienvenida no se aplicó",
+   "url": "http://localhost:8120/jira/api/ticket/SOP-5",
+   "version": "2026-11-03T08:35:00.000-0600"
+  },
+  "jira:SOP-6": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:ana.ruiz@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-03T09:42:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "40901102e17709f616f411b390fd2998cb86adcb0ab813a939e223ef72e2b329",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Cambio de dirección después de enviado",
+   "url": "http://localhost:8120/jira/api/ticket/SOP-6",
+   "version": "2026-11-03T03:42:00.000-0600"
+  },
+  "jira:SOP-7": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:marco.diaz@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-04T10:49:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "22d6717d2b362b89b006ff4fede3b48269e9280f34d59eba8ef242f90d21ed46",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Factura de un pedido del mes pasado",
+   "url": "http://localhost:8120/jira/api/ticket/SOP-7",
+   "version": "2026-11-04T04:49:00.000-0600"
+  },
+  "jira:SOP-8": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:paula.vega@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-04T11:56:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "ed15edd5a654f702b9a250bc613ee2408ec5860e5a1af92669ffc6661d89dc76",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Talla equivocada en la publicación",
+   "url": "http://localhost:8120/jira/api/ticket/SOP-8",
+   "version": "2026-11-04T05:56:00.000-0600"
+  },
+  "jira:SOP-9": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:tomas.rey@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-11-05T12:03:00Z",
+   "borrado": false,
+   "fuente": "jira",
+   "hash": "30cd084b7b0de6bc505cb260cfe6de63aba108f43a5ac6d379dc93cb1fa94115",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "ticket",
+   "titulo": "Cliente reporta pedido sin movimiento desde hace 5 días",
+   "url": "http://localhost:8120/jira/api/ticket/SOP-9",
+   "version": "2026-11-05T06:03:00.000-0600"
+  },
+  "politicas:cancelaciones.md": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "actualizado": null,
+   "borrado": false,
+   "fuente": "politicas",
+   "hash": "c7aabc117f66564477aff0de31f9b556edfd8a088b7af541eb1554398ba962ba",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "markdown",
+   "titulo": "cancelaciones.md",
+   "url": "http://localhost:8120/repo/politicas/crudo/cancelaciones.md",
+   "version": "6d8cd224d19c9d68516d755a23c234b52b19d276"
+  },
+  "politicas:cupones.md": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "actualizado": null,
+   "borrado": false,
+   "fuente": "politicas",
+   "hash": "e334c27565a659aab3810dae270fe0887e14c94832cbb714d26fe8030e05a190",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "markdown",
+   "titulo": "cupones.md",
+   "url": "http://localhost:8120/repo/politicas/crudo/cupones.md",
+   "version": "5ac6f61c2599756ff068ed29bad1e4b778d359cd"
+  },
+  "politicas:devoluciones.md": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "actualizado": null,
+   "borrado": false,
+   "fuente": "politicas",
+   "hash": "55b2510e085ed204e17d3a5d867d6724db02a59c55abf4258911abfc06bb1ec8",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "markdown",
+   "titulo": "devoluciones.md",
+   "url": "http://localhost:8120/repo/politicas/crudo/devoluciones.md",
+   "version": "b1cccc0c2459ffd78b3185bc95d8ee8099174dce"
+  },
+  "politicas:envios.md": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "actualizado": null,
+   "borrado": false,
+   "fuente": "politicas",
+   "hash": "20a2533667b0069d18d10349f5b6d034759f2c557a576265b07fb368b89b40c5",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "markdown",
+   "titulo": "envios.md",
+   "url": "http://localhost:8120/repo/politicas/crudo/envios.md",
+   "version": "213831347bf764d73829ba29dc011e4d7c5f1b5d"
+  },
+  "politicas:garantias.md": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "actualizado": null,
+   "borrado": false,
+   "fuente": "politicas",
+   "hash": "c21994fc9d2dc7211d8ef62fa0ccb8e7f287c4e33b2219a41ed0afaabe7d992a",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "markdown",
+   "titulo": "garantias.md",
+   "url": "http://localhost:8120/repo/politicas/crudo/garantias.md",
+   "version": "340e77fdd509170483b24a74188ae4d333c5153b"
+  },
+  "politicas:privacidad.md": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "actualizado": null,
+   "borrado": false,
+   "fuente": "politicas",
+   "hash": "f23c30f63ffd6163cb11095c96177b87bae4d59cf870dc83e0d2f6fc2f70f5b3",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "markdown",
+   "titulo": "privacidad.md",
+   "url": "http://localhost:8120/repo/politicas/crudo/privacidad.md",
+   "version": "a1e23f7d38731ecb957a235cf33dddf63730566b"
+  },
+  "politicas:reembolsos.md": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "actualizado": null,
+   "borrado": false,
+   "fuente": "politicas",
+   "hash": "3b3c74176a41060eaeab156e36a79ade76fb9dafea97d3595750d2ea5fc9e19e",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "markdown",
+   "titulo": "reembolsos.md",
+   "url": "http://localhost:8120/repo/politicas/crudo/reembolsos.md",
+   "version": "1ad10f9cd9b8121592e066e8836b9bf9e38965bd"
+  },
+  "politicas:vendedores.md": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "actualizado": null,
+   "borrado": false,
+   "fuente": "politicas",
+   "hash": "91aae4b5db21931dca5f10738e32461afb5bfe115f8b244fb71fa515694db47a",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "markdown",
+   "titulo": "vendedores.md",
+   "url": "http://localhost:8120/repo/politicas/crudo/vendedores.md",
+   "version": "b4cd96a2fbff000814341dfa0ca9b8a91c40a983"
+  },
+  "wiki:1001": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-09-02T16:10:00Z",
+   "borrado": false,
+   "fuente": "wiki",
+   "hash": "b900046cdc69f67eb60a8450f1853fe2e7a19ed00cd5cbea0621414ba12d4c5d",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "html",
+   "titulo": "Manual de soporte",
+   "url": "http://localhost:8120/wiki/api/paginas/1001",
+   "version": "3"
+  },
+  "wiki:1002": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-10-14T18:22:00Z",
+   "borrado": false,
+   "fuente": "wiki",
+   "hash": "e6812118687c7a84180915ab5bf37f252adec1ecd364e20384bf8cea06724bc7",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "html",
+   "titulo": "Devoluciones",
+   "url": "http://localhost:8120/wiki/api/paginas/1002",
+   "version": "1"
+  },
+  "wiki:1003": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-10-15T15:05:00Z",
+   "borrado": false,
+   "fuente": "wiki",
+   "hash": "bf0cb55f3c4a8cb02f15434d9ae0bff110d9ea0bd01ff7c3511732361175a1c6",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "html",
+   "titulo": "Devoluciones de electrónica",
+   "url": "http://localhost:8120/wiki/api/paginas/1003",
+   "version": "2"
+  },
+  "wiki:1004": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-09-28T17:40:00Z",
+   "borrado": false,
+   "fuente": "wiki",
+   "hash": "6b1b083a441cdc7da2405afa4fb677dd80bc7ef6fffb0582682bd31f444c3082",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "html",
+   "titulo": "Reembolsos",
+   "url": "http://localhost:8120/wiki/api/paginas/1004",
+   "version": "3"
+  },
+  "wiki:1005": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ],
+    [
+     "group:soporte-lideres@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-10-02T14:00:00Z",
+   "borrado": false,
+   "fuente": "wiki",
+   "hash": "87ae50855aa68c83ff5f0928d7009a9266aadb47bfaafcfc75e400538623d3b3",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "html",
+   "titulo": "Escalamiento a líderes",
+   "url": "http://localhost:8120/wiki/api/paginas/1005",
+   "version": "1"
+  },
+  "wiki:1006": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ],
+    [
+     "group:soporte-lideres@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-10-03T19:30:00Z",
+   "borrado": false,
+   "fuente": "wiki",
+   "hash": "0bfdd1723265585431bfb74b344f033b04ad427a5fed5c75d498e5d3d6084bcd",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "html",
+   "titulo": "Clientes VIP y compensaciones",
+   "url": "http://localhost:8120/wiki/api/paginas/1006",
+   "version": "2"
+  },
+  "wiki:1007": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-09-17T15:00:00Z",
+   "borrado": false,
+   "fuente": "wiki",
+   "hash": "eb9a6ad63b8335fa773ace0aaf9c6ff5a2e805a03d7e06e9f0cb33fcb8e27bc8",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "html",
+   "titulo": "Macro: el pedido no llegó",
+   "url": "http://localhost:8120/wiki/api/paginas/1007",
+   "version": "3"
+  },
+  "wiki:1008": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-09-18T15:00:00Z",
+   "borrado": false,
+   "fuente": "wiki",
+   "hash": "4b7ac684fb378c3859dfafe612e46e21296dd8fce0237fcb0bf157a0c4c869cb",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "html",
+   "titulo": "Macro: llegó dañado",
+   "url": "http://localhost:8120/wiki/api/paginas/1008",
+   "version": "1"
+  },
+  "wiki:1009": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-09-19T15:00:00Z",
+   "borrado": false,
+   "fuente": "wiki",
+   "hash": "9d70f9398e0dd1eaba0e254a76cba96d96c5029cf98d0b77569b46ec7b25b89c",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "html",
+   "titulo": "Macro: producto distinto al publicado",
+   "url": "http://localhost:8120/wiki/api/paginas/1009",
+   "version": "2"
+  },
+  "wiki:1010": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-09-20T15:00:00Z",
+   "borrado": false,
+   "fuente": "wiki",
+   "hash": "375913f8a3408bd0bbebc200a2f318b7e6a901f120f0c943031e9329b190e44b",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "html",
+   "titulo": "Macro: cambio de dirección",
+   "url": "http://localhost:8120/wiki/api/paginas/1010",
+   "version": "3"
+  },
+  "wiki:1011": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-09-21T15:00:00Z",
+   "borrado": false,
+   "fuente": "wiki",
+   "hash": "2718cc078c31d58aa1b9d4c0816ec80b43200404233dbb062d25af513ed943ff",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "html",
+   "titulo": "Macro: factura",
+   "url": "http://localhost:8120/wiki/api/paginas/1011",
+   "version": "1"
+  },
+  "wiki:1012": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-09-22T15:00:00Z",
+   "borrado": false,
+   "fuente": "wiki",
+   "hash": "82f6237a692b7bd7592287811cdee7651c6d6befa9a6d6e26ca523d69ab54d71",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "html",
+   "titulo": "Macro: cupón no aplicó",
+   "url": "http://localhost:8120/wiki/api/paginas/1012",
+   "version": "2"
+  },
+  "wiki:1013": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-09-23T15:00:00Z",
+   "borrado": false,
+   "fuente": "wiki",
+   "hash": "b50334eb26082ce44d479a1e1162e5ad4561593cf0b6b9cc66fdd8198091796c",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "html",
+   "titulo": "Macro: cancelar un pedido",
+   "url": "http://localhost:8120/wiki/api/paginas/1013",
+   "version": "3"
+  },
+  "wiki:1014": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-09-24T15:00:00Z",
+   "borrado": false,
+   "fuente": "wiki",
+   "hash": "2006687d216ed15a9d3678ecb288b40d9ec6218eedc6f9bde215e5eb836f3529",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "html",
+   "titulo": "Macro: vendedor no responde",
+   "url": "http://localhost:8120/wiki/api/paginas/1014",
+   "version": "1"
+  },
+  "wiki:1015": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-09-25T15:00:00Z",
+   "borrado": false,
+   "fuente": "wiki",
+   "hash": "22b8097d137f9d713aef74b937d477a8dda35e5fc96f13e8ea29901e7bad820c",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "html",
+   "titulo": "Macro: cobro duplicado",
+   "url": "http://localhost:8120/wiki/api/paginas/1015",
+   "version": "2"
+  },
+  "wiki:1016": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-09-26T15:00:00Z",
+   "borrado": false,
+   "fuente": "wiki",
+   "hash": "53ccbe6a32069e15fda57341c8b14fba001460a53c39c69a2cc2ada9c07f9996",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "html",
+   "titulo": "Macro: garantía",
+   "url": "http://localhost:8120/wiki/api/paginas/1016",
+   "version": "3"
+  },
+  "wiki:1017": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-09-05T13:00:00Z",
+   "borrado": false,
+   "fuente": "wiki",
+   "hash": "eea38e4c09ab4bd27384874e4f918cea60e5b631a1f850a7d95dbfaf4c0ebebc",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "html",
+   "titulo": "Macros de respuesta",
+   "url": "http://localhost:8120/wiki/api/paginas/1017",
+   "version": "1"
+  },
+  "wiki:2001": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-09-01T12:00:00Z",
+   "borrado": false,
+   "fuente": "wiki",
+   "hash": "98ecadfb79e3b1b6d19ce3bf52706eb5510b7a18c4105f8ca20516cb2b2c39b8",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "html",
+   "titulo": "Operaciones",
+   "url": "http://localhost:8120/wiki/api/paginas/2001",
+   "version": "1"
+  },
+  "wiki:2002": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-10-20T16:45:00Z",
+   "borrado": false,
+   "fuente": "wiki",
+   "hash": "16e7b212358d84b914f7ec93737e9ca74ce00355398af821e94d95959d936891",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "html",
+   "titulo": "Comisiones por categoría",
+   "url": "http://localhost:8120/wiki/api/paginas/2002",
+   "version": "2"
+  },
+  "wiki:2003": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-09-18T15:30:00Z",
+   "borrado": false,
+   "fuente": "wiki",
+   "hash": "32aa165368f6558e39cbfa5b20c4f69386f76f3465388fa42326c3604a8fbd70",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "html",
+   "titulo": "Alta de vendedores",
+   "url": "http://localhost:8120/wiki/api/paginas/2003",
+   "version": "3"
+  },
+  "wiki:2004": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-10-29T20:10:00Z",
+   "borrado": false,
+   "fuente": "wiki",
+   "hash": "7a9305b8ce1d25312e3f8f6e5f449f7ef309cfec758b037d132768a4ebc48579",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "html",
+   "titulo": "Inventario de fin de mes",
+   "url": "http://localhost:8120/wiki/api/paginas/2004",
+   "version": "1"
+  },
+  "wiki:2005": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-10-08T17:00:00Z",
+   "borrado": false,
+   "fuente": "wiki",
+   "hash": "5086996f31ecd480aaaf90e4ca1e3900bbe0231371ef30aa19db4dfc76273e6b",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "html",
+   "titulo": "Proveedores logísticos",
+   "url": "http://localhost:8120/wiki/api/paginas/2005",
+   "version": "2"
+  },
+  "wiki:2010": {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-10-30T17:15:00Z",
+   "borrado": false,
+   "fuente": "wiki",
+   "hash": "24c91d7e079f25ffb1e1e3c7043cf9551824ad7378e394c44cd67b9ce5014109",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "html",
+   "titulo": "Niveles de servicio con paqueterías",
+   "url": "http://localhost:8120/wiki/paginas/2010",
+   "version": "1"
+  },
+  "wiki:3001": {
+   "acl": [
+    [
+     "group:legal@marketplace.test",
+     "group:soporte-lideres@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-09-01T12:00:00Z",
+   "borrado": false,
+   "fuente": "wiki",
+   "hash": "7419351d83b989123a7f0c9c8b32a585bc7c0cc9633af6768df56c4500a38851",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "html",
+   "titulo": "Legal",
+   "url": "http://localhost:8120/wiki/api/paginas/3001",
+   "version": "2"
+  },
+  "wiki:3002": {
+   "acl": [
+    [
+     "group:legal@marketplace.test",
+     "group:soporte-lideres@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-09-10T18:00:00Z",
+   "borrado": false,
+   "fuente": "wiki",
+   "hash": "1a5b2ac8b551641cb0aa02b46fa9e8cc2e5375d963815c31f3cd8a02053f657e",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "html",
+   "titulo": "Aviso de privacidad interno",
+   "url": "http://localhost:8120/wiki/api/paginas/3002",
+   "version": "3"
+  },
+  "wiki:3003": {
+   "acl": [
+    [
+     "group:legal@marketplace.test",
+     "group:soporte-lideres@marketplace.test"
+    ],
+    [
+     "group:legal-litigios@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-10-11T16:20:00Z",
+   "borrado": false,
+   "fuente": "wiki",
+   "hash": "644fb062e2089373071ec8375458b12b74562445d84d9d76296669ba516f2163",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "html",
+   "titulo": "Litigios",
+   "url": "http://localhost:8120/wiki/api/paginas/3003",
+   "version": "1"
+  },
+  "wiki:3004": {
+   "acl": [
+    [
+     "group:legal@marketplace.test",
+     "group:soporte-lideres@marketplace.test"
+    ],
+    [
+     "group:legal-litigios@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-10-12T21:00:00Z",
+   "borrado": false,
+   "fuente": "wiki",
+   "hash": "6a2d5c96d823b571bef6629d5eea7acde520f63dce76e5812fe15a4047857086",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "html",
+   "titulo": "Caso Transportes del Norte",
+   "url": "http://localhost:8120/wiki/api/paginas/3004",
+   "version": "2"
+  },
+  "wiki:3005": {
+   "acl": [
+    [
+     "group:legal@marketplace.test",
+     "group:soporte-lideres@marketplace.test"
+    ]
+   ],
+   "actualizado": "2026-09-22T15:00:00Z",
+   "borrado": false,
+   "fuente": "wiki",
+   "hash": "24272a590b5c423932f06a5d832797a0408e1231af7f46585de023f0194589f1",
+   "ingerido": "2026-11-20T15:05:00Z",
+   "necesita_ocr": false,
+   "tipo": "html",
+   "titulo": "Retención de datos",
+   "url": "http://localhost:8120/wiki/api/paginas/3005",
+   "version": "3"
+  }
+ },
+ "reloj": "2026-11-20T15:00:00Z"
+}

@@ -1,0 +1,7 @@
+{
+ "hash_crudo": "a94bdbf75a34ce5c92decd359e8b2113729ccc944865cf4c2c393b5b53a817a1",
+ "necesita_ocr": false,
+ "parser": "v1",
+ "sha256_texto": "be80cfe2fdb416e489da58aadba455671cd5d1ba7f1dac2c37454dfd036bef43",
+ "texto": "# SEG-10 · Posible cuenta de vendedor duplicada #10\n\nDos cuentas de vendedor comparten la misma cuenta bancaria (caso 10)."
+}

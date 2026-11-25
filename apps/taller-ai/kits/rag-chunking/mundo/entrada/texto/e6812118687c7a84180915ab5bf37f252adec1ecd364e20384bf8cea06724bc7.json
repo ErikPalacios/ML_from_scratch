@@ -1,0 +1,7 @@
+{
+ "hash_crudo": "e6812118687c7a84180915ab5bf37f252adec1ecd364e20384bf8cea06724bc7",
+ "necesita_ocr": false,
+ "parser": "v1",
+ "sha256_texto": "70e831f0936cf548f404a7156c6471f745035e98463c22617784992eb951a3e9",
+ "texto": "# Devoluciones\nQuien compra puede devolver un producto dentro del plazo de su categoría, contado desde el día en que lo recibió. El plazo lo valida el sistema con la fecha de entrega de la paquetería, no con la fecha de compra.\n\n## Plazos por categoría\nCategoría: Electrónica; Plazo para devolver: 15 días; Quién paga el envío: El marketplace si llegó dañado; si no, quien compra\nCategoría: Moda; Plazo para devolver: 30 días; Quién paga el envío: El marketplace\nCategoría: Hogar; Plazo para devolver: 30 días; Quién paga el envío: Quien compra\nCategoría: Juguetes; Plazo para devolver: 30 días; Quién paga el envío: El marketplace\n\n## Qué no se puede devolver\n- Ropa interior y trajes de baño sin su etiqueta.\n- Software o tarjetas de regalo ya activadas.\n- Productos personalizados a pedido.\n\n## Cómo se abre una devolución\nDesde el detalle del pedido, en «Devolver». Si el sistema no lo permite y quien compra insiste en que está en plazo, revisa la fecha de entrega en la guía de la paquetería antes de escalar."
+}

@@ -1,0 +1,7 @@
+{
+ "hash_crudo": "32aa165368f6558e39cbfa5b20c4f69386f76f3465388fa42326c3604a8fbd70",
+ "necesita_ocr": false,
+ "parser": "v1",
+ "sha256_texto": "cb01c952aa8c425eb809ae8c9219cdaecb1240341da330aaa6daac563c74a893",
+ "texto": "# Alta de vendedores\nPara vender, una persona o empresa necesita RFC, una cuenta bancaria a su nombre y una identificación vigente. La revisión tarda hasta 2 días hábiles.\n\n## Motivos de rechazo\n- La cuenta bancaria está a nombre de otra persona.\n- El RFC no coincide con el nombre registrado.\n- Ya tuvo una cuenta cerrada por fraude."
+}

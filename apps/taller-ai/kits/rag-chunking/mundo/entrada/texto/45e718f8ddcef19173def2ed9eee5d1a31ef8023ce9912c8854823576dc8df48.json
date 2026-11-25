@@ -1,0 +1,7 @@
+{
+ "hash_crudo": "45e718f8ddcef19173def2ed9eee5d1a31ef8023ce9912c8854823576dc8df48",
+ "necesita_ocr": false,
+ "parser": "v1",
+ "sha256_texto": "68f87b76283c3a9262100a05f9c1bbc95c1ac43e1e7c13029ab9f19877b8d280",
+ "texto": "# SEG-3 · Posible cuenta de vendedor duplicada #3\n\nDos cuentas de vendedor comparten la misma cuenta bancaria (caso 3).\n\nResolución: Se suspendió la cuenta más nueva mientras se revisa."
+}

@@ -1,0 +1,7 @@
+{
+ "hash_crudo": "5086996f31ecd480aaaf90e4ca1e3900bbe0231371ef30aa19db4dfc76273e6b",
+ "necesita_ocr": false,
+ "parser": "v1",
+ "sha256_texto": "29d0bd6e2d5feaf13ff177e370754cbe1c4ef06bb03897a42616eac17bf717bd",
+ "texto": "# Proveedores logísticos\nEstas son las paqueterías con contrato vigente. La asignación es automática según el código postal de destino.\nPaquetería: Envíos Express; Cobertura: Nacional; Tiempo de entrega: 2 a 4 días\nPaquetería: Transportes del Norte; Cobertura: Norte y Bajío; Tiempo de entrega: 1 a 3 días\nPaquetería: Última Milla CDMX; Cobertura: Valle de México; Tiempo de entrega: Mismo día o siguiente"
+}

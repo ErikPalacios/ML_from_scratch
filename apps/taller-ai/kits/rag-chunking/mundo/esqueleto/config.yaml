@@ -1,0 +1,15 @@
+# Configuración del chunking. Los pasos de GUION.md dicen cuándo tocar cada línea.
+
+modelo:
+  tokenizer: modelo/tokenizer.json   # el de multilingual-e5-small (python mundo/tokenizador.py lo baja)
+  prefijo: "passage: "               # e5 espera «passage: » antes de cada pasaje y «query: » antes de cada pregunta
+  limite: 512                        # lo que el modelo alcanza a leer; lo que pase de ahí lo corta sin avisar
+
+chunking:
+  estrategia: estructura   # estructura (títulos, párrafos y tablas) o fija (ventanas de caracteres, para comparar)
+  objetivo: 400            # tokens por chunk como máximo, contados como los ve el modelo (prefijo y especiales incluidos)
+  traslape: 60             # tokens que se repiten cuando un corte cae dentro de una sección (nunca en un título ni en una tabla)
+  fija_caracteres: 1200    # solo para estrategia fija
+  fija_traslape: 150
+
+incremental: true          # si el texto y la huella no cambiaron, no se vuelve a partir el documento

@@ -1,0 +1,7 @@
+{
+ "hash_crudo": "2718cc078c31d58aa1b9d4c0816ec80b43200404233dbb062d25af513ed943ff",
+ "necesita_ocr": false,
+ "parser": "v1",
+ "sha256_texto": "8198c12588aab447790bd253acdd7a873f0c27df32a10b9d159227f7e38cccc4",
+ "texto": "# Macro: factura\nLa factura se pide desde el detalle del pedido dentro del mismo mes de la compra. Fuera de ese mes, la emite quien vende.\n\n## Antes de enviarla\nPersonaliza el saludo y confirma el número de pedido."
+}
