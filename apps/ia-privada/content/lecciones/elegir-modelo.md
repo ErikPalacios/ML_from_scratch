@@ -432,9 +432,9 @@ Es un buen termómetro de lo que prefiere la gente en general. Para elegir el mo
 
 Después de los filtros y de leer benchmarks con su ruido, queda la pregunta que ningún benchmark contesta: **¿contesta bien las preguntas del despacho?** La única forma de saberlo es preguntárselas.
 
-Un examen propio es un conjunto de 50 a 200 preguntas reales de tu tarea, cada una con la respuesta que un experto daría. Para el despacho: preguntas que hicieron abogados de verdad sobre expedientes de verdad, con los fragmentos que el sistema les daría, y la respuesta que un abogado firmaría, con su cita. Proponemos 150 preguntas (un supuesto del ejemplo).
+Un examen propio es un conjunto de 50 a 200 preguntas reales de tu tarea, cada una con la respuesta que un experto daría. Para el despacho: preguntas que hicieron abogados de verdad sobre expedientes de verdad, con los fragmentos que el sistema les daría, y la respuesta que un abogado firmaría, con su cita. Fijan 200 preguntas (un supuesto del ejemplo).
 
-¿Por qué 150 preguntas propias valen más que 12,000 de un benchmark, si tienen **más** ruido? Porque el ruido no es el único error. Un benchmark mide con mucha precisión **otra cosa**; tu examen mide con menos precisión **lo que te importa**. Un termómetro de laboratorio en el cuarto equivocado no te dice si tienes fiebre.
+¿Por qué 200 preguntas propias valen más que 12,000 de un benchmark, si tienen **más** ruido? Porque el ruido no es el único error. Un benchmark mide con mucha precisión **otra cosa**; tu examen mide con menos precisión **lo que te importa**. Un termómetro de laboratorio en el cuarto equivocado no te dice si tienes fiebre.
 
 Lo que tu examen ve y un benchmark no:
 
@@ -443,7 +443,7 @@ Lo que tu examen ve y un benchmark no:
 - **Tu configuración.** El modelo cuantizado en 4 bits, con el pensamiento apagado, con tu prompt y con 6,000 tokens de fragmentos. Es como lo vas a servir.
 - **Lo que falla.** No solo el porcentaje: leer las respuestas equivocadas dice si el problema es el modelo, los fragmentos o el prompt.
 
-Y lo que no ve: con 150 preguntas, un puntaje de 85 % trae ±5.7 puntos de ruido, y dos modelos tienen que estar a ≈ 8 puntos para distinguirse. Por eso el examen propio sirve para **descartar los que fallan** en tu tarea y para encontrar diferencias grandes, no para decidir entre dos que empatan. Cuando empatan, decide otra cosa: la velocidad, la memoria, lo que ya funciona.
+Y lo que no ve: con 200 preguntas, un puntaje de 85 % trae ±4.9 puntos de ruido, y dos modelos tienen que estar a ≈ 7 puntos para distinguirse. Por eso el examen propio sirve para **descartar los que fallan** en tu tarea y para encontrar diferencias grandes, no para decidir entre dos que empatan. Cuando empatan, decide otra cosa: la velocidad, la memoria, lo que ya funciona.
 
 Cómo armar ese examen sin que te engañe (cuántas preguntas, cómo calificar respuestas abiertas, cómo usar otro LLM como calificador y cómo evitar que el examen se cuele al prompt) lo ves a fondo en la lección «Demostrar que el modelo abierto sirve», del módulo de evals.
 
@@ -465,7 +465,7 @@ Español declarado por el fabricante, o al menos medido (MMMLU incluye español)
 4. Contexto
 Al menos 8,192 tokens. Casi todos pasan: los modelos de 2026 anuncian 128K o más.
 5. Shortlist y examen
-Lo que queda se ordena con benchmarks leídos con su ruido, y se examina con las 150 preguntas del despacho.
+Lo que queda se ordena con benchmarks leídos con su ruido, y se examina con las 200 preguntas del despacho.
 :::
 
 ### El filtro de memoria, con números
@@ -501,9 +501,9 @@ En la tabla de Qwen, Qwen3.6 27B le gana por mucho a Qwen3 32B: 87.8 contra 68.4
 4. **Entre los nuevos, las diferencias son de ruido.** 94.1 contra 89.2 en AIME (30 problemas) no distingue a Qwen3.6 27B de Gemma 4 31B.
 5. **Hay ventajas que sí se miden en casa.** Qwen3.6 27B lee la pregunta en ≈ 1.8 s contra ≈ 2.2 de Qwen3 32B: con el de referencia, el despacho ni siquiera llega a su objetivo de 2 s. Y su KV es de 64 KiB por token contra 256 de Qwen3 32B. Con la misma memoria, el despacho podría dar contextos 4 veces más largos: 8 conversaciones de 32,768 tokens ocuparían los mismos 17.18 GB de KV que hoy ocupan las de 8,192. Eso cambia qué cabe en el prompt, y vale la pena medirlo.
 
-Así que el despacho no cambia de modelo por un puntaje: **mete a Qwen3 32B en su propio examen, junto a los cinco nuevos**, con la misma configuración con que los serviría. Si uno nuevo gana por más del ruido (≈ 8 puntos con 150 preguntas), cambia. Si empatan, mira la velocidad y la memoria (con los nuevos, probablemente a favor del cambio, y quizá con menos de 3 L40S), y lo decide con números suyos. Y si Qwen3 32B gana en su tarea, se queda, aunque «haya salido hace año y medio».
+Así que el despacho no cambia de modelo por un puntaje: **mete a Qwen3 32B en su propio examen, junto a los cinco nuevos**, con la misma configuración con que los serviría. Si uno nuevo gana por más del ruido (≈ 7 puntos con 200 preguntas), cambia. Si empatan, mira la velocidad y la memoria (con los nuevos, probablemente a favor del cambio, y quizá con menos de 3 L40S), y lo decide con números suyos. Y si Qwen3 32B gana en su tarea, se queda, aunque «haya salido hace año y medio».
 
-Lo que no cambia: el examen se guarda. Cuando salga Qwen4 o Gemma 5, el despacho no lee la ficha y cambia; corre las mismas 150 preguntas.
+Lo que no cambia: el examen se guarda. Cuando salga Qwen4 o Gemma 5, el despacho no lee la ficha y cambia; corre las mismas 200 preguntas.
 
 ## Destilación {Distillation} [extra]
 
@@ -538,7 +538,7 @@ Un aprendiz de carpintero que copia cómo trabaja el maestro aprende en meses lo
 
 ## En la vida real {In real life}
 
-**El despacho.** De decenas de familias, los filtros duros dejan seis candidatos que, por memoria, caben en una L40S con 8 conversaciones de 8,192 tokens (atenderlas bien a todas, con Qwen3 32B, pide 3 L40S). Ninguna tabla pública decide: Qwen3 32B, su modelo de referencia, entra al examen de 150 preguntas junto a Qwen3.6 27B, Qwen3.8 27B, Gemma 4 31B, gpt-oss-20b y Mistral Small 3.2 24B, todos en 4 bits y sin razonamiento largo. Si empatan, pesan la velocidad y la memoria: un modelo que lee la pregunta más rápido o guarda un KV cache 4 veces más chico puede ahorrarle GPUs.
+**El despacho.** De decenas de familias, los filtros duros dejan seis candidatos que, por memoria, caben en una L40S con 8 conversaciones de 8,192 tokens (atenderlas bien a todas, con Qwen3 32B, pide 3 L40S). Ninguna tabla pública decide: Qwen3 32B, su modelo de referencia, entra al examen de 200 preguntas junto a Qwen3.6 27B, Qwen3.8 27B, Gemma 4 31B, gpt-oss-20b y Mistral Small 3.2 24B, todos en 4 bits y sin razonamiento largo. Si empatan, pesan la velocidad y la memoria: un modelo que lee la pregunta más rápido o guarda un KV cache 4 veces más chico puede ahorrarle GPUs.
 
 **Una clínica que resume expedientes médicos** (supuesto del ejemplo). Su tarea es parecida, pero su filtro de idioma pesa más (términos médicos en español) y su tolerancia a errores es casi cero. Ahí un modelo de razonamiento puede valer la pena: un resumen no tiene prisa de 20 tokens por segundo, se puede generar de noche, y pensar 5,000 tokens no molesta a nadie. El mismo método da otra respuesta porque la tarea es otra.
 
@@ -565,8 +565,8 @@ Por conversación: \(m_{extra}\) = 3,000 × 262,144 bytes ≈ **786 MB**. Las 8:
 \(P_A = 1 ÷ (1 + 10^{−50/400})\) = 1 ÷ (1 + 10^{−0.125}) ≈ 1 ÷ (1 + 0.750) ≈ **57 %**. Gana poco más de la mitad: 50 puntos es una diferencia chica, y aún menos si las preguntas de quienes votan no se parecen a las tuyas.
 ? [medio] Un modelo saca 92 % en GSM8K y 84 % en un set nuevo de problemas del mismo estilo, escritos a mano. Otro saca 90 % y 89 %. ¿Qué te dice esto?
 El primero cae 8 puntos al pasar al set nuevo; el segundo, 1. Con sets de ≈ 1,000 problemas, el ruido de una diferencia es de ≈ ±3 puntos, así que la caída de 8 no es azar: lo más probable es que el primero esté **contaminado** (vio GSM8K o versiones de él al entrenar). El segundo es el que de verdad resuelve problemas nuevos, aunque saque menos en el benchmark famoso.
-? [reto] El despacho compara dos candidatos que sacan 88 % y 85 % en su examen. ¿Cuántas preguntas haría falta (las mismas para los dos) para distinguir esos 3 puntos? Y con sus 150 preguntas, ¿qué diferencia mínima distinguiría, más o menos?
-Despeja \(n\) de \(p_A − p_B = 1.96 × sqrt{(p_A(1 − p_A) + p_B(1 − p_B)) ÷ n}\): \(n = 1.96^2 × (0.88 × 0.12 + 0.85 × 0.15) ÷ 0.03^2\) = 3.8416 × (0.1056 + 0.1275) ÷ 0.0009 ≈ **995 preguntas**. Con \(n\) = 150 y \(p\) ≈ 0.86 para los dos: \(1.96 × sqrt{2 × 0.86 × 0.14 ÷ 150}\) ≈ 0.0785, o sea **≈ 8 puntos**. Conclusión: el examen de 150 preguntas descarta a los que fallan y encuentra diferencias grandes; entre dos que están a 3 puntos, deciden la velocidad, la memoria o una comparación pregunta por pregunta.
+? [reto] El despacho compara dos candidatos que sacan 88 % y 85 % en su examen. ¿Cuántas preguntas haría falta (las mismas para los dos) para distinguir esos 3 puntos? Y con sus 200 preguntas, ¿qué diferencia mínima distinguiría, más o menos?
+Despeja \(n\) de \(p_A − p_B = 1.96 × sqrt{(p_A(1 − p_A) + p_B(1 − p_B)) ÷ n}\): \(n = 1.96^2 × (0.88 × 0.12 + 0.85 × 0.15) ÷ 0.03^2\) = 3.8416 × (0.1056 + 0.1275) ÷ 0.0009 ≈ **995 preguntas**. Con \(n\) = 200 y \(p\) ≈ 0.86 para los dos: \(1.96 × sqrt{2 × 0.86 × 0.14 ÷ 150}\) ≈ 0.068, o sea **≈ 7 puntos**. Conclusión: el examen de 200 preguntas descarta a los que fallan y encuentra diferencias grandes; entre dos que están a 3 puntos, deciden la velocidad, la memoria o una comparación pregunta por pregunta.
 ? [reto] El despacho quiere subir el tope a 32,768 tokens por conversación, con las mismas 8 conversaciones. ¿Cuánto KV cache necesitaría con Qwen3 32B (256 KiB por token) y con Qwen3.6 27B (64 KiB por token en sus bloques de atención completa)? ¿Cuál cabe en 43.2 GB?
 Tokens a la vez: 8 × 32,768 = 262,144. Qwen3 32B: 262,144 × 262,144 bytes ≈ **68.7 GB** de KV; con 19.32 de pesos y 2 de programa son ≈ 90 GB: **no cabe**, ni de lejos. Qwen3.6 27B: 262,144 × 65,536 bytes ≈ **17.2 GB**, lo mismo que hoy ocupa Qwen3 32B con 8,192; con ≈ 14.4 GB de pesos (más sus tablas) y 2 de programa son ≈ 34 GB más el estado fijo de sus bloques lineales: **cabría**, a confirmar arrancando el servidor. La arquitectura nueva cambia qué contexto puedes dar con la misma GPU.
 ? [reto] Explica con números por qué Mistral Small 4 (119.4 mil millones totales, 6.5 activos) sale del embudo del despacho aunque «trabaje como uno chico».
@@ -578,7 +578,7 @@ Memoria: en 4 bits sus pesos son ≈ 119.4 × 4.156 ÷ 8 ≈ **62.0 GB**, más q
 - **«Open weight, open source y licencias»**, en este mismo módulo: el filtro 1 a fondo, cómo leer Apache 2.0, MIT, la licencia de Llama y las marcadas «other».
 - **«Batching continuo y PagedAttention»** y **«Concurrencia: la curva de usuarios contra latencia»**: cómo un servidor atiende varias conversaciones con una sola lectura de los pesos, y por qué la memoria dice cuántas caben pero el cálculo dice cuántas se atienden bien.
 - **«Formatos de cuantización en la práctica»**: qué se pierde de calidad al pasar de BF16 a los 4 bits con que se examinó cada candidato.
-- **«Demostrar que el modelo abierto sirve»**, en el módulo de evals: cómo se arma, se califica y se mantiene el examen propio de 150 preguntas.
+- **«Demostrar que el modelo abierto sirve»**, en el módulo de evals: cómo se arma, se califica y se mantiene el examen propio de 200 preguntas.
 - En Sensei, [Transformers y LLMs](https://sensei.trueml.app/llms/) para el porqué del KV cache y de los expertos, y [Ruido, muestras y pruebas A/B](https://sensei.trueml.app/ruido/) para la prueba pareada y el diseño de una comparación.
 
 ## Palabras que vas a oír {Words you'll hear}

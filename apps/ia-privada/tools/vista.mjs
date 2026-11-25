@@ -40,7 +40,7 @@ const salidas = [];
 for (const [tipo, nombre, frag] of piezas) {
   const pagina = join(dir, `${tipo}-${nombre}.html`);
   writeFileSync(pagina, `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="stylesheet" href="${pathToFileURL(join(base, 'sensei.css')).href}"><style>body{background:var(--surface)} .main{margin:0!important;border-radius:0!important;box-shadow:none!important;padding:16px!important}</style></head>
+<link rel="stylesheet" href="${pathToFileURL(join(base, 'ia-privada.css')).href}"><style>body{background:var(--surface)} .main{margin:0!important;border-radius:0!important;box-shadow:none!important;padding:16px!important}</style></head>
 <body><main class="main"><div class="prose">${frag}</div></main>${datos}
 <script src="${pathToFileURL(join(base, 'diagram.js')).href}"></script><script src="${pathToFileURL(join(base, 'app.js')).href}"></script></body></html>`);
   for (const ancho of anchos) for (const tema of temas) {

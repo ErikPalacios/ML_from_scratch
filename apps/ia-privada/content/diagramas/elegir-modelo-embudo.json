@@ -125,7 +125,7 @@
     {
       "id": "prueba",
       "label": "Examen propio",
-      "sub": "150 preguntas reales",
+      "sub": "200 preguntas reales",
       "badge": "5",
       "kind": "job",
       "x": 2,
@@ -144,7 +144,7 @@
       "y": 50,
       "w": 20,
       "h": 9,
-      "note": "Con 150 preguntas, un puntaje de 85 % trae ±5.7 puntos de ruido. Dos modelos a 2 o 3 puntos de distancia empatan: entonces deciden la velocidad, la memoria y lo que ya funciona."
+      "note": "Con 200 preguntas, un puntaje de 85 % trae ±4.9 puntos de ruido. Dos modelos a 2 o 3 puntos de distancia empatan: entonces deciden la velocidad, la memoria y lo que ya funciona."
     },
     {
       "id": "elegido",
@@ -292,7 +292,7 @@
           "edges": [
             "shortlist>prueba"
           ],
-          "text": "**El examen propio:** 150 preguntas reales de abogados, calificadas contra la respuesta que firmaría un abogado."
+          "text": "**El examen propio:** 200 preguntas reales de abogados, calificadas contra la respuesta que firmaría un abogado."
         },
         {
           "nodes": [

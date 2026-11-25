@@ -547,7 +547,7 @@ Por velocidad: \(t_{paso}\) ≤ 1 ÷ 20 = 50 ms, así que \(W + b × K\) ≤ 0.0
 ? [reto] El paper de PagedAttention usa OPT-13B en una A100 de 40 GB con 12 GB para el KV cache y 800 KB por token (2 × 5,120 × 40 × 2 bytes = 819,200 bytes). Reporta ≈ 15.7 mil lugares de tokens. (a) Comprueba ese número. (b) ¿Cuántas secuencias de 2,048 tokens caben reservando el máximo? (c) Si las conversaciones usaran 500 tokens en promedio (supuesto) y se guardaran en bloques de 16, ¿cuántas cabrían?
 (a) Con 12 GiB = 12 × 2³⁰ bytes: 12,884,901,888 ÷ 819,200 ≈ **15,729** lugares: el 15.7K del paper (sale con GiB, no con GB). (b) ⌊15,729 ÷ 2,048⌋ = ⌊7.68⌋ = **7 secuencias**: cada una reserva ≈ 1.6 GB. (c) ⌈500 ÷ 16⌉ = 32 bloques = 512 tokens; ⌊15,729 ÷ 512⌋ = ⌊30.7⌋ = **30 conversaciones**, más de 4 veces más. Es el tamaño de mejora que explica las cifras del paper.
 ? [reto] La línea de arranque de vLLM dice «GPU KV cache size: 83,456 tokens, Maximum concurrency for 8,192 tokens per request: 10.19x». El despacho la lee y concluye «solo podemos atender a 10 personas». Explica qué tiene de bueno y de malo esa conclusión, con números.
-De bueno: si **todas** las conversaciones llegaran al tope de 8,192 tokens a la vez, caben 83,456 ÷ 8,192 ≈ 10.19, o sea 10. De malo, tres cosas. (1) Las conversaciones reales del despacho van de 6,000 a 6,500 tokens: a media respuesta, ⌊83,456 ÷ 6,256⌋ = **13** a la vez. (2) «Conversaciones a la vez» no son «personas»: 200 abogados que preguntan 15 veces al día generan, en la hora pico, ≈ 5.6 conversaciones simultáneas en promedio (la cuenta con la ley de Little está en la lección de concurrencia). (3) Si de verdad pasaran de 13, el servidor no las rechaza: algunas esperan en la fila o se desalojan (preemption) un momento.
+De bueno: si **todas** las conversaciones llegaran al tope de 8,192 tokens a la vez, caben 83,456 ÷ 8,192 ≈ 10.19, o sea 10. De malo, tres cosas. (1) Las conversaciones reales del despacho van de 6,000 a 6,500 tokens: a media respuesta, ⌊83,456 ÷ 6,256⌋ = **13** a la vez. (2) «Conversaciones a la vez» no son «personas»: 200 abogados que preguntan 15 veces al día generan, en la hora pico, ≈ 5.6 conversaciones simultáneas en promedio (la cuenta con la ley de Little está en la lección de concurrencia). (3) Si de verdad pasaran de 13, el servidor no las rechaza: algunas esperan en la fila o se desalojan (preemption) un momento. (4) Y caber no es atenderse bien: con los prefills de 6,000 tokens y las eficiencias del despacho, una L40S no da 20 tokens por segundo ni a esas 8; la cuenta de velocidad, no la de memoria, decide cuántas GPUs.
 :::
 
 ## Lo que sigue {What comes next}
@@ -561,7 +561,7 @@ De bueno: si **todas** las conversaciones llegaran al tope de 8,192 tokens a la 
 ## Palabras que vas a oír {Words you'll hear}
 
 :::conceptos
-batch limitado-por-memoria intensidad-aritmetica roofline batching-estatico batching-continuo scheduler pagedattention bloque-kv tabla-de-bloques fragmentacion prefix-caching copy-on-write preemption chunked-prefill
+intensidad-aritmetica batching-estatico batching-continuo scheduler pagedattention bloque-kv tabla-de-bloques fragmentacion prefix-caching copy-on-write preemption chunked-prefill
 :::
 
 ## Chequeo {Check}
