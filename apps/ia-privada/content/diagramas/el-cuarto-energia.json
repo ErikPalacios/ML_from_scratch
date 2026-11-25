@@ -1,0 +1,47 @@
+{
+  "titulo": "De CFE a las fuentes del servidor",
+  "width": 78,
+  "height": 44,
+  "lanes": [
+    { "id": "edificio", "label": "El edificio", "kind": "neutral", "x": 0, "y": 0, "w": 78, "h": 14 },
+    { "id": "cuarto", "label": "El cuarto de TI", "kind": "online", "x": 0, "y": 16, "w": 78, "h": 28 }
+  ],
+  "nodes": [
+    { "id": "cfe", "label": "CFE", "sub": "220Y/127 V, 60 Hz", "kind": "external", "x": 1, "y": 4, "w": 17, "h": 8,
+      "note": "El edificio recibe servicio trifásico de 220Y/127 V: 127 V entre una fase y el neutro, 220 V entre dos fases (NOM-001-SEDE-2012, art. 110-4)." },
+    { "id": "tablero", "label": "Tablero del piso", "sub": "interruptores nuevos", "kind": "service", "x": 30, "y": 4, "w": 18, "h": 8,
+      "note": "De aquí salen los [[circuito-dedicado|circuitos dedicados]]: dos de **20 A a 220 V** para el servidor (A y B), y los de los minisplits aparte. Cada uno con su propio interruptor." },
+    { "id": "aire", "label": "Minisplits", "sub": "2 × 2 t, sin UPS", "kind": "service", "x": 58, "y": 4, "w": 19, "h": 8,
+      "note": "Los dos minisplits de 2 toneladas van en sus propios circuitos y **no** en el UPS: jalarían la batería en nada. Durante un apagón se apagan, y el servidor sigue calentando el cuarto." },
+    { "id": "ups", "label": "UPS 5–6 kVA", "sub": "doble conversión", "kind": "store", "x": 1, "y": 22, "w": 17, "h": 8,
+      "note": "En el circuito A. Da minutos, no horas: los suficientes para que el servidor se apague solo. 2,500 ÷ 0.95 × 1.25 ≈ 3,290 VA; uno de 3 kVA queda al tope." },
+    { "id": "fA", "label": "Fuentes 1 y 2", "sub": "circuito A, vía UPS", "kind": "gpu", "x": 30, "y": 22, "w": 18, "h": 8,
+      "note": "Dos de las 4 [[fuente-redundante|fuentes redundantes]] (3+1). A 220 V cada una da 2,600 W: dos juntas, 5,200 W, más del doble del pico." },
+    { "id": "fB", "label": "Fuentes 3 y 4", "sub": "circuito B", "kind": "gpu", "x": 30, "y": 34, "w": 18, "h": 8,
+      "note": "Las otras dos, en el circuito B. Si el UPS falla o el circuito A se bota, estas cargan todo el servidor." },
+    { "id": "servidor", "label": "Servidor 4U", "sub": "pico 2,500 W", "kind": "model", "x": 58, "y": 28, "w": 19, "h": 8,
+      "note": "4 × 350 W de GPUs + 400 W de CPUs + ≈ 700 W del resto. A 220 V jala ≈ 11.96 A; con el 125 %, ≈ 14.95 A: por eso los circuitos son de 20 A." }
+  ],
+  "edges": [
+    { "from": "cfe", "to": "tablero", "kind": "neutral", "label": "acometida", "fromSide": "r", "toSide": "l" },
+    { "from": "tablero", "to": "aire", "kind": "neutral", "label": "propios", "fromSide": "r", "toSide": "l" },
+    { "from": "tablero", "to": "ups", "kind": "online", "label": "A", "fromSide": "b", "toSide": "t", "via": [[35, 18], [9.5, 18]] },
+    { "from": "ups", "to": "fA", "kind": "online", "fromSide": "r", "toSide": "l" },
+    { "from": "tablero", "to": "fB", "kind": "online", "label": "B", "fromSide": "b", "toSide": "l", "via": [[44, 18], [24, 18], [24, 38]] },
+    { "from": "fA", "to": "servidor", "kind": "online", "fromSide": "r", "toSide": "l" },
+    { "from": "fB", "to": "servidor", "kind": "online", "fromSide": "r", "toSide": "l" }
+  ],
+  "flows": [
+    { "id": "normal", "label": "Un día normal", "steps": [
+      { "nodes": ["cfe", "tablero"], "edges": ["cfe>tablero"], "text": "La luz entra al edificio y llega al tablero del piso, de donde salen los circuitos nuevos." },
+      { "nodes": ["tablero", "ups", "fA", "fB", "servidor"], "edges": ["tablero>ups", "ups>fA", "tablero>fB", "fA>servidor", "fB>servidor"], "text": "El servidor jala de los dos circuitos a la vez: las 4 fuentes se reparten la carga." }
+    ] },
+    { "id": "apagon", "label": "Se va la luz", "steps": [
+      { "nodes": ["fB", "aire"], "edges": [], "text": "Se cae CFE: el circuito B y los minisplits se apagan. El cuarto empieza a calentarse." },
+      { "nodes": ["ups", "fA", "servidor"], "edges": ["ups>fA", "fA>servidor"], "text": "El UPS sigue alimentando las fuentes 1 y 2, que dan 5,200 W: el servidor ni se entera. El UPS le avisa por la red, y un programa cierra el servidor de modelos y apaga el sistema antes de que se acabe la batería." }
+    ] },
+    { "id": "a127", "label": "El mismo diseño a 127 V", "steps": [
+      { "nodes": ["fA", "servidor"], "edges": ["fA>servidor"], "text": "A 127 V cada fuente da solo 1,000 W. Con un circuito caído, las 2 que quedan dan 2,000 W contra un pico de 2,500 W: **el servidor se apaga**. La redundancia es de mentira; por eso, 220 V." }
+    ] }
+  ]
+}

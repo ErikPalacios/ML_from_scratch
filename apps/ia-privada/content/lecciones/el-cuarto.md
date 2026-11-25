@@ -150,7 +150,13 @@ Contra el pico | 5,200 − 2,500 | **+2,700 W: sigue**
 = A 127 V, la redundancia es de mentira: en cuanto falla un circuito, las fuentes que quedan no alcanzan. Es la segunda razón, además de los amperes, para conectar el servidor a 220 V.
 :::
 
-Cada circuito del par se dimensiona para cargar **todo** el servidor solo, porque así trabaja cuando el otro falla: los dos son de 20 A a 220 V. Lo instala un electricista con la norma en la mano. Esta lección te dice qué pedir y por qué, no reemplaza al electricista.
+Cada circuito del par se dimensiona para cargar **todo** el servidor solo, porque así trabaja cuando el otro falla: los dos son de 20 A a 220 V.
+
+:::diagrama el-cuarto-energia
+El camino de la luz, de CFE a las cuatro fuentes del servidor, con el UPS de la sección que sigue. Sigue los recorridos: un día normal, un apagón y el mismo diseño a 127 V.
+:::
+
+Lo instala un electricista con la norma en la mano. Esta lección te dice qué pedir y por qué, no reemplaza al electricista.
 
 ## El UPS: minutos para apagar bien {The UPS: minutes to shut down properly}
 

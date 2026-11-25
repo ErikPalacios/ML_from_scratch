@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 330" role="img" aria-labelledby="f-el-cuarto-plano-t" class="f-svg" style="max-width:420px">
+<title id="f-el-cuarto-plano-t">El cuarto del despacho de 3 por 3 metros visto desde arriba, dos veces. A la izquierda, mal: el rack con la espalda pegada a la pared y el minisplit soplando al costado; el aire caliente que sale por atrás no tiene a dónde ir y regresa al frente del servidor: recirculación. A la derecha, bien: el minisplit en la pared de enfrente sopla aire frío hacia el frente del rack, atrás queda espacio, y el aire caliente sube y regresa a la toma del minisplit.</title>
+<defs><marker id="f-pl-p" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="f-punta" d="M0,0 L10,5 L0,10 z"/></marker></defs>
+<text class="f-l" x="14" y="24">EL CUARTO, VISTO DESDE ARRIBA</text>
+<text class="f-t" x="90" y="52" text-anchor="middle">Mal</text>
+<text class="f-t" x="270" y="52" text-anchor="middle">Bien</text>
+<rect class="f-card" x="10" y="62" width="160" height="160" rx="4"/>
+<rect class="f-card" x="190" y="62" width="160" height="160" rx="4"/>
+<!-- mal: rack pegado a la pared de arriba, minisplit en la pared izquierda -->
+<rect class="f-dark" x="60" y="64" width="60" height="34" rx="3"/>
+<text class="f-dark-l" x="90" y="85" text-anchor="middle">RACK</text>
+<text class="f-s" x="90" y="112" text-anchor="middle" style="font-size:12px">frente ↓</text>
+<rect class="f-b" x="12" y="140" width="12" height="54" rx="3"/>
+<text class="f-s" x="30" y="214" style="font-size:12px">minisplit</text>
+<path class="f-flecha" d="M26 167 L52 167" marker-end="url(#f-pl-p)" style="stroke:var(--b)"/>
+<path class="f-flecha" d="M124 74 C150 74 150 126 112 126" marker-end="url(#f-pl-p)" style="stroke:var(--o)"/>
+<text class="f-s" x="96" y="160" text-anchor="middle" style="font-size:12px">el escape vuelve</text>
+<text class="f-s" x="96" y="176" text-anchor="middle" style="font-size:12px">al frente</text>
+<!-- bien: minisplit arriba, rack abajo con frente hacia arriba, espacio atrás -->
+<rect class="f-b" x="240" y="64" width="60" height="12" rx="3"/>
+<text class="f-s" x="270" y="92" text-anchor="middle" style="font-size:12px">minisplit</text>
+<rect class="f-dark" x="240" y="150" width="60" height="34" rx="3"/>
+<text class="f-dark-l" x="270" y="171" text-anchor="middle">RACK</text>
+<text class="f-s" x="270" y="143" text-anchor="middle" style="font-size:12px">frente ↑</text>
+<path class="f-flecha" d="M258 98 L258 128" marker-end="url(#f-pl-p)" style="stroke:var(--b)"/>
+<path class="f-flecha" d="M304 196 C336 196 336 76 306 70" marker-end="url(#f-pl-p)" style="stroke:var(--o)"/>
+<text class="f-s" x="270" y="212" text-anchor="middle" style="font-size:12px">espacio atrás</text>
+<rect class="f-b" x="22" y="240" width="14" height="14" rx="3"/>
+<text class="f-s" x="42" y="252">aire frío</text>
+<rect class="f-o" x="140" y="240" width="14" height="14" rx="3"/>
+<text class="f-s" x="160" y="252">aire caliente</text>
+<rect class="f-chip" x="10" y="266" width="340" height="56" rx="14"/>
+<text class="f-s" x="26" y="290">Frente al aire frío, espacio atrás y el</text>
+<text class="f-s" x="26" y="310">aire caliente de vuelta al minisplit.</text>
+</svg>
