@@ -1,0 +1,94 @@
+{
+  "nota": "Los conceptos que presenta la herramienta «Qué tan rápido contesta» (content/herramientas/velocidad.md).",
+  "terminos": [
+    {
+      "id": "prefill",
+      "termino": "Prefill",
+      "en": "prefill",
+      "corto": "La primera fase de una respuesta: el modelo lee todo el prompt de golpe y llena el [[kv-cache|KV cache]] de esos tokens. La frena el cálculo de la GPU.",
+      "largo": "Todos los tokens del prompt pasan juntos por el modelo, así que cada peso que se trae de la memoria se usa para todos. Cuesta ≈ \\(2 × A × N_p\\) FLOPs más la atención, que crece con el cuadrado del prompt. Decide el [[ttft|TTFT]].",
+      "analogia": "El traductor que escucha la pregunta completa antes de empezar a traducir.",
+      "ejemplo": "Llama 3.1 8B con un prompt de 1,000 tokens: ≈ 1.63 × 10¹³ FLOPs, ≈ 33 ms en una H100 SXM a la mitad de su pico.",
+      "sensei": "llms"
+    },
+    {
+      "id": "decode",
+      "termino": "Decode",
+      "en": "decode",
+      "corto": "La segunda fase: el modelo escribe la respuesta un token a la vez, y por cada token lee todos sus [[pesos]] y el [[kv-cache|KV cache]]. La frena la memoria.",
+      "largo": "Un token solo hace pocas cuentas por cada byte que se lee, así que el tiempo de cada paso es, casi siempre, los bytes leídos entre el [[ancho-de-banda|ancho de banda]]. Juntar conversaciones en un [[batch]] reparte esa lectura entre todas.",
+      "analogia": "El cocinero con la despensa en el sótano: por cada platillo sube todos los ingredientes. Lo lento es la escalera, no cocinar.",
+      "ejemplo": "Llama 3.1 8B en BF16 en una H100 SXM: 16.26 GB por paso ÷ 3,350 GB/s ≈ 4.85 ms, un techo de ≈ 206 tokens por segundo.",
+      "sensei": "llms"
+    },
+    {
+      "id": "ttft",
+      "termino": "TTFT",
+      "en": "time to first token",
+      "corto": "El tiempo desde que mandas el mensaje hasta que aparece la primera palabra de la respuesta: la espera en la fila más el [[prefill]].",
+      "largo": "Es lo que el usuario siente como «se quedó pensando». Con un solo usuario en una GPU grande son milisegundos; con muchos prompts largos a la vez, la fila lo puede volver segundos. Se mide aparte de la velocidad del [[decode]].",
+      "analogia": "Lo que tarda el traductor en abrir la boca después de que terminas de hablar.",
+      "ejemplo": "NVIDIA NIM mide 27.4 ms de TTFT con Llama 3.1 8B en BF16, un prompt de 1,000 tokens y una H100.",
+      "sensei": "llms"
+    },
+    {
+      "id": "ancho-de-banda",
+      "termino": "Ancho de banda de memoria",
+      "en": "memory bandwidth",
+      "corto": "Cuántos bytes por segundo pueden pasar de la [[vram|VRAM]] a los núcleos de la GPU. Es el número que decide la velocidad del [[decode]].",
+      "largo": "Se publica en GB/s o TB/s en la hoja de datos. La memoria HBM de las GPUs de centro de datos da ≈ 1,500 a 8,000 GB/s; la GDDR de las tarjetas de escritorio, 300 a 1,800; la memoria unificada de una Mac, 120 a 1,200. Ninguna GPU logra el 100 %: la parte que sí se logra es la [[eficiencia]].",
+      "analogia": "El ancho de la escalera entre la despensa y la cocina: cuántos ingredientes suben por segundo.",
+      "ejemplo": "H100 SXM: 3,350 GB/s. L4: 300 GB/s. Con el mismo modelo, la H100 escribe ≈ 11 veces más rápido.",
+      "sensei": "flops"
+    },
+    {
+      "id": "batch",
+      "termino": "Batch",
+      "en": "batch",
+      "corto": "Las conversaciones que el servidor atiende en el mismo paso de [[decode]]. Los pesos se leen una vez para todas, así que más conversaciones casi no cuestan más tiempo mientras mande la memoria.",
+      "largo": "Cada conversación trae su propio [[kv-cache|KV cache]], que sí se lee aparte. Con un batch grande el cálculo termina alcanzando a la memoria y el paso deja de ser [[memory-bound]]. Servidores como vLLM arman el batch solos, metiendo y sacando conversaciones en cada paso.",
+      "analogia": "El cocinero que sube los ingredientes una vez y cocina diez platillos con el mismo viaje.",
+      "ejemplo": "Llama 3.1 8B en una H100 SXM: con 1 conversación, techo de ≈ 206 tokens/s; con 32, ≈ 150 cada una y ≈ 4,800 en total.",
+      "sensei": "latencia"
+    },
+    {
+      "id": "memory-bound",
+      "termino": "Memory-bound",
+      "en": "memory-bound",
+      "corto": "Un cálculo que tarda lo que tarda en leer sus datos, no en hacer sus cuentas: la GPU espera a la memoria. Su contrario es compute-bound.",
+      "largo": "Se sabe comparando las operaciones por byte del cálculo contra el punto de quiebre de la GPU, su pico entre su [[ancho-de-banda|ancho de banda]] (el [[roofline]]). El [[decode]] con pocas conversaciones es memory-bound; el [[prefill]], compute-bound.",
+      "analogia": "Un cajero rapidísimo con una fila que avanza por una puerta angosta: no atiende más rápido aunque cuente billetes más rápido.",
+      "ejemplo": "Un paso de decode de Llama 3.1 8B en una H100: ≈ 4.85 ms de memoria contra ≈ 0.02 ms de cálculo.",
+      "sensei": "flops"
+    },
+    {
+      "id": "roofline",
+      "termino": "Roofline",
+      "en": "roofline model",
+      "corto": "Un modelo simple de qué frena a un cálculo: lo que alcanza es el menor entre el pico de cálculo y lo que la memoria alcanza a alimentar.",
+      "largo": "Con \\(R = min(P, I × W)\\): \\(P\\) es el [[pico-de-calculo|pico]], \\(W\\) el [[ancho-de-banda|ancho de banda]] e \\(I\\) las operaciones por byte. La calculadora de velocidad lo aplica a un paso entero: toma el mayor entre el tiempo de memoria y el de cálculo.",
+      "analogia": "El techo de una casa con una rampa: subes por la rampa (la memoria) hasta que chocas con el techo (el cálculo).",
+      "ejemplo": "El prefill de 1,000 tokens hace ≈ 1,000 operaciones por byte de peso: muy arriba del quiebre de una H100, ≈ 295. Manda el cálculo.",
+      "sensei": "flops"
+    },
+    {
+      "id": "pico-de-calculo",
+      "termino": "Pico de cálculo",
+      "en": "peak TFLOPS",
+      "corto": "Las operaciones por segundo que una GPU puede hacer como máximo en un formato de números (FP16, FP8, INT8), según su hoja de datos. Decide el [[prefill]].",
+      "largo": "Se publica en TFLOPS (billones de operaciones por segundo) o TOPS para enteros. NVIDIA suele publicar la cifra con sparsity, el doble de la que usan los servidores de LLMs; la útil es la densa. Cada formato tiene su pico: FP8 es ≈ el doble de FP16 en las GPUs que lo tienen.",
+      "analogia": "La velocidad máxima del velocímetro: nadie maneja así todo el tiempo, pero dice de qué es capaz el motor.",
+      "ejemplo": "H100 SXM: 989.5 TFLOPS densos en BF16 y 1,979 en FP8 (1,979 y 3,958 con sparsity).",
+      "sensei": "flops"
+    },
+    {
+      "id": "eficiencia",
+      "termino": "Eficiencia",
+      "en": "efficiency · utilization",
+      "corto": "La parte del [[ancho-de-banda|ancho de banda]] (\\(η_m\\)) o del [[pico-de-calculo|pico de cálculo]] (\\(η_c\\)) que un programa de verdad logra usar. Lleva del techo teórico a lo que se mide.",
+      "largo": "Depende sobre todo del programa que sirve el modelo y del tamaño de cada paso: un paso muy corto pierde más en tiempo fijo. Se mide dividiendo lo medido entre el techo. En los benchmarks de la herramienta de velocidad, \\(η_m\\) va de 0.31 (llama.cpp en una H100) a 0.85 (NIM en una L40S).",
+      "analogia": "El rendimiento de gasolina en el tráfico contra el del laboratorio de la agencia.",
+      "ejemplo": "NIM con Llama 3.1 8B en BF16 en una H100: mide 152.8 tokens/s contra un techo de ≈ 206, así que \\(η_m\\) ≈ 0.74."
+    }
+  ]
+}

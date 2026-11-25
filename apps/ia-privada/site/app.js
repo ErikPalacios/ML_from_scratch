@@ -150,6 +150,8 @@
   function fijo(n, d) { return n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }); }
   function auto(n) { return Math.abs(n) >= 100 ? 0 : Math.abs(n) >= 10 ? 1 : 2; }
   function formatear(x, f, dec) {
+    if (x === Infinity) return '∞';
+    if (x === -Infinity) return '−∞';
     if (typeof x !== 'number' || !isFinite(x)) return '—';
     var d = (dec === undefined || dec === null) ? null : dec;
     if (f === 'int') return fijo(Math.round(x), 0);
@@ -167,7 +169,13 @@
   }
   $$('.cx-calc[data-calc]').forEach(function (fig) {
     var spec; try { spec = JSON.parse(fig.getAttribute('data-calc')); } catch (e) { return; }
-    var ins = $$('[data-id]', fig), pre = fig.querySelector('[data-preajuste]'), preNota = fig.querySelector('[data-preajuste-nota]');
+    var ins = $$('[data-id]', fig), pres = $$('[data-preajuste]', fig);
+    var listas = spec.preajustes || [];   // una lista por selector: modelo, GPU, API…
+    function correr(v) {
+      spec.calculos.forEach(function (c) { var ks = Object.keys(v); v[c.id] = compilar(c.formula, ks).apply(null, ks.map(function (k) { return v[k]; })); });
+      var ks = Object.keys(v), vals = ks.map(function (k) { return v[k]; });
+      return function (f) { try { return compilar(f, ks).apply(null, vals); } catch (e) { return NaN; } };
+    }
     function recalcular() {
       var v = {};
       ins.forEach(function (i) {
@@ -178,15 +186,14 @@
         var paso = String(i.step || ''), dec = paso.indexOf('.') >= 0 ? paso.split('.')[1].length : 0;
         if (o) o.textContent = formatear(v[id], 'num', dec) + (e.unidad ? ' ' + e.unidad : '');
       });
-      spec.calculos.forEach(function (c) { var ks = Object.keys(v); v[c.id] = compilar(c.formula, ks).apply(null, ks.map(function (k) { return v[k]; })); });
-      var ks = Object.keys(v), vals = ks.map(function (k) { return v[k]; });
-      var evalua = function (f) { try { return compilar(f, ks).apply(null, vals); } catch (e) { return NaN; } };
+      var base = {}; Object.keys(v).forEach(function (k) { base[k] = v[k]; });
+      var evalua = correr(v);
       var ys = spec.salidas.map(function (s) { return evalua(s.formula); });
       var maxB = 1e-12;
       spec.salidas.forEach(function (s, k) { if (s.barra && s.formato !== 'pct' && isFinite(ys[k])) maxB = Math.max(maxB, Math.abs(ys[k])); });
       spec.salidas.forEach(function (s, k) {
         var el = fig.querySelector('[data-salida="' + k + '"]');
-        if (el) el.textContent = s.veredicto ? (ys[k] >= 0 ? s.veredicto.si : s.veredicto.no) : formatear(ys[k], s.formato, s.decimales);
+        if (el) el.textContent = s.veredicto ? (ys[k] >= 0 ? s.veredicto.si : s.veredicto.no) : (s.sinValor && !isFinite(ys[k])) ? s.sinValor : formatear(ys[k], s.formato, s.decimales);
         if (s.veredicto) { var caja = fig.querySelector('[data-caja="' + k + '"]'); if (caja) { caja.classList.toggle('cx-out--si', ys[k] >= 0); caja.classList.toggle('cx-out--no', !(ys[k] >= 0)); } }
         var b = fig.querySelector('[data-barra="' + k + '"]');
         if (b) { var w = s.formato === 'pct' ? ys[k] : Math.abs(ys[k]) / maxB; b.style.width = (Math.max(0, Math.min(1, isFinite(w) ? w : 0)) * 100).toFixed(1) + '%'; }
@@ -195,21 +202,102 @@
           if (sp) sp.textContent = formatear(evalua(t.expr), t.fmt, t.dec);
         });
       });
+      // la tabla de «comparar»: una fila por opción de su lista, con los controles de ahora
+      var cm = spec.comparar, cuerpo = fig.querySelector('[data-comparar]');
+      if (cm && cuerpo && listas[cm.lista]) {
+        var sel = pres[cm.lista] ? parseInt(pres[cm.lista].value, 10) : -1;
+        var filas = listas[cm.lista].map(function (o, k) {
+          var w = {}; Object.keys(base).forEach(function (q) { w[q] = base[q]; });
+          Object.keys(o.valores).forEach(function (q) { w[q] = o.valores[q]; });
+          var ev = correr(w);
+          return { k: k, label: o.label, ys: cm.columnas.map(function (col) { return ev(col.formula); }) };
+        });
+        var sg = cm.desc ? -1 : 1;
+        if (cm.orden !== null && cm.orden !== undefined) filas.sort(function (a, b) { var x = sg * a.ys[cm.orden], y = sg * b.ys[cm.orden]; return (isFinite(x) ? x : Infinity) - (isFinite(y) ? y : Infinity); });
+        var trs = filas.map(function (f) {
+          var tr = document.createElement('tr'); tr.setAttribute('data-fila', f.k); if (f.k === sel) tr.className = 'is-sel';
+          var th = document.createElement('th'); th.scope = 'row'; th.textContent = f.label; tr.appendChild(th);
+          f.ys.forEach(function (y, j) { var td = document.createElement('td'); td.textContent = formatear(y, cm.columnas[j].formato, cm.columnas[j].decimales); tr.appendChild(td); });
+          return tr;
+        });
+        cuerpo.replaceChildren.apply(cuerpo, trs);
+      }
     }
     ins.forEach(function (i) {
-      var mover = function () { if (pre) { pre.value = '-1'; if (preNota) preNota.innerHTML = ''; } recalcular(); };
+      var mover = function () {
+        // mover un control a mano suelta solo las listas cuyo preajuste elegido ponía ese control
+        var id = i.getAttribute('data-id');
+        pres.forEach(function (pre) {
+          var j = parseInt(pre.getAttribute('data-preajuste'), 10) || 0, p = (listas[j] || [])[parseInt(pre.value, 10)];
+          if (p && Object.prototype.hasOwnProperty.call(p.valores, id)) { pre.value = '-1'; var n = fig.querySelector('[data-preajuste-nota="' + j + '"]'); if (n) n.innerHTML = ''; }
+        });
+        recalcular();
+      };
       i.addEventListener('input', mover);
       if (i.tagName === 'SELECT') i.addEventListener('change', mover);
     });
     // un preajuste pone varios controles de una vez y dice de dónde salen sus números
-    if (pre && spec.preajustes) pre.addEventListener('change', function () {
-      var p = spec.preajustes[parseInt(pre.value, 10)];
-      if (!p) return;
-      ins.forEach(function (i) { var id = i.getAttribute('data-id'); if (Object.prototype.hasOwnProperty.call(p.valores, id)) i.value = String(p.valores[id]); });
-      if (preNota) preNota.innerHTML = p.nota || '';
-      recalcular();
+    pres.forEach(function (pre) {
+      var j = parseInt(pre.getAttribute('data-preajuste'), 10) || 0;
+      pre.addEventListener('change', function () {
+        var p = (listas[j] || [])[parseInt(pre.value, 10)];
+        if (!p) return;
+        ins.forEach(function (i) { var id = i.getAttribute('data-id'); if (Object.prototype.hasOwnProperty.call(p.valores, id)) i.value = String(p.valores[id]); });
+        var n = fig.querySelector('[data-preajuste-nota="' + j + '"]'); if (n) n.innerHTML = p.nota || '';
+        recalcular();
+      });
     });
     fig.classList.add('is-viva');
+  });
+
+
+  // ------------------------------------------------------------ el catálogo de hardware (tools/catalogo.mjs lo dibuja completo)
+  $$('[data-catalogo]').forEach(function (cat) {
+    var tabla = cat.querySelector('.cat-tabla'), cuerpo = tabla && tabla.tBodies[0];
+    if (!cuerpo) return;
+    var filas = Array.prototype.slice.call(cuerpo.rows), n = cat.querySelector('[data-cat-n]');
+    var f = { fab: '', seg: '', vram: 0, precio: false, texto: '' };
+    function filtrar() {
+      var vis = 0;
+      filas.forEach(function (tr) {
+        var ok = (!f.fab || tr.getAttribute('data-fab') === f.fab) && (!f.seg || tr.getAttribute('data-seg') === f.seg) &&
+          parseFloat(tr.getAttribute('data-vram')) >= f.vram && (!f.precio || tr.getAttribute('data-precio') === '1') &&
+          (!f.texto || tr.getAttribute('data-texto').indexOf(f.texto) >= 0);
+        tr.hidden = !ok; if (ok) vis++;
+      });
+      if (n) n.textContent = vis;
+    }
+    $$('.cat-chip', cat).forEach(function (b) {
+      b.addEventListener('click', function () {
+        var k = b.getAttribute('data-f');
+        $$('.cat-chip[data-f="' + k + '"]', cat).forEach(function (o) { o.classList.toggle('is-on', o === b); o.setAttribute('aria-pressed', o === b ? 'true' : 'false'); });
+        f[k] = b.getAttribute('data-val'); filtrar();
+      });
+    });
+    var sv = cat.querySelector('select[data-f="vram"]'), ck = cat.querySelector('input[data-f="precio"]'), tx = cat.querySelector('input[data-f="texto"]');
+    if (sv) sv.addEventListener('change', function () { f.vram = parseFloat(sv.value) || 0; filtrar(); });
+    if (ck) ck.addEventListener('change', function () { f.precio = ck.checked; filtrar(); });
+    if (tx) tx.addEventListener('input', function () { f.texto = tx.value.trim().toLowerCase(); filtrar(); });
+    // ordenar: un toque, de mayor a menor (texto: A→Z); otro toque, al revés; las celdas sin dato siempre al final
+    var col = -1, desc = true;
+    $$('.cat-orden', cat).forEach(function (b) {
+      b.addEventListener('click', function () {
+        var k = parseInt(b.getAttribute('data-col'), 10), texto = b.getAttribute('data-tipo') === 'texto';
+        desc = k === col ? !desc : !texto; col = k;
+        var val = function (tr) { var c = tr.cells[k], v = c && c.getAttribute('data-v'); return texto ? (v || '') : (v === '' || v === null ? null : parseFloat(v)); };
+        filas.sort(function (a, z) {
+          var x = val(a), y = val(z);
+          if (texto) return desc ? y.localeCompare(x, 'es') : x.localeCompare(y, 'es');
+          if (x === null) return y === null ? 0 : 1;
+          if (y === null) return -1;
+          return desc ? y - x : x - y;
+        });
+        filas.forEach(function (tr) { cuerpo.appendChild(tr); });
+        $$('.cat-orden', cat).forEach(function (o) { var th = o.parentNode; th.removeAttribute('aria-sort'); o.classList.remove('is-asc', 'is-desc'); });
+        b.parentNode.setAttribute('aria-sort', desc ? 'descending' : 'ascending'); b.classList.add(desc ? 'is-desc' : 'is-asc');
+      });
+    });
+    cat.classList.add('is-vivo');
   });
 
   // ------------------------------------------------------------ el globo

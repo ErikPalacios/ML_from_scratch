@@ -1,6 +1,6 @@
 {
-  "nota": "Datos de GPUs para Sensei (lección maquinas) y las calculadoras de IA Privada. Especificaciones de la hoja de datos del fabricante; precios on-demand por hora, en US$, sin impuestos. Los precios cambian: cada uno trae su fecha y fuente. Cómputo en TFLOPS/TOPS DENSOS (sin sparsity); donde el fabricante publica 'con sparsity' se dividió entre 2 y se dice en notas. GB = 10^9 bytes en VRAM y ancho de banda; las GiB de RAM de AWS/Azure son 2^30. 'anio' = año del anuncio oficial del fabricante (no el de las primeras entregas).",
-  "actualizado": "2026-11-13",
+  "nota": "Datos de GPUs para Sensei (lección maquinas) y las calculadoras de IA Privada. Especificaciones de la hoja de datos del fabricante; precios on-demand por hora, en US$, sin impuestos; 'compra_usd' es un precio de compra de referencia por tarjeta o equipo (detalle, fecha y fuente en 'compra_detalle'; en las SXM es el precio de un servidor de 8 GPUs entre 8, con todo el servidor incluido). Los precios cambian: cada uno trae su fecha y fuente. Cómputo en TFLOPS/TOPS DENSOS (sin sparsity); donde el fabricante publica 'con sparsity' se dividió entre 2 y se dice en notas. GB = 10^9 bytes en VRAM y ancho de banda; las GiB de RAM de AWS/Azure son 2^30. 'anio' = año del anuncio oficial del fabricante (no el de las primeras entregas). Equipos de memoria unificada (Apple, DGX Spark): 'vram_gb' es toda su memoria, compartida con la CPU. Servidores completos con precio: equipos.json, al lado.",
+  "actualizado": "2026-11-25",
   "moneda": "USD",
   "horas_mes": 730,
   "gpus": [
@@ -102,7 +102,22 @@
           "nota": "Solo el precio de la GPU (US$0.35/h); la VM N1 que la hospeda se suma. No verifiqué el precio de esa VM."
         }
       ],
-      "compra_usd": null
+      "compra_usd": 1920,
+      "compra_detalle": {
+        "descripcion": "Solo reacondicionada (refurbished): IT Creations pide cotización y su dato estructurado dice US$1,920 (modelo PNY/NVIDIA) y US$2,098.50 (versión HP). Newegg y otras tiendas bloquearon la descarga hoy, así que no verifiqué precios nuevos; una búsqueda sugería ≈ US$900 en Newegg, sin confirmar. La T4 es de 2018: ya no se fabrica y casi todo lo que se vende es de segunda mano.",
+        "fuente": {
+          "url": "https://www.itcreations.com/product/123397",
+          "consultado": "2026-11-25",
+          "fuente_tipo": "secundaria"
+        },
+        "fuente_extra": [
+          {
+            "url": "https://www.itcreations.com/product/125283",
+            "consultado": "2026-11-25",
+            "fuente_tipo": "secundaria"
+          }
+        ]
+      }
     },
     {
       "id": "l4",
@@ -203,7 +218,15 @@
           "usd_gpu_hora_community": 0.44
         }
       ],
-      "compra_usd": null
+      "compra_usd": 3624,
+      "compra_detalle": {
+        "descripcion": "Sin listado de tienda grande verificable (CDW y Newegg bloquearon la descarga). Referencia: promedio de los 3 listados más baratos de eBay por día en nov-2026 según GPU Poet = US$3,624 (rango diario 3,189-3,970; mezcla nuevas y usadas); GPU Poet estima un MSRP de ≈ US$7,000 'según listas de OEM' (NVIDIA no publica precio). Precio de mercado secundario, volátil.",
+        "fuente": {
+          "url": "https://gpupoet.com/gpu/learn/price/november-2026/nvidia-l4",
+          "consultado": "2026-11-25",
+          "fuente_tipo": "secundaria"
+        }
+      }
     },
     {
       "id": "a10g",
@@ -272,7 +295,11 @@
           }
         }
       ],
-      "compra_usd": null
+      "compra_usd": null,
+      "compra_detalle": {
+        "descripcion": "La A10G es una variante exclusiva de AWS (instancias G5): no se vende como tarjeta suelta. Para compra, la GPU comparable es la A10 (no incluida en gpus.json).",
+        "fuente": null
+      }
     },
     {
       "id": "l40s",
@@ -372,7 +399,37 @@
           "usd_gpu_hora_community": 0.79
         }
       ],
-      "compra_usd": null
+      "compra_usd": 9005,
+      "compra_detalle": {
+        "descripcion": "Nueva en empaque OEM (new bulk), PCIe 4.0: US$9,005.40 en IT Creations (dato estructurado; la página pide cotización). Otros precios vistos hoy: reacondicionada US$6,420 (HP) y US$11,995; promedio eBay de los 3 más baratos por día US$7,572 (rango 7,082-8,516, GPU Poet); integrador Exxact cobra +US$8,910 por L40S sobre el chasis base 4U (configurador). Rango razonable: US$7,500-12,000.",
+        "fuente": {
+          "url": "https://www.itcreations.com/product/161803",
+          "consultado": "2026-11-25",
+          "fuente_tipo": "secundaria"
+        },
+        "fuente_extra": [
+          {
+            "url": "https://www.itcreations.com/product/150916",
+            "consultado": "2026-11-25",
+            "fuente_tipo": "secundaria"
+          },
+          {
+            "url": "https://www.itcreations.com/product/146130",
+            "consultado": "2026-11-25",
+            "fuente_tipo": "secundaria"
+          },
+          {
+            "url": "https://gpupoet.com/gpu/learn/price/november-2026/nvidia-l40s",
+            "consultado": "2026-11-25",
+            "fuente_tipo": "secundaria"
+          },
+          {
+            "url": "https://configurator.exxactcorp.com/configure/TS4-115581668",
+            "consultado": "2026-11-25",
+            "fuente_tipo": "secundaria"
+          }
+        ]
+      }
     },
     {
       "id": "a100-40gb",
@@ -471,7 +528,22 @@
           }
         }
       ],
-      "compra_usd": null
+      "compra_usd": 12450,
+      "compra_detalle": {
+        "descripcion": "Solo se encontró la versión PCIe de 40 GB (la SXM4 solo viene en baseboards HGX): US$12,450 en IT Creations, tanto 'new bulk' como reacondicionada (dato estructurado; la página pide cotización). Tarjeta de 2020, ya sin producción: inventario sobrante.",
+        "fuente": {
+          "url": "https://www.itcreations.com/product/132515",
+          "consultado": "2026-11-25",
+          "fuente_tipo": "secundaria"
+        },
+        "fuente_extra": [
+          {
+            "url": "https://www.itcreations.com/product/132516",
+            "consultado": "2026-11-25",
+            "fuente_tipo": "secundaria"
+          }
+        ]
+      }
     },
     {
       "id": "a100-80gb",
@@ -646,7 +718,32 @@
           "usd_gpu_hora_community": 1.19
         }
       ],
-      "compra_usd": null
+      "compra_usd": 24990,
+      "compra_detalle": {
+        "descripcion": "Versión PCIe de 80 GB (la SXM4 no se vende suelta). IT Creations: US$24,990 nueva en bulk (699-21001-0230-601), US$29,500 nueva en bulk (otro SKU), US$28,995 reacondicionada, US$25,950 usada (datos estructurados; piden cotización). Rango visto: US$24,990-29,500. Producto descontinuado: el precio de mercado depende del inventario.",
+        "fuente": {
+          "url": "https://www.itcreations.com/product/156768",
+          "consultado": "2026-11-25",
+          "fuente_tipo": "secundaria"
+        },
+        "fuente_extra": [
+          {
+            "url": "https://www.itcreations.com/product/132309",
+            "consultado": "2026-11-25",
+            "fuente_tipo": "secundaria"
+          },
+          {
+            "url": "https://www.itcreations.com/product/132310",
+            "consultado": "2026-11-25",
+            "fuente_tipo": "secundaria"
+          },
+          {
+            "url": "https://www.itcreations.com/product/132311",
+            "consultado": "2026-11-25",
+            "fuente_tipo": "secundaria"
+          }
+        ]
+      }
     },
     {
       "id": "h100-sxm",
@@ -802,7 +899,15 @@
           "usd_gpu_hora_community": 2.69
         }
       ],
-      "compra_usd": null
+      "compra_usd": 38269,
+      "compra_detalle": {
+        "descripcion": "No se vende suelta: la SXM5 viene en la baseboard HGX de 8 GPUs. Precio IMPLÍCITO por GPU = US$306,152 / 8 = US$38,269, tomado del servidor Exxact TensorEX 6U con 8× H100 SXM (configurador, nivel Essential, con 2× Xeon Platinum 8558P y 1.5 TB de RAM). Es un TECHO: incluye CPUs, memoria, NVSwitch, chasis y fuentes. Sin impuestos.",
+        "fuente": {
+          "url": "https://configurator.exxactcorp.com/configure/TS4-155878578",
+          "consultado": "2026-11-25",
+          "fuente_tipo": "secundaria"
+        }
+      }
     },
     {
       "id": "h100-nvl",
@@ -885,7 +990,15 @@
           "usd_gpu_hora_community": 2.59
         }
       ],
-      "compra_usd": null
+      "compra_usd": 59500,
+      "compra_detalle": {
+        "descripcion": "Una tarjeta H100 NVL de 94 GB 'new bulk' en IT Creations: US$59,500 (dato estructurado; pide cotización); un listado relacionado mostraba US$59,450. Precio de revendedor, probablemente muy por encima de lo que pagaría un cliente OEM; NVIDIA no publica lista.",
+        "fuente": {
+          "url": "https://www.itcreations.com/product/146335",
+          "consultado": "2026-11-25",
+          "fuente_tipo": "secundaria"
+        }
+      }
     },
     {
       "id": "h100-pcie",
@@ -899,15 +1012,15 @@
       "memoria": "HBM2e",
       "ancho_banda_gbs": 2000,
       "potencia_w": 350,
-      "fp16_tflops_denso": null,
-      "fp8_tflops_denso": null,
-      "int8_tops_denso": null,
+      "fp16_tflops_denso": 756.5,
+      "fp8_tflops_denso": 1513,
+      "int8_tops_denso": 1513,
       "bf16": true,
       "fp8": true,
       "fp4": false,
       "mig": 7,
       "interconexion": "PCIe Gen5; puentes NVLink",
-      "notas": "Salió de la página actual de NVIDIA (la reemplazó la NVL). Memoria, ancho de banda 2,000 GB/s, 350 W y MIG vienen del product brief PB-11133-001 (nov-2022); ese documento no trae TFLOPS, así que van en null. Se sigue rentando (Lambda, RunPod).",
+      "notas": "Salió de la página actual de NVIDIA (la reemplazó la NVL). Memoria, ancho de banda 2,000 GB/s, 350 W y MIG vienen del product brief PB-11133-001 (nov-2022); ese documento no trae TFLOPS, así que van en null. Se sigue rentando (Lambda, RunPod). fp16_tflops_denso = 756.5: Hoja de datos de NVIDIA H100 (copia distribuida por PNY, 3 páginas): FP16/BF16 Tensor Core = 1,513 TFLOPS con asterisco (con sparsity). Denso = 1,513 / 2 = 756.5. (fuente: https://www.pny.com/file%20library/company/support/product%20brochures/nvidia%20data%20center%20gpus/nvidia-h100-datasheet.pdf, consultado 2026-11-25). fp8_tflops_denso = 1513: Misma hoja: FP8 Tensor Core = 3,026 TFLOPS con sparsity; denso = 3,026 / 2 = 1,513. (INT8 también 3,026 con sparsity → 1,513 TOPS densos.) (fuente: https://www.pny.com/file%20library/company/support/product%20brochures/nvidia%20data%20center%20gpus/nvidia-h100-datasheet.pdf, consultado 2026-11-25). int8_tops_denso = 1513: Misma hoja: INT8 Tensor Core = 3,026 TOPS con sparsity; denso = 1,513. (fuente: https://www.pny.com/file%20library/company/support/product%20brochures/nvidia%20data%20center%20gpus/nvidia-h100-datasheet.pdf, consultado 2026-11-25).",
       "fuente": {
         "url": "https://www.nvidia.com/content/dam/en-zz/Solutions/gtcs22/data-center/h100/PB-11133-001_v01.pdf",
         "consultado": "2026-11-13",
@@ -953,7 +1066,27 @@
           "usd_gpu_hora_community": 1.99
         }
       ],
-      "compra_usd": null
+      "compra_usd": 28995,
+      "compra_detalle": {
+        "descripcion": "H100 PCIe 80 GB 'new bulk': US$28,995 en IT Creations (dato estructurado; pide cotización). Supermicro Store muestra un precio original de US$27,295.40 con la etiqueta 'agotado'. GPU Poet: promedio de los 3 listados más baratos de eBay US$38,777 (rango 35,545-40,070). Rango visto: US$27,000-39,000.",
+        "fuente": {
+          "url": "https://www.itcreations.com/product/141629",
+          "consultado": "2026-11-25",
+          "fuente_tipo": "secundaria"
+        },
+        "fuente_extra": [
+          {
+            "url": "https://store.supermicro.com/us_en/supermicro-nvidia-h100-pcie-gen-5-0-x16-graphics-card-gpu-nvh100-80.html",
+            "consultado": "2026-11-25",
+            "fuente_tipo": "secundaria"
+          },
+          {
+            "url": "https://gpupoet.com/gpu/learn/price/november-2026/nvidia-h100-pcie",
+            "consultado": "2026-11-25",
+            "fuente_tipo": "secundaria"
+          }
+        ]
+      }
     },
     {
       "id": "h200",
@@ -1055,7 +1188,15 @@
           "usd_gpu_hora_community": 3.59
         }
       ],
-      "compra_usd": null
+      "compra_usd": 40066,
+      "compra_detalle": {
+        "descripcion": "No se vende suelta en SXM: va en la baseboard HGX de 8 GPUs. Precio IMPLÍCITO por GPU = US$320,528.23 / 8 = US$40,066, del Supermicro SYS-821GE-TNHR (8U, 8× H200 141 GB) con precio 'desde' en la tienda de Supermicro, en stock. Es un TECHO: incluye 2 CPUs Xeon, memoria, almacenamiento y fuentes de 6× 3000 W. Sin impuestos.",
+        "fuente": {
+          "url": "https://store.supermicro.com/us_en/8u-gpu-superserver-sys-821ge-tnhr.html",
+          "consultado": "2026-11-25",
+          "fuente_tipo": "oficial"
+        }
+      }
     },
     {
       "id": "b200",
@@ -1158,8 +1299,16 @@
           "usd_gpu_hora_community": 5.98
         }
       ],
-      "compra_usd": null,
-      "nota_nube": "Google Cloud (a4-highgpu-8g, 8 x B200) no ofrece precio on-demand en la página de hoy: solo Flex-start (US$64.44/h, 8.06 por GPU), calendario, spot y compromisos. Azure no lista B200 suelta (solo GB200). Por eso no hay fila para ninguno."
+      "compra_usd": 55905,
+      "nota_nube": "Google Cloud (a4-highgpu-8g, 8 x B200) no ofrece precio on-demand en la página de hoy: solo Flex-start (US$64.44/h, 8.06 por GPU), calendario, spot y compromisos. Azure no lista B200 suelta (solo GB200). Por eso no hay fila para ninguno.",
+      "compra_detalle": {
+        "descripcion": "No se vende suelta: va en la baseboard HGX B200 de 8 GPUs (180 GB c/u). Precio IMPLÍCITO por GPU = US$447,238 / 8 = US$55,905, del servidor Exxact TensorEX 8U HGX B200 con 2× AMD EPYC (configurador, nivel Essential; fuentes 12× 3002.4 W). Es un TECHO: incluye CPUs, RAM y chasis. Sin impuestos.",
+        "fuente": {
+          "url": "https://configurator.exxactcorp.com/configure/TS4-142487900",
+          "consultado": "2026-11-25",
+          "fuente_tipo": "secundaria"
+        }
+      }
     },
     {
       "id": "mi300x",
@@ -1196,8 +1345,8 @@
           "vcpu": 96,
           "ram_gib": 1850,
           "region": "eastus2",
-          "usd_hora_instancia": 48.0,
-          "usd_gpu_hora": 6.0,
+          "usd_hora_instancia": 48,
+          "usd_gpu_hora": 6,
           "gpu_cobrada_aparte": false,
           "fuente": {
             "url": "https://prices.azure.com/api/retail/prices?$filter=serviceName eq 'Virtual Machines' and armRegionName eq 'eastus2' and armSkuName eq 'Standard_ND96isr_MI300X_v5'",
@@ -1207,7 +1356,11 @@
           "nota": "No está en East US en la API; precio de eastus2."
         }
       ],
-      "compra_usd": null
+      "compra_usd": null,
+      "compra_detalle": {
+        "descripcion": "No encontré precio de compra verificable: AMD no publica lista y las tiendas de servidores que podrían tenerlo (servermall) bloquearon la descarga. Se vende en servidores OAM de 8 GPUs por cotización.",
+        "fuente": null
+      }
     },
     {
       "id": "rtx-4090",
@@ -1223,13 +1376,13 @@
       "potencia_w": 450,
       "fp16_tflops_denso": 165.2,
       "fp8_tflops_denso": 330.3,
-      "int8_tops_denso": 330.3,
+      "int8_tops_denso": 660.6,
       "bf16": true,
       "fp8": true,
       "fp4": false,
       "mig": 0,
       "interconexion": "PCIe Gen4 x16; sin NVLink",
-      "notas": "Whitepaper de Ada: FP16/BF16 tensor con acumulación FP32 = 165.2 TFLOPS denso (330.4 con sparsity); con acumulación FP16 sube al doble (330.3), un modo que no sirve para entrenar. FP8 con acumulación FP32: 330.3 denso (660.6 con sparsity). La página del producto da 1,321 AI TOPS (FP8, sparse). TGP 450 W. Su licencia de GeForce prohíbe el uso en centros de datos.",
+      "notas": "Whitepaper de Ada: FP16/BF16 tensor con acumulación FP32 = 165.2 TFLOPS denso (330.4 con sparsity); con acumulación FP16 sube al doble (330.3), un modo que no sirve para entrenar. FP8 con acumulación FP32: 330.3 denso (660.6 con sparsity). La página del producto da 1,321 AI TOPS (FP8, sparse). TGP 450 W. Su licencia de GeForce prohíbe el uso en centros de datos. Corregido 2026-11-25: INT8 denso = 660.6 TOPS (1,321.2 con sparsity) según la tabla del whitepaper de Ada (https://images.nvidia.com/aem-dam/Solutions/Data-Center/l4/nvidia-ada-gpu-architecture-whitepaper-v2.1.pdf); antes decía 330.3, que es el FP8 con acumulación FP32.",
       "fuente": {
         "url": "https://images.nvidia.com/aem-dam/Solutions/Data-Center/l4/nvidia-ada-gpu-architecture-whitepaper-v2.1.pdf",
         "consultado": "2026-11-13",
@@ -1265,17 +1418,19 @@
       ],
       "compra_usd": 3400,
       "compra_detalle": {
-        "descripcion": "Aproximado y muy volátil. ≈ US$3,300-3,400: mediana de 12 meses en gpuprix (US$3,300; mínimo US$2,110) y promedio de los 3 listados más baratos de eBay en nov-2026 según gpupoet (US$3,424; entre 3,133 y 3,816; nuevas y usadas mezcladas). El listado NUEVO más barato que muestra gpuprix hoy es una ASUS ROG Strix OC en Amazon a US$4,800: un modelo premium, no representativo (antes estaba aquí como 'compra_usd'). Usadas desde ≈ US$1,700. Dejó de fabricarse a fines de 2024 (reportes de prensa): lo nuevo es inventario sobrante. MSRP de lanzamiento US$1,599: hoy ≈ 2x el MSRP, no 3x.",
+        "descripcion": "Re-chequeo: sin cambio material. gpuprix (25-nov-2026): nueva más barata US$4,400 (Gigabyte Aero OC en Amazon), mediana de 12 meses US$3,350 y de 3 meses US$3,450. GPU Poet: promedio de los 3 listados más baratos de eBay US$3,331 (3,133-3,816). Se mantiene ≈ US$3,300-3,400 (mezcla nuevas/usadas; lo nuevo cuesta más). Dejó de fabricarse.",
         "fuente": {
           "url": "https://gpuprix.com/us/gpus/geforce-rtx-4090",
-          "consultado": "2026-11-13",
+          "consultado": "2026-11-25",
           "fuente_tipo": "secundaria"
         },
-        "fuente_extra": {
-          "url": "https://gpupoet.com/gpu/learn/price/november-2026/nvidia-geforce-rtx-4090",
-          "consultado": "2026-11-13",
-          "fuente_tipo": "secundaria"
-        }
+        "fuente_extra": [
+          {
+            "url": "https://gpupoet.com/gpu/learn/price/november-2026/nvidia-geforce-rtx-4090",
+            "consultado": "2026-11-25",
+            "fuente_tipo": "secundaria"
+          }
+        ]
       }
     },
     {
@@ -1290,7 +1445,7 @@
       "memoria": "GDDR6 con ECC",
       "ancho_banda_gbs": 960,
       "potencia_w": 300,
-      "fp16_tflops_denso": null,
+      "fp16_tflops_denso": 364,
       "fp8_tflops_denso": 728.5,
       "int8_tops_denso": null,
       "bf16": true,
@@ -1298,7 +1453,7 @@
       "fp4": false,
       "mig": 0,
       "interconexion": "PCIe Gen4 x16; sin NVLink",
-      "notas": "La hoja de datos solo publica 'Tensor performance 1,457 TFLOPS' = FP8 con sparsity; denso = 728.5. FP16 tensor no está publicado en la hoja (por el patrón del whitepaper de Ada, con acumulación FP16 sería la mitad del FP8, ≈ 364, y con FP32 la mitad de eso; no verificado). Total board power 300 W.",
+      "notas": "La hoja de datos solo publica 'Tensor performance 1,457 TFLOPS' = FP8 con sparsity; denso = 728.5. FP16 tensor no está publicado en la hoja (por el patrón del whitepaper de Ada, con acumulación FP16 sería la mitad del FP8, ≈ 364, y con FP32 la mitad de eso; no verificado). Total board power 300 W. fp16_tflops_denso = 364: Whitepaper 'NVIDIA RTX Blackwell GPU Architecture' v1.1 (2025), Tabla 4 (apéndice A), columna RTX 6000 Ada: Peak FP16 Tensor 364/728 (denso/con sparsity); BF16 364; FP8 728.5/1,457 (coincide con la hoja de la RTX 6000 Ada: 1,457 con sparsity). Valores a boost clock; la tabla se extrajo de un PDF con columnas desordenadas, pero la relación FP8:FP16 = 2:1 y el 728.5 ya usado en gpus.json cuadran. (fuente: https://www.nvidia.com/content/dam/en-zz/Solutions/design-visualization/quadro-product-literature/pdf/NVIDIA-RTX-Blackwell-PRO-GPU-Architecture-v1_1.pdf, consultado 2026-11-25).",
       "fuente": {
         "url": "https://www.nvidia.com/en-us/design-visualization/rtx-6000/",
         "consultado": "2026-11-13",
@@ -1332,10 +1487,21 @@
           "usd_gpu_hora_community": 0.74
         }
       ],
-      "compra_usd": null,
+      "compra_usd": 9100,
       "compra_detalle": {
-        "descripcion": "No pude abrir ningún precio vigente de una tienda grande (CDW y Thinkmate bloquearon la descarga); en búsquedas aparecen ≈ US$8,700-9,000 en EE. UU., sin verificar.",
-        "fuente": null
+        "descripcion": "B&H muestra US$7,499 nueva pero AGOTADA (gpuprix, único listado nuevo hoy; MSRP de lanzamiento US$6,800). En el mercado secundario: promedio de los 3 listados más baratos de eBay US$9,103 (rango diario 7,550-10,829; un 'deal' desde US$7,999, GPU Poet). Se usa US$9,100 como precio de mercado alcanzable; CDW/Newegg/Thinkmate bloquearon la descarga.",
+        "fuente": {
+          "url": "https://gpuprix.com/us/gpus/rtx-6000-ada-generation",
+          "consultado": "2026-11-25",
+          "fuente_tipo": "secundaria"
+        },
+        "fuente_extra": [
+          {
+            "url": "https://gpupoet.com/gpu/learn/price/november-2026/nvidia-rtx-6000-ada-generation",
+            "consultado": "2026-11-25",
+            "fuente_tipo": "secundaria"
+          }
+        ]
       }
     },
     {
@@ -1350,16 +1516,16 @@
       "memoria": "GDDR7 con ECC",
       "ancho_banda_gbs": 1792,
       "potencia_w": 600,
-      "fp16_tflops_denso": null,
-      "fp8_tflops_denso": null,
-      "fp4_tflops_denso": 2000,
-      "int8_tops_denso": null,
+      "fp16_tflops_denso": 503.8,
+      "fp8_tflops_denso": 1007.6,
+      "fp4_tflops_denso": 2015.2,
+      "int8_tops_denso": 1007.6,
       "bf16": true,
       "fp8": true,
       "fp4": true,
       "mig": 4,
       "interconexion": "PCIe Gen5 x16; sin NVLink",
-      "notas": "La página y la hoja de datos solo publican 4,000 AI TOPS = FP4 con sparsity; denso = 2,000. FP8 y FP16 no están publicados. MIG: hasta 4 instancias de 24 GB (hoja de datos). 600 W; existen variantes Max-Q de menor potencia.",
+      "notas": "La página y la hoja de datos solo publican 4,000 AI TOPS = FP4 con sparsity; denso = 2,000. FP8 y FP16 no están publicados. MIG: hasta 4 instancias de 24 GB (hoja de datos). 600 W; existen variantes Max-Q de menor potencia. fp16_tflops_denso = 503.8: Mismo whitepaper, Tabla 4, columna RTX PRO 6000 Blackwell Workstation Edition (600 W): Peak FP16 Tensor 503.8/1,007.6 (denso/con sparsity), igual para BF16. Con acumulación FP32 (en las tarjetas profesionales corre a toda velocidad). Valores a boost clock 2,617 MHz. Nota: el Max-Q (300 W) publica 438.9 denso. (fuente: https://www.nvidia.com/content/dam/en-zz/Solutions/design-visualization/quadro-product-literature/pdf/NVIDIA-RTX-Blackwell-PRO-GPU-Architecture-v1_1.pdf, consultado 2026-11-25). fp8_tflops_denso = 1007.6: Mismo whitepaper: Peak FP8 Tensor 1,007.6/2,015.2 (denso/con sparsity). (fuente: https://www.nvidia.com/content/dam/en-zz/Solutions/design-visualization/quadro-product-literature/pdf/NVIDIA-RTX-Blackwell-PRO-GPU-Architecture-v1_1.pdf, consultado 2026-11-25). int8_tops_denso = 1007.6: Mismo whitepaper: Peak INT8 Tensor 1,007.6/2,015.2 TOPS (denso/con sparsity). (fuente: https://www.nvidia.com/content/dam/en-zz/Solutions/design-visualization/quadro-product-literature/pdf/NVIDIA-RTX-Blackwell-PRO-GPU-Architecture-v1_1.pdf, consultado 2026-11-25). fp4_tflops_denso: 2,015.2 según la tabla 4 del whitepaper NVIDIA RTX Blackwell PRO v1.1 (la página de producto redondea a 4,000 AI TOPS con sparsity); antes decía 2000.",
       "fuente": {
         "url": "https://www.nvidia.com/en-us/products/workstations/professional-desktop-gpus/rtx-pro-6000/",
         "consultado": "2026-11-13",
@@ -1413,10 +1579,466 @@
       ],
       "compra_usd": 16399,
       "compra_detalle": {
-        "descripcion": "Newegg, 'en stock', visto hoy en el agregador BuildCores. Otros listados: Amazon US$19,499.95; B&H US$3,421.95 (casi seguro un error). NVIDIA Marketplace pidió US$16,000 según Igor's Lab (14-ago-2026), no disponible. Subió desde ≈ US$8,500 en el lanzamiento. Confirmado 2026-11-13: Newegg US$16,399 en BuildCores; la NVIDIA Marketplace la lista en US$16,000 desde el 12-ago-2026 (Tom's Hardware, PCMag; antes US$13,250); precio de lanzamiento en tienda de EE. UU. US$8,565 (Tom's Hardware, 2025). gpuprix muestra hoy US$17,496 (versión Max-Q) y una mediana de 12 meses de US$10,999.",
+        "descripcion": "Workstation Edition (600 W), la de estas especificaciones: US$16,399 en Newegg, 'en stock', visto en el agregador BuildCores el 2026-11-13; la NVIDIA Marketplace la lista en US$16,000 desde el 12-ago-2026 (Tom's Hardware, PCMag). Re-chequeo 2026-11-25: el configurador de Exxact suma +US$14,080 por una Workstation Edition; gpuprix da US$16,290 como la nueva más barata, pero es la versión Max-Q (300 W, 438.9 TFLOPS FP16 densos), otra tarjeta. Subió desde ≈ US$8,500 al lanzamiento.",
         "fuente": {
           "url": "https://www.buildcores.com/products/GPU/eblltkoej/NVIDIA-RTX-PRO-6000-Blackwell-Workstation-Edition-96GB-GDDR7",
           "consultado": "2026-11-13",
+          "fuente_tipo": "secundaria"
+        },
+        "fuente_extra": [
+          {
+            "url": "https://configurator.exxactcorp.com/configure/VWS-107355433",
+            "consultado": "2026-11-25",
+            "fuente_tipo": "secundaria"
+          },
+          {
+            "url": "https://gpuprix.com/us/gpus/rtx-pro-6000-blackwell",
+            "consultado": "2026-11-25",
+            "fuente_tipo": "secundaria"
+          }
+        ]
+      }
+    },
+    {
+      "nube": [],
+      "id": "rtx-5090",
+      "nombre": "NVIDIA GeForce RTX 5090",
+      "fabricante": "NVIDIA",
+      "arquitectura": "Blackwell",
+      "anio": 2025,
+      "segmento": "workstation",
+      "formato": "PCIe Gen5 (tarjeta de consumo, 32 GB)",
+      "vram_gb": 32,
+      "memoria": "GDDR7",
+      "ancho_banda_gbs": 1792,
+      "potencia_w": 575,
+      "fp16_tflops_denso": 209.5,
+      "fp8_tflops_denso": 419,
+      "fp4_tflops_denso": 1676,
+      "int8_tops_denso": 838,
+      "bf16": true,
+      "fp8": true,
+      "fp4": true,
+      "mig": 0,
+      "interconexion": "PCIe Gen5 x16; el whitepaper no menciona NVLink",
+      "notas": "Whitepaper de GeForce RTX Blackwell, Tabla 3 (boost 2,407 MHz): FP16 tensor con acumulación FP32 = 209.5 TFLOPS denso (419 con sparsity; con acumulación FP16 sube al doble, 419, modo poco útil para entrenar, igual que la 4090); FP8 con acumulación FP32 419 denso; FP4 1,676 denso (3,352 AI TOPS con sparsity, la cifra de la página); INT8 838. 1,792 GB/s = bus de 512 bits a 28 Gbps. TGP 575 W. Los valores a boost clock salen de un PDF con tabla desordenada; la relación 4:2:1 entre FP4:FP8:FP16 cuadra.",
+      "fuente": {
+        "url": "https://images.nvidia.com/aem-dam/Solutions/geforce/blackwell/nvidia-rtx-blackwell-gpu-architecture.pdf",
+        "consultado": "2026-11-25",
+        "fuente_tipo": "oficial"
+      },
+      "fuente_extra": [
+        {
+          "url": "https://www.nvidia.com/en-us/geforce/graphics-cards/50-series/rtx-5090/",
+          "consultado": "2026-11-25",
+          "fuente_tipo": "oficial"
+        }
+      ],
+      "compra_usd": 7350,
+      "compra_detalle": {
+        "descripcion": "Precio de escasez. Muy volátil y muy por encima del MSRP de US$1,999. gpuprix (25-nov-2026): la tarjeta nueva en stock más barata es una ASUS TUF a US$7,350 (la ROG Astral a US$7,000-7,400; el propio sitio marca la inconsistencia); mediana de 3 meses US$2,000 y de 12 meses US$3,330 (fuera de rango por el salto reciente). GPU Poet: promedio de los 3 listados más baratos de eBay US$6,216 (5,866-6,643). Rango actual ≈ US$6,200-7,400.",
+        "fuente": {
+          "url": "https://gpuprix.com/us/gpus/geforce-rtx-5090",
+          "consultado": "2026-11-25",
+          "fuente_tipo": "secundaria"
+        },
+        "fuente_extra": {
+          "url": "https://gpupoet.com/gpu/learn/price/november-2026/nvidia-geforce-rtx-5090",
+          "consultado": "2026-11-25",
+          "fuente_tipo": "secundaria"
+        }
+      }
+    },
+    {
+      "nube": [],
+      "id": "dgx-spark",
+      "nombre": "NVIDIA DGX Spark (GB10, 128 GB)",
+      "fabricante": "NVIDIA",
+      "arquitectura": "Grace Blackwell (GB10)",
+      "anio": 2025,
+      "segmento": "escritorio",
+      "formato": "Mini PC de escritorio (sistema completo)",
+      "vram_gb": 128,
+      "memoria": "LPDDR5x unificada (compartida con la CPU)",
+      "ancho_banda_gbs": 273,
+      "potencia_w": 240,
+      "fp16_tflops_denso": null,
+      "fp8_tflops_denso": null,
+      "fp4_tflops_denso": 500,
+      "int8_tops_denso": null,
+      "bf16": null,
+      "fp8": null,
+      "fp4": true,
+      "mig": null,
+      "interconexion": "ConnectX-7 (según The Register); sin NVLink",
+      "notas": "128 GB LPDDR5x coherentes y UNIFICADOS: son memoria del sistema compartida entre CPU y GPU (el sistema operativo y los programas también la usan). Ancho de banda 273 GB/s, bus de 256 bits. NVIDIA publica 'hasta 1 PFLOP FP4' con sparsity (nota al pie: 'theoretical FP4 TOPS using the sparsity feature'); denso = 500 TFLOPS. No publica FP16/FP8. 240 W es la FUENTE de poder (240 Watts); el TDP del chip GB10 es 140 W. Existe una versión de 64 GB solo vía socios OEM (≈ US$4,999 anunciado).",
+      "fuente": {
+        "url": "https://www.nvidia.com/en-us/products/workstations/dgx-spark/",
+        "consultado": "2026-11-25",
+        "fuente_tipo": "oficial"
+      },
+      "fuente_extra": [
+        {
+          "url": "https://www.theregister.com/a/5300622",
+          "consultado": "2026-11-25",
+          "fuente_tipo": "secundaria"
+        }
+      ],
+      "compra_usd": 6950,
+      "compra_detalle": {
+        "descripcion": "US$6,950 por la DGX Spark de 128 GB: NVIDIA subió el precio el 2-oct-2026 según The Register (antes US$3,999 al lanzamiento en oct-2025 y US$4,699 desde feb-2026, según notas de prensa). La página de NVIDIA no muestra precio y NVIDIA Marketplace no abrió hoy. El almacenamiento del modelo a US$6,950 no se especifica en la nota. ASUS Ascent GX10 (mismo chip, 128 GB, 1 TB) US$5,999 el 26-oct-2026 según openclawdc.",
+        "fuente": {
+          "url": "https://www.theregister.com/a/5300622",
+          "consultado": "2026-11-25",
+          "fuente_tipo": "secundaria"
+        },
+        "fuente_extra": {
+          "url": "https://openclawdc.com/gear/dgx-spark/",
+          "consultado": "2026-11-25",
+          "fuente_tipo": "secundaria"
+        }
+      }
+    },
+    {
+      "nube": [],
+      "id": "radeon-pro-w7900",
+      "nombre": "AMD Radeon PRO W7900",
+      "fabricante": "AMD",
+      "arquitectura": "RDNA 3",
+      "anio": null,
+      "segmento": "workstation",
+      "formato": "PCIe (2 ranuras, ventilador activo)",
+      "vram_gb": 48,
+      "memoria": "GDDR6 con ECC",
+      "ancho_banda_gbs": 864,
+      "potencia_w": 295,
+      "fp16_tflops_denso": 123,
+      "fp8_tflops_denso": null,
+      "int8_tops_denso": 123,
+      "bf16": null,
+      "fp8": false,
+      "fp4": false,
+      "mig": null,
+      "interconexion": "PCIe 4.0 x16; sin enlace GPU-GPU documentado en la página",
+      "notas": "Página de AMD: FP16 matricial 123 TFLOPS (sin mención de sparsity: se toma como denso), INT8 123 TOPS, INT4 245 TOPS; FP16 vectorial 61.3. TBP 295 W, PSU mínima recomendada 750 W. El año de lanzamiento no figura en la página de AMD, por eso va en null. Ecosistema ROCm.",
+      "fuente": {
+        "url": "https://www.amd.com/en/products/graphics/workstations/radeon-pro/w7900.html",
+        "consultado": "2026-11-25",
+        "fuente_tipo": "oficial"
+      },
+      "compra_usd": 3999,
+      "compra_detalle": {
+        "descripcion": "US$3,999 nueva en B&H según gpuprix (25-nov-2026); mediana y mínimo de 12 meses US$3,995. Un solo listado nuevo visible (hay 5 más sin detalle).",
+        "fuente": {
+          "url": "https://gpuprix.com/us/gpus/radeon-pro-w7900",
+          "consultado": "2026-11-25",
+          "fuente_tipo": "secundaria"
+        }
+      }
+    },
+    {
+      "nube": [],
+      "id": "radeon-ai-pro-r9700",
+      "nombre": "AMD Radeon AI PRO R9700",
+      "fabricante": "AMD",
+      "arquitectura": "RDNA 4",
+      "anio": null,
+      "segmento": "workstation",
+      "formato": "PCIe Gen5 (2 ranuras, ventilador activo)",
+      "vram_gb": 32,
+      "memoria": "GDDR6 con ECC (solo en Linux)",
+      "ancho_banda_gbs": 640,
+      "potencia_w": 300,
+      "fp16_tflops_denso": 191,
+      "fp8_tflops_denso": 383,
+      "int8_tops_denso": 383,
+      "bf16": null,
+      "fp8": true,
+      "fp4": false,
+      "mig": null,
+      "interconexion": "PCIe 5.0 x16",
+      "notas": "Página de AMD publica por separado denso y con sparsity: FP16 matricial 191 (383 con sparsity), FP8 383 (766), INT8 383 TOPS (766), INT4 766 (1,531). TBP 300 W con conector 12V-2x6, PSU mínima 750 W. El año de lanzamiento no figura en la página, por eso null.",
+      "fuente": {
+        "url": "https://www.amd.com/en/products/graphics/workstations/radeon-ai-pro/ai-9000-series/amd-radeon-ai-pro-r9700.html",
+        "consultado": "2026-11-25",
+        "fuente_tipo": "oficial"
+      },
+      "compra_usd": 1900,
+      "compra_detalle": {
+        "descripcion": "US$1,900 nueva (PowerColor en Amazon) según gpuprix (25-nov-2026); mediana de 12 meses US$1,700; MSRP de lanzamiento US$1,299; usada/open box desde US$1,188.",
+        "fuente": {
+          "url": "https://gpuprix.com/us/gpus/radeon-ai-pro-r9700",
+          "consultado": "2026-11-25",
+          "fuente_tipo": "secundaria"
+        }
+      }
+    },
+    {
+      "nube": [],
+      "id": "mi325x",
+      "nombre": "AMD Instinct MI325X",
+      "fabricante": "AMD",
+      "arquitectura": "CDNA 3",
+      "anio": 2024,
+      "segmento": "centro-de-datos",
+      "formato": "OAM",
+      "vram_gb": 256,
+      "memoria": "HBM3E",
+      "ancho_banda_gbs": 6000,
+      "potencia_w": 1000,
+      "fp16_tflops_denso": 1307.4,
+      "fp8_tflops_denso": 2614.9,
+      "int8_tops_denso": 2614.9,
+      "bf16": true,
+      "fp8": true,
+      "fp4": false,
+      "mig": null,
+      "interconexion": "Infinity Fabric: 8 enlaces de 128 GB/s según la página (7 × 128 GB/s según la hoja de datos); PCIe 5.0 x16",
+      "notas": "Hoja de datos y página de AMD: FP16/BF16 1,307.4 TFLOPS denso (2,614.9 con sparsity), FP8 2,614.9 (5,229.8), INT8 2,614.9 TOPS (5,229.8). 1000 W es el 'Typical Board Power' (peak). Lanzada el 10-oct-2024. La página y la hoja difieren en el número de enlaces Infinity Fabric (8 vs 7).",
+      "fuente": {
+        "url": "https://www.amd.com/en/products/accelerators/instinct/mi300/mi325x.html",
+        "consultado": "2026-11-25",
+        "fuente_tipo": "oficial"
+      },
+      "fuente_extra": [
+        {
+          "url": "https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/product-briefs/instinct-mi325x-datasheet.pdf",
+          "consultado": "2026-11-25",
+          "fuente_tipo": "oficial"
+        }
+      ],
+      "compra_usd": null,
+      "compra_detalle": {
+        "descripcion": "Sin precio verificable: AMD no publica lista y se vende en servidores de 8 GPUs por cotización. Una búsqueda mostró servidores de 8× MI325X de reventa entre ≈ US$0.4 y 0.66 millones, pero la página (servermall) bloqueó la descarga y no lo pude confirmar.",
+        "fuente": null
+      }
+    },
+    {
+      "nube": [],
+      "id": "mi355x",
+      "nombre": "AMD Instinct MI355X",
+      "fabricante": "AMD",
+      "arquitectura": "CDNA 4",
+      "anio": 2025,
+      "segmento": "centro-de-datos",
+      "formato": "OAM",
+      "vram_gb": 288,
+      "memoria": "HBM3E",
+      "ancho_banda_gbs": 8000,
+      "potencia_w": 1400,
+      "fp16_tflops_denso": 2500,
+      "fp8_tflops_denso": 5000,
+      "fp4_tflops_denso": 10100,
+      "int8_tops_denso": 5000,
+      "bf16": true,
+      "fp8": true,
+      "fp4": true,
+      "mig": null,
+      "interconexion": "Infinity Fabric: 7 enlaces de 144 GB/s; PCIe 5.0 x16",
+      "notas": "Página de AMD: FP16/BF16 matricial 2.5 PFLOPS denso (5 con sparsity), OCP-FP8 5 PFLOPS (10.1 con sparsity), INT8 5 POPS (10.1), MXFP4/MXFP6 10.1 PFLOPS (sin sparsity listada, se toma como denso). 1400 W es el 'Typical Board Power'. Lanzamiento 12-jun-2025. Refrigeración pasiva o activa (líquida en la práctica).",
+      "fuente": {
+        "url": "https://www.amd.com/en/products/accelerators/instinct/mi350/mi355x.html",
+        "consultado": "2026-11-25",
+        "fuente_tipo": "oficial"
+      },
+      "compra_usd": null,
+      "compra_detalle": {
+        "descripcion": "Sin precio de compra publicado ni encontrado: AMD no publica lista y se vende solo en plataformas de 8 GPUs por cotización.",
+        "fuente": null
+      }
+    },
+    {
+      "nube": [],
+      "id": "mac-studio-m5-ultra-256",
+      "nombre": "Apple Mac Studio, M5 Ultra (256 GB de memoria unificada)",
+      "fabricante": "Apple",
+      "arquitectura": "Apple M5 Ultra (dos M5 Max unidos)",
+      "anio": 2026,
+      "segmento": "escritorio",
+      "formato": "Mini PC de escritorio (sistema completo, 7.7 × 7.7 × 3.7 pulgadas)",
+      "vram_gb": 256,
+      "memoria": "Memoria unificada (LPDDR)",
+      "ancho_banda_gbs": 1200,
+      "potencia_w": 480,
+      "fp16_tflops_denso": null,
+      "fp8_tflops_denso": null,
+      "int8_tops_denso": null,
+      "bf16": null,
+      "fp8": null,
+      "fp4": null,
+      "mig": null,
+      "interconexion": "Thunderbolt/Ethernet (no revisado); sin NVLink",
+      "notas": "Memoria UNIFICADA: los 256 GB son de todo el sistema, compartidos entre CPU y GPU, y macOS reserva una parte (no se puede dar toda a la GPU). Ancho de banda 1.2 TB/s (página de Apple). Apple no publica TFLOPS, por eso null. 480 W es la 'potencia máxima continua' de la ficha del Mac Studio (una sola cifra para M5 Max y M5 Ultra). 256 GB de memoria disponible en M5 Ultra de 30 y de 36 núcleos de CPU; esta ficha toma la de 36 CPU / 80 GPU (la misma que permite 512 GB).",
+      "fuente": {
+        "url": "https://www.apple.com/mac-studio/specs/",
+        "consultado": "2026-11-25",
+        "fuente_tipo": "oficial"
+      },
+      "fuente_extra": [
+        {
+          "url": "https://www.apple.com/mac-studio/",
+          "consultado": "2026-11-25",
+          "fuente_tipo": "oficial"
+        }
+      ],
+      "compra_usd": 10799,
+      "compra_detalle": {
+        "descripcion": "ESTIMADO. US$10,799 = M5 Ultra 36 CPU / 80 GPU con 96 GB y 1 TB (US$6,799, precio de la tienda de Apple EE. UU. visto hoy) + US$4,000 por subir a 256 GB (TweakTown y Notebookcheck). Con el M5 Ultra de 30/64 núcleos (US$5,499 en Apple) sería ≈ US$9,499. Sin impuestos. El precio de la mejora de memoria viene de prensa, no del configurador de Apple (la página no lo mostró al descargarla).",
+        "fuente": {
+          "url": "https://www.apple.com/shop/buy-mac/mac-studio",
+          "consultado": "2026-11-25",
+          "fuente_tipo": "oficial"
+        },
+        "fuente_extra": {
+          "url": "https://www.tweaktown.com/news/114370/apple-wants-15-500-for-512gb-of-ram-in-the-m5-ultra-mac-studio-a-maxed-out-unit-costs-29-799/index.html",
+          "consultado": "2026-11-25",
+          "fuente_tipo": "secundaria"
+        }
+      }
+    },
+    {
+      "nube": [],
+      "id": "mac-studio-m5-ultra-512",
+      "nombre": "Apple Mac Studio, M5 Ultra (512 GB de memoria unificada)",
+      "fabricante": "Apple",
+      "arquitectura": "Apple M5 Ultra (dos M5 Max unidos)",
+      "anio": 2026,
+      "segmento": "escritorio",
+      "formato": "Mini PC de escritorio (sistema completo, 7.7 × 7.7 × 3.7 pulgadas)",
+      "vram_gb": 512,
+      "memoria": "Memoria unificada (LPDDR)",
+      "ancho_banda_gbs": 1200,
+      "potencia_w": 480,
+      "fp16_tflops_denso": null,
+      "fp8_tflops_denso": null,
+      "int8_tops_denso": null,
+      "bf16": null,
+      "fp8": null,
+      "fp4": null,
+      "mig": null,
+      "interconexion": "Thunderbolt/Ethernet (no revisado); sin NVLink",
+      "notas": "Memoria UNIFICADA compartida entre CPU y GPU; macOS reserva una parte. Apple anunció la opción de 512 GB como 'late October' y MacRumors informó el 28-oct-2026 que ya se podía pedir; TweakTown dice que las primeras entregas serían ≈ 3-dic-2026. 1.2 TB/s de ancho de banda; 480 W máx. continua. Apple no publica TFLOPS (null).",
+      "fuente": {
+        "url": "https://www.apple.com/mac-studio/specs/",
+        "consultado": "2026-11-25",
+        "fuente_tipo": "oficial"
+      },
+      "fuente_extra": [
+        {
+          "url": "https://macrumors.com/2026/10/28/mac-studio-m5-ultra-512gb-ram/",
+          "consultado": "2026-11-25",
+          "fuente_tipo": "secundaria"
+        }
+      ],
+      "compra_usd": 22299,
+      "compra_detalle": {
+        "descripcion": "US$22,299 = M5 Ultra 36/80 con 1 TB (US$6,799) + US$15,500 por 512 GB (MacRumors, 28-oct-2026; coincide TweakTown). Con 16 TB de SSD llega a US$29,799. La tienda de Apple descargada hoy mostró los precios base (US$6,799) pero no el costo de la mejora. Sin impuestos.",
+        "fuente": {
+          "url": "https://macrumors.com/2026/10/28/mac-studio-m5-ultra-512gb-ram/",
+          "consultado": "2026-11-25",
+          "fuente_tipo": "secundaria"
+        },
+        "fuente_extra": {
+          "url": "https://www.apple.com/shop/buy-mac/mac-studio",
+          "consultado": "2026-11-25",
+          "fuente_tipo": "oficial"
+        }
+      }
+    },
+    {
+      "nube": [],
+      "id": "mac-studio-m5-max-128",
+      "nombre": "Apple Mac Studio, M5 Max (128 GB de memoria unificada)",
+      "fabricante": "Apple",
+      "arquitectura": "Apple M5 Max (CPU 18 núcleos, GPU 40 núcleos)",
+      "anio": 2026,
+      "segmento": "escritorio",
+      "formato": "Mini PC de escritorio (sistema completo)",
+      "vram_gb": 128,
+      "memoria": "Memoria unificada (LPDDR)",
+      "ancho_banda_gbs": 614,
+      "potencia_w": 480,
+      "fp16_tflops_denso": null,
+      "fp8_tflops_denso": null,
+      "int8_tops_denso": null,
+      "bf16": null,
+      "fp8": null,
+      "fp4": null,
+      "mig": null,
+      "interconexion": "Thunderbolt/Ethernet (no revisado); sin NVLink",
+      "notas": "Memoria UNIFICADA compartida entre CPU y GPU; macOS reserva una parte. Ancho de banda 614 GB/s con GPU de 40 núcleos (460 GB/s con la de 32). 128 GB es el máximo del M5 Max. 480 W es la potencia máxima continua de la ficha. Apple no publica TFLOPS (null). Apple ya no vende el Mac Studio con M3 Ultra ni M4 Max: su página hoy solo lista M5 Max y M5 Ultra.",
+      "fuente": {
+        "url": "https://www.apple.com/mac-studio/specs/",
+        "consultado": "2026-11-25",
+        "fuente_tipo": "oficial"
+      },
+      "fuente_extra": [
+        {
+          "url": "https://www.apple.com/shop/buy-mac/mac-studio",
+          "consultado": "2026-11-25",
+          "fuente_tipo": "oficial"
+        }
+      ],
+      "compra_usd": 5099,
+      "compra_detalle": {
+        "descripcion": "ESTIMADO ≈ US$5,099 = M5 Max 40 núcleos GPU desde US$3,099 (Apple, precio base) + US$2,000 por 128 GB (Notebookcheck, que lo cita sobre una base de 48 GB; la ficha de Apple de hoy muestra 64 GB/1 TB para esa variante, así que el total real puede diferir ±US$400). PetaPixel reporta el M5 Max al máximo (128 GB, 8 TB) en US$8,899. Verificar en el configurador de Apple.",
+        "fuente": {
+          "url": "https://www.notebookcheck.net/Apple-releases-new-Mac-Studio-globally-with-256-GB-RAM-16-TB-storage-and-Apple-M5-Ultra.1378049.0.html",
+          "consultado": "2026-11-25",
+          "fuente_tipo": "secundaria"
+        },
+        "fuente_extra": {
+          "url": "https://www.apple.com/shop/buy-mac/mac-studio",
+          "consultado": "2026-11-25",
+          "fuente_tipo": "oficial"
+        }
+      }
+    },
+    {
+      "nube": [],
+      "id": "mac-mini-m5-pro-64",
+      "nombre": "Apple Mac mini, M5 Pro (64 GB de memoria unificada)",
+      "fabricante": "Apple",
+      "arquitectura": "Apple M5 Pro (CPU 18 núcleos, GPU 20 núcleos)",
+      "anio": null,
+      "segmento": "escritorio",
+      "formato": "Mini PC de escritorio (sistema completo)",
+      "vram_gb": 64,
+      "memoria": "Memoria unificada (LPDDR)",
+      "ancho_banda_gbs": 307,
+      "potencia_w": 155,
+      "fp16_tflops_denso": null,
+      "fp8_tflops_denso": null,
+      "int8_tops_denso": null,
+      "bf16": null,
+      "fp8": null,
+      "fp4": null,
+      "mig": null,
+      "interconexion": "Thunderbolt/Ethernet (no revisado); sin NVLink",
+      "notas": "Memoria UNIFICADA compartida entre CPU y GPU; macOS reserva una parte. Hoy Apple vende el Mac mini con M6 (hasta 32 GB, 170 GB/s) o M5 Pro (hasta 64 GB, 307 GB/s); el M4 Pro ya no aparece en su página, por eso este es el equivalente. 155 W = potencia máxima continua. Apple no publica TFLOPS (null).",
+      "fuente": {
+        "url": "https://www.apple.com/mac-mini/specs/",
+        "consultado": "2026-11-25",
+        "fuente_tipo": "oficial"
+      },
+      "fuente_extra": [
+        {
+          "url": "https://www.apple.com/shop/buy-mac/mac-mini",
+          "consultado": "2026-11-25",
+          "fuente_tipo": "oficial"
+        }
+      ],
+      "compra_usd": 2899,
+      "compra_detalle": {
+        "descripcion": "ESTIMADO con los precios de Apple que publica Macworld: Mac mini M5 Pro base (15 CPU / 16 GPU, 24 GB, 512 GB) US$1,699, +US$200 por 18 CPU / 20 GPU, +US$1,000 por 64 GB = US$2,899. Abt lista el de 18/20, 64 GB y 1 TB en US$3,299. La tienda de Apple no mostró el precio de esta configuración al consultarla. Sin impuestos.",
+        "fuente": {
+          "url": "https://macworld.com/article/3220063/apple-launches-new-m6-mac-mini-with-another-price-hike.html",
+          "consultado": "2026-11-25",
+          "fuente_tipo": "secundaria"
+        },
+        "fuente_extra": {
+          "url": "https://www.abt.com/Apple-Mac-mini-Compact-Desktop-M5-Pro-64GB-Unified-Memory-1TB-SSD-in-Silver-Z1UD00082/p/252371.html",
+          "consultado": "2026-11-25",
           "fuente_tipo": "secundaria"
         }
       }

@@ -1,0 +1,64 @@
+{
+  "nota": "Servidores completos con un precio publicado, para el catálogo de hardware de IA Privada. Cada uno apunta a una GPU de gpus.json (gpu_id) y no repite sus especificaciones. US$ sin impuestos; cada precio con su fecha y fuente.",
+  "actualizado": "2026-11-25",
+  "moneda": "USD",
+  "servidores": [
+    {
+      "id": "exxact-8xh100-6u",
+      "nombre": "Exxact TensorEX 6U HGX H100 (8× H100 SXM 80 GB, 2× Xeon Platinum 8558P, 1.5 TB RAM)",
+      "gpu_id": "h100-sxm",
+      "gpus": 8,
+      "compra_usd": 306152,
+      "potencia_w": null,
+      "descripcion": "Precio del configurador de Exxact, nivel Essential (el configurador también ofrece Professional US$349,320 y Premium US$419,562). Fuentes 8× 3000 W en 4+4 redundante (no es la potencia máxima del sistema; Exxact no publica un máximo). Sin impuestos ni cables de poder.",
+      "fuente": {
+        "url": "https://configurator.exxactcorp.com/configure/TS4-155878578",
+        "consultado": "2026-11-25",
+        "fuente_tipo": "secundaria"
+      }
+    },
+    {
+      "id": "supermicro-8xh200-sys821ge",
+      "nombre": "Supermicro SYS-821GE-TNHR (8U, 8× H200 141 GB, 2× Xeon)",
+      "gpu_id": "h200",
+      "gpus": 8,
+      "compra_usd": 320528.23,
+      "potencia_w": null,
+      "descripcion": "Precio 'desde' (system starting price) en la tienda de Supermicro EE. UU., en stock, con la configuración base; se personaliza con CPU, RAM y almacenamiento. Fuentes 6× 3000 W Titanium (4+2) o 8× 3000 W (4+4); Supermicro no publica un máximo del sistema en esa página. La tabla de la página también menciona HGX B200 como GPU compatible; el título y el precio corresponden a la versión H200.",
+      "fuente": {
+        "url": "https://store.supermicro.com/us_en/8u-gpu-superserver-sys-821ge-tnhr.html",
+        "consultado": "2026-11-25",
+        "fuente_tipo": "oficial"
+      }
+    },
+    {
+      "id": "exxact-8xb200-8u",
+      "nombre": "Exxact TensorEX 8U HGX B200 (8× B200 180 GB, 2× AMD EPYC)",
+      "gpu_id": "b200",
+      "gpus": 8,
+      "compra_usd": 447238,
+      "potencia_w": null,
+      "descripcion": "Precio del configurador de Exxact, nivel Essential. Fuentes 12× 3002.4 W en 6+6 redundante (2,900 W cada una a 200-220 V). No publica la potencia máxima del sistema. Sin impuestos.",
+      "fuente": {
+        "url": "https://configurator.exxactcorp.com/configure/TS4-142487900",
+        "consultado": "2026-11-25",
+        "fuente_tipo": "secundaria"
+      }
+    },
+    {
+      "id": "exxact-4xl40s-4u",
+      "nombre": "Exxact TensorEX 4U (2× AMD EPYC 9124, 384 GB RAM) con 4× NVIDIA L40S",
+      "gpu_id": "l40s",
+      "gpus": 4,
+      "compra_usd": 76101.3,
+      "potencia_w": null,
+      "precio_calculado": true,
+      "descripcion": "CALCULADO, no un total visto en pantalla: base US$40,461.30 (configuración Essential sin GPU) + 4 × US$8,910 (adicional por L40S) = US$76,101.30; ambos números salen del configurador de Exxact hoy. El chasis acepta 10 ranuras PCIe de doble ancho (hasta 10 GPUs, no verifiqué el tope). Fuentes 4× 3000 W (3+1): 2,600 W a 200-220 V y 1,000 W a 100-127 V por fuente. Sin impuestos.",
+      "fuente": {
+        "url": "https://configurator.exxactcorp.com/configure/TS4-115581668",
+        "consultado": "2026-11-25",
+        "fuente_tipo": "secundaria"
+      }
+    }
+  ]
+}

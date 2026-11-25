@@ -1,0 +1,122 @@
+{
+  "titulo": "Qué tan rápido contesta",
+  "intro": "Extiende las calculadoras de Sensei «Tokens por segundo al decodificar» y «El roofline de tu GPU» con las mismas cuentas: en cada paso del decode se leen los pesos y el KV cache, \\(t_{paso} = D_{paso} ÷ W\\); el prefill hace \\(F_{pre} ≈ 2 × A × N_p\\) FLOPs. Aquí se suman las eficiencias \\(η_m\\) y \\(η_c\\), que llevan del techo a lo que mide un servidor real. Arranca con Llama 3.1 8B en BF16 en una H100 SXM, como el benchmark de NVIDIA de la página.",
+  "preajustes": [
+    {
+      "label": "Modelo de ejemplo (arquitectura del config.json oficial)",
+      "inicial": 0,
+      "opciones": [
+        { "label": "Llama 3.1 8B Instruct", "valores": { "P": 8.03, "A": 8.03, "Et": 1.051, "L": 32, "g": 8, "d": 128, "q": 32 }, "nota": "Meta. 32 bloques, 32 cabezas de atención y 8 juegos de K y V de 128 números." },
+        { "label": "Llama 3.3 70B Instruct", "valores": { "P": 70.554, "A": 70.554, "Et": 2.101, "L": 80, "g": 8, "d": 128, "q": 64 }, "nota": "Meta. 80 bloques, 64 cabezas y 8 juegos de K y V." },
+        { "label": "Qwen3 8B", "valores": { "P": 8.191, "A": 8.191, "Et": 1.245, "L": 36, "g": 8, "d": 128, "q": 32 }, "nota": "Alibaba. 36 bloques, 32 cabezas y 8 juegos de K y V." },
+        { "label": "Qwen3 32B", "valores": { "P": 32.762, "A": 32.762, "Et": 1.556, "L": 64, "g": 8, "d": 128, "q": 64 }, "nota": "Alibaba. 64 bloques, 64 cabezas y 8 juegos de K y V." },
+        { "label": "Qwen3 30B-A3B (MoE)", "valores": { "P": 30.532, "A": 3.3, "Et": 0.622, "L": 48, "g": 4, "d": 128, "q": 32 }, "nota": "Alibaba. En memoria van los 30.5 mil millones, pero cada token usa ≈ 3.3 mil millones (8 de 128 expertos): con una conversación, cada paso lee ≈ la décima parte de los pesos." },
+        { "label": "Mistral Small 24B Instruct (2501)", "valores": { "P": 23.572, "A": 23.572, "Et": 1.342, "L": 40, "g": 8, "d": 128, "q": 32 }, "nota": "Mistral AI. 40 bloques, 32 cabezas y 8 juegos de K y V." },
+        { "label": "Llama 2 7B en GGUF Q4_0 (el de los benchmarks de llama.cpp)", "valores": { "P": 6.738, "A": 6.738, "Et": 0, "bits": 4.5, "L": 32, "g": 32, "d": 128, "q": 32 }, "nota": "Meta, 6,738,415,616 parámetros, sin GQA (32 juegos de K y V). Q4_0 guarda bloques de 32 pesos de 4 bits con una escala de 16 bits: 4.5 bits por peso, **tablas de tokens incluidas**, así que aquí \\(E\\) = 0. Su archivo pesa 3.56 GiB (3.82 GB); la fórmula da 3.79 GB." }
+      ]
+    },
+    {
+      "label": "GPU (datos de gpus.json)",
+      "datos": "gpus",
+      "inicial": "h100-sxm",
+      "campos": { "M": "vram_gb", "B": "ancho_banda_gbs", "F16": "fp16_tflops_denso", "F8": "fp8_tflops_denso", "I8": "int8_tops_denso" }
+    }
+  ],
+  "entradas": [
+    { "id": "P", "label": "Parámetros del modelo, \\(P\\), en miles de millones", "min": 0.1, "max": 1000, "paso": 0.001, "valor": 8.03, "tipo": "numero" },
+    { "id": "A", "label": "Parámetros que usa cada token, \\(A\\) (en un MoE, los activos; si no, igual a \\(P\\))", "min": 0.1, "max": 1000, "paso": 0.001, "valor": 8.03, "tipo": "numero" },
+    { "id": "Et", "label": "Tablas de tokens, \\(E\\), en miles de millones (se quedan en 16 bits)", "min": 0, "max": 50, "paso": 0.001, "valor": 1.051, "tipo": "numero" },
+    { "id": "bits", "label": "Formato de los pesos", "tipo": "opcion", "valor": 16, "opciones": [
+      { "valor": 16, "label": "BF16 o FP16 · 16 bits" },
+      { "valor": 8, "label": "FP8 o INT8 · 8 bits" },
+      { "valor": 4.5, "label": "Q4_0 de GGUF · 4.5 bits" },
+      { "valor": 4.15625, "label": "INT4 de AWQ, grupos de 128 · ≈ 4.16 bits" }
+    ] },
+    { "id": "L", "label": "Bloques, \\(L\\)", "min": 1, "max": 128, "paso": 1, "valor": 32 },
+    { "id": "g", "label": "Juegos de K y V por bloque, \\(g\\)", "min": 1, "max": 128, "paso": 1, "valor": 8 },
+    { "id": "d", "label": "Números por cada K o V, \\(d\\)", "min": 32, "max": 256, "paso": 32, "valor": 128 },
+    { "id": "q", "label": "Cabezas de atención, \\(h\\)", "min": 1, "max": 256, "paso": 1, "valor": 32 },
+    { "id": "bkv", "label": "Formato del KV cache, \\(b_{kv}\\)", "tipo": "opcion", "valor": 2, "opciones": [ { "valor": 2, "label": "BF16 o FP16 · 2 bytes" }, { "valor": 1, "label": "FP8 · 1 byte" } ] },
+    { "id": "M", "label": "VRAM de cada GPU, \\(M_{GPU}\\)", "unidad": "GB", "min": 0, "max": 2000, "paso": 1, "valor": 80, "tipo": "numero" },
+    { "id": "B", "label": "Ancho de banda de cada GPU, \\(W\\)", "unidad": "GB/s", "min": 1, "max": 20000, "paso": 1, "valor": 3350, "tipo": "numero" },
+    { "id": "F16", "label": "Pico FP16/BF16 denso de cada GPU", "unidad": "TFLOPS", "min": 0, "max": 20000, "paso": 0.1, "valor": 989.5, "tipo": "numero" },
+    { "id": "F8", "label": "Pico FP8 denso de cada GPU", "unidad": "TFLOPS", "min": 0, "max": 40000, "paso": 0.1, "valor": 1979, "tipo": "numero" },
+    { "id": "I8", "label": "Pico INT8 denso de cada GPU", "unidad": "TOPS", "min": 0, "max": 40000, "paso": 0.1, "valor": 1979, "tipo": "numero" },
+    { "id": "cf", "label": "Con qué números calcula el prefill", "tipo": "opcion", "valor": 1, "opciones": [
+      { "valor": 1, "label": "FP16 o BF16 (pesos en 16 bits, AWQ)" },
+      { "valor": 2, "label": "FP8 (pesos y cálculo en FP8)" },
+      { "valor": 3, "label": "INT8 (llama.cpp con pesos cuantizados)" }
+    ] },
+    { "id": "n", "label": "GPUs en la misma copia, \\(n\\) (se reparten el modelo)", "min": 1, "max": 8, "paso": 1, "valor": 1 },
+    { "id": "Np", "label": "Tokens del prompt, \\(N_p\\)", "min": 1, "max": 200000, "paso": 1, "valor": 1000, "tipo": "numero" },
+    { "id": "No", "label": "Tokens de la respuesta, \\(N_o\\)", "min": 1, "max": 32768, "paso": 1, "valor": 1000, "tipo": "numero" },
+    { "id": "b", "label": "Conversaciones a la vez (el batch), \\(b\\)", "min": 1, "max": 256, "paso": 1, "valor": 1, "tipo": "numero" },
+    { "id": "em", "label": "Eficiencia de la memoria, \\(η_m\\) (parte del ancho de banda que se logra)", "min": 0.05, "max": 1, "paso": 0.05, "valor": 0.7 },
+    { "id": "ec", "label": "Eficiencia del cálculo, \\(η_c\\) (parte del pico que se logra)", "min": 0.05, "max": 1, "paso": 0.05, "valor": 0.5 }
+  ],
+  "calculos": [
+    { "id": "W", "formula": "(max(0, P - Et) * bits / 8 + Et * 2) * 1e9" },
+    { "id": "Wd", "formula": "W * min(1, A / P)" },
+    { "id": "mtok", "formula": "2 * L * g * d * bkv" },
+    { "id": "Nm", "formula": "Np + No / 2" },
+    { "id": "kvp", "formula": "b * mtok * Nm" },
+    { "id": "Dp", "formula": "Wd + kvp" },
+    { "id": "pico", "formula": "(cf == 2 ? F8 : cf == 3 ? I8 : F16) * 1e12 * n" },
+    { "id": "tmem", "formula": "Dp / (n * B * 1e9)" },
+    { "id": "Fp", "formula": "b * (2 * A * 1e9 + 4 * L * q * d * Nm)" },
+    { "id": "tcomp", "formula": "pico > 0 ? Fp / pico : 0" },
+    { "id": "ttecho", "formula": "max(tmem, tcomp)" },
+    { "id": "tpaso", "formula": "max(tmem / em, tcomp / ec)" },
+    { "id": "Fpre", "formula": "2 * A * 1e9 * Np + 2 * L * q * d * Np * Np" },
+    { "id": "tpc", "formula": "pico > 0 ? Fpre / (pico * ec) : 1 / 0" },
+    { "id": "tpm", "formula": "(Wd + mtok * Np) / (n * B * 1e9 * em)" },
+    { "id": "ttft", "formula": "max(tpc, tpm)" },
+    { "id": "mem", "formula": "W + b * mtok * (Np + No) + 2e9" }
+  ],
+  "salidas": [
+    { "label": "1 · Bytes que se leen en cada paso, \\(D_{paso}\\)", "formula": "Dp", "formato": "bytes",
+      "nota": "los pesos que usa cada token, una vez, más el KV cache de las \\(b\\) conversaciones a media respuesta",
+      "cuenta": "pesos {{W|bytes|2}} × {{min(1, A / P)|corto}} (parte que lee cada token) = {{Wd|bytes|2}}; KV cache: {{b|int}} × {{mtok|int}} bytes × {{Nm|int}} tokens = {{kvp|bytes|2}}; suma = **{{Dp|bytes|2}}**" },
+    { "label": "2 · Techo de cada conversación, \\(v_{techo}\\)", "formula": "1 / ttecho", "formato": "num", "decimales": 1,
+      "nota": "tokens/s con la memoria al 100 %: la cuenta de Sensei",
+      "cuenta": "{{Dp|bytes|2}} ÷ ({{n|int}} × {{B|int}} GB/s) = {{tmem * 1000|num|2}} ms por paso; 1 ÷ {{ttecho * 1000|num|2}} ms = **{{1 / ttecho|num|1}} tokens/s**" },
+    { "label": "3 · Estimación de cada conversación, \\(v_{conv}\\)", "formula": "1 / tpaso", "formato": "num", "decimales": 1, "barra": true,
+      "nota": "tokens/s con las eficiencias \\(η_m\\) y \\(η_c\\)",
+      "cuenta": "paso = máx({{tmem * 1000|num|2}} ms ÷ {{em|corto}}, {{tcomp * 1000|num|2}} ms ÷ {{ec|corto}}) = {{tpaso * 1000|num|2}} ms; 1 ÷ paso = **{{1 / tpaso|num|1}} tokens/s**" },
+    { "label": "4 · Tokens por segundo de todas, \\(v_{total}\\)", "formula": "b / tpaso", "formato": "num", "decimales": 0, "barra": true,
+      "nota": "\\(b × v_{conv}\\): lo que entrega la copia del servidor",
+      "cuenta": "{{b|int}} × {{1 / tpaso|num|1}} = **{{b / tpaso|num|0}} tokens/s**" },
+    { "label": "5 · Cálculo ÷ memoria en cada paso", "formula": "tmem > 0 ? tcomp / tmem : 0", "formato": "x", "decimales": 2,
+      "nota": "menos de 1×: manda la memoria (memory-bound); 1× o más: manda el cálculo",
+      "cuenta": "FLOPs del paso: {{b|int}} × (2 × {{A|corto}} mil millones + atención) = {{Fp|sci|2}}; ÷ {{pico / 1e12|num|0}} TFLOPS = {{tcomp * 1000|num|3}} ms, contra {{tmem * 1000|num|2}} ms de memoria" },
+    { "label": "6 · FLOPs del prefill, \\(F_{pre}\\)", "formula": "Fpre", "formato": "sci", "decimales": 2,
+      "nota": "\\(2 × A × N_p\\) más la atención, \\(2 × L × h × d × N_p^2\\)",
+      "cuenta": "2 × {{A|corto}} × 10⁹ × {{Np|int}} + 2 × {{L|int}} × {{q|int}} × {{d|int}} × {{Np|int}}² = **{{Fpre|sci|2}} FLOPs**" },
+    { "label": "7 · Tiempo al primer token, TTFT", "sin_valor": "Sin pico publicado", "formula": "ttft * 1000", "formato": "ms", "barra": true,
+      "nota": "el mayor entre el cálculo del prefill y leer los pesos una vez; sin cola ni red",
+      "cuenta": "cálculo: {{Fpre|sci|2}} ÷ ({{pico / 1e12|num|1}} TFLOPS × {{ec|corto}}) = {{tpc * 1000|num|1}} ms; memoria: {{tpm * 1000|num|1}} ms; el mayor = **{{ttft * 1000|num|1}} ms**" },
+    { "label": "8 · Velocidad del prefill", "sin_valor": "Sin pico publicado", "formula": "isFinite(ttft) ? Np / ttft : 1 / 0", "formato": "num", "decimales": 0,
+      "nota": "tokens del prompt por segundo: lo que llama.cpp llama pp",
+      "cuenta": "{{Np|int}} tokens ÷ {{ttft * 1000|num|1}} ms = **{{Np / ttft|num|0}} tokens/s**" },
+    { "label": "9 · Respuesta completa", "sin_valor": "Sin pico publicado", "formula": "(ttft + No * tpaso) * 1000", "formato": "ms",
+      "nota": "TTFT más \\(N_o\\) pasos de decode",
+      "cuenta": "{{ttft * 1000|num|1}} ms + {{No|int}} × {{tpaso * 1000|num|2}} ms = **{{(ttft + No * tpaso)|num|1}} s**" },
+    { "label": "¿Cabe en la memoria?", "formula": "0.9 * n * M * 1e9 - mem",
+      "veredicto": { "si": "Sí cabe", "no": "No cabe" },
+      "cuenta": "pesos + KV cache de {{b|int}} conversaciones completas + 2 GB de programa = {{mem|bytes|1}}, contra 90 % de {{n|int}} × {{M|corto}} GB = {{0.9 * n * M * 1e9|bytes|1}}. La cuenta completa está en «¿Cabe en la GPU?»" }
+  ],
+  "comparar": {
+    "titulo": "La misma cuenta en cada GPU de gpus.json",
+    "lista": 1,
+    "orden": 1,
+    "desc": true,
+    "columnas": [
+      { "label": "Techo, tokens/s", "formula": "1 / ttecho", "formato": "num", "decimales": 0 },
+      { "label": "Estimación, tokens/s", "formula": "1 / tpaso", "formato": "num", "decimales": 0 },
+      { "label": "TTFT", "formula": "ttft * 1000", "formato": "ms" },
+      { "label": "Memoria útil ocupada", "formula": "mem / (0.9 * n * M * 1e9)", "formato": "pct", "decimales": 0 }
+    ],
+    "nota": "Con tu modelo, tu prompt y tus eficiencias de arriba. Más de 100 % de memoria: no cabe en \\(n\\) GPUs de ese tipo. Un «—» en TTFT: el fabricante no publica ese pico."
+  },
+  "nota": "Prueba: elige Llama 2 7B en Q4_0, la RTX 4090, cálculo INT8, prompt de 1 y respuesta de 128, con \\(η_m\\) = 0.7: la estimación queda cerca de los 186 tokens/s que mide llama.cpp. Después pon la H100 SXM con lo mismo: el techo se triplica, pero llama.cpp mide 268. Con una conversación, llama.cpp no aprovecha la H100; un servidor como NIM o vLLM sí."
+}
