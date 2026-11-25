@@ -27,6 +27,7 @@ import { createHash } from 'node:crypto';
 import { crear, esc } from './md.mjs';
 import { validar as validarDiagrama, montar } from './diagrama.mjs';
 import { validar as validarCalc, dibujar as dibujarCalc } from './calculadora.mjs';
+import { validarDatos, dibujarCatalogo } from './catalogo.mjs';
 import { marca, miniT, etapas as etapasDe, donar } from '../vendor/trueml/lib.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -47,6 +48,9 @@ const DOJO = json(join(C, 'dojo.json'));
 const SENSEI = json(join(C, 'datos', 'sensei.json'));
 const GPUS = json(join(C, 'datos', 'gpus.json'));
 const APIS = json(join(C, 'datos', 'apis.json'));
+const EQUIPOS = json(join(C, 'datos', 'equipos.json'));
+errores.push(...validarDatos(GPUS, EQUIPOS));
+for (const a of APIS.apis) if (!a.fuente?.url || !a.fuente?.consultado || typeof a.usd_millon_entrada !== 'number' || typeof a.usd_millon_salida !== 'number') errores.push(`apis.json ${a.id}: necesita precios y fuente con url y fecha`);
 const CLAVE = SITIO.clave;
 
 // ---------------------------------------------------------------- glosario: un archivo por página en content/glosario/
@@ -190,7 +194,7 @@ for (const l of LISTAS) {
   for (const s of meta.sensei) if (!SENSEI.lecciones[s]) errores.push(`${rel}: «sensei» menciona «${s}», que no está en el temario de Sensei`);
   l.meta = meta;
   try {
-    Object.assign(l, crear({ glosario: GLOS, diagrama, figura, calculadora, contexto: rel }).render(cuerpo));
+    Object.assign(l, crear({ glosario: GLOS, diagrama, figura, calculadora, extras: { catalogo: (arg, dentro, inline) => dibujarCatalogo(GPUS, EQUIPOS, inline) }, contexto: rel }).render(cuerpo));
   } catch (e) { fail(e.message); }
   for (const id of l.conceptos) {
     if (PRESENTA.has(id)) errores.push(`«${id}» se presenta en ${PRESENTA.get(id).id} y otra vez en ${l.id}`);

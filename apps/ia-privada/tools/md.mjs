@@ -4,7 +4,7 @@
 //            \( fórmula \) (una ecuación en línea, con la notación de mate.mjs)
 // Bloques:   ## y ### · párrafos · listas (- y 1.) · tablas (| … |) · ```código``` · > cita
 // Propios:   :::idea · :::analogia [título] · :::ojo · :::nota [etiqueta] · :::ejemplo [título] · :::profundo título · :::diagrama id
-//            :::figura id · :::calculadora id · :::cuenta título · :::formula [título] · :::conceptos · :::chequeo · :::ejercicios · :::pasos
+//            :::catalogo · :::figura id · :::calculadora id · :::cuenta título · :::formula [título] · :::conceptos · :::chequeo · :::ejercicios · :::pasos
 //            (cada uno se cierra con ::: solo en su línea)
 // Secciones: «## Título {English title}» abre una sección numerada; «## Título {English} [extra]» la marca como extra
 //            (para una segunda pasada). Sin marca, la sección es esencial.
@@ -62,7 +62,7 @@ export function contar(texto) {
   return { intro, secs };
 }
 
-export function crear({ glosario, diagrama, figura, calculadora, contexto = '' }) {
+export function crear({ glosario, diagrama, figura, calculadora, extras = {}, contexto = '' }) {
   const fallar = (msg) => { throw new Error(`${contexto}: ${msg}`); };
 
   // ------------------------------------------------------------ en línea
@@ -240,6 +240,11 @@ export function crear({ glosario, diagrama, figura, calculadora, contexto = '' }
         const I = (x) => inline(x, estado.terminos);
         return `<figure class="formula">${arg ? `<figcaption class="formula__t">${I(arg)}</figcaption>` : ''}<div class="formula__eqs">${eqs.map((e) => `<div class="m m--bloque">${mate(e, fallar)}</div>`).join('')}</div>${
           vars.length ? `<dl class="formula__vars"><span class="formula__donde">donde</span>${vars.map(([k, d]) => `<div><dt><span class="m">${mate(k, fallar)}</span></dt><dd>${I(d)}</dd></div>`).join('')}</dl>` : ''}</figure>`;
+      }
+      case 'catalogo': {
+        // :::catalogo: la tabla filtrable de hardware; la arma el build con los archivos de datos (extras.catalogo)
+        if (!extras.catalogo) fallar(':::catalogo no está disponible aquí');
+        return extras.catalogo(arg, dentro, (s) => inline(s, estado.terminos));
       }
       case 'calculadora': {
         if (!arg) fallar(':::calculadora necesita el id');

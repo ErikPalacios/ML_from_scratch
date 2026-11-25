@@ -248,6 +248,56 @@
     fig.classList.add('is-viva');
   });
 
+
+  // ------------------------------------------------------------ el catálogo de hardware (tools/catalogo.mjs lo dibuja completo)
+  $$('[data-catalogo]').forEach(function (cat) {
+    var tabla = cat.querySelector('.cat-tabla'), cuerpo = tabla && tabla.tBodies[0];
+    if (!cuerpo) return;
+    var filas = Array.prototype.slice.call(cuerpo.rows), n = cat.querySelector('[data-cat-n]');
+    var f = { fab: '', seg: '', vram: 0, precio: false, texto: '' };
+    function filtrar() {
+      var vis = 0;
+      filas.forEach(function (tr) {
+        var ok = (!f.fab || tr.getAttribute('data-fab') === f.fab) && (!f.seg || tr.getAttribute('data-seg') === f.seg) &&
+          parseFloat(tr.getAttribute('data-vram')) >= f.vram && (!f.precio || tr.getAttribute('data-precio') === '1') &&
+          (!f.texto || tr.getAttribute('data-texto').indexOf(f.texto) >= 0);
+        tr.hidden = !ok; if (ok) vis++;
+      });
+      if (n) n.textContent = vis;
+    }
+    $$('.cat-chip', cat).forEach(function (b) {
+      b.addEventListener('click', function () {
+        var k = b.getAttribute('data-f');
+        $$('.cat-chip[data-f="' + k + '"]', cat).forEach(function (o) { o.classList.toggle('is-on', o === b); o.setAttribute('aria-pressed', o === b ? 'true' : 'false'); });
+        f[k] = b.getAttribute('data-val'); filtrar();
+      });
+    });
+    var sv = cat.querySelector('select[data-f="vram"]'), ck = cat.querySelector('input[data-f="precio"]'), tx = cat.querySelector('input[data-f="texto"]');
+    if (sv) sv.addEventListener('change', function () { f.vram = parseFloat(sv.value) || 0; filtrar(); });
+    if (ck) ck.addEventListener('change', function () { f.precio = ck.checked; filtrar(); });
+    if (tx) tx.addEventListener('input', function () { f.texto = tx.value.trim().toLowerCase(); filtrar(); });
+    // ordenar: un toque, de mayor a menor (texto: A→Z); otro toque, al revés; las celdas sin dato siempre al final
+    var col = -1, desc = true;
+    $$('.cat-orden', cat).forEach(function (b) {
+      b.addEventListener('click', function () {
+        var k = parseInt(b.getAttribute('data-col'), 10), texto = b.getAttribute('data-tipo') === 'texto';
+        desc = k === col ? !desc : !texto; col = k;
+        var val = function (tr) { var c = tr.cells[k], v = c && c.getAttribute('data-v'); return texto ? (v || '') : (v === '' || v === null ? null : parseFloat(v)); };
+        filas.sort(function (a, z) {
+          var x = val(a), y = val(z);
+          if (texto) return desc ? y.localeCompare(x, 'es') : x.localeCompare(y, 'es');
+          if (x === null) return y === null ? 0 : 1;
+          if (y === null) return -1;
+          return desc ? y - x : x - y;
+        });
+        filas.forEach(function (tr) { cuerpo.appendChild(tr); });
+        $$('.cat-orden', cat).forEach(function (o) { var th = o.parentNode; th.removeAttribute('aria-sort'); o.classList.remove('is-asc', 'is-desc'); });
+        b.parentNode.setAttribute('aria-sort', desc ? 'descending' : 'ascending'); b.classList.add(desc ? 'is-desc' : 'is-asc');
+      });
+    });
+    cat.classList.add('is-vivo');
+  });
+
   // ------------------------------------------------------------ el globo
   var datosEl = document.getElementById('g-datos'), DATOS = {};
   try { DATOS = datosEl ? JSON.parse(datosEl.textContent) : {}; } catch (e) { DATOS = {}; }
