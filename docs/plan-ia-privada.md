@@ -144,7 +144,7 @@ Cada fase cabe en una ventana de 5 horas y termina con la app construida, revisa
 | 11 | Estación 3: vLLM bajo carga (primera sesión con GPU rentada; se elige el proveedor) | 10 |
 | 12 | Estación 4: gateway de modelos | 11 |
 | **Entrenamiento RAG** (lo que piden las estaciones 5–6) | | |
-| 13 | RAG · estación 1: conectores y parsing | — |
+| 13 ✓ | RAG · estación 1: conectores y parsing. Hecha el 2026-11-25: en vivo en dojo.trueml.app/rag/ingesta/ | — |
 | 14 | RAG · estación 2: chunking con contexto | 13 |
 | 15 | RAG · estación 3: permisos en cada chunk | 14 |
 | 16 | RAG · estación 4: golden set | 15 |
@@ -167,6 +167,8 @@ Opcional, después: las estaciones 10–12 del RAG (Docker, índice nuevo sin co
 **Medido (fase 1, 2026-11-25):** esqueleto, calculadora de VRAM, revisión de hechos y deploy subieron la ventana de 5 horas de 1 % a 7 % y el límite semanal total de 82 % a 83 %; Fable no se usó. Código en Opus esfuerzo medio; la verificación de modelos y la revisión de hechos, en Sonnet.
 
 **Medido (fase 2, 2026-11-25):** calculadoras de velocidad, sizing y TCO, catálogo, investigación de precios, especificaciones y benchmarks (3 subagentes Sonnet), revisión de hechos (Sonnet, 3 graves y 11 menores, todas corregidas) y deploy: la ventana de 5 horas pasó de 9 % a 55 % y el límite semanal total de 83 % a 89 %; Fable no se usó. Esas cifras incluyen a la sesión de la fase 3, que corrió en paralelo, así que la fase 2 sola costó menos. El motor de calculadoras ganó varias listas de preajustes llenadas desde datos (`"datos": "gpus" | "apis"`), la tabla `comparar` y `sin_valor`; el catálogo es el bloque `:::catalogo`. Los precios por token viven en content/datos/apis.json; los servidores con precio, en apps/sensei/content/datos/equipos.json (sync.mjs lo copia).
+
+**Medido (fase 13, 2026-11-25):** kit (cuatro fuentes ficticias por HTTP, sin Docker), solución, 11 checks, 6 fallas probadas, contenido con salidas reales, revisión de hechos (un subagente Sonnet: ningún error, 6 precisiones aplicadas), chequeos de la app y deploy: la ventana de 5 horas pasó de 12 % a 64 % y el límite semanal total de 83 % a 90 %; Fable no se usó. Esas cifras incluyen a las sesiones de las fases 2 y 3, que corrieron en paralelo, así que la fase 13 sola costó menos. Código y contenido en Opus (una sola sesión, sin escritores); la revisión de hechos, en Sonnet.
 
 **Costo estimado:** ≈ 24 lecciones a 1.4–3.5 % del límite semanal cada una (lo medido en Sensei) son ≈ 35–85 % de una semana, repartido entre varias. Las herramientas, los casos y las estaciones se miden al terminar cada fase, igual que en Sensei.
 
