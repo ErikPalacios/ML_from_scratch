@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Pregunta candidata para el golden set",
+  "description": "Paso 1: lo que tiene que traer una candidata. Mira el contrato de pipeline/esquema.py y GUION.md.",
+  "type": "object"
+}

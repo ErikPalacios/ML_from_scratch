@@ -147,7 +147,7 @@ Cada fase cabe en una ventana de 5 horas y termina con la app construida, revisa
 | 13 ✓ | RAG · estación 1: conectores y parsing. Hecha el 2026-11-25: en vivo en dojo.trueml.app/rag/ingesta/ | — |
 | 14 ✓ | RAG · estación 2: chunking con contexto. Hecha el 2026-11-26: en vivo en dojo.trueml.app/rag/chunking/. Costo medido: ventana de 5 horas 65 → 86 % (25 nov) y 8 → 18 % (26 nov), ≈ 31 puntos en dos ventanas; semanal total 90 → 93 % y 2 → 3 %, ≈ 4 puntos | 13 |
 | 15 ✓ | RAG · estación 3: permisos en cada chunk. Hecha el 2026-11-26: en vivo en dojo.trueml.app/rag/permisos/. Costo medido: ventana de 5 horas 22 → ≈ 45 % (hasta el reinicio de las 15:30) y 0 → 10 % en la siguiente, ≈ 33 puntos en dos ventanas; semanal total 4 → 9 %, ≈ 5 puntos (con la fase 5 de IA Privada corriendo en paralelo) | 14 |
-| 16 | RAG · estación 4: golden set | 15 |
+| 16 ✓ | RAG · estación 4: golden set. Hecha el 2026-11-26: en vivo en dojo.trueml.app/rag/golden/. Costo medido: ventana de 5 horas 31 → 78 %, ≈ 47 puntos en una ventana; semanal total 12 → 18 %, ≈ 6 puntos (con la fase 6 de IA Privada corriendo en paralelo). Código y contenido en Opus en una sola sesión; la revisión de hechos, un subagente (3 errores y 4 matices, aplicados) | 15 |
 | 17 | RAG · estación 5: embeddings e índice híbrido | 16 |
 | 18 | RAG · estación 6: retrieval y reranker | 17 |
 | 19 | RAG · estación 8: la API con citas (su estación 7 reutiliza la estación 1 de IA Privada, fase 10) | 10, 18 |
