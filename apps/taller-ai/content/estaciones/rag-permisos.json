@@ -1,0 +1,1035 @@
+{
+  "id": "permisos",
+  "patron": "llm",
+  "rama": "rag",
+  "etapa": "datos",
+  "num": 3,
+  "titulo": "Permisos en cada chunk",
+  "nav": "Permisos en cada chunk",
+  "pregunta": "¿Cómo te aseguras de que el asistente nunca le dé a alguien un pedazo de un documento que esa persona no puede abrir, aunque cambie de equipo, aunque le quiten el permiso hace un minuto y aunque el índice se reconstruya?",
+  "version": "2026-11-26",
+  "mapa": {
+    "resumen": "La estación 2 dejó cada documento partido en <b>chunks</b> (pedazos de ≈ 400 tokens), y cada chunk con la <b>ACL</b> de su documento: la lista de quién lo puede leer. Esta estación la hace valer. Primero, saber quién es quién: el <b>directorio</b> de la empresa dice en qué grupos está cada persona, y los grupos pueden estar dentro de otros grupos. Después, guardar la ACL <b>dentro de cada chunk del índice</b> tal como viene, con nombres de grupos y no con listas de personas, para que un cambio de equipo no obligue a reescribir millones de chunks. Al buscar, el <b>filtro de permisos va antes</b> de elegir los mejores chunks, y otra vez justo antes de armar el prompt. Una <b>prueba de permisos</b> pregunta como cada persona y compara con la verdad. Y como un permiso que se quita tiene que dejar de valer en minutos, no a la hora del siguiente reindexado, un <b>carril rápido</b> aplica cada cambio que avisan las fuentes, y el reindexado no lo puede deshacer.",
+    "entra": [
+      "lo que dejó la estación 2: <code>almacen/docs/&lt;doc&gt;.json</code>, los chunks de cada documento con su ACL en cláusulas y la hora en que la ingestión la leyó",
+      "el directorio de la empresa (en C11, el proveedor de identidad): personas, grupos y qué grupo está dentro de cuál",
+      "la cola de cambios de permisos que avisan las fuentes (el Drive, el Jira, la wiki y el directorio), uno por línea"
+    ],
+    "sale": [
+      "<code>indice/indice.json</code>: cada chunk con su texto y su ACL, guardada como grupos; lo que llega sin ACL se queda fuera (fail-closed)",
+      "<code>pipeline/buscar.py</code>: el top-k sale solo de lo que la persona puede ver, y un último filtro antes del prompt",
+      "una prueba de permisos: cada persona del directorio contra la verdad, ni un chunk de más ni uno de menos",
+      "el carril rápido: cada revocación aplicada en ≤ 5 min, sin volver a indexar, y una bitácora que el reindexado respeta"
+    ],
+    "escala": [
+      {
+        "que": "Documentos",
+        "ref": "≈ 1.5 M, cada uno con su ACL",
+        "taller": "105 documentos y 154 chunks, los que dejó la estación 2 el 21 de noviembre"
+      },
+      {
+        "que": "Personas y grupos",
+        "ref": "miles de personas en el proveedor de identidad, con grupos dentro de grupos",
+        "taller": "14 personas (una externa y una recién contratada) y 13 grupos, hasta 3 niveles de anidamiento y un ciclo"
+      },
+      {
+        "que": "Preguntas",
+        "ref": "≈ 25k al día, cada una con el filtro de permisos",
+        "taller": "las que haces con <code>pipeline/buscar.py --como &lt;correo&gt;</code>, y las 546 de la prueba de permisos"
+      },
+      {
+        "que": "Revocaciones",
+        "ref": "≤ 5 min para que una revocación se aplique",
+        "taller": "5 revocaciones y un alta en la mañana del 21, la peor aplicada en 1 min"
+      },
+      {
+        "que": "Dónde corre",
+        "ref": "el filtro dentro del índice vectorial y un worker del carril rápido que lee la cola de eventos",
+        "taller": "un JSON como índice y un reloj simulado que corre tu carril cada minuto de la mañana"
+      }
+    ]
+  },
+  "precalculos": {
+    "intro": "Antes de escribir código, las cuentas de servilleta de los permisos: cuánto pesa guardar la ACL como grupos o como personas, cuánto cuesta que alguien cambie de equipo, cuánto tiempo deja abierto un carril lento, cuántos resultados se pierden si filtras tarde y cuántas combinaciones tendría que probar una prueba de permisos. Cada cuenta va en las dos escalas: «En C11» (el caso real, con los supuestos dichos en voz alta) y «En el dojo» (medido en tu Mac con un comando).",
+    "cuentas": [
+      {
+        "id": "grupos",
+        "pregunta": "¿Guardo en cada chunk los grupos o la lista de personas?",
+        "formula": "entradas guardadas = chunks × principals por ACL (en grupos) o chunks × personas que pueden ver (expandida)",
+        "ref": {
+          "cuenta": "7.5 M chunks × ≈ 3 principals (supuesto) contra × ≈ 400 personas (supuesto)",
+          "valor": "22.5 M contra 3 mil millones de entradas"
+        },
+        "taller": {
+          "cuenta": "medido en los 154 chunks con las 14 personas",
+          "valor": "353 principals (2.3 por chunk) contra 952 entradas (6.2 por chunk)"
+        },
+        "decide": "Se guardan los grupos, tal como vienen en la ACL, y las personas se resuelven al preguntar. En el dojo la diferencia es de 3×; en una empresa con grupos de cientos de personas es de más de cien veces, y lo que más importa es la cuenta siguiente.",
+        "conceptos": [
+          "acl-en-chunk",
+          "principal"
+        ],
+        "comprueba": {
+          "code": "python -c \"\nimport sys; sys.path.insert(0, '.')\nfrom mundo import referencia as r\nd = r.directorio(); cs = [c for x in r.docs().values() for c in x['chunks']]\ng = sum(sum(len(cl) for cl in c['acl']) for c in cs)\np = sum(sum(r.puede_ver(c['acl'], r.principals(q, d)) for q in r.personas()) for c in cs)\nprint(f'dojo · {len(cs)} chunks · ACL en grupos: {g} principals ({g / len(cs):.1f} por chunk) · expandida a personas: {p} ({p / len(cs):.1f} por chunk)')\nchunks, prin, gente = 7_500_000, 3, 400     # supuestos de C11: 3 principals por ACL; 400 personas detrás de cada ACL\nprint(f'C11  · {chunks / 1e6:.1f} M chunks · en grupos: {chunks * prin / 1e6:.1f} M principals · expandida: {chunks * gente / 1e9:.1f} mil millones')\"",
+          "nota": "",
+          "donde": "mac",
+          "salida": "dojo · 154 chunks · ACL en grupos: 353 principals (2.3 por chunk) · expandida a personas: 952 (6.2 por chunk)\nC11  · 7.5 M chunks · en grupos: 22.5 M principals · expandida: 3.0 mil millones"
+        }
+      },
+      {
+        "id": "quitar",
+        "pregunta": "¿Cuántos chunks hay que tocar si alguien sale de un grupo?",
+        "formula": "en grupos: 0 chunks (cambia el directorio); expandida: todos los chunks cuya ACL nombra ese grupo",
+        "ref": {
+          "cuenta": "alguien sale de soporte, que aparece en el 10 % de 7.5 M chunks (supuesto)",
+          "valor": "0 contra ≈ 750 mil chunks que reescribir"
+        },
+        "taller": {
+          "cuenta": "Tomás sale de fraude a las 9:18",
+          "valor": "0 contra 10 chunks"
+        },
+        "decide": "Con la ACL en grupos, un cambio de equipo es una línea en la copia del directorio y se aplica en segundos. Expandida, cada alta o baja reescribe miles de chunks en el índice: el carril rápido no alcanzaría.",
+        "conceptos": [
+          "grupo-anidado"
+        ],
+        "comprueba": {
+          "code": "python -c \"\nimport sys; sys.path.insert(0, '.')\nfrom mundo import referencia as r\nf = 'group:fraude@marketplace.test'\nn = sum(1 for x in r.docs().values() for c in x['chunks'] if any(f in cl for cl in c['acl']))\nprint(f'dojo · Tomás sale de fraude · en grupos: 0 chunks que reescribir (1 cambio en la copia del directorio) · expandida a personas: {n} chunks')\nprint(f'C11  · alguien sale de soporte, que está en el 10 % de los chunks (supuesto) · en grupos: 0 chunks · expandida: {0.10 * 7_500_000 / 1e3:.0f} mil chunks')\"",
+          "nota": "",
+          "donde": "mac",
+          "salida": "dojo · Tomás sale de fraude · en grupos: 0 chunks que reescribir (1 cambio en la copia del directorio) · expandida a personas: 10 chunks\nC11  · alguien sale de soporte, que está en el 10 % de los chunks (supuesto) · en grupos: 0 chunks · expandida: 750 mil chunks"
+        }
+      },
+      {
+        "id": "retraso",
+        "pregunta": "¿Cada cuánto tiene que correr el carril rápido?",
+        "formula": "peor caso = lo que tarda en llegar el aviso + el periodo del carril (+ lo que tarda en aplicarse) ≤ 5 min",
+        "ref": {
+          "cuenta": "≤ 5 min con ≈ 25k preguntas al día",
+          "valor": "en 5 min caben ≈ 87 preguntas; con un carril de cada hora, ≈ 1,040"
+        },
+        "taller": {
+          "cuenta": "aviso de 20 s + carril cada 60 s",
+          "valor": "80 s en el peor caso (cada hora: 3,620 s, 12 veces el SLO)"
+        },
+        "decide": "El periodo del carril sale del SLO, no del costo: con avisos de 20 s, cualquier periodo de hasta 280 s cabe. Correrlo «cada hora, como el reindexado» deja una ventana de una hora en la que alguien que ya no debía sigue leyendo.",
+        "conceptos": [
+          "slo-revocacion",
+          "carril-rapido"
+        ],
+        "comprueba": {
+          "code": "python -c \"\nentrega, slo, por_dia = 20, 300, 25_000\nfor cada in (60, 280, 900, 3600):\n    peor = entrega + cada\n    print(f'carril cada {cada:>4} s: peor caso {peor:>4} s · ' + ('cabe en 5 min' if peor <= slo else f'{peor / slo:.1f} veces el SLO'))\ncada_pregunta = 86400 / por_dia\nprint(f'C11 · {por_dia:,} preguntas al día = una cada {cada_pregunta:.1f} s en promedio: en 5 min caben ≈ {slo / cada_pregunta:.0f} preguntas; en una hora, ≈ {3600 / cada_pregunta:,.0f}')\"",
+          "nota": "",
+          "donde": "mac",
+          "salida": "carril cada   60 s: peor caso   80 s · cabe en 5 min\ncarril cada  280 s: peor caso  300 s · cabe en 5 min\ncarril cada  900 s: peor caso  920 s · 3.1 veces el SLO\ncarril cada 3600 s: peor caso 3620 s · 12.1 veces el SLO\nC11 · 25,000 preguntas al día = una cada 3.5 s en promedio: en 5 min caben ≈ 87 preguntas; en una hora, ≈ 1,042"
+        }
+      },
+      {
+        "id": "postfiltro",
+        "pregunta": "¿Cuántos resultados le quedan a alguien si filtras después del top-8?",
+        "formula": "resultados ≈ k × fracción del corpus que la persona puede ver (si el permiso no tiene que ver con lo que pregunta)",
+        "ref": {
+          "cuenta": "alguien de un área chica que ve el 2 % del corpus, top-8",
+          "valor": "0.16 en promedio: para asegurar 8 habría que pedir ≈ 400"
+        },
+        "taller": {
+          "cuenta": "Ana ve el 57 %, Irene el 7 %, Diego el 1.9 %",
+          "valor": "4.6, 0.6 y 0.2 resultados de 8"
+        },
+        "decide": "Filtrar después castiga más a quien ve menos, y no truena: el asistente contesta «no encontré información». Por eso el filtro va dentro de la búsqueda, antes de elegir el top-k.",
+        "conceptos": [
+          "pre-post-filtro",
+          "top-k"
+        ],
+        "comprueba": {
+          "code": "python -c \"\nimport sys; sys.path.insert(0, '.')\nfrom mundo import referencia as r\nn = sum(len(x['chunks']) for x in r.docs().values())\nfor q in ('ana.ruiz', 'irene.sol', 'carmen.nava', 'diego.luna'):\n    v = len(r.permitidos(q + '@marketplace.test')); p = v / n\n    print(f'dojo · {q:<11} ve {v:>3} de {n} ({p:5.1%}) · post-filter con top-8: le llegan {8 * p:.1f} en promedio · para asegurar 8 habría que pedir ≈ {8 / p:.0f}')\np = 0.02                                    # supuesto de C11: alguien de un área chica ve el 2 % del corpus\nprint(f'C11  · alguien que ve el 2 % · post-filter con top-8: {8 * p:.2f} en promedio · para asegurar 8 habría que pedir ≈ {8 / p:.0f}')\"",
+          "nota": "",
+          "donde": "mac",
+          "salida": "dojo · ana.ruiz    ve  88 de 154 (57.1%) · post-filter con top-8: le llegan 4.6 en promedio · para asegurar 8 habría que pedir ≈ 14\ndojo · irene.sol   ve  11 de 154 ( 7.1%) · post-filter con top-8: le llegan 0.6 en promedio · para asegurar 8 habría que pedir ≈ 112\ndojo · carmen.nava ve   4 de 154 ( 2.6%) · post-filter con top-8: le llegan 0.2 en promedio · para asegurar 8 habría que pedir ≈ 308\ndojo · diego.luna  ve   3 de 154 ( 1.9%) · post-filter con top-8: le llegan 0.2 en promedio · para asegurar 8 habría que pedir ≈ 411\nC11  · alguien que ve el 2 % · post-filter con top-8: 0.16 en promedio · para asegurar 8 habría que pedir ≈ 400"
+        }
+      },
+      {
+        "id": "prueba",
+        "pregunta": "¿Cuántas combinaciones tiene que probar una prueba de permisos?",
+        "formula": "personas × ACL distintas (no personas × documentos: dos documentos con la misma ACL se prueban igual)",
+        "ref": {
+          "cuenta": "≈ 5,000 personas (supuesto) × 1.5 M documentos",
+          "valor": "7.5 mil millones: no se prueban todas; se prueba una muestra con cuentas de prueba"
+        },
+        "taller": {
+          "cuenta": "14 personas × 26 ACL distintas",
+          "valor": "364 combinaciones: se prueban todas, en segundos"
+        },
+        "decide": "En el dojo la prueba es exhaustiva y la corre verificar.py. En C11 se agrupa por ACL distinta y se prueba con cuentas de prueba, una por grupo importante; la estación 12 la vuelve un monitoreo que corre solo.",
+        "conceptos": [
+          "prueba-permisos"
+        ],
+        "comprueba": {
+          "code": "python -c \"\nimport sys; sys.path.insert(0, '.')\nfrom mundo import referencia as r\nacls = {repr(x['acl']) for x in r.docs().values()}\nprint(f'dojo · {len(r.personas())} personas × {len(acls)} ACL distintas = {len(r.personas()) * len(acls)} combinaciones (persona × documento serían {len(r.personas()) * len(r.docs())})')\ngente, docs = 5_000, 1_500_000              # supuesto de C11: 5,000 personas\nprint(f'C11  · {gente:,} personas × {docs / 1e6:.1f} M documentos = {gente * docs / 1e9:.1f} mil millones de combinaciones: no se prueban todas')\"",
+          "nota": "",
+          "donde": "mac",
+          "salida": "dojo · 14 personas × 26 ACL distintas = 364 combinaciones (persona × documento serían 1470)\nC11  · 5,000 personas × 1.5 M documentos = 7.5 mil millones de combinaciones: no se prueban todas"
+        }
+      }
+    ]
+  },
+  "conceptos": [
+    {
+      "id": "principal",
+      "termino": "Principal",
+      "en": "principal",
+      "def": "Cada «quién» que puede aparecer en una ACL: una persona (user:ana.ruiz@…), un grupo (group:soporte@…) o todo un dominio (domain:marketplace.test, cualquiera con correo de la empresa).",
+      "analogia": "Como los nombres en la lista de una fiesta privada: puede decir «Ana Ruiz», «todo el equipo de soporte» o «cualquiera con gafete de la empresa».",
+      "importa": "Para saber si alguien puede ver un chunk, juntas todos sus principals (su usuario, su dominio y todos sus grupos) y los comparas con los de la ACL.",
+      "trampa": "Dar el domain: por el simple hecho de estar en el directorio: Luis es externo, su correo es de la paquetería aliada y no tiene el dominio de la empresa."
+    },
+    {
+      "id": "directorio",
+      "termino": "Directorio (proveedor de identidad)",
+      "en": "identity provider, IdP",
+      "def": "El sistema donde vive quién es quién en la empresa: cada persona, cada grupo y quién está en cuál. Las fuentes guardan sus permisos con esos mismos nombres de grupo.",
+      "analogia": "Como el organigrama más la lista de credenciales de recursos humanos: si alguien cambia de área, se cambia ahí y en ningún otro lado.",
+      "importa": "El índice guarda grupos; el directorio dice quién está detrás de cada grupo hoy. Tu pipeline trabaja con una copia (indice/directorio.json) que el carril rápido mantiene al día.",
+      "trampa": "Preguntarle al directorio en cada pregunta: mete otro sistema en el camino de cada respuesta. Se guarda una copia y se mantiene al día con sus avisos."
+    },
+    {
+      "id": "grupo-anidado",
+      "termino": "Grupo anidado",
+      "en": "nested group",
+      "def": "Un grupo que es miembro de otro grupo: soporte-nivel1 está dentro de soporte, así que Ana, que está en soporte-nivel1, también es de soporte.",
+      "analogia": "Como las muñecas rusas: abrir la grande no basta, hay que abrir todas las de adentro para ver quién está.",
+      "importa": "Google Workspace y Microsoft Entra ID (en grupos de seguridad) dejan meter un grupo dentro de otro. La ACL dice group:soporte y casi nadie está ahí directo: sin recorrer los de adentro, el equipo pierde los manuales.",
+      "trampa": "Cortar la búsqueda a un nivel «para que no se cuelgue»: así se pierden permisos legítimos. Lo que evita colgarse es llevar la cuenta de los grupos ya vistos."
+    },
+    {
+      "id": "ciclo",
+      "termino": "Ciclo de grupos",
+      "en": "group membership cycle",
+      "def": "Un grupo que, siguiendo los de adentro, termina dentro de sí mismo: el comité está dentro del boletín y el boletín dentro del comité.",
+      "analogia": "Como dos espejos frente a frente: si sigues el reflejo, nunca acabas.",
+      "importa": "Una búsqueda que sube por los grupos sin recordar dónde ya pasó da vueltas para siempre. Con un conjunto de «ya vistos», cada grupo se visita una vez y el ciclo no importa.",
+      "trampa": "Creer que tu directorio no tiene ciclos. Basta con que dos personas agreguen un grupo dentro de otro sin saberlo."
+    },
+    {
+      "id": "acl-clausulas",
+      "termino": "ACL en cláusulas",
+      "en": "ACL as AND of ORs",
+      "def": "La forma en que la estación 1 dejó cada ACL: una lista de cláusulas. Hay que cumplir todas (AND), y para cumplir una basta uno de sus principals (OR).",
+      "analogia": "Como la entrada a la sala de servidores: (gafete de empleado O de proveedor) Y (estar en la lista de TI). Una sola cosa no alcanza.",
+      "importa": "Así se escribe sin perder nada «hay que poder ver el espacio Legal y además estar en litigios». Irene cumple las dos cláusulas del «Caso Transportes del Norte»; Paula, líder de soporte, solo la primera.",
+      "trampa": "Aplanar las cláusulas en una sola lista: un permiso que era AND se vuelve OR, y cualquiera que cumpla una sola parte entra."
+    },
+    {
+      "id": "fail-closed",
+      "termino": "Fail-closed",
+      "en": "fail-closed",
+      "def": "Cuando falta un dato de permisos o viene roto, la respuesta es «no»: una ACL vacía, ausente o con una cláusula vacía no deja ver a nadie.",
+      "analogia": "Como una puerta de seguridad que, si se va la luz, se queda cerrada en vez de abrirse.",
+      "importa": "Un chunk que llega sin ACL no se sabe de quién es. Dejarlo fuera del índice lo saca del asistente un rato; meterlo «público» puede poner los sueldos al alcance de todos.",
+      "trampa": "Tratar acl: [] como «sin restricciones», o tener un default de «público mientras llega su ACL»."
+    },
+    {
+      "id": "acl-en-chunk",
+      "termino": "ACL dentro de cada chunk",
+      "en": "document-level security in the index",
+      "def": "Cada chunk del índice lleva la ACL de su documento, con los principals tal cual (grupos, usuarios, dominio). Las personas se resuelven al momento de preguntar.",
+      "analogia": "Como el sello «solo personal de soporte» en cada carpeta del archivo, en vez de una lista con 400 nombres que tendrías que reescribir en cada carpeta cada vez que alguien entra o sale del equipo.",
+      "importa": "El buscador encuentra chunks, no documentos: el permiso tiene que viajar con cada chunk para poder filtrar dentro de la búsqueda. Y en grupos, porque un cambio de equipo no tiene que tocar el índice.",
+      "trampa": "Guardar la ACL solo en el documento y revisarla «después»: el índice ya eligió los chunks sin saber de quién eran."
+    },
+    {
+      "id": "top-k",
+      "termino": "Top-k",
+      "en": "top-k",
+      "def": "Los k mejores resultados de una búsqueda. En C11, k = 8: los 8 chunks que llegan al prompt del LLM.",
+      "analogia": "Como los 8 primeros resultados de un buscador: lo que no sale en esa lista, para ti no existe.",
+      "importa": "El LLM solo puede contestar con lo que está en el top-k. Si el top-k sale vacío, el asistente dice «no encontré información» aunque la respuesta exista y la persona tenga permiso de leerla.",
+      "trampa": "Elegir el top-k entre todo el índice y luego quitar lo que la persona no puede ver."
+    },
+    {
+      "id": "pre-post-filtro",
+      "termino": "Filtrar antes o después",
+      "en": "pre-filtering vs post-filtering",
+      "def": "Pre-filter: la búsqueda solo considera los chunks que la persona puede ver y de ahí elige el top-k. Post-filter: elige el top-k de todo y después tira lo ajeno.",
+      "analogia": "Como buscar libros solo en los estantes a los que tienes acceso, contra elegir los 8 mejores de toda la biblioteca y que el bibliotecario te quite los prohibidos: te puedes quedar con las manos vacías.",
+      "importa": "Con post-filter nadie recibe un chunk ajeno, así que parece seguro, pero quien ve poco recibe poco o nada. Ana pregunta por «cuenta de vendedor duplicada»: los 8 mejores son tickets de fraude y le llegan 0.",
+      "trampa": "Confundir «no hay fuga» con «funciona». Y suponer que tu base vectorial filtra durante la búsqueda: pgvector, con índice aproximado, aplica el WHERE después de recorrerlo (estación 5)."
+    },
+    {
+      "id": "defensa-profundidad",
+      "termino": "El último filtro antes del prompt",
+      "en": "defense in depth",
+      "def": "Justo antes de armar el prompt, cada chunk se vuelve a revisar contra la ACL del índice con los principals de ese momento. Lo que no pasa no entra.",
+      "analogia": "Como el guardia de la puerta del edificio y otro en la puerta de la sala: si al primero se le pasó alguien, el segundo lo detiene.",
+      "importa": "Entre la búsqueda y el prompt hay código (un reranker, un caché, un cambio de mañana) que puede colar un chunk. Y la ACL que manda es la del índice, no la que dice el resultado: un resultado se puede armar con cualquier ACL.",
+      "trampa": "Confiar en el campo acl que trae el resultado. El check prompt le da a contexto() «Sueldos 2026» con una ACL falsa de todo el dominio."
+    },
+    {
+      "id": "prueba-permisos",
+      "termino": "Prueba de permisos",
+      "en": "permission probe",
+      "def": "Preguntar como cada persona y comparar lo que recibe con la verdad: ni un chunk que no puede ver (fuga), ni uno menos de los que sí (acceso).",
+      "analogia": "Como el cliente misterioso de una tienda: alguien que entra como cualquier cliente para comprobar que lo atienden como dice la regla.",
+      "importa": "Es lo que dice «permisos al 100 %» en el gate de C11 (estación 9). La fuga es el error grave; el acceso de menos es el que nadie reporta, porque el asistente solo parece no saber.",
+      "trampa": "Probar solo con tu propia cuenta, que ve casi todo. Las fallas aparecen en quien ve poco: el externo, el recién contratado, el área chica."
+    },
+    {
+      "id": "slo-revocacion",
+      "termino": "Revocación y su SLO",
+      "en": "revocation SLO",
+      "def": "Revocar es quitarle un permiso a alguien. El SLO (el objetivo de servicio que el equipo se compromete a cumplir) de C11 es que una revocación se aplique en ≤ 5 min.",
+      "analogia": "Como desactivar la tarjeta de acceso de alguien que se va de la empresa: si tarda una hora en dejar de abrir la puerta, durante una hora sigue entrando.",
+      "importa": "Mientras la revocación no se aplica, la persona sigue recibiendo esos chunks. Lo que se mide es la exposición: cuánto tiempo pudo ver lo que ya no debía.",
+      "trampa": "Medir solo que «al final quedó bien». A las 10:30 todo puede estar correcto y aun así alguien estuvo 52 minutos leyendo las tarifas negociadas."
+    },
+    {
+      "id": "carril-rapido",
+      "termino": "Carril rápido",
+      "en": "fast lane / permission sync",
+      "def": "Un camino aparte del reindexado: cada fuente avisa sus cambios de permisos con un webhook (un mensaje que manda sola a una URL tuya), el aviso cae en una cola y un worker lo aplica sin reindexar.",
+      "analogia": "Como la caja rápida del súper: el reindexado es la fila normal con el carrito lleno; un cambio de permiso no puede esperar detrás.",
+      "importa": "Un cambio de ACL reescribe solo la ACL de los chunks de ese documento (en el dojo, 5 chunks); un cambio de grupo, solo la copia del directorio. Por eso cabe en segundos.",
+      "trampa": "Hacerlo correr «cada hora, como el reindexado»: entonces ya no es un carril rápido."
+    },
+    {
+      "id": "cursor",
+      "termino": "Cursor e idempotencia",
+      "en": "cursor, idempotency",
+      "def": "El cursor anota hasta qué evento de la cola llegaste; idempotente quiere decir que aplicar lo mismo dos veces deja todo igual que aplicarlo una.",
+      "analogia": "Como el separador de un libro: sabes dónde te quedaste. Y si por error relees una página, la historia no cambia.",
+      "importa": "Si el carril truena a la mitad, la siguiente pasada vuelve a empezar después del cursor y repite algunos eventos: como aplicar dos veces da lo mismo, no pasa nada. Por eso el cursor se mueve al final.",
+      "trampa": "Mover el cursor antes de aplicar: si truena en medio, esos eventos se pierden. Y creer que todo aviso llega: los webhooks de Jira y Confluence son de entrega «best effort»."
+    },
+    {
+      "id": "gana-la-nueva",
+      "termino": "Gana la ACL más nueva",
+      "en": "last write wins (by source time)",
+      "def": "Cada ACL lleva la hora en que la fuente la cambió. El reindexado, que trae la ACL que leyó la ingestión a las 9:05, no puede pisar la del carril rápido de las 9:07.",
+      "analogia": "Como dos cartas del mismo banco con tu saldo: vale la de fecha más reciente, no la que abriste al último.",
+      "importa": "El reindexado de las 10:00 reconstruye el índice desde los chunks, que todavía traen la ACL vieja. Sin la bitácora del carril (acl_vigente.json), deshace en un segundo las revocaciones de la mañana.",
+      "trampa": "Ordenar por «lo último que escribí» en vez de por la hora del cambio en la fuente. Y borrar la bitácora del carril creyendo que es un log."
+    }
+  ],
+  "mundo": {
+    "resumen": "El kit trae la mañana del 21 de noviembre en el marketplace ficticio del caso. Está lo que dejó la estación 2: <b>154 chunks de 105 documentos</b> (la wiki, el Drive, el Jira y las políticas), cada uno con su ACL. Está el <b>directorio de la empresa</b>, con 14 personas y 13 grupos, unos dentro de otros. Y está una <b>cola de seis cambios de permisos</b> que avisan las fuentes entre las 9:07 y las 9:52. Tú escribes los permisos: quién es quién, la ACL en cláusulas, el índice con la ACL en cada chunk, la búsqueda que filtra antes del top-k y otra vez antes del prompt, y el carril rápido. Después el mundo pasa la mañana minuto a minuto con tu código y mide cuánto tiempo pudo ver cada persona lo que ya no debía. Sin Docker, sin GPU y sin internet después del <code>pip install</code>.",
+    "trae": [
+      {
+        "que": "mundo/entrada/docs/",
+        "detalle": "La salida de la estación 2, como salió de correr su kit con su solución: un archivo por documento con sus chunks y su ACL, más <code>acl_leida</code>, la hora en que la ingestión de la estación 1 leyó esa ACL (9:05 del 21)."
+      },
+      {
+        "que": "El directorio",
+        "detalle": "14 personas: cinco agentes de soporte (uno es Luis, externo, de la paquetería aliada), una líder de soporte, tres de operaciones, una de finanzas, uno de fraude, una de recursos humanos, una de legal y Diego, recién contratado, sin equipo todavía. 13 grupos con hasta 3 niveles de anidamiento y un ciclo (el comité dentro del boletín y el boletín dentro del comité)."
+      },
+      {
+        "que": "La mañana del 21",
+        "detalle": "<code>mundo/avanzar.py</code> pasa de las 9:00 a las 10:30: seis avisos de permisos (cuatro revocaciones de documentos o de grupos, una baja de un externo y un alta), tu carril rápido cada minuto y el reindexado de las 10:00. Después de cada corrida le pregunta a tu <code>buscar.py</code> qué ve cada persona y mide la exposición."
+      },
+      {
+        "que": "Un buscador de juguete",
+        "detalle": "<code>pipeline/_comun.py</code> trae <code>puntaje()</code>: cuántas palabras de la pregunta aparecen en el chunk. No es el buscador de C11 (ese es BM25 y vectores, estación 5): está para que el filtro de permisos tenga algo que filtrar."
+      },
+      {
+        "que": "verificar.py y romper.py",
+        "detalle": "Los 9 checks de la estación (de <code>mundo</code> a <code>revocacion</code>) y las 6 fallas: filtro después del top-k, ACL vieja tras una revocación, grupo anidado sin resolver, chunk sin ACL que se vuelve público, la bitácora del carril borrada y la suscripción del directorio vencida."
+      }
+    ],
+    "tu_pipeline": [
+      {
+        "archivo": "pipeline/directorio.py",
+        "hace": "Paso 1: los principals de una persona, con sus grupos anidados y sin colgarse en un ciclo."
+      },
+      {
+        "archivo": "pipeline/permisos.py",
+        "hace": "Paso 2: la ACL en cláusulas contra los principals, fail-closed."
+      },
+      {
+        "archivo": "pipeline/indexar.py",
+        "hace": "Paso 3 (y 8): el índice con la ACL de cada chunk en grupos, sin lo que llega sin ACL, y respetando lo del carril rápido."
+      },
+      {
+        "archivo": "pipeline/buscar.py",
+        "hace": "Pasos 4 y 5: lo que ve cada persona, el top-k filtrado antes y el último filtro antes del prompt."
+      },
+      {
+        "archivo": "pipeline/revocar.py",
+        "hace": "Paso 7: el carril rápido: la cola, el cursor, la ACL nueva en los chunks de un documento, el cambio de grupo en la copia del directorio y su bitácora."
+      },
+      {
+        "archivo": "config.yaml",
+        "hace": "La profundidad de los grupos, qué hacer sin ACL, el top-k y el filtro, y cada cuánto corre el carril."
+      }
+    ],
+    "requisitos": [
+      "Python 3.10 o más nuevo (se probó con 3.14.3) y ≈ 15 MB para el entorno virtual",
+      "Internet solo para el <code>pip install</code> (pyyaml 6.0.3)",
+      "Las estaciones 1 y 2 ayudan, pero no hacen falta: el kit trae su salida"
+    ],
+    "sustituciones": [
+      {
+        "nube": "El proveedor de identidad de la empresa",
+        "local": "<code>almacen/directorio.json</code> y tu copia en <code>indice/</code>",
+        "diferencia": "La misma idea: personas, grupos y grupos dentro de grupos. En C11 son miles de personas y la copia se mantiene con los avisos del proveedor; aquí son 14 y los avisos vienen en la cola."
+      },
+      {
+        "nube": "Webhooks de las fuentes hacia una cola",
+        "local": "<code>almacen/eventos.jsonl</code>, que escribe el mundo",
+        "diferencia": "En C11 cada fuente manda sus avisos a una URL del equipo y caen en una cola de mensajes; aquí el mundo los escribe con la hora en que «llegaron» (20 s después del cambio)."
+      },
+      {
+        "nube": "Un worker que corre solo",
+        "local": "<code>python pipeline/revocar.py</code>, que el mundo corre cada minuto simulado",
+        "diferencia": "La hora del mundo es simulada (<code>almacen/mundo.json</code>): una mañana entera pasa en unos segundos, y siempre igual."
+      },
+      {
+        "nube": "El filtro dentro del índice vectorial",
+        "local": "Un JSON y un filtro en Python",
+        "diferencia": "En la estación 5 el índice es de verdad (BM25 y vectores) y el filtro de permisos va dentro de la búsqueda, con la misma ACL en cada chunk."
+      }
+    ],
+    "arranque": "unzip rag-permisos.zip && cd rag-permisos\npython3 -m venv .venv && source .venv/bin/activate\npip install -r requirements.txt\npython mundo/crear.py",
+    "python": "python"
+  },
+  "guiado": [
+    {
+      "n": 0,
+      "id": "mundo",
+      "titulo": "Levantar el mundo",
+      "objetivo": "El almacén de la mañana del 21 en <code>almacen/</code>: los chunks de la estación 2, el directorio y la cola vacía.",
+      "conceptos": [
+        "directorio"
+      ],
+      "explica": "Solo hace falta pyyaml. <code>mundo/crear.py</code> copia de <code>mundo/entrada/</code> a <code>almacen/</code> los chunks que dejó la estación 2, el directorio de la empresa y una cola de eventos vacía, y pone el reloj del mundo a las 9:00 de Ciudad de México. Tu pipeline lee <code>almacen/</code> y escribe en <code>indice/</code>.",
+      "codigo": [],
+      "comandos": [
+        {
+          "code": "python3 -m venv .venv && source .venv/bin/activate\npip install -r requirements.txt",
+          "nota": "Desde aquí, cada terminal nueva necesita <code>source .venv/bin/activate</code>.",
+          "donde": "mac",
+          "salida": "\nPython 3.14.3\nPyYAML  6.0.3"
+        },
+        {
+          "code": "python mundo/crear.py",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ el 21 de noviembre a las 9:00 (Ciudad de México): 105 documentos y 154 chunks de la estación 2 · 14 personas y 13 grupos en el directorio · la cola de permisos, vacía\n  siguiente: python verificar.py mundo"
+        },
+        {
+          "code": "python verificar.py mundo",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ mundo       9:00 del 21 de noviembre · 105 documentos, 154 chunks · 14 personas y 13 grupos (unos dentro de otros, hasta 3 niveles, y un ciclo) · 0 evento(s) en la cola\n\n1/1 en verde"
+        },
+        {
+          "code": "python verificar.py principals",
+          "nota": "Es lo esperado: <code>pipeline/</code> todavía es el esqueleto. Cada check se pone en verde en su paso.",
+          "donde": "mac",
+          "salida": "✗ principals  directorio.principals todavía es el esqueleto (paso 1: principals)\n\n0/1 en verde · falta: principals\n[código 1]"
+        }
+      ],
+      "verifica": "<code>verificar.py mundo</code> en verde.",
+      "ojo": "La hora del mundo no es la de tu Mac: vive en <code>almacen/mundo.json</code> y la lees con <code>ahora()</code> de <code>_comun.py</code>. Así la mañana del paso 8 pasa en segundos y sale igual cada vez."
+    },
+    {
+      "n": 1,
+      "id": "principals",
+      "titulo": "Quién es quién",
+      "objetivo": "<code>principals()</code>: el usuario, el dominio y todos los grupos de una persona, también los de adentro, sin colgarse en un ciclo.",
+      "conceptos": [
+        "principal",
+        "directorio",
+        "grupo-anidado",
+        "ciclo"
+      ],
+      "explica": "Una ACL no dice «Ana»: dice <code>group:soporte</code>. Para saber si Ana entra, juntas sus <b>principals</b>: <code>user:ana.ruiz@…</code>, <code>domain:</code> y lo que va después de la @ de su correo, y cada grupo al que pertenece. El directorio da los grupos al revés de como los necesitas (cada grupo con sus miembros), así que primero armas «miembro → grupos que lo tienen». Después subes por niveles: los grupos de Ana; los grupos que contienen a esos grupos; y así. Ana está en soporte-nivel1, y soporte-nivel1 está dentro de soporte. Un conjunto de «ya vistos» hace que el ciclo comité ⇄ boletín no te cuelgue. <code>profundidad</code> es un tope de seguridad, no la forma de evitar ciclos.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "pipeline/directorio.py",
+          "code": "\"\"\"Paso 1 · Quién es quién: los principals de una persona, con sus grupos anidados.\n\nContrato:\n- El directorio (almacen/directorio.json es la foto del IdP; tu copia vive en indice/directorio.json) es\n  {\"dominio\", \"foto\", \"personas\": {correo: {\"nombre\", \"area\"}},\n   \"grupos\": {\"group:<correo del grupo>\": {\"nombre\", \"miembros\": [\"user:<correo>\" o \"group:<correo>\", …]}}}.\n  Un grupo puede estar dentro de otro: sus miembros son también miembros del de afuera (grupo anidado).\n- principals(correo, directorio, profundidad) devuelve el set de principals de esa persona: \"user:<correo>\",\n  \"domain:<lo que va después de la @>\" y cada grupo al que pertenece, directo o por anidamiento, hasta `profundidad`\n  niveles (1 = solo sus grupos directos). Nunca se cuelga con un ciclo (un grupo dentro de otro que está dentro del primero).\n- Una persona que no está en el directorio no tiene principals: set() (fail-closed).\n- copia() lee indice/directorio.json (la copia que mantienen el carril rápido y el reindexado); guardar_copia(d) la escribe.\n\"\"\"\nfrom __future__ import annotations\n\nfrom _comun import COPIA, escribir_json, leer_json\n\n\ndef principals(correo: str, directorio: dict, profundidad: int) -> set[str]:\n    if correo not in directorio[\"personas\"]:\n        return set()\n    padres: dict[str, set[str]] = {}            # miembro → los grupos que lo tienen adentro\n    for grupo, x in directorio[\"grupos\"].items():\n        for m in x[\"miembros\"]:\n            padres.setdefault(m, set()).add(grupo)\n    yo = f\"user:{correo}\"\n    out = {yo, \"domain:\" + correo.split(\"@\", 1)[1]}\n    frontera = {yo}\n    for _ in range(profundidad):                # un nivel por vuelta: mis grupos, los grupos de mis grupos…\n        nuevos = {g for m in frontera for g in padres.get(m, ())} - out    # «- out»: lo ya visto no se repite (ciclos)\n        if not nuevos:\n            break\n        out |= nuevos\n        frontera = nuevos\n    return out\n\n\ndef copia() -> dict:\n    d = leer_json(COPIA)\n    if d is None:\n        raise SystemExit(\"✗ no hay copia del directorio en indice/: python pipeline/indexar.py\")\n    return d\n\n\ndef guardar_copia(d: dict) -> None:\n    escribir_json(COPIA, d)",
+          "nota": "<code>copia()</code> y <code>guardar_copia()</code> vienen dadas: leen y escriben tu copia del directorio en <code>indice/</code>."
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python -c \"\nimport sys, json; sys.path.insert(0, 'pipeline')\nfrom directorio import principals\nd = json.load(open('almacen/directorio.json'))\nfor p in ('ana.ruiz@marketplace.test', 'paula.vega@marketplace.test', 'luis.campos@paqueteria-aliada.test'):\n    for n in (1, 10):\n        print(p.split('@')[0], 'profundidad', n, '→', sorted(x.split('@')[0] for x in principals(p, d, n)))\"",
+          "nota": "Con profundidad 1, Ana no es «soporte». Paula, líder, termina también en el comité y el boletín por el ciclo. Luis es externo: su dominio es el de la paquetería.",
+          "donde": "mac",
+          "salida": "ana.ruiz profundidad 1 → ['domain:marketplace.test', 'group:soporte-nivel1', 'user:ana.ruiz']\nana.ruiz profundidad 10 → ['domain:marketplace.test', 'group:soporte', 'group:soporte-nivel1', 'user:ana.ruiz']\npaula.vega profundidad 1 → ['domain:marketplace.test', 'group:soporte-lideres', 'user:paula.vega']\npaula.vega profundidad 10 → ['domain:marketplace.test', 'group:boletin-calidad', 'group:comite-calidad', 'group:soporte', 'group:soporte-lideres', 'user:paula.vega']\nluis.campos profundidad 1 → ['domain:paqueteria-aliada.test', 'group:soporte-nivel1', 'user:luis.campos']\nluis.campos profundidad 10 → ['domain:paqueteria-aliada.test', 'group:soporte', 'group:soporte-nivel1', 'user:luis.campos']"
+        },
+        {
+          "code": "python verificar.py principals",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ principals  14 personas · paula.vega: 6 principals (líderes de soporte → soporte, y el comité y el boletín, que están uno dentro del otro, sin colgarse) · luis.campos, externo: «paqueteria-aliada.test», no el dominio de la empresa\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "<code>verificar.py principals</code> en verde: las 14 personas con sus principals exactos, la profundidad 1 da solo los grupos directos y alguien que no está en el directorio no tiene ninguno.",
+      "ojo": "El <code>domain:</code> sale del correo de la persona, no del directorio: estar en el directorio de la empresa no te hace de la empresa. Luis entra a soporte por su grupo, pero no ve lo compartido con todo marketplace.test.",
+      "en_pagina": {
+        "conceptos": [
+          "principal",
+          "directorio",
+          "grupo-anidado",
+          "ciclo"
+        ],
+        "precalculos": []
+      }
+    },
+    {
+      "n": 2,
+      "id": "permisos",
+      "titulo": "¿Puede verlo?",
+      "objetivo": "<code>puede_ver()</code>: la ACL en cláusulas contra los principals, con «no» como respuesta cuando la ACL falta o viene rota.",
+      "conceptos": [
+        "acl-clausulas",
+        "fail-closed"
+      ],
+      "explica": "La estación 1 dejó cada ACL como <b>cláusulas</b>: hay que cumplir todas, y en cada una basta un principal. En Python cabe en una línea: <code>all(any(p in principals for p in c) for c in acl)</code>. Pero antes, <code>acl_valida()</code>: una lista con al menos una cláusula, cada cláusula con al menos un principal y cada principal con su prefijo. Ojo con <code>all()</code> sobre una lista vacía: da <code>True</code>. Sin esa revisión, una ACL vacía dejaría ver a todos. Eso es <b>fail-closed</b>: si falta el dato, la respuesta es no.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "pipeline/permisos.py",
+          "code": "\"\"\"Paso 2 · ¿Puede verlo?: la ACL en cláusulas contra los principals de una persona, fail-closed.\n\nContrato:\n- Una ACL es una lista de cláusulas y cada cláusula una lista de principals (\"user:…\", \"group:…\", \"domain:…\"), como\n  la dejó la estación 1: para ver, la persona tiene que cumplir TODAS las cláusulas (AND), y para cumplir una cláusula\n  le basta tener UNO de sus principals (OR).\n- acl_valida(acl): True solo si es una lista con al menos una cláusula, cada cláusula una lista con al menos un\n  principal, y cada principal un texto que empieza con user:, group: o domain:.\n- puede_ver(acl, principals): False si la ACL no es válida (vacía, None, una cláusula vacía…): fail-closed.\n\"\"\"\nfrom __future__ import annotations\n\nPREFIJOS = (\"user:\", \"group:\", \"domain:\")\n\n\ndef acl_valida(acl) -> bool:\n    return (isinstance(acl, list) and len(acl) > 0 and\n            all(isinstance(c, list) and len(c) > 0 and all(isinstance(p, str) and p.startswith(PREFIJOS) for p in c) for c in acl))\n\n\ndef puede_ver(acl, principals: set[str]) -> bool:\n    if not acl_valida(acl):\n        return False                            # una ACL rota no es «sin restricciones»: es un dato que falta\n    return all(any(p in principals for p in clausula) for clausula in acl)",
+          "nota": ""
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python -c \"\nimport sys, json; sys.path.insert(0, 'pipeline')\nfrom directorio import principals\nfrom permisos import puede_ver\nd = json.load(open('almacen/directorio.json'))\nacl = json.load(open('almacen/docs/wiki__3004.json'))['acl']\nprint('Caso Transportes del Norte:', acl)\nfor p in ('irene.sol', 'paula.vega', 'ana.ruiz'):\n    print(f'  {p:<10}', puede_ver(acl, principals(p + '@marketplace.test', d, 10)))\nprint('acl vacía:', puede_ver([], {'domain:marketplace.test'}), '· cláusula vacía:', puede_ver([[]], {'domain:marketplace.test'}))\"",
+          "nota": "Paula cumple la primera cláusula (es líder de soporte) pero no está en litigios.",
+          "donde": "mac",
+          "salida": "Caso Transportes del Norte: [['group:legal@marketplace.test', 'group:soporte-lideres@marketplace.test'], ['group:legal-litigios@marketplace.test']]\n  irene.sol  True\n  paula.vega False\n  ana.ruiz   False\nacl vacía: False · cláusula vacía: False"
+        },
+        {
+          "code": "python verificar.py permisos",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ permisos    10 casos: AND entre cláusulas, OR dentro de cada una, y vacía, rota o ausente = nadie\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "<code>verificar.py permisos</code> en verde: los 10 casos, del OR dentro de una cláusula a la ACL vacía, rota o ausente.",
+      "ojo": "<code>all([])</code> es <code>True</code> en Python (y en casi cualquier lenguaje): sin <code>acl_valida()</code>, <code>[]</code> sería «todos».",
+      "en_pagina": {
+        "conceptos": [
+          "acl-clausulas",
+          "fail-closed"
+        ],
+        "precalculos": []
+      }
+    },
+    {
+      "n": 3,
+      "id": "indice",
+      "titulo": "La ACL dentro de cada chunk",
+      "objetivo": "<code>indexar.py</code>: cada chunk en el índice con su texto y la ACL de su documento, tal cual, en grupos; lo que llega sin ACL válida se queda fuera.",
+      "conceptos": [
+        "acl-en-chunk"
+      ],
+      "explica": "El buscador encuentra chunks, así que cada chunk del índice lleva su ACL: el permiso viaja con el pedazo. Se guarda <b>tal cual</b>, con los grupos, sin expandirla a personas: quién está detrás de cada grupo se resuelve al preguntar, con el directorio de ese momento. Un documento con una ACL que no pasa <code>acl_valida()</code> no entra (fail-closed) y queda en <code>sin_acl</code>. <code>indexar.py</code> también refresca tu copia del directorio y anota por documento de dónde salió su ACL y desde cuándo vale (<code>acl_desde</code>). La parte que respeta lo del carril rápido (<code>acl_vigente.json</code>) es del paso 8: por ahora ese archivo no existe.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "pipeline/indexar.py",
+          "code": "\"\"\"Paso 3 · El índice: cada chunk con la ACL de su documento, guardada como grupos (no como personas).\n\n    python pipeline/indexar.py               # el reindexado de cada hora: reconstruye desde almacen/docs/ sin perder lo del carril rápido\n    python pipeline/indexar.py --desde-cero  # borra indice/ entero (también lo del carril rápido) y lo construye\n\nContrato:\n- Lee almacen/docs/<doc>.json (lo que dejó la estación 2): {\"doc_id\", \"acl\", \"acl_leida\", \"titulo\", \"url\", \"chunks\": [...]},\n  cada chunk con \"chunk_id\", \"texto\" y \"acl\".\n- Escribe indice/indice.json: {\"construido\" (ahora()), \"chunks\": {chunk_id: {\"doc_id\", \"titulo\", \"url\", \"texto\", \"acl\"}},\n  \"docs\": {doc_id: {\"acl\", \"acl_desde\", \"origen\" (\"chunks\" o \"carril\"), \"chunks\": [chunk_id, …]}}, \"sin_acl\": [doc_id, …]}.\n- La ACL va tal cual, en cláusulas de principals (grupos, usuarios, dominio): nunca expandida a personas.\n- Fail-closed: si la ACL del documento o la de alguno de sus chunks no es válida (permisos.acl_valida), el documento no\n  entra al índice y queda en sin_acl. Salvo con config permisos.sin_acl: publico, que lo mete con [[\"domain:<dominio\n  del directorio>\"]] (es para ver por qué no).\n- Lo del carril rápido gana si es más nuevo: si indice/acl_vigente.json trae una ACL para el documento con \"desde\"\n  posterior a su acl_leida, esa manda en todos sus chunks (origen \"carril\"); si no, la del documento (\"chunks\", y\n  acl_desde = acl_leida).\n- También refresca la copia del directorio (indice/directorio.json) desde almacen/directorio.json.\n- --desde-cero borra indice/ antes: acl_vigente.json, cursor.json, revocaciones.jsonl y la copia del directorio.\n\"\"\"\nfrom __future__ import annotations\n\nimport argparse\nimport shutil\n\nfrom _comun import ACL_VIGENTE, ARCHIVO_INDICE, DIRECTORIO, DOCS, INDICE, ahora, config, escribir_json, leer_json\nfrom directorio import guardar_copia\nfrom permisos import acl_valida\n\n\ndef construir() -> dict:\n    cfg = config()[\"permisos\"]\n    d = leer_json(DIRECTORIO)\n    vigente = leer_json(ACL_VIGENTE, {})\n    idx = {\"construido\": ahora(), \"chunks\": {}, \"docs\": {}, \"sin_acl\": []}\n    for p in sorted(DOCS.glob(\"*.json\")):\n        x = leer_json(p)\n        acl, desde, origen = x.get(\"acl\"), x.get(\"acl_leida\"), \"chunks\"\n        if not (acl_valida(acl) and all(acl_valida(c.get(\"acl\")) for c in x[\"chunks\"])):\n            if cfg[\"sin_acl\"] != \"publico\":\n                idx[\"sin_acl\"].append(x[\"doc_id\"])\n                continue\n            acl = [[f\"domain:{d['dominio']}\"]]\n        v = vigente.get(x[\"doc_id\"])\n        if v and (desde is None or v[\"desde\"] > desde):\n            acl, desde, origen = v[\"acl\"], v[\"desde\"], \"carril\"\n        for c in x[\"chunks\"]:\n            idx[\"chunks\"][c[\"chunk_id\"]] = {\"doc_id\": x[\"doc_id\"], \"titulo\": x[\"titulo\"], \"url\": x.get(\"url\"), \"texto\": c[\"texto\"],\n                                            \"acl\": acl if origen == \"carril\" or not acl_valida(c.get(\"acl\")) else c[\"acl\"]}\n        idx[\"docs\"][x[\"doc_id\"]] = {\"acl\": acl, \"acl_desde\": desde, \"origen\": origen, \"chunks\": [c[\"chunk_id\"] for c in x[\"chunks\"]]}\n    escribir_json(ARCHIVO_INDICE, idx)\n    guardar_copia(d)\n    return idx\n\n\ndef main() -> None:\n    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)\n    ap.add_argument(\"--desde-cero\", action=\"store_true\")\n    a = ap.parse_args()\n    if a.desde_cero:\n        shutil.rmtree(INDICE, ignore_errors=True)\n    idx = construir()\n    carril = sorted(d for d, x in idx[\"docs\"].items() if x[\"origen\"] == \"carril\")\n    grupos = {p for x in idx[\"docs\"].values() for c in x[\"acl\"] for p in c}\n    print(f\"✓ índice {'desde cero' if a.desde_cero else 'reconstruido'} a las {idx['construido'][11:19]} UTC · {len(idx['chunks'])} chunks de \"\n          f\"{len(idx['docs'])} documentos · {len(grupos)} principals distintos en sus ACL\")\n    if carril:\n        print(f\"  con la ACL del carril rápido (más nueva que la de los chunks): {', '.join(carril)}\")\n    if idx[\"sin_acl\"]:\n        print(f\"  ⚠ sin ACL válida, fuera del índice (fail-closed): {', '.join(idx['sin_acl'])}\")\n\n\nif __name__ == \"__main__\":\n    main()",
+          "nota": "<code>main()</code> viene dada. En este paso, <code>construir()</code> sin las dos líneas de <code>vigente</code>; las agregas en el paso 8."
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python pipeline/indexar.py",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ índice reconstruido a las 15:00:00 UTC · 154 chunks de 105 documentos · 19 principals distintos en sus ACL"
+        },
+        {
+          "code": "python -c \"\nimport json; idx = json.load(open('indice/indice.json'))\nc = idx['chunks']['wiki:1006#000']; print({k: c[k] for k in ('doc_id', 'titulo', 'acl')}); print(idx['docs']['wiki:1006'])\"",
+          "nota": "«Clientes VIP y compensaciones»: dos cláusulas, y la segunda pide ser líder de soporte.",
+          "donde": "mac",
+          "salida": "{'doc_id': 'wiki:1006', 'titulo': 'Clientes VIP y compensaciones', 'acl': [['group:operaciones@marketplace.test', 'group:soporte@marketplace.test'], ['group:soporte-lideres@marketplace.test']]}\n{'acl': [['group:operaciones@marketplace.test', 'group:soporte@marketplace.test'], ['group:soporte-lideres@marketplace.test']], 'acl_desde': '2026-11-21T15:05:00Z', 'chunks': ['wiki:1006#000', 'wiki:1006#001'], 'origen': 'chunks'}"
+        },
+        {
+          "code": "python verificar.py indice",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ indice      154 chunks de 105 documentos, cada uno con la ACL de su documento, en grupos: 19 principals distintos (expandida a personas serían 952 entradas, una por persona y chunk)\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "<code>verificar.py indice</code> en verde: los 154 chunks, cada uno con la ACL exacta de su documento, y ninguno sin ACL.",
+      "ojo": "La cuenta del check: 19 principals distintos en todo el índice, contra 952 entradas si guardaras una por persona y chunk. Con miles de personas, la diferencia es de cientos de veces.",
+      "en_pagina": {
+        "conceptos": [
+          "acl-en-chunk"
+        ],
+        "precalculos": [
+          "grupos",
+          "quitar"
+        ]
+      }
+    },
+    {
+      "n": 4,
+      "id": "filtro",
+      "titulo": "Filtrar antes del top-k",
+      "objetivo": "<code>buscar()</code>: el top-8 sale solo de los chunks que la persona puede ver. Y la versión que filtra después, para comparar.",
+      "conceptos": [
+        "top-k",
+        "pre-post-filtro"
+      ],
+      "explica": "<code>visibles()</code> es el filtro: los chunks cuya ACL pasa con los principals de la persona. <code>buscar()</code> calcula el <code>puntaje()</code> (el buscador de juguete de <code>_comun.py</code>) y se queda con los <b>k mejores</b>. El orden de esas dos cosas es la decisión de la estación. <b>Antes</b> (pre-filter): el top-8 se elige entre lo que la persona puede ver. <b>Después</b> (post-filter): se elige el top-8 de todo y se tira lo ajeno. Las dos versiones van en el código, elegidas por <code>busqueda.filtro</code>, para que veas la diferencia con tus ojos.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "pipeline/buscar.py",
+          "code": "\"\"\"Pasos 4 y 5 · Buscar como una persona: el filtro de permisos antes del top-k, y otra vez antes del prompt.\n\n    python pipeline/buscar.py --como diego.luna@marketplace.test \"¿cuánto gana un líder de soporte?\"\n\nContrato:\n- mis_principals(correo): principals() con la copia del directorio (indice/directorio.json) y config directorio.profundidad.\n- visibles(correo) -> set de los chunk_id del índice que esa persona puede ver (puede_ver con la ACL de cada chunk).\n  Lee el índice y la copia cada vez: nada de cachés entre llamadas.\n- buscar(pregunta, correo, k=None) -> lista de {\"chunk_id\", \"doc_id\", \"titulo\", \"texto\", \"acl\", \"puntaje\"}, máximo k\n  (si no se dice, config busqueda.k), solo con puntaje > 0, de mayor a menor puntaje y, en empate, por chunk_id.\n  Con config busqueda.filtro \"antes\" (pre-filter): primero el filtro de permisos y después los k mejores.\n  Con \"despues\" (post-filter, para comparar): los k mejores de todo el índice y después el filtro.\n- contexto(resultados, correo) -> {\"texto\", \"fuentes\", \"descartados\"}: el último filtro antes del prompt. Vuelve a revisar\n  cada resultado contra la ACL que tiene su chunk en el índice (nunca contra la que diga el resultado), con principals\n  recién calculados. Lo que no pasa va a \"descartados\" (sus chunk_id) y no entra al texto. El texto: un bloque por fuente,\n  \"[n] <chunk_id>\" y en la línea siguiente el texto del chunk, con una línea en blanco entre bloques.\n\"\"\"\nfrom __future__ import annotations\n\nimport argparse\n\nfrom _comun import ARCHIVO_INDICE, config, leer_json, puntaje\nfrom directorio import copia, principals\nfrom permisos import puede_ver\n\n\ndef indice() -> dict:\n    idx = leer_json(ARCHIVO_INDICE)\n    if idx is None:\n        raise SystemExit(\"✗ no hay índice: python pipeline/indexar.py\")\n    return idx\n\n\ndef mis_principals(correo: str) -> set[str]:\n    return principals(correo, copia(), config()[\"directorio\"][\"profundidad\"])\n\n\ndef visibles(correo: str) -> set[str]:\n    ps = mis_principals(correo)\n    return {cid for cid, c in indice()[\"chunks\"].items() if puede_ver(c[\"acl\"], ps)}\n\n\ndef buscar(pregunta: str, correo: str, k: int | None = None) -> list[dict]:\n    cfg = config()[\"busqueda\"]\n    k = k or cfg[\"k\"]\n    ps = mis_principals(correo)\n    chunks = indice()[\"chunks\"]\n    ordenar = lambda ids: sorted(((puntaje(pregunta, chunks[i][\"texto\"]), i) for i in ids), key=lambda x: (-x[0], x[1]))  # noqa: E731\n    if cfg[\"filtro\"] == \"antes\":            # pre-filter: el top-k se elige solo entre lo que la persona puede ver\n        mejores = [x for x in ordenar(i for i, c in chunks.items() if puede_ver(c[\"acl\"], ps)) if x[0] > 0][:k]\n    else:                                   # post-filter: el top-k de todo y luego se tira lo ajeno\n        mejores = [x for x in ordenar(chunks)[:k] if x[0] > 0 and puede_ver(chunks[x[1]][\"acl\"], ps)]\n    return [{\"chunk_id\": i, \"doc_id\": chunks[i][\"doc_id\"], \"titulo\": chunks[i][\"titulo\"], \"texto\": chunks[i][\"texto\"],\n             \"acl\": chunks[i][\"acl\"], \"puntaje\": s} for s, i in mejores]\n\n\ndef contexto(resultados: list[dict], correo: str) -> dict:\n    ps = mis_principals(correo)                 # frescos: si alguien perdió un grupo hace un segundo, ya cuenta\n    chunks = indice()[\"chunks\"]\n    fuentes, descartados, bloques = [], [], []\n    for r in resultados:\n        c = chunks.get(r.get(\"chunk_id\"))\n        if c is None or not puede_ver(c[\"acl\"], ps):    # la ACL que manda es la del índice, no la que trae el resultado\n            descartados.append(r.get(\"chunk_id\"))\n            continue\n        fuentes.append(r[\"chunk_id\"])\n        bloques.append(f\"[{len(fuentes)}] {r['chunk_id']}\\n{c['texto']}\")\n    return {\"texto\": \"\\n\\n\".join(bloques), \"fuentes\": fuentes, \"descartados\": descartados}\n\n\ndef main() -> None:\n    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)\n    ap.add_argument(\"--como\", required=True, help=\"el correo de la persona que pregunta\")\n    ap.add_argument(\"pregunta\")\n    ap.add_argument(\"-k\", type=int)\n    a = ap.parse_args()\n    rs = buscar(a.pregunta, a.como, a.k)\n    ctx = contexto(rs, a.como)\n    print(f\"{a.como} pregunta «{a.pregunta}» · ve {len(visibles(a.como))} de {len(indice()['chunks'])} chunks · \"\n          f\"filtro {config()['busqueda']['filtro']} del top-{a.k or config()['busqueda']['k']}\")\n    for r in rs:\n        print(f\"  {r['puntaje']}  {r['chunk_id']:<20} {r['titulo'][:48]}\")\n    if not rs:\n        print(\"  (nada que pueda ver: el asistente contestaría «no encontré información»)\")\n    print(f\"  al prompt: {len(ctx['fuentes'])} fuentes\" + (f\" · descartados en el último filtro: {ctx['descartados']}\" if ctx[\"descartados\"] else \"\"))\n\n\nif __name__ == \"__main__\":\n    main()",
+          "nota": "En este paso, <code>mis_principals()</code>, <code>visibles()</code> y <code>buscar()</code>. <code>contexto()</code> es del paso 5; <code>indice()</code> y <code>main()</code> vienen dadas."
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python pipeline/buscar.py --como ana.ruiz@marketplace.test \"Cuenta de vendedor duplicada\"",
+          "nota": "",
+          "donde": "mac",
+          "salida": "ana.ruiz@marketplace.test pregunta «Cuenta de vendedor duplicada» · ve 88 de 154 chunks · filtro antes del top-8\n  2  drive:d20#001        Manual del vendedor.md\n  2  drive:d20#004        Manual del vendedor.md\n  2  drive:d20#006        Manual del vendedor.md\n  2  drive:d20#007        Manual del vendedor.md\n  2  drive:d20#008        Manual del vendedor.md\n  2  drive:d20#009        Manual del vendedor.md\n  1  drive:d10#000        Código de conducta.pdf\n  1  drive:d20#000        Manual del vendedor.md\n  al prompt: 8 fuentes"
+        },
+        {
+          "code": "# En config.yaml: busqueda.filtro: despues\npython pipeline/buscar.py --como ana.ruiz@marketplace.test \"Cuenta de vendedor duplicada\"\n# y regrésalo a antes",
+          "nota": "Los 8 mejores de todo el índice son los 10 tickets de fraude, y Ana no es de fraude: le llegan 0. Nadie recibió nada ajeno, y aun así el asistente no sirve.",
+          "donde": "mac",
+          "salida": "config.yaml: filtro: antes → despues\nana.ruiz@marketplace.test pregunta «Cuenta de vendedor duplicada» · ve 88 de 154 chunks · filtro despues del top-8\n  (nada que pueda ver: el asistente contestaría «no encontré información»)\n  al prompt: 0 fuentes\nconfig.yaml: filtro: despues → antes"
+        },
+        {
+          "code": "python verificar.py filtro",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ filtro      14 personas × 12 preguntas: el top-8 sale solo de lo que cada una puede ver · ana.ruiz pregunta «Cuenta de vendedor duplicada» y recibe 8; filtrando después del top-8 recibiría 0\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "<code>verificar.py filtro</code> en verde: 14 personas × 12 preguntas, cada una recibe sus mejores chunks entre los que puede ver.",
+      "ojo": "Que el filtro vaya antes no significa revisar los 7.5 M de chunks de C11 en Python: el índice de verdad filtra mientras busca. Aquí son 154 y se puede recorrerlos.",
+      "en_pagina": {
+        "conceptos": [
+          "top-k",
+          "pre-post-filtro"
+        ],
+        "precalculos": [
+          "postfiltro"
+        ]
+      }
+    },
+    {
+      "n": 5,
+      "id": "prompt",
+      "titulo": "El último filtro antes del prompt",
+      "objetivo": "<code>contexto()</code>: cada resultado se vuelve a revisar contra la ACL del índice justo antes de entrar al prompt.",
+      "conceptos": [
+        "defensa-profundidad"
+      ],
+      "explica": "Entre la búsqueda y el prompt van a pasar cosas: en la estación 6 un reranker reordena, y tal vez un día un caché de respuestas. Cualquiera puede colar un chunk. <code>contexto()</code> es el último guardia: por cada resultado, busca <b>su chunk en el índice</b> (no confía en el <code>acl</code> que trae el resultado), recalcula los principals de la persona en ese momento y solo deja pasar lo que puede ver. Arma el texto del prompt con un bloque por fuente, «[1] chunk_id» y su texto: esos números son los que el LLM va a citar en la estación 8.",
+      "codigo": [],
+      "comandos": [
+        {
+          "code": "python -c \"\nimport sys, json; sys.path.insert(0, 'pipeline')\nfrom buscar import buscar, contexto, indice\nc = indice()['chunks']['drive:d04#000']\nfalso = {'chunk_id': 'drive:d04#000', 'texto': c['texto'], 'acl': [['domain:marketplace.test']]}\nr = contexto([falso] + buscar('Código de conducta', 'diego.luna@marketplace.test'), 'diego.luna@marketplace.test')\nprint('fuentes:', r['fuentes'], '· descartados:', r['descartados']); print(r['texto'][:120] + '…')\"",
+          "nota": "Un resultado falso de «Sueldos 2026» que dice ser de todo el dominio: el índice dice que es solo de Lucía, y no pasa.",
+          "donde": "mac",
+          "salida": "fuentes: ['drive:d10#000'] · descartados: ['drive:d04#000']\n[1] drive:d10#000\nCódigo de conducta\n\nCódigo de conducta\nTratamos a quien compra y a quien vende con respeto, aunque la …"
+        },
+        {
+          "code": "python verificar.py prompt",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ prompt      el último filtro antes del prompt revisa cada chunk contra la ACL del índice: «Sueldos 2026» con una ACL falsa no pasa\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "<code>verificar.py prompt</code> en verde: lo ajeno y lo que no está en el índice se quedan en <code>descartados</code>, y el texto lleva cada fuente numerada.",
+      "ojo": "Los principals se calculan otra vez aquí, no se reusan los de la búsqueda: si alguien perdió un grupo hace un segundo, ya cuenta.",
+      "en_pagina": {
+        "conceptos": [
+          "defensa-profundidad"
+        ],
+        "precalculos": []
+      }
+    },
+    {
+      "n": 6,
+      "id": "prueba",
+      "titulo": "La prueba de permisos",
+      "objetivo": "Comprobar, como cada persona del directorio, que nadie recibe un chunk ajeno y que nadie se queda sin lo que sí puede ver.",
+      "conceptos": [
+        "prueba-permisos"
+      ],
+      "explica": "Hasta aquí cada pieza pasó su check. La <b>prueba de permisos</b> las prueba juntas, como una persona de verdad: por cada una de las 14 personas, lo que <code>visibles()</code> le deja ver contra la verdad del mundo. Y por cada pregunta (una por cada ACL distinta del índice, más las 12 del filtro), lo que llega a <code>contexto()</code>. Son dos checks: <code>fuga</code> (nada de más) y <code>acceso</code> (nada de menos). Pruébalo tú: la misma pregunta como Diego y como Lucía.",
+      "codigo": [],
+      "comandos": [
+        {
+          "code": "python pipeline/buscar.py --como diego.luna@marketplace.test \"¿Cuánto gana un líder de soporte?\"",
+          "nota": "Diego, recién contratado, solo ve lo que es de todo el dominio: 3 chunks.",
+          "donde": "mac",
+          "salida": "diego.luna@marketplace.test pregunta «¿Cuánto gana un líder de soporte?» · ve 3 de 154 chunks · filtro antes del top-8\n  1  drive:d10#000        Código de conducta.pdf\n  al prompt: 1 fuentes"
+        },
+        {
+          "code": "python pipeline/buscar.py --como lucia.mora@marketplace.test \"¿Cuánto gana un líder de soporte?\"",
+          "nota": "Lucía, de recursos humanos, es la única que ve «Sueldos 2026».",
+          "donde": "mac",
+          "salida": "lucia.mora@marketplace.test pregunta «¿Cuánto gana un líder de soporte?» · ve 5 de 154 chunks · filtro antes del top-8\n  2  drive:d04#000        Sueldos 2026.pdf\n  1  drive:d10#000        Código de conducta.pdf\n  al prompt: 2 fuentes"
+        },
+        {
+          "code": "python verificar.py fuga acceso",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ fuga        14 personas × 38 preguntas (una por cada ACL distinta del índice, más las de filtro) = 532 búsquedas · 0 chunks ajenos en el top-k ni en el prompt · diego.luna ve 3 de 154\n✓ acceso      cada persona ve justo lo que le toca, ni más ni menos: de 3 chunks (diego.luna) a 124 (sofia.leal)\n\n2/2 en verde"
+        }
+      ],
+      "verifica": "<code>verificar.py fuga acceso</code> en verde: 532 búsquedas sin un chunk ajeno y cada persona con justo lo que le toca.",
+      "ojo": "La prueba vale lo que valen sus personas: si todas vieran casi todo, nunca encontraría nada. Por eso el directorio trae a un externo, a un recién contratado y áreas chicas.",
+      "en_pagina": {
+        "conceptos": [
+          "prueba-permisos"
+        ],
+        "precalculos": [
+          "prueba"
+        ]
+      }
+    },
+    {
+      "n": 7,
+      "id": "carril",
+      "titulo": "El carril rápido",
+      "objetivo": "<code>revocar.py</code>: aplica los cambios de permisos de la cola en el índice y en la copia del directorio, sin reindexar, con su cursor y su bitácora. Y la mañana del 21.",
+      "conceptos": [
+        "slo-revocacion",
+        "carril-rapido",
+        "cursor"
+      ],
+      "explica": "Las fuentes avisan cada cambio de permisos con un <b>webhook</b>, y el aviso cae en la cola, <code>almacen/eventos.jsonl</code>. Hay dos tipos. Un evento <code>acl</code> trae la ACL nueva completa de un documento: la escribes en cada uno de sus chunks del índice (sin tocar el texto: no se vuelve a indexar nada) y la anotas en <code>acl_vigente.json</code> con la hora del cambio. Un evento <code>membresia</code> mete o saca a alguien de un grupo: cambias la copia del directorio y ningún chunk. El <b>cursor</b> dice hasta qué evento llegaste, y se mueve al final, cuando todo quedó escrito. Cada evento aplicado deja una línea en <code>revocaciones.jsonl</code>. Después, <code>mundo/avanzar.py</code> pasa la mañana: corre tu carril cada minuto y mide la exposición de cada revocación.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "pipeline/revocar.py",
+          "code": "\"\"\"Pasos 7 y 8 · El carril rápido: aplica los cambios de permisos que avisan las fuentes, sin esperar al reindexado.\n\n    python pipeline/revocar.py    # una pasada: lo que llegó a la cola desde la anterior (el mundo la corre cada revocacion.cada_segundos)\n\nContrato:\n- La cola es almacen/eventos.jsonl: un evento por línea, en orden, con \"n\" (1, 2, 3…), \"ocurrio\" (cuándo cambió en la\n  fuente), \"entregado\" (cuándo llegó el aviso), \"fuente\" y \"tipo\":\n  - \"acl\": con \"doc_id\" y \"acl\", la ACL nueva del documento, completa.\n  - \"membresia\": con \"grupo\", \"miembro\" y \"accion\" (\"quitar\" o \"agregar\").\n- indice/cursor.json {\"n\": el último evento aplicado}: cada pasada aplica los eventos con n mayor que el cursor y lo\n  mueve al último. Sin cursor, empieza desde el primero.\n- Un evento \"acl\" reescribe la ACL de cada chunk de su documento en indice/indice.json (sin volver a indexar ni a\n  partir nada: el texto no cambió) y la anota en indice/acl_vigente.json {doc_id: {\"acl\", \"desde\": ocurrio}}, para\n  que el reindexado no la deshaga. Si el índice ya tiene para ese documento una ACL más nueva que el evento\n  (acl_desde posterior a ocurrio), no la toca. Un documento que no está en el índice solo se anota en acl_vigente.\n- Un evento \"membresia\" cambia la copia del directorio (indice/directorio.json): ningún chunk se toca.\n- Cada evento aplicado se anota en indice/revocaciones.jsonl: {\"n\", \"tipo\", \"doc_id\" (o \"grupo\" y \"miembro\"),\n  \"ocurrio\", \"aplicado\" (ahora()), \"chunks\" (cuántos chunks reescribió)}.\n- Idempotente: si la corres dos veces seguidas, la segunda no hace nada.\n\"\"\"\nfrom __future__ import annotations\n\nimport json\n\nfrom _comun import ACL_VIGENTE, ARCHIVO_INDICE, COLA, CURSOR, REVOCACIONES, ahora, escribir_json, leer_json, leer_jsonl\nfrom directorio import copia, guardar_copia\n\n\ndef aplicar_acl(e: dict, idx: dict, vigente: dict) -> int:\n    v = vigente.get(e[\"doc_id\"])\n    if not v or v[\"desde\"] < e[\"ocurrio\"]:\n        vigente[e[\"doc_id\"]] = {\"acl\": e[\"acl\"], \"desde\": e[\"ocurrio\"]}\n    doc = idx[\"docs\"].get(e[\"doc_id\"])\n    if doc is None or (doc[\"acl_desde\"] or \"\") > e[\"ocurrio\"]:\n        return 0\n    doc.update(acl=e[\"acl\"], acl_desde=e[\"ocurrio\"], origen=\"carril\")\n    for cid in doc[\"chunks\"]:\n        idx[\"chunks\"][cid][\"acl\"] = e[\"acl\"]\n    return len(doc[\"chunks\"])\n\n\ndef aplicar_membresia(e: dict, d: dict) -> None:\n    m = d[\"grupos\"].setdefault(e[\"grupo\"], {\"nombre\": e[\"grupo\"], \"miembros\": []})[\"miembros\"]\n    if e[\"accion\"] == \"quitar\" and e[\"miembro\"] in m:\n        m.remove(e[\"miembro\"])\n    elif e[\"accion\"] == \"agregar\" and e[\"miembro\"] not in m:\n        m.append(e[\"miembro\"])\n        m.sort()\n\n\ndef procesar() -> list[dict]:\n    cursor = leer_json(CURSOR, {\"n\": 0})[\"n\"]\n    nuevos = [e for e in leer_jsonl(COLA) if e[\"n\"] > cursor]\n    if not nuevos:\n        return []\n    idx, vigente, d = leer_json(ARCHIVO_INDICE), leer_json(ACL_VIGENTE, {}), copia()\n    hechos = []\n    for e in nuevos:\n        r = {\"n\": e[\"n\"], \"tipo\": e[\"tipo\"], \"ocurrio\": e[\"ocurrio\"], \"aplicado\": ahora()}\n        if e[\"tipo\"] == \"acl\":\n            r |= {\"doc_id\": e[\"doc_id\"], \"chunks\": aplicar_acl(e, idx, vigente)}\n        else:\n            aplicar_membresia(e, d)\n            r |= {\"grupo\": e[\"grupo\"], \"miembro\": e[\"miembro\"], \"accion\": e[\"accion\"], \"chunks\": 0}\n        hechos.append(r)\n    escribir_json(ARCHIVO_INDICE, idx)          # primero el índice y la copia; el cursor al final: si algo truena a la\n    escribir_json(ACL_VIGENTE, vigente)         # mitad, la siguiente pasada vuelve a aplicar (y aplicar dos veces da lo mismo)\n    guardar_copia(d)\n    with open(REVOCACIONES, \"a\") as f:\n        for r in hechos:\n            f.write(json.dumps(r, ensure_ascii=False) + \"\\n\")\n    escribir_json(CURSOR, {\"n\": nuevos[-1][\"n\"]})\n    return hechos\n\n\nif __name__ == \"__main__\":\n    hechos = procesar()\n    if not hechos:\n        print(\"✓ carril rápido: nada nuevo en la cola\")\n    for r in hechos:\n        que = r.get(\"doc_id\") or f\"{r['miembro']} {r['accion']} {r['grupo']}\"\n        print(f\"✓ evento {r['n']} ({r['tipo']}) · {que} · {r['chunks']} chunks reescritos · aplicado {r['aplicado'][11:19]} UTC\")",
+          "nota": ""
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python pipeline/revocar.py",
+          "nota": "Con la cola vacía, nada que hacer.",
+          "donde": "mac",
+          "salida": "✓ carril rápido: nada nuevo en la cola"
+        },
+        {
+          "code": "python mundo/avanzar.py",
+          "nota": "La mañana entera con tu código. «Exposición» es cuánto tiempo pudo ver alguien lo que ya no debía: de que cambió en la fuente a que tu carril lo aplicó.",
+          "donde": "mac",
+          "salida": "✓ la mañana del 21, de 9:00 a 10:30 · tu carril rápido corre cada 1 min · el reindexado, a las 10:00\n      9:00  indexar.py --desde-cero\n   9:07:20  drive · drive:d21 «Tarifas de envío por estado 2026.md»: ACL nueva · 1 persona(s) dejan de poder ver 1 documento(s)\n            ✓ tu carril lo aplicó a las 9:08: 40 s de exposición\n      9:08  revocar.py\n   9:18:40  directorio · tomas.rey sale de fraude · 1 persona(s) dejan de poder ver 10 documento(s)\n            ✓ tu carril lo aplicó a las 9:19: 20 s de exposición\n      9:19  revocar.py\n      9:25  directorio · diego.luna entra a soporte-nivel1 · 1 persona(s) empiezan a ver 60 documento(s)\n            ✓ ya lo ven desde las 9:26\n      9:26  revocar.py\n   9:31:10  jira · jira:SOP-14 «Cambio de dirección después de enviado»: ACL nueva · 9 persona(s) dejan de poder ver 1 documento(s)\n            ✓ tu carril lo aplicó a las 9:32: 50 s de exposición\n      9:32  revocar.py\n   9:44:30  wiki · wiki:2002 «Comisiones por categoría»: ACL nueva · 2 persona(s) dejan de poder ver 1 documento(s)\n            ✓ tu carril lo aplicó a las 9:45: 30 s de exposición\n      9:45  revocar.py\n      9:52  directorio · luis.campos sale de soporte-nivel1 · 1 persona(s) dejan de poder ver 59 documento(s)\n            ✓ tu carril lo aplicó a las 9:53: 1 min de exposición\n      9:53  revocar.py\n     10:00  indexar.py (el reindexado de cada hora) · ninguna revocación volvió\n     10:30  fin de la mañana · avisos que llegaron a la cola: directorio 3, drive 1, jira 1, wiki 1 · el detalle quedó en almacen/manana.json\n✓ ninguna revocación pasó de 5 min (la peor: 1 min, a las 9:52) · ninguna otra fuga\n  siguiente: python verificar.py revocacion"
+        },
+        {
+          "code": "cat indice/revocaciones.jsonl",
+          "nota": "La ACL de las tarifas tocó 5 chunks; los cambios de grupo, ninguno.",
+          "donde": "mac",
+          "salida": "{\"n\": 1, \"tipo\": \"acl\", \"ocurrio\": \"2026-11-21T15:07:20Z\", \"aplicado\": \"2026-11-21T15:08:00Z\", \"doc_id\": \"drive:d21\", \"chunks\": 5}\n{\"n\": 2, \"tipo\": \"membresia\", \"ocurrio\": \"2026-11-21T15:18:40Z\", \"aplicado\": \"2026-11-21T15:19:00Z\", \"grupo\": \"group:fraude@marketplace.test\", \"miembro\": \"user:tomas.rey@marketplace.test\", \"accion\": \"quitar\", \"chunks\": 0}\n{\"n\": 3, \"tipo\": \"membresia\", \"ocurrio\": \"2026-11-21T15:25:00Z\", \"aplicado\": \"2026-11-21T15:26:00Z\", \"grupo\": \"group:soporte-nivel1@marketplace.test\", \"miembro\": \"user:diego.luna@marketplace.test\", \"accion\": \"agregar\", \"chunks\": 0}\n{\"n\": 4, \"tipo\": \"acl\", \"ocurrio\": \"2026-11-21T15:31:10Z\", \"aplicado\": \"2026-11-21T15:32:00Z\", \"doc_id\": \"jira:SOP-14\", \"chunks\": 1}\n{\"n\": 5, \"tipo\": \"acl\", \"ocurrio\": \"2026-11-21T15:44:30Z\", \"aplicado\": \"2026-11-21T15:45:00Z\", \"doc_id\": \"wiki:2002\", \"chunks\": 3}\n{\"n\": 6, \"tipo\": \"membresia\", \"ocurrio\": \"2026-11-21T15:52:00Z\", \"aplicado\": \"2026-11-21T15:53:00Z\", \"grupo\": \"group:soporte-nivel1@marketplace.test\", \"miembro\": \"user:luis.campos@paqueteria-aliada.test\", \"accion\": \"quitar\", \"chunks\": 0}"
+        },
+        {
+          "code": "python pipeline/buscar.py --como hugo.salas@marketplace.test \"Tarifas de envío por estado\"",
+          "nota": "A Hugo ya no le sale la tabla de tarifas (drive:d21): desde las 9:08 es solo de líderes.",
+          "donde": "mac",
+          "salida": "hugo.salas@marketplace.test pregunta «Tarifas de envío por estado» · ve 113 de 154 chunks · filtro antes del top-8\n  3  drive:d20#004        Manual del vendedor.md\n  2  drive:d20#007        Manual del vendedor.md\n  1  drive:d20#001        Manual del vendedor.md\n  1  drive:d20#005        Manual del vendedor.md\n  1  drive:d20#006        Manual del vendedor.md\n  1  jira:SOP-12#000      Producto llegó dañado\n  1  jira:SOP-28#000      Producto llegó dañado\n  1  jira:SOP-36#000      Producto llegó dañado\n  al prompt: 8 fuentes"
+        },
+        {
+          "code": "python verificar.py revocacion",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ revocacion  6 cambios de permisos: 5 revocaciones, la peor aplicada en 1 min (las 9:52), y 1 alta · el reindexado de las 10:00 no deshizo ninguna · el carril reescribió 9 chunks, sin volver a indexar\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "<code>verificar.py revocacion</code> en verde: las 5 revocaciones aplicadas en ≤ 5 min, el alta aplicada y cada evento anotado con los chunks que tocó.",
+      "ojo": "Si un evento <code>acl</code> llega más viejo que la ACL que ya tiene el índice, no la toques: las colas pueden entregar fuera de orden, y gana la hora del cambio en la fuente.",
+      "en_pagina": {
+        "conceptos": [
+          "slo-revocacion",
+          "carril-rapido",
+          "cursor"
+        ],
+        "precalculos": [
+          "retraso"
+        ]
+      }
+    },
+    {
+      "n": 8,
+      "id": "reindexado",
+      "titulo": "Lo que el reindexado no puede deshacer",
+      "objetivo": "El reindexado de cada hora respeta lo del carril rápido; y si el índice se reconstruye desde cero, el carril vuelve a aplicar la cola.",
+      "conceptos": [
+        "gana-la-nueva"
+      ],
+      "explica": "A las 10:00 corrió el reindexado, desde <code>almacen/docs/</code>, que todavía trae las ACL que la ingestión leyó a las 9:05. Si <code>indexar.py</code> solo copiara esas ACL, deshacería las revocaciones de la mañana. Por eso <code>construir()</code> lee <code>acl_vigente.json</code>: si la ACL del carril es más nueva que la <code>acl_leida</code> del documento, gana la del carril (son las dos líneas de <code>vigente</code> del paso 3). En la salida del paso 7 ya se vio: «ninguna revocación volvió». Ahora mira qué pasa si alguien reconstruye con <code>--desde-cero</code>, que borra también la bitácora y el cursor.",
+      "codigo": [],
+      "comandos": [
+        {
+          "code": "python -c \"import json; [print(d, v) for d, v in json.load(open('indice/acl_vigente.json')).items()]\"",
+          "nota": "Lo que el carril aplicó, con la hora del cambio en la fuente.",
+          "donde": "mac",
+          "salida": "drive:d21 {'acl': [['group:operaciones-lideres@marketplace.test', 'user:jorge.paz@marketplace.test']], 'desde': '2026-11-21T15:07:20Z'}\njira:SOP-14 {'acl': [['group:operaciones@marketplace.test', 'group:soporte@marketplace.test', 'user:tomas.rey@marketplace.test'], ['group:soporte-lideres@marketplace.test']], 'desde': '2026-11-21T15:31:10Z'}\nwiki:2002 {'acl': [['group:operaciones@marketplace.test'], ['group:operaciones-lideres@marketplace.test']], 'desde': '2026-11-21T15:44:30Z'}"
+        },
+        {
+          "code": "python pipeline/indexar.py --desde-cero",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ índice desde cero a las 16:30:00 UTC · 154 chunks de 105 documentos · 19 principals distintos en sus ACL"
+        },
+        {
+          "code": "python verificar.py fuga",
+          "nota": "Sin la bitácora, el índice volvió a las ACL de las 9:05: Ana ve otra vez el ticket SOP-14.",
+          "donde": "mac",
+          "salida": "✗ fuga        ana.ruiz puede ver 1 chunk(s) que no debe a las 10:30: jira:SOP-14#000\n\n0/1 en verde · falta: fuga\n[código 1]"
+        },
+        {
+          "code": "python pipeline/revocar.py",
+          "nota": "Sin cursor, el carril empieza desde el primer evento de la cola y vuelve a aplicar todo. Aplicar dos veces da lo mismo.",
+          "donde": "mac",
+          "salida": "✓ evento 1 (acl) · drive:d21 · 5 chunks reescritos · aplicado 16:30:00 UTC\n✓ evento 2 (membresia) · user:tomas.rey@marketplace.test quitar group:fraude@marketplace.test · 0 chunks reescritos · aplicado 16:30:00 UTC\n✓ evento 3 (membresia) · user:diego.luna@marketplace.test agregar group:soporte-nivel1@marketplace.test · 0 chunks reescritos · aplicado 16:30:00 UTC\n✓ evento 4 (acl) · jira:SOP-14 · 1 chunks reescritos · aplicado 16:30:00 UTC\n✓ evento 5 (acl) · wiki:2002 · 3 chunks reescritos · aplicado 16:30:00 UTC\n✓ evento 6 (membresia) · user:luis.campos@paqueteria-aliada.test quitar group:soporte-nivel1@marketplace.test · 0 chunks reescritos · aplicado 16:30:00 UTC"
+        },
+        {
+          "code": "python verificar.py",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ mundo       10:30 del 21 de noviembre · 105 documentos, 154 chunks · 14 personas y 13 grupos (unos dentro de otros, hasta 3 niveles, y un ciclo) · 6 evento(s) en la cola\n✓ principals  14 personas · paula.vega: 6 principals (líderes de soporte → soporte, y el comité y el boletín, que están uno dentro del otro, sin colgarse) · luis.campos, externo: «paqueteria-aliada.test», no el dominio de la empresa\n✓ permisos    10 casos: AND entre cláusulas, OR dentro de cada una, y vacía, rota o ausente = nadie\n✓ indice      154 chunks de 105 documentos, cada uno con la ACL de su documento, en grupos: 19 principals distintos (expandida a personas serían 923 entradas, una por persona y chunk) · 3 con la ACL del carril rápido\n✓ filtro      14 personas × 12 preguntas: el top-8 sale solo de lo que cada una puede ver · ana.ruiz pregunta «Cuenta de vendedor duplicada» y recibe 8; filtrando después del top-8 recibiría 0\n✓ prompt      el último filtro antes del prompt revisa cada chunk contra la ACL del índice: «Sueldos 2026» con una ACL falsa no pasa\n✓ fuga        14 personas × 39 preguntas (una por cada ACL distinta del índice, más las de filtro) = 546 búsquedas · 0 chunks ajenos en el top-k ni en el prompt · diego.luna ve 87 de 154\n✓ acceso      cada persona ve justo lo que le toca, ni más ni menos: de 0 chunks (luis.campos@paqueteria-aliada.test) a 123 (sofia.leal)\n✓ revocacion  6 cambios de permisos: 5 revocaciones, la peor aplicada en 1 min (las 9:52), y 1 alta · el reindexado de las 10:00 no deshizo ninguna · el carril reescribió 9 chunks, sin volver a indexar\n\n9/9 en verde"
+        }
+      ],
+      "verifica": "<code>verificar.py</code> completo en verde, con <code>revocacion</code>: el reindexado de las 10:00 no deshizo ninguna revocación.",
+      "ojo": "La cola guarda los eventos (una cola de verdad se configura para guardarlos días), y eso es lo que permite reconstruir desde cero. Si la cola los hubiera borrado, después de un <code>--desde-cero</code> haría falta leer otra vez los permisos de cada documento en su fuente.",
+      "en_pagina": {
+        "conceptos": [
+          "gana-la-nueva"
+        ],
+        "precalculos": []
+      }
+    }
+  ],
+  "solo": {
+    "reglas": [
+      "Empieza con <code>python mundo/reiniciar.py</code>: deja el esqueleto, borra <code>indice/</code> y vuelve a las 9:00.",
+      "Sin GUION.md ni <code>mundo/referencia.py</code>: solo los contratos de arriba de cada archivo y estos objetivos.",
+      "Claude corre <code>verificar.py</code> y te dice qué falla; no te da código."
+    ],
+    "objetivos": [
+      {
+        "n": 1,
+        "objetivo": "El almacén de la mañana del 21 en su lugar.",
+        "check": "mundo"
+      },
+      {
+        "n": 2,
+        "objetivo": "Los principals de cada persona: usuario, dominio de su correo y todos sus grupos, también los de adentro, sin colgarse en un ciclo.",
+        "check": "principals",
+        "pista": "¿Qué guardas para no volver a visitar un grupo?"
+      },
+      {
+        "n": 3,
+        "objetivo": "La ACL en cláusulas: AND entre cláusulas, OR dentro de cada una, y una ACL vacía o rota no deja ver a nadie.",
+        "check": "permisos",
+        "pista": "¿Qué da all() sobre una lista vacía?"
+      },
+      {
+        "n": 4,
+        "objetivo": "Cada chunk en el índice con la ACL exacta de su documento, en grupos; sin ACL válida, fuera.",
+        "check": "indice"
+      },
+      {
+        "n": 5,
+        "objetivo": "El top-k sale solo de lo que la persona puede ver.",
+        "check": "filtro"
+      },
+      {
+        "n": 6,
+        "objetivo": "El último filtro antes del prompt revisa contra la ACL del índice, no contra la del resultado.",
+        "check": "prompt"
+      },
+      {
+        "n": 7,
+        "objetivo": "Nadie recibe un chunk ajeno, ni en la búsqueda ni en el prompt.",
+        "check": "fuga"
+      },
+      {
+        "n": 8,
+        "objetivo": "Cada persona ve todo lo que le toca.",
+        "check": "acceso"
+      },
+      {
+        "n": 9,
+        "objetivo": "En la mañana del 21, cada revocación se aplica en ≤ 5 min y el reindexado de las 10:00 no la deshace.",
+        "check": "revocacion",
+        "pista": "A las 10:00, ¿de dónde saca la ACL el reindexado?"
+      }
+    ]
+  },
+  "fallas": [
+    {
+      "id": "filtro-despues",
+      "titulo": "Ana pregunta por cuentas duplicadas y el asistente dice que no hay nada",
+      "tipo": "config",
+      "historia": "Para que la búsqueda «no revise permisos de chunks que nunca van a salir», alguien movió el filtro de permisos a después de elegir los 8 mejores. Nadie ve nada raro: nadie recibe un chunk ajeno.",
+      "sintoma": "<code>verificar.py filtro</code> falla: <code>buscar()</code> devuelve menos chunks de los que la persona podía ver. <code>fuga</code> pasa: no hay nada ajeno.",
+      "hipotesis": [
+        "Ana perdió permisos.",
+        "El top-k se elige entre todo el índice y después se filtra.",
+        "El buscador ya no encuentra esas palabras."
+      ],
+      "confirma": {
+        "code": "python pipeline/buscar.py --como ana.ruiz@marketplace.test \"Cuenta de vendedor duplicada\"",
+        "nota": "Ana ve 87 chunks y le llegan 0: los 8 mejores eran de fraude.",
+        "donde": "mac",
+        "salida": "ana.ruiz@marketplace.test pregunta «Cuenta de vendedor duplicada» · ve 87 de 154 chunks · filtro despues del top-8\n  (nada que pueda ver: el asistente contestaría «no encontré información»)\n  al prompt: 0 fuentes"
+      },
+      "arreglo": "En <code>config.yaml</code>, <code>busqueda.filtro</code> quedó en <code>despues</code>. Vuelve a <code>antes</code>; no hace falta reindexar. Filtrar después no filtra «de más»: deja vacío a quien ve poco, y el asistente contesta «no encontré información».",
+      "concepto": "pre-post-filtro",
+      "check": "filtro"
+    },
+    {
+      "id": "acl-vieja",
+      "titulo": "A Hugo le quitaron las tarifas a las 9:07 y a las 9:50 todavía las consultaba",
+      "tipo": "config",
+      "historia": "Para ahorrar llamadas, alguien puso el carril rápido a correr cada hora: «total, el reindexado ya corre cada hora». La mañana pasó sin errores.",
+      "sintoma": "<code>verificar.py revocacion</code>: la revocación de las 9:07:20 se aplicó en 52 min 40 s. <code>fuga</code> pasa, porque a las 10:30 todo ya quedó bien.",
+      "hipotesis": [
+        "El carril rápido no está corriendo a tiempo.",
+        "El aviso del Drive llegó tarde.",
+        "El reindexado deshizo la revocación."
+      ],
+      "confirma": {
+        "code": "python mundo/avanzar.py",
+        "nota": "La mañana otra vez, con la configuración rota: todo se aplica a las 10:00.",
+        "donde": "mac",
+        "salida": "✓ la mañana del 21, de 9:00 a 10:30 · tu carril rápido corre cada 60 min · el reindexado, a las 10:00\n      9:00  indexar.py --desde-cero\n   9:07:20  drive · drive:d21 «Tarifas de envío por estado 2026.md»: ACL nueva · 1 persona(s) dejan de poder ver 1 documento(s)\n            ✗ tu carril lo aplicó a las 10:00: 52 min 40 s de exposición\n   9:18:40  directorio · tomas.rey sale de fraude · 1 persona(s) dejan de poder ver 10 documento(s)\n            ✗ tu carril lo aplicó a las 10:00: 41 min 20 s de exposición\n      9:25  directorio · diego.luna entra a soporte-nivel1 · 1 persona(s) empiezan a ver 60 documento(s)\n            ✓ ya lo ven desde las 10:00\n   9:31:10  jira · jira:SOP-14 «Cambio de dirección después de enviado»: ACL nueva · 9 persona(s) dejan de poder ver 1 documento(s)\n            ✗ tu carril lo aplicó a las 10:00: 28 min 50 s de exposición\n   9:44:30  wiki · wiki:2002 «Comisiones por categoría»: ACL nueva · 2 persona(s) dejan de poder ver 1 documento(s)\n            ✗ tu carril lo aplicó a las 10:00: 15 min 30 s de exposición\n      9:52  directorio · luis.campos sale de soporte-nivel1 · 1 persona(s) dejan de poder ver 59 documento(s)\n            ✗ tu carril lo aplicó a las 10:00: 8 min de exposición\n     10:00  revocar.py · ninguna revocación volvió\n     10:00  revocar.py · ninguna revocación volvió\n     10:30  fin de la mañana · avisos que llegaron a la cola: directorio 3, drive 1, jira 1, wiki 1 · el detalle quedó en almacen/manana.json\n✗ 5 de 5 revocaciones pasaron de 5 min o volvieron a verse (la peor: 52 min 40 s, a las 9:07:20) · ninguna otra fuga\n  siguiente: python verificar.py revocacion"
+      },
+      "arreglo": "En <code>config.yaml</code>, <code>revocacion.cada_segundos</code> quedó en 3600. Vuelve a 60 y pasa la mañana otra vez (<code>python mundo/avanzar.py</code>). El periodo del carril sale del SLO: el aviso tarda 20 s, y aviso + periodo tiene que caber en 5 min.",
+      "concepto": "slo-revocacion",
+      "check": "revocacion"
+    },
+    {
+      "id": "anidado",
+      "titulo": "Soporte dice que el asistente ya no sabe nada de devoluciones",
+      "tipo": "config",
+      "historia": "Un ciclo en el directorio (el comité dentro del boletín y el boletín dentro del comité) colgó otro sistema de la empresa. Para que no pasara aquí, alguien bajó la profundidad de los grupos a 1.",
+      "sintoma": "<code>verificar.py acceso</code>: a Ana le faltan 77 de sus 87 chunks. <code>fuga</code> pasa: nadie ve de más.",
+      "hipotesis": [
+        "Los documentos de soporte cambiaron de ACL.",
+        "Ana salió de soporte.",
+        "Los grupos que están dentro de otros grupos ya no se resuelven."
+      ],
+      "confirma": {
+        "code": "python -c \"import sys; sys.path.insert(0, 'pipeline'); from buscar import mis_principals, visibles; p = 'ana.ruiz@marketplace.test'; print(sorted(x.split('@')[0] for x in mis_principals(p)), '·', len(visibles(p)), 'chunks visibles')\"",
+        "nota": "Los principals de Ana: soporte-nivel1 sí, soporte no.",
+        "donde": "mac",
+        "salida": "['domain:marketplace.test', 'group:soporte-nivel1', 'user:ana.ruiz'] · 10 chunks visibles"
+      },
+      "arreglo": "En <code>config.yaml</code>, <code>directorio.profundidad</code> quedó en 1. Vuelve a 10. Un ciclo se resuelve llevando la cuenta de los grupos ya vistos, no cortando la profundidad: cortarla quita permisos legítimos y nadie ve un error.",
+      "concepto": "grupo-anidado",
+      "check": "acceso"
+    },
+    {
+      "id": "sin-acl-publico",
+      "titulo": "Cualquiera puede preguntarle al asistente cuánto gana un líder de soporte",
+      "tipo": "infra",
+      "historia": "Un script de migración del chunking reescribió dos archivos sin el campo acl. Ese mismo día, alguien cambió permisos.sin_acl a publico «para que los documentos nuevos no se queden fuera mientras llega su ACL».",
+      "sintoma": "<code>verificar.py fuga</code> (Ana, y cualquiera del dominio, ve «Sueldos 2026») e <code>indice</code> (dos documentos sin ACL entraron con una ACL inventada).",
+      "hipotesis": [
+        "Lucía compartió los sueldos con todos.",
+        "Llegaron chunks sin ACL y el índice los hizo públicos.",
+        "El filtro de permisos dejó de correr."
+      ],
+      "confirma": {
+        "code": "python pipeline/buscar.py --como diego.luna@marketplace.test \"¿Cuánto gana un líder de soporte?\"",
+        "nota": "Diego, recién contratado, recibe «Sueldos 2026» como primera fuente.",
+        "donde": "mac",
+        "salida": "diego.luna@marketplace.test pregunta «¿Cuánto gana un líder de soporte?» · ve 90 de 154 chunks · filtro antes del top-8\n  2  drive:d04#000        Sueldos 2026.pdf\n  1  drive:d10#000        Código de conducta.pdf\n  1  drive:d20#000        Manual del vendedor.md\n  1  drive:d20#007        Manual del vendedor.md\n  1  drive:d20#008        Manual del vendedor.md\n  1  jira:SOP-11#000      Vendedor no responde mensajes\n  1  jira:SOP-19#000      Vendedor no responde mensajes\n  1  jira:SOP-27#000      Vendedor no responde mensajes\n  al prompt: 8 fuentes"
+      },
+      "arreglo": "Son dos arreglos. En <code>config.yaml</code>, <code>permisos.sin_acl</code> vuelve a <code>rechazar</code> y <code>python pipeline/indexar.py</code>: la fuga se cierra, pero los dos documentos quedan fuera del asistente (fail-closed). Lo segundo es reparar la ACL de donde viene, el chunking: <code>python mundo/crear.py --rechunkear</code> hace de él, y otra vez <code>python pipeline/indexar.py</code>. Vacío no es público: es un dato que falta.",
+      "concepto": "fail-closed",
+      "check": "fuga"
+    },
+    {
+      "id": "bitacora-borrada",
+      "titulo": "A las 10:30, Ana vuelve a ver un ticket que a las 9:31 pasó a «Solo líderes»",
+      "tipo": "infra",
+      "historia": "En una limpieza de disco, alguien borró indice/acl_vigente.json: «son logs viejos del carril rápido». Una hora después corrió el reindexado de siempre, sin errores.",
+      "sintoma": "<code>verificar.py fuga</code>: Ana ve <code>jira:SOP-14</code>. <code>indice</code> pasa: el índice coincide con <code>almacen/docs/</code>, y ese es justo el problema.",
+      "hipotesis": [
+        "Alguien volvió a abrir el ticket.",
+        "El reindexado reconstruyó con las ACL de las 9:05.",
+        "El carril rápido dejó de correr."
+      ],
+      "confirma": {
+        "code": "python pipeline/revocar.py",
+        "nota": "Correr el carril otra vez no basta: su cursor dice que ya aplicó los seis eventos.",
+        "donde": "mac",
+        "salida": "✓ carril rápido: nada nuevo en la cola"
+      },
+      "arreglo": "Se reconstruye y se vuelve a aplicar la cola desde el principio: <code>python pipeline/indexar.py --desde-cero</code> (borra también el cursor) y <code>python pipeline/revocar.py</code>. <code>acl_vigente.json</code> no es un log: es lo que impide que el reindexado deshaga una revocación.",
+      "concepto": "gana-la-nueva",
+      "check": "fuga"
+    },
+    {
+      "id": "suscripcion-vencida",
+      "titulo": "Luis terminó su contrato a las 9:52 y a las 9:59 seguía consultando los manuales de soporte",
+      "tipo": "infra",
+      "historia": "La suscripción del carril rápido a los avisos del directorio venció anoche y nadie la renovó. La mañana pasó sin errores: el carril corrió cada minuto, como siempre.",
+      "sintoma": "<code>verificar.py revocacion</code>: la salida de Tomás de fraude (9:18:40) se aplicó en 41 min 20 s. <code>fuga</code> pasa: a las 10:30 todo quedó bien.",
+      "hipotesis": [
+        "El carril rápido corre muy de vez en cuando.",
+        "Los avisos del directorio no están llegando.",
+        "El directorio no registró los cambios."
+      ],
+      "confirma": {
+        "code": "python mundo/avanzar.py",
+        "nota": "La última línea lo dice: del directorio no llegó ningún aviso. Lo arregló el reindexado de las 10:00, que lee el directorio entero.",
+        "donde": "mac",
+        "salida": "✓ la mañana del 21, de 9:00 a 10:30 · tu carril rápido corre cada 1 min · el reindexado, a las 10:00\n      9:00  indexar.py --desde-cero\n   9:07:20  drive · drive:d21 «Tarifas de envío por estado 2026.md»: ACL nueva · 1 persona(s) dejan de poder ver 1 documento(s)\n            ✓ tu carril lo aplicó a las 9:08: 40 s de exposición\n      9:08  revocar.py\n   9:18:40  directorio · tomas.rey sale de fraude · 1 persona(s) dejan de poder ver 10 documento(s)\n            ✗ tu carril lo aplicó a las 10:00: 41 min 20 s de exposición\n      9:25  directorio · diego.luna entra a soporte-nivel1 · 1 persona(s) empiezan a ver 60 documento(s)\n            ✓ ya lo ven desde las 10:00\n   9:31:10  jira · jira:SOP-14 «Cambio de dirección después de enviado»: ACL nueva · 9 persona(s) dejan de poder ver 1 documento(s)\n            ✓ tu carril lo aplicó a las 9:32: 50 s de exposición\n      9:32  revocar.py\n   9:44:30  wiki · wiki:2002 «Comisiones por categoría»: ACL nueva · 2 persona(s) dejan de poder ver 1 documento(s)\n            ✓ tu carril lo aplicó a las 9:45: 30 s de exposición\n      9:45  revocar.py\n      9:52  directorio · luis.campos sale de soporte-nivel1 · 1 persona(s) dejan de poder ver 59 documento(s)\n            ✗ tu carril lo aplicó a las 10:00: 8 min de exposición\n     10:00  indexar.py (el reindexado de cada hora) · ninguna revocación volvió\n     10:30  fin de la mañana · avisos que llegaron a la cola: directorio 0, drive 1, jira 1, wiki 1 · el detalle quedó en almacen/manana.json\n✗ 2 de 5 revocaciones pasaron de 5 min o volvieron a verse (la peor: 41 min 20 s, a las 9:18:40) · ninguna otra fuga\n  siguiente: python verificar.py revocacion"
+      },
+      "arreglo": "En <code>almacen/suscripciones.json</code>, la del directorio está vencida. Se renueva (<code>python mundo/crear.py --suscribir</code> hace de renovarla en la consola del directorio) y se pasa la mañana otra vez. Pasa de verdad: un canal de avisos de Google Drive dura como máximo un día (una semana para la lista de cambios) y no se renueva solo, y las suscripciones de Microsoft Graph también vencen. Una alarma útil: ninguna fuente puede pasar una hora sin mandar avisos. Y el reindexado que lee el directorio entero es la red de seguridad: sin él, Luis seguiría viendo los manuales.",
+      "concepto": "carril-rapido",
+      "check": "revocacion"
+    }
+  ],
+  "listo": [
+    "Los principals de cada persona incluyen todos sus grupos, también los de adentro, y un ciclo no cuelga nada.",
+    "La ACL se evalúa en cláusulas, y una ACL vacía o rota no deja ver a nadie.",
+    "Cada chunk del índice lleva la ACL de su documento en grupos; lo que llega sin ACL se queda fuera.",
+    "El top-k sale solo de lo que la persona puede ver, y otro filtro revisa cada chunk antes del prompt.",
+    "La prueba de permisos pasa para cada persona: ni un chunk de más, ni uno de menos.",
+    "Cada revocación se aplica en ≤ 5 min por el carril rápido, y el reindexado no la deshace."
+  ],
+  "repaso": {
+    "memo": "<b>El permiso viaja dentro de cada chunk, en grupos; la persona se resuelve al preguntar; el filtro va antes del top-k y otra vez antes del prompt; y una revocación no espera al reindexado.</b> Los grupos se resuelven con todos sus niveles, llevando la cuenta de lo ya visto. Sin ACL, nadie. El carril rápido aplica cada aviso en segundos, anota la hora del cambio en la fuente, y esa hora gana cuando el reindexado trae la ACL vieja.",
+    "trampa": "Un sistema de permisos que «funciona» porque nadie se queja. El post-filter nunca da un chunk ajeno, pero deja a quien ve poco sin respuesta. Cortar los grupos anidados no da errores, solo un asistente que no sabe nada. Un carril que corre cada hora deja todo bien a las 10:30 y aun así alguien leyó 52 minutos lo que ya no debía. Por eso se mide como cada persona y minuto a minuto. OWASP lo pone en su Top 10 de aplicaciones con LLM (LLM08:2025): controles de acceso finos y almacenes de vectores que respeten permisos.",
+    "entrevista": [
+      {
+        "q": "¿Cómo haces que un RAG respete los permisos de cada persona?",
+        "a": "La ACL de cada documento viaja dentro de cada uno de sus chunks del índice, con los grupos tal como vienen de la fuente. Al preguntar, resuelvo los principals de la persona (su usuario, su dominio y todos sus grupos, también los anidados) con una copia del directorio, y el filtro va dentro de la búsqueda, antes del top-k. Justo antes de armar el prompt reviso otra vez cada chunk contra la ACL del índice. Y lo pruebo: cada persona contra la verdad, en el gate y en producción."
+      },
+      {
+        "q": "¿Guardas en cada chunk la lista de personas o los grupos?",
+        "a": "Los grupos. Expandir a personas multiplica el tamaño (en mi caso, 19 principals contra 952 entradas; con grupos de cientos de personas, cientos de veces más) y, sobre todo, cada alta o baja de un grupo obliga a reescribir todos los chunks que lo nombran. Con grupos, un cambio de equipo es una línea en el directorio."
+      },
+      {
+        "q": "¿Por qué no filtrar por permisos después de traer el top-k?",
+        "a": "Porque el top-k se llena con chunks que la persona no puede ver y, al quitarlos, le queda poco o nada. No hay fuga, pero el asistente contesta «no encontré información». Pega más a quien ve menos: alguien que ve el 2 % del corpus recibe en promedio 0.16 de 8. El filtro va dentro de la búsqueda."
+      },
+      {
+        "q": "Le quitan a alguien el acceso a un documento. ¿Cuánto tarda en dejar de verlo en el asistente?",
+        "a": "Mi objetivo son ≤ 5 min. Las fuentes avisan con webhooks a una cola, y un carril rápido aplica el cambio en el índice (solo la ACL de los chunks de ese documento, sin reindexar) o en la copia del directorio si es un cambio de grupo. Lo mido como exposición: de que cambió en la fuente a que la persona deja de recibirlo. Y el reindexado no puede deshacerlo: gana la ACL con la hora de cambio más nueva."
+      },
+      {
+        "q": "¿Qué haces con un documento que llega sin ACL?",
+        "a": "No entra al índice: fail-closed. Vacío no es público, es un dato que falta. El documento se queda fuera del asistente hasta que se repare de donde viene, y una alarma lo avisa. Un default de «público mientras llega su ACL» es justo la forma de que todos lean los sueldos."
+      }
+    ]
+  },
+  "prompts": {
+    "claude_md": "kits/rag-permisos/CLAUDE.md",
+    "guiado": "content/estaciones/rag-permisos/prompts/guiado.md",
+    "solo": "content/estaciones/rag-permisos/prompts/solo.md",
+    "romper_ayuda": "content/estaciones/rag-permisos/prompts/romper-ayuda.md",
+    "romper_solo": "content/estaciones/rag-permisos/prompts/romper-solo.md"
+  }
+}

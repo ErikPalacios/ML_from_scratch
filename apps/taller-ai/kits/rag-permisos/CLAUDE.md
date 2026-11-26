@@ -6,14 +6,14 @@ Este es un mini-proyecto de práctica. Reproduce en pequeño, en una Mac sin GPU
 
 | Carpeta o archivo | Qué es | ¿Se toca? |
 |---|---|---|
-| `mundo/` | `entrada/` (los chunks que dejó la estación 2, el directorio y los eventos de la mañana), `crear.py`, `avanzar.py` (la mañana del 21, de 9:00 a 10:30), `referencia.py` (la verdad que usa `verificar.py`), `reiniciar.py` y el esqueleto. | **No.** `crear.py --rechunkear` sí se usa para reparar: hace del chunking de la estación 2 corrido otra vez. |
-| `almacen/` | La entrada: `docs/<doc>.json`, `directorio.json`, `eventos.jsonl` (la cola), `mundo.json` (el reloj) y `manana.json` (lo que midió el mundo en la mañana). | No: lo escribe el mundo. |
+| `mundo/` | `entrada/` (los chunks que dejó la estación 2, el directorio y los eventos de la mañana), `crear.py`, `avanzar.py` (la mañana del 21, de 9:00 a 10:30), `referencia.py` (la verdad que usa `verificar.py`), `reiniciar.py` y el esqueleto. | **No.** `crear.py --rechunkear` y `crear.py --suscribir` sí se usan para reparar: hacen del chunking de la estación 2 corrido otra vez y de renovar las suscripciones a los avisos. |
+| `almacen/` | La entrada: `docs/<doc>.json`, `directorio.json`, `eventos.jsonl` (la cola), `suscripciones.json` (de qué fuentes llegan avisos), `mundo.json` (el reloj) y `manana.json` (lo que midió el mundo en la mañana). | No: lo escribe el mundo. |
 | `pipeline/directorio.py`, `permisos.py`, `indexar.py`, `buscar.py`, `revocar.py` | El pipeline de la persona. Cada archivo trae su contrato arriba. | **Sí.** Es lo que la persona escribe. |
 | `pipeline/_comun.py` | Lo que comparten los pasos, con el buscador de juguete (`puntaje`). | No. |
 | `config.yaml` | Profundidad de grupos, `sin_acl`, top-k y filtro, periodo del carril rápido. | Solo cuando un paso o un arreglo lo pide. |
 | `indice/` | Lo que produce el pipeline. | No a mano: lo escriben `pipeline/indexar.py` y `pipeline/revocar.py`. |
 | `verificar.py` | Revisa los criterios de «listo», uno por check. | No. |
-| `romper.py` | Mete fallas en la configuración o en el almacén. Nunca en `pipeline/`. | No. Y no leas su código para adivinar una falla escondida. Tampoco leas `mundo/referencia.py` para resolver un paso: es la respuesta del equipo. |
+| `romper.py` | Mete fallas en la configuración, en el almacén o en los archivos de estado de `indice/`. Nunca en `pipeline/`. | No. Y no leas su código para adivinar una falla escondida. Tampoco leas `mundo/referencia.py` para resolver un paso: es la respuesta del equipo. |
 | `GUION.md` / `OBJETIVOS.md` | El paso a paso (ronda Construir con ayuda) y solo los objetivos (ronda Construir solo). | No. |
 | `taller/progreso.json`, `BITACORA.md` | El registro de las rondas. | Sí, tú los mantienes (ver abajo). |
 | `taller/registro.py` | Lo usan `verificar.py` y `romper.py` para anotar sus corridas y las fallas cerradas. | No. |

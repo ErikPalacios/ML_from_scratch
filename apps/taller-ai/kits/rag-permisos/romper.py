@@ -1,4 +1,4 @@
-"""Mete una falla en la configuración o en el almacén. Nunca toca tu código (pipeline/).
+"""Mete una falla en la configuración, en el almacén o en los archivos de estado de indice/. Nunca toca tu código (pipeline/).
 
     python romper.py                       # una falla al azar, escondida (ronda Romper solo)
     python romper.py --mostrar             # al azar, y dice cuál fue (ronda Romper con ayuda; lo lee Claude)
@@ -90,6 +90,18 @@ def sin_acl_publico(_e: dict) -> None:
     job("pipeline/indexar.py")
 
 
+def bitacora_borrada(_e: dict) -> None:
+    (INDICE / "acl_vigente.json").unlink(missing_ok=True)
+    job("pipeline/indexar.py")
+
+
+def suscripcion_vencida(_e: dict) -> None:
+    s = leer_json(ALMACEN / "suscripciones.json")
+    s["directorio"] = {"activa": False, "vence": "2026-11-21T14:00:00Z"}
+    escribir_json(ALMACEN / "suscripciones.json", s)
+    job("mundo/avanzar.py")
+
+
 FALLAS = {
     "filtro-despues": dict(
         tipo="config", titulo="Ana pregunta por cuentas duplicadas y el asistente dice que no hay nada", aplicar=filtro_despues,
@@ -107,6 +119,14 @@ FALLAS = {
         tipo="infra", titulo="Cualquiera puede preguntarle al asistente cuánto gana un líder de soporte", aplicar=sin_acl_publico,
         historia="Un script de migración del chunking reescribió dos archivos sin el campo acl. Ese mismo día, alguien cambió permisos.sin_acl a publico «para que los documentos nuevos no se queden fuera mientras llega su ACL».",
         explica="almacen/docs/drive__d04.json («Sueldos 2026») y wiki__1006.json («Clientes VIP y compensaciones») llegaron sin ACL y config.yaml quedó con permisos.sin_acl: publico. El índice los metió con [[\"domain:marketplace.test\"]]: todo el dominio ve los sueldos. Se ve con python verificar.py fuga (diego.luna ve drive:d04) e indice (dos documentos sin ACL entraron con una ACL inventada). Son dos arreglos: permisos.sin_acl vuelve a rechazar (fail-closed: vacío no es público) y la ACL se repara de donde viene, el chunking (python mundo/crear.py --rechunkear hace de él), y python pipeline/indexar.py."),
+    "bitacora-borrada": dict(
+        tipo="infra", titulo="A las 10:30, Ana vuelve a ver un ticket que a las 9:31 pasó a «Solo líderes»", aplicar=bitacora_borrada,
+        historia="En una limpieza de disco, alguien borró indice/acl_vigente.json: «son logs viejos del carril rápido». Una hora después corrió el reindexado de siempre, sin errores.",
+        explica="Sin indice/acl_vigente.json, el reindexado no sabe lo que aplicó el carril rápido y reconstruye con las ACL que trae almacen/docs/, las que leyó la ingestión a las 9:05: las tarifas vuelven a ser de todo operaciones, el ticket SOP-14 de todo soporte y las comisiones también. El carril no las vuelve a aplicar solo, porque su cursor dice que ya las aplicó. Se ve con python verificar.py fuga (el índice coincide con almacen/docs/, por eso indice pasa). Arreglo: reconstruir desde cero y volver a aplicar la cola desde el principio: python pipeline/indexar.py --desde-cero (borra también el cursor) y python pipeline/revocar.py. acl_vigente.json no es un log: es lo que impide que el reindexado deshaga una revocación."),
+    "suscripcion-vencida": dict(
+        tipo="infra", titulo="Luis terminó su contrato a las 9:52 y a las 9:59 seguía consultando los manuales de soporte", aplicar=suscripcion_vencida,
+        historia="La suscripción del carril rápido a los avisos del directorio venció anoche y nadie la renovó. La mañana pasó sin errores: el carril corrió cada minuto, como siempre.",
+        explica="En almacen/suscripciones.json, la del directorio quedó vencida: los avisos de cambios de grupo (Tomás sale de fraude, Diego entra a soporte, Luis sale de soporte) nunca llegaron a la cola. Solo el reindexado de las 10:00, que lee el directorio entero, los puso al día: Tomás pudo ver los tickets de fraude 41 minutos de más y Luis los manuales 8. Se ve con python verificar.py revocacion y al final de mundo/avanzar.py (avisos que llegaron: directorio 0). Arreglo: renovar la suscripción (python mundo/crear.py --suscribir hace de renovarla en la consola del directorio) y pasar la mañana otra vez. Una alarma útil: «ninguna fuente puede pasar una hora sin mandar avisos»."),
 }
 
 

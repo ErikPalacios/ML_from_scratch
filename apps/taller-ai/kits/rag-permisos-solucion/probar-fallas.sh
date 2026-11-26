@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Prueba las 4 fallas sobre la carpeta que dejó probar.sh: rehace el pipeline de la solución (probar.sh termina con
+# Prueba las 6 fallas sobre la carpeta que dejó probar.sh: rehace el pipeline de la solución (probar.sh termina con
 # el esqueleto de la ronda Construir solo), lo deja en verde con la mañana pasada, y luego cada falla se mete con
 # romper.py, se ve qué check la detecta, se cierra con su arreglo documentado y romper.py --verificar la da por buena.
 # Al final, una con --restaurar. Deja cada salida real en <carpeta>-fallas.log.
@@ -51,6 +51,20 @@ paso "pub diego" python pipeline/buscar.py --como diego.luna@marketplace.test "�
 paso "pub medio" sh -c "$(declare -f cfg); cfg sin_acl publico rechazar && python pipeline/indexar.py && python verificar.py indice fuga"
 paso "pub arreglo" sh -c "python mundo/crear.py --rechunkear && python pipeline/indexar.py"
 paso "pub cerrar" python romper.py --verificar
+
+# 5 · bitácora del carril borrada
+paso "bit romper" python romper.py --mostrar --falla bitacora-borrada
+paso "bit verificar" python verificar.py indice fuga
+paso "bit carril" python pipeline/revocar.py
+paso "bit arreglo" sh -c "python pipeline/indexar.py --desde-cero && python pipeline/revocar.py"
+paso "bit cerrar" python romper.py --verificar
+
+# 6 · suscripción del directorio vencida
+paso "sus romper" python romper.py --mostrar --falla suscripcion-vencida
+paso "sus verificar" python verificar.py revocacion fuga
+paso "sus manana" python mundo/avanzar.py
+paso "sus arreglo" sh -c "python mundo/crear.py --suscribir && python mundo/avanzar.py | tail -3"
+paso "sus cerrar" python romper.py --verificar
 
 # restaurar
 paso "rest romper" python romper.py

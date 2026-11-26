@@ -32,45 +32,46 @@ paso "p0 crear" python mundo/crear.py
 paso "p0 verificar" python verificar.py mundo
 paso "p0 esqueleto" python verificar.py principals
 
-# precálculos (en el dojo y en C11)
+# precálculos (en el dojo y en C11; los supuestos de C11 van escritos en cada comando)
 paso "pc grupos" python -c "
 import sys; sys.path.insert(0, '.')
 from mundo import referencia as r
 d = r.directorio(); cs = [c for x in r.docs().values() for c in x['chunks']]
 g = sum(sum(len(cl) for cl in c['acl']) for c in cs)
 p = sum(sum(r.puede_ver(c['acl'], r.principals(q, d)) for q in r.personas()) for c in cs)
-print(f'{len(cs)} chunks · ACL en grupos: {g} principals ({g / len(cs):.1f} por chunk) · expandida a personas: {p} ({p / len(cs):.1f} por chunk)')"
+print(f'dojo · {len(cs)} chunks · ACL en grupos: {g} principals ({g / len(cs):.1f} por chunk) · expandida a personas: {p} ({p / len(cs):.1f} por chunk)')
+chunks, prin, gente = 7_500_000, 3, 400     # supuestos de C11: 3 principals por ACL; 400 personas detrás de cada ACL
+print(f'C11  · {chunks / 1e6:.1f} M chunks · en grupos: {chunks * prin / 1e6:.1f} M principals · expandida: {chunks * gente / 1e9:.1f} mil millones')"
 paso "pc quitar" python -c "
 import sys; sys.path.insert(0, '.')
 from mundo import referencia as r
 f = 'group:fraude@marketplace.test'
 n = sum(1 for x in r.docs().values() for c in x['chunks'] if any(f in cl for cl in c['acl']))
-print(f'Tomás sale de fraude · ACL en grupos: 0 chunks que reescribir, 1 cambio en la copia del directorio · expandida a personas: {n} chunks que reescribir')"
+print(f'dojo · Tomás sale de fraude · en grupos: 0 chunks que reescribir (1 cambio en la copia del directorio) · expandida a personas: {n} chunks')
+print(f'C11  · alguien sale de soporte, que está en el 10 % de los chunks (supuesto) · en grupos: 0 chunks · expandida: {0.10 * 7_500_000 / 1e3:.0f} mil chunks')"
 paso "pc retraso" python -c "
-entrega, slo = 20, 300
+entrega, slo, por_dia = 20, 300, 25_000
 for cada in (60, 280, 900, 3600):
     peor = entrega + cada
-    print(f'carril cada {cada:>4} s: peor caso {peor:>4} s · ' + ('cabe en 5 min' if peor <= slo else f'{peor / slo:.1f} veces el SLO'))"
+    print(f'carril cada {cada:>4} s: peor caso {peor:>4} s · ' + ('cabe en 5 min' if peor <= slo else f'{peor / slo:.1f} veces el SLO'))
+cada_pregunta = 86400 / por_dia
+print(f'C11 · {por_dia:,} preguntas al día = una cada {cada_pregunta:.1f} s en promedio: en 5 min caben ≈ {slo / cada_pregunta:.0f} preguntas; en una hora, ≈ {3600 / cada_pregunta:,.0f}')"
 paso "pc postfiltro" python -c "
 import sys; sys.path.insert(0, '.')
 from mundo import referencia as r
 n = sum(len(x['chunks']) for x in r.docs().values())
 for q in ('ana.ruiz', 'irene.sol', 'carmen.nava', 'diego.luna'):
     v = len(r.permitidos(q + '@marketplace.test')); p = v / n
-    print(f'{q:<12} ve {v:>3} de {n} ({p:5.1%}) · post-filter con top-8: le llegan {8 * p:.1f} en promedio · para asegurar 8 haría falta pedir ≈ {8 / p:.0f}')"
+    print(f'dojo · {q:<11} ve {v:>3} de {n} ({p:5.1%}) · post-filter con top-8: le llegan {8 * p:.1f} en promedio · para asegurar 8 habría que pedir ≈ {8 / p:.0f}')
+p = 0.02                                    # supuesto de C11: alguien de un área chica ve el 2 % del corpus
+print(f'C11  · alguien que ve el 2 % · post-filter con top-8: {8 * p:.2f} en promedio · para asegurar 8 habría que pedir ≈ {8 / p:.0f}')"
 paso "pc prueba" python -c "
 import sys; sys.path.insert(0, '.')
 from mundo import referencia as r
 acls = {repr(x['acl']) for x in r.docs().values()}
-print(f'{len(r.personas())} personas × {len(acls)} ACL distintas = {len(r.personas()) * len(acls)} combinaciones (contra {len(r.personas()) * len(r.docs())} persona × documento)')"
-paso "pc c11" python -c "
-chunks, prin, por_persona = 7_500_000, 3, 400       # supuestos: ≈ 300 tokens por chunk; 3 principals por ACL; un grupo típico de 400 personas
-print(f'C11 · ACL en grupos: {chunks * prin / 1e6:.1f} M principals · expandida (400 por chunk): {chunks * por_persona / 1e9:.1f} mil millones')
-share = 0.10                                         # supuesto: el grupo «soporte» aparece en el 10 % de los chunks
-print(f'alguien sale de soporte · en grupos: 0 chunks · expandida: {chunks * share / 1e3:.0f} mil chunks que reescribir')
-p = 0.02                                             # supuesto: alguien de un área chica ve el 2 % del corpus
-print(f'post-filter con top-8 y alguien que ve el 2 %: {8 * p:.2f} chunks en promedio · para asegurar 8 haría falta pedir ≈ {8 / p:.0f}')
-print(f'preguntas al día ≈ 25,000 · una cada {86400 / 25000:.1f} s en promedio')"
+print(f'dojo · {len(r.personas())} personas × {len(acls)} ACL distintas = {len(r.personas()) * len(acls)} combinaciones (persona × documento serían {len(r.personas()) * len(r.docs())})')
+gente, docs = 5_000, 1_500_000              # supuesto de C11: 5,000 personas
+print(f'C11  · {gente:,} personas × {docs / 1e6:.1f} M documentos = {gente * docs / 1e9:.1f} mil millones de combinaciones: no se prueban todas')"
 
 # paso 1 · quién es quién
 usa directorio.py

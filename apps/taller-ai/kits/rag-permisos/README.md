@@ -24,7 +24,7 @@ Sin Docker, sin GPU y sin internet después del `pip install` (solo pyyaml). Des
 | `pipeline/` | Tu código: `directorio.py`, `permisos.py`, `indexar.py`, `buscar.py` y `revocar.py`. Cada archivo trae arriba su contrato. `_comun.py` viene dado (con el buscador de juguete). |
 | `config.yaml` | La profundidad de los grupos, qué hacer con un chunk sin ACL, el top-k y el filtro, y cada cuánto corre el carril rápido. |
 | `indice/` | Lo que produce tu pipeline: el índice, la copia del directorio, el cursor y la bitácora del carril rápido. |
-| `verificar.py` / `romper.py` | Los 9 checks de la estación y las 4 fallas. |
+| `verificar.py` / `romper.py` | Los 9 checks de la estación y las 6 fallas. |
 | `GUION.md` / `OBJETIVOS.md` | El paso a paso de la ronda Construir con ayuda y solo los objetivos para Construir solo. |
 | `CLAUDE.md` | Las reglas para Claude Code en este proyecto. |
 | `BITACORA.md`, `taller/progreso.json` | Tu registro. `verificar.py` y `romper.py` anotan solos en `progreso.json`; impórtalo en «Tu tablero» del Dojo: https://dojo.trueml.app/tablero/ |

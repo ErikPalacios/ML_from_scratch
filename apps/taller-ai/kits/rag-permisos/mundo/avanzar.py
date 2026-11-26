@@ -9,6 +9,7 @@ Lo que pasa (es el paso 8 de la guía):
          9:07:20 drive · 9:18:40 directorio · 9:25:00 directorio (un alta) · 9:31:10 jira · 9:44:30 wiki · 9:52:00 directorio.
 - Tu carril rápido (python pipeline/revocar.py) corre cada revocacion.cada_segundos de config.yaml, contados desde las
   9:00, cuando hay algo nuevo en la cola (si no lo hay, una pasada no haría nada).
+- Solo llegan los avisos de las fuentes con la suscripción activa (almacen/suscripciones.json).
 - 10:00  El reindexado de cada hora: tu python pipeline/indexar.py, desde almacen/docs/, que todavía trae las ACL que
          leyó la ingestión a las 9:05 (la siguiente ingestión, la de las 11:00, ya no cae en la mañana).
 Después de cada corrida de tu código, el mundo le pregunta a tu pipeline/buscar.py (visibles) qué ve cada persona y lo
@@ -52,7 +53,9 @@ def docs_de(ids: set) -> set:
 
 def main() -> None:
     cada = max(1, int(yaml.safe_load(CONFIG.read_text())["revocacion"]["cada_segundos"]))
-    evs = [dict(e, entregado=mas(e["ocurrio"], ENTREGA)) for e in ref.eventos()]
+    subs = leer_json(ALMACEN / "suscripciones.json", {})
+    todos = [dict(e, entregado=mas(e["ocurrio"], ENTREGA)) for e in ref.eventos()]
+    evs = [e for e in todos if subs.get(e["fuente"], {}).get("activa")]     # los que llegan a la cola
     escribir_json(ALMACEN / "directorio.json", leer_json(ENTRADA / "directorio.json"))
     (ALMACEN / "eventos.jsonl").write_text("")
     (ALMACEN / "manana.json").unlink(missing_ok=True)
@@ -86,7 +89,7 @@ def main() -> None:
     escribir_json(ALMACEN / "directorio.json", ref.directorio(FIN))
 
     # ------------------------------------------------ la exposición: tramo por tramo, lo que ves contra la verdad
-    cortes = sorted({c[0] for c in corridas} | {e["ocurrio"] for e in evs} | {FIN})
+    cortes = sorted({c[0] for c in corridas} | {e["ocurrio"] for e in todos} | {FIN})
     fugas: dict[tuple, list] = {}
     verdad = {}
     for a, b in zip(cortes, cortes[1:]):
@@ -109,7 +112,7 @@ def main() -> None:
     reporte, atribuidas = [], set()
     print(f"✓ la mañana del 21, de {hora(INICIO)} a {hora(FIN)} · tu carril rápido corre cada {dur(cada)} · el reindexado, a las {hora(REINDEXADO)}")
     linea_corrida = {c[0]: c[1] for c in corridas}
-    hechos = sorted([(c[0], "c", c[1]) for c in corridas] + [(e["ocurrio"], "e", e) for e in evs], key=lambda x: (x[0], x[1]))
+    hechos = sorted([(c[0], "c", c[1]) for c in corridas] + [(e["ocurrio"], "e", e) for e in todos], key=lambda x: (x[0], x[1]))
     for T, k, x in hechos:
         if k == "c":
             extra = ""
@@ -129,7 +132,8 @@ def main() -> None:
         if perdieron:
             aplicado = mas(e["ocurrio"], max((segs(tramos([iv for iv in fugas.get(pd, []) if iv[0] >= e["ocurrio"]])[:1]) for pd in perdieron), default=0))
         elif ganaron:
-            aplicado = next((c[0] for c in corridas if c[0] >= e["ocurrio"] and all(any(ref.doc_de(cid) == d for cid in c[2].get(p, ())) for p, d in ganaron)), None)
+            aplicado = next((c[0] for c in corridas if c[0] >= e["ocurrio"] and all(any(ref.doc_de(cid) == d for cid in c[2].get(p, ()))
+                                                                                        for p, d in ganaron if d in docs_de(verdad.get((p, c[0])) or ref.permitidos(p, c[0])))), None)
         que = (f"{e['doc_id']} «{ref.docs()[e['doc_id']]['titulo']}»: ACL nueva" if e["tipo"] == "acl" else
                f"{e['miembro'].split(':')[1].split('@')[0]} {'sale de' if e['accion'] == 'quitar' else 'entra a'} {e['grupo'].split(':')[1].split('@')[0]}")
         quien = (f"{len({p for p, _ in perdieron})} persona(s) dejan de poder ver {len({d for _, d in perdieron})} documento(s)" if perdieron else
@@ -142,10 +146,12 @@ def main() -> None:
             print(f"            {'✓ ya lo ven desde las ' + hora(aplicado) if aplicado else '✗ al final de la mañana todavía no lo ven'}")
         reporte.append({"n": e["n"], "tipo": e["tipo"], "fuente": e["fuente"], "ocurrio": e["ocurrio"], "que": e["que"],
                         "perdieron": perdieron, "ganaron": ganaron, "exposicion": expo, "aplicado": aplicado, "reaparece": reaparece})
-    print(f"  {hora(FIN):>8}  fin de la mañana · el detalle quedó en almacen/manana.json")
+    llegaron = {f: sum(e["fuente"] == f for e in evs) for f in sorted({e["fuente"] for e in todos})}
+    print(f"  {hora(FIN):>8}  fin de la mañana · avisos que llegaron a la cola: " + ", ".join(f"{f} {n}" for f, n in llegaron.items())
+          + " · el detalle quedó en almacen/manana.json")
     otras = sorted(({"persona": p, "doc_id": d, "segundos": segs(iv)} for (p, d), iv in fugas.items() if (p, d) not in atribuidas), key=lambda x: (x["persona"], x["doc_id"]))
     escribir_json(ALMACEN / "manana.json", {"cada_segundos": cada, "corridas": [{"t": c[0], "que": c[1]} for c in corridas],
-                                             "eventos": reporte, "otras_fugas": otras})
+                                             "eventos": reporte, "otras_fugas": otras, "avisos": llegaron})
     revs = [r for r in reporte if r["perdieron"]]
     peor = max(revs, key=lambda r: r["exposicion"])
     malas = [r for r in revs if r["exposicion"] > SLO or r["reaparece"]]
