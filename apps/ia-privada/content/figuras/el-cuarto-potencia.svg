@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 372" role="img" aria-labelledby="f-el-cuarto-potencia-t" class="f-svg" style="max-width:420px">
+<title id="f-el-cuarto-potencia-t">Tres barras con lo que jala el servidor del despacho con 4 L40S. Pico de papel: 1,400 W de GPUs más 1,100 W de CPUs y resto, 2,500 W en total; con eso se dimensionan el circuito, el UPS y el aire. Hora de oficina, con las GPUs al 60 por ciento de su TDP: 840 más 800, unos 1,640 W. Noche, con las GPUs en reposo al 20 por ciento: 280 más 550, unos 830 W. Con las dos últimas se paga la luz.</title>
+<text class="f-l" x="14" y="24">LO QUE JALA EL SERVIDOR DEL DESPACHO</text>
+<rect class="f-o" x="26" y="40" width="14" height="14" rx="3"/>
+<text class="f-s" x="46" y="52">GPUs (4 L40S)</text>
+<rect class="f-b2" x="170" y="40" width="14" height="14" rx="3"/>
+<text class="f-s" x="190" y="52">CPUs y resto</text>
+<rect class="f-card" x="10" y="68" width="340" height="80" rx="16"/>
+<text class="f-l" x="26" y="90">PICO DE PAPEL · TODO AL TOPE</text>
+<rect class="f-o" x="26" y="100" width="168" height="26"/>
+<rect class="f-b2" x="194" y="100" width="132" height="26"/>
+<text class="f-s" x="110" y="118" text-anchor="middle">1,400</text>
+<text class="f-s" x="260" y="118" text-anchor="middle">1,100</text>
+<text class="f-t" x="26" y="142" style="font-size:13px">= 2,500 W → circuito, UPS y aire</text>
+<rect class="f-card" x="10" y="158" width="340" height="80" rx="16"/>
+<text class="f-l" x="26" y="180">HORA DE OFICINA · GPUs AL 60 %</text>
+<rect class="f-o" x="26" y="190" width="100.8" height="26"/>
+<rect class="f-b2" x="126.8" y="190" width="96" height="26"/>
+<text class="f-s" x="76.4" y="208" text-anchor="middle">840</text>
+<text class="f-s" x="174.8" y="208" text-anchor="middle">800</text>
+<text class="f-t" x="26" y="232" style="font-size:13px">≈ 1,640 W · 220 h al mes</text>
+<rect class="f-card" x="10" y="248" width="340" height="80" rx="16"/>
+<text class="f-l" x="26" y="270">NOCHE · GPUs EN REPOSO, 20 %</text>
+<rect class="f-o" x="26" y="280" width="33.6" height="26"/>
+<rect class="f-b2" x="59.6" y="280" width="66" height="26"/>
+<text class="f-s" x="92.6" y="298" text-anchor="middle">550</text>
+<text class="f-s" x="134" y="298">← 280 de GPUs</text>
+<text class="f-t" x="26" y="322" style="font-size:13px">≈ 830 W · 510 h al mes</text>
+<line x1="326" y1="94" x2="326" y2="312" style="stroke:var(--ink);stroke-width:1.5;stroke-dasharray:3 3"/>
+<text class="f-s" x="14" y="356">Con las de abajo se paga la luz (supuestos).</text>
+</svg>

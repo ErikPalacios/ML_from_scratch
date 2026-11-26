@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 400" role="img" aria-labelledby="f-formatos-cuantizacion-grupo-t" class="f-svg" style="max-width:420px">
+<title id="f-formatos-cuantizacion-grupo-t">Un grupo de 128 pesos de AWQ: 128 enteros de 4 bits son 512 bits, más una escala de 16 bits y un punto cero de 4 bits, 532 bits en total, 4.156 bits por peso. Abajo, lo que cuesta la escala con tres tamaños de grupo para una fila de 1,024 pesos con dos valores atípicos: con grupos de 1,024, 4.020 bits por peso y un error de 48 por ciento; con grupos de 128, 4.156 bits y 16 por ciento; con grupos de 32, 4.625 bits y 9 por ciento.</title>
+<rect class="f-card" x="10" y="10" width="340" height="380" rx="16"/>
+<text class="f-l" x="28" y="36">UN GRUPO DE AWQ · 128 PESOS</text>
+<rect class="f-b" x="28" y="52" width="12" height="30" rx="2"/>
+<rect class="f-b" x="42" y="52" width="12" height="30" rx="2"/>
+<rect class="f-b" x="56" y="52" width="12" height="30" rx="2"/>
+<rect class="f-b" x="70" y="52" width="12" height="30" rx="2"/>
+<rect class="f-b" x="84" y="52" width="12" height="30" rx="2"/>
+<rect class="f-b" x="98" y="52" width="12" height="30" rx="2"/>
+<rect class="f-b" x="112" y="52" width="12" height="30" rx="2"/>
+<rect class="f-b" x="126" y="52" width="12" height="30" rx="2"/>
+<rect class="f-b" x="140" y="52" width="12" height="30" rx="2"/>
+<rect class="f-b" x="154" y="52" width="12" height="30" rx="2"/>
+<rect class="f-b" x="168" y="52" width="12" height="30" rx="2"/>
+<rect class="f-b" x="182" y="52" width="12" height="30" rx="2"/>
+<rect class="f-b" x="196" y="52" width="12" height="30" rx="2"/>
+<rect class="f-b" x="210" y="52" width="12" height="30" rx="2"/>
+<rect class="f-b" x="224" y="52" width="12" height="30" rx="2"/>
+<rect class="f-b" x="238" y="52" width="12" height="30" rx="2"/>
+<rect class="f-o" x="260" y="52" width="40" height="30" rx="4"/>
+<rect class="f-g" x="306" y="52" width="26" height="30" rx="4"/>
+<text class="f-s" x="28" y="102" style="font-size:12px">128 enteros × 4 bits = 512 bits</text>
+<text class="f-s" x="280" y="102" text-anchor="middle" style="font-size:12px">escala</text>
+<text class="f-s" x="280" y="117" text-anchor="middle" style="font-size:12px">16 bits</text>
+<text class="f-s" x="319" y="102" text-anchor="middle" style="font-size:12px">cero</text>
+<text class="f-s" x="319" y="117" text-anchor="middle" style="font-size:12px">4 bits</text>
+<text class="f-t" x="28" y="148" style="font-size:13px">512 + 16 + 4 = 532 bits ÷ 128</text>
+<text class="f-t" x="28" y="168" style="font-size:13px">= 4.156 bits por peso</text>
+<line x1="28" y1="186" x2="332" y2="186" class="f-linea"/>
+<text class="f-l" x="28" y="210">CUÁNTO CUESTA LA ESCALA</text>
+<text class="f-s" x="28" y="234" style="font-size:12px">grupos de 1,024</text>
+<text class="f-s" x="332" y="234" text-anchor="end" style="font-size:12px">4.020 bits · error 48 %</text>
+<rect class="f-b2" x="28" y="242" width="240" height="14" rx="3"/>
+<rect class="f-o" x="268" y="242" width="1.5" height="14" rx="2"/>
+<text class="f-s" x="28" y="280" style="font-size:12px">grupos de 128 (AWQ)</text>
+<text class="f-s" x="332" y="280" text-anchor="end" style="font-size:12px">4.156 bits · error 16 %</text>
+<rect class="f-b2" x="28" y="288" width="240" height="14" rx="3"/>
+<rect class="f-o" x="268" y="288" width="9.4" height="14" rx="2"/>
+<text class="f-s" x="28" y="326" style="font-size:12px">grupos de 32</text>
+<text class="f-s" x="332" y="326" text-anchor="end" style="font-size:12px">4.625 bits · error 9 %</text>
+<rect class="f-b2" x="28" y="334" width="240" height="14" rx="3"/>
+<rect class="f-o" x="268" y="334" width="37.5" height="14" rx="2"/>
+<rect class="f-b2" x="28" y="364" width="14" height="12" rx="3"/>
+<text class="f-s" x="48" y="375" style="font-size:12px">4 bits del peso</text>
+<rect class="f-o" x="160" y="364" width="14" height="12" rx="3"/>
+<text class="f-s" x="180" y="375" style="font-size:12px">escala y punto cero</text>
+</svg>

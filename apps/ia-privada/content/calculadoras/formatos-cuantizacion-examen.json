@@ -1,0 +1,177 @@
+{
+ "titulo": "¿Cuánto pierdo, y es ruido?",
+ "intro": "Compara el modelo original y el cuantizado en **las mismas** preguntas. Aplica \\(Δ = (c − b) ÷ N\\) y el ruido pareado \\(1.96 × sqrt{b + c} ÷ N\\), donde \\(b\\) son los [[flips|flips]] de bien a mal y \\(c\\) los de mal a bien. Arranca con el supuesto del texto: el examen de 200 preguntas del despacho, 176 bien con BF16, 9 flips a mal y 7 a bien.",
+ "preajustes": {
+  "label": "Ejemplo (supuestos)",
+  "inicial": 0,
+  "opciones": [
+   {
+    "label": "Casi igual: 9 a mal, 7 a bien",
+    "valores": {
+     "A": 176,
+     "b": 9,
+     "c": 7
+    },
+    "nota": "El supuesto del texto: pierde 1 punto, dentro del ruido; pasa el criterio."
+   },
+   {
+    "label": "Pierde de verdad: 15 a mal, 3 a bien",
+    "valores": {
+     "A": 176,
+     "b": 15,
+     "c": 3
+    },
+    "nota": "Pierde 6 puntos, más que el ruido, y queda debajo de 170."
+   },
+   {
+    "label": "Empata, pero cambia mucho: 30 y 28",
+    "valores": {
+     "A": 176,
+     "b": 30,
+     "c": 28
+    },
+    "nota": "Casi la misma exactitud, con 29 % de respuestas distintas: hay que leerlas."
+   },
+   {
+    "label": "El GPTQ del ejercicio: 12 a mal, 4 a bien",
+    "valores": {
+     "A": 176,
+     "b": 12,
+     "c": 4
+    },
+    "nota": "Los mismos 16 flips que el primero, repartidos distinto."
+   }
+  ]
+ },
+ "entradas": [
+  {
+   "id": "N",
+   "label": "Preguntas del examen, \\(N\\)",
+   "min": 10,
+   "max": 100000,
+   "paso": 1,
+   "valor": 200,
+   "tipo": "numero"
+  },
+  {
+   "id": "A",
+   "label": "Aciertos del modelo original",
+   "min": 0,
+   "max": 100000,
+   "paso": 1,
+   "valor": 176,
+   "tipo": "numero"
+  },
+  {
+   "id": "b",
+   "label": "Flips de bien a mal, \\(b\\)",
+   "min": 0,
+   "max": 100000,
+   "paso": 1,
+   "valor": 9,
+   "tipo": "numero"
+  },
+  {
+   "id": "c",
+   "label": "Flips de mal a bien, \\(c\\)",
+   "min": 0,
+   "max": 100000,
+   "paso": 1,
+   "valor": 7,
+   "tipo": "numero"
+  },
+  {
+   "id": "K",
+   "label": "Criterio de aceptación, en % (el despacho: 85)",
+   "min": 0,
+   "max": 100,
+   "paso": 1,
+   "valor": 85
+  }
+ ],
+ "calculos": [
+  {
+   "id": "Q",
+   "formula": "A - b + c"
+  },
+  {
+   "id": "p1",
+   "formula": "A / max(N, 1)"
+  },
+  {
+   "id": "p2",
+   "formula": "(A - b + c) / max(N, 1)"
+  },
+  {
+   "id": "d",
+   "formula": "100 * (c - b) / max(N, 1)"
+  },
+  {
+   "id": "r",
+   "formula": "196 * sqrt(b + c) / max(N, 1)"
+  },
+  {
+   "id": "ri",
+   "formula": "196 * sqrt(max(p1 * (1 - p1), 0) / max(N, 1) + max(p2 * (1 - p2), 0) / max(N, 1))"
+  }
+ ],
+ "salidas": [
+  {
+   "label": "1 · Aciertos del cuantizado",
+   "formula": "Q",
+   "formato": "int",
+   "cuenta": "{{A|int}} − {{b|int}} + {{c|int}} = **{{Q|int}}** de {{N|int}} ({{100 * p2|num|1}} %)"
+  },
+  {
+   "label": "2 · Cambio de exactitud, \\(Δ\\), en puntos",
+   "formula": "d",
+   "formato": "num",
+   "decimales": 1,
+   "cuenta": "100 × ({{c|int}} − {{b|int}}) ÷ {{N|int}} = **{{d|num|1}} puntos**"
+  },
+  {
+   "label": "3 · Ruido pareado, en puntos",
+   "formula": "r",
+   "formato": "num",
+   "decimales": 1,
+   "barra": true,
+   "cuenta": "1.96 × √({{b|int}} + {{c|int}}) ÷ {{N|int}} × 100 = **±{{r|num|1}}**"
+  },
+  {
+   "label": "4 · Ruido si se compararan como exámenes independientes",
+   "formula": "ri",
+   "formato": "num",
+   "decimales": 1,
+   "barra": true,
+   "nota": "\\(1.96 × sqrt{p_1(1 − p_1) ÷ N + p_2(1 − p_2) ÷ N}\\): el que se usa sin parear",
+   "cuenta": "1.96 × √({{p1|num|3}} × {{1 - p1|num|3}} ÷ {{N|int}} + {{p2|num|3}} × {{1 - p2|num|3}} ÷ {{N|int}}) × 100 = **±{{ri|num|1}}**"
+  },
+  {
+   "label": "¿La diferencia es más que ruido?",
+   "formula": "abs(d) - r",
+   "veredicto": {
+    "si": "Sí: el cambio es real",
+    "no": "No se distingue del ruido"
+   },
+   "cuenta": "|{{d|num|1}}| − {{r|num|1}} = {{abs(d) - r|num|1}} (si sale negativo, el ruido es más grande)"
+  },
+  {
+   "label": "¿Pasa el criterio?",
+   "formula": "Q - K / 100 * N",
+   "veredicto": {
+    "si": "Pasa",
+    "no": "No pasa"
+   },
+   "cuenta": "{{Q|int}} contra {{K / 100 * N|num|0}} ({{K|int}} % de {{N|int}})"
+  },
+  {
+   "label": "Respuestas que cambiaron",
+   "formula": "(b + c) / max(N, 1)",
+   "formato": "pct",
+   "decimales": 1,
+   "barra": true,
+   "nota": "las que hay que leer, aunque la exactitud empate"
+  }
+ ],
+ "nota": "La fórmula del ruido pareado es la aproximación normal de la prueba de McNemar; con muy pocos flips (menos de ≈ 10) es tosca. Fíjate en la salida 4: el ruido sin parear es bastante más grande (±6.5 contra ±3.9 en el ejemplo), porque cuenta como incierta cada pregunta, aunque la mayoría contestan igual en los dos modelos."
+}

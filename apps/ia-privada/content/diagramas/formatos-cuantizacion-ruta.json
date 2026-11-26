@@ -1,0 +1,317 @@
+{
+ "titulo": "Del modelo original a la GPU: dónde entra cada capa de la cuantización",
+ "width": 78,
+ "height": 50,
+ "lanes": [
+  {
+   "id": "prep",
+   "label": "Una vez, al preparar el modelo",
+   "kind": "offline",
+   "x": 0,
+   "y": 0,
+   "w": 78,
+   "h": 27
+  },
+  {
+   "id": "vivo",
+   "label": "En cada petición",
+   "kind": "online",
+   "x": 0,
+   "y": 28,
+   "w": 78,
+   "h": 22
+  }
+ ],
+ "nodes": [
+  {
+   "id": "original",
+   "label": "Modelo original",
+   "sub": "BF16 · 65.5 GB",
+   "badge": "1",
+   "kind": "store",
+   "x": 2,
+   "y": 4,
+   "w": 19,
+   "h": 8,
+   "note": "Qwen3 32B tal como lo publica Qwen: 32,762 millones de [[pesos]] en BF16, ≈ 65.5 GB. Es la **referencia**: se guarda, porque el examen compara contra él y porque nunca se cuantiza un archivo ya cuantizado."
+  },
+  {
+   "id": "calib",
+   "label": "Datos de calibración",
+   "sub": "unos cientos de textos",
+   "kind": "store",
+   "x": 2,
+   "y": 16,
+   "w": 19,
+   "h": 8,
+   "note": "Los textos que [[gptq|GPTQ]], [[awq|AWQ]] o la [[imatrix|imatrix]] pasan por el modelo para medir sus activaciones. Texto genérico suele bastar. Si son documentos del despacho, la cuantización se corre dentro de su red."
+  },
+  {
+   "id": "herramienta",
+   "label": "Algoritmo",
+   "sub": "AWQ · GPTQ · k-quants",
+   "badge": "2",
+   "kind": "job",
+   "x": 30,
+   "y": 10,
+   "w": 19,
+   "h": 8,
+   "note": "La capa del **algoritmo**: elige los enteros y las escalas. Se corre una vez, con llm-compressor o GPTQModel (para vLLM) o con `llama-quantize` (para GGUF). AutoAWQ ya está archivado."
+  },
+  {
+   "id": "archivo",
+   "label": "Archivo",
+   "sub": "safetensors · GGUF",
+   "badge": "3",
+   "kind": "store",
+   "x": 57,
+   "y": 4,
+   "w": 19,
+   "h": 8,
+   "note": "La capa del **formato**: los enteros, las escalas y los metadatos. El AWQ del despacho pesa 19.32 GB: ≈ 4.16 bits por peso y las [[tablas-de-tokens|tablas de tokens]] en 16 bits."
+  },
+  {
+   "id": "examen",
+   "label": "Examen propio",
+   "sub": "200 preguntas",
+   "badge": "4",
+   "kind": "monitor",
+   "x": 57,
+   "y": 16,
+   "w": 19,
+   "h": 8,
+   "note": "Las mismas preguntas con el original y con el cuantizado. Se cuentan los [[flips|flips]] y se compara la pérdida contra el ruido pareado. Sin este paso, ningún archivo pasa a producción."
+  },
+  {
+   "id": "pregunta",
+   "label": "Pregunta",
+   "sub": "≈ 6,000 tokens",
+   "kind": "client",
+   "x": 2,
+   "y": 36,
+   "w": 15,
+   "h": 8,
+   "note": "Una abogada pregunta sobre un expediente. El servidor ya cargó el archivo en la [[vram|VRAM]] al arrancar."
+  },
+  {
+   "id": "servidor",
+   "label": "Servidor",
+   "sub": "vLLM · llama.cpp",
+   "kind": "service",
+   "x": 22,
+   "y": 36,
+   "w": 15,
+   "h": 8,
+   "note": "Lee el `config.json` (o los metadatos del GGUF), sabe qué formato es y elige un kernel. Su registro de arranque dice qué método usa (y, en modo detallado, qué kernel): es lo primero que conviene leer."
+  },
+  {
+   "id": "kernel",
+   "label": "Kernel",
+   "sub": "Marlin · FP8 · ggml",
+   "badge": "5",
+   "kind": "service",
+   "x": 42,
+   "y": 36,
+   "w": 15,
+   "h": 8,
+   "note": "La capa del [[kernel-de-cuantizacion|kernel]]: lee los enteros, los convierte a FP16 dentro del chip y multiplica. Que exista uno rápido para tu GPU decide si el formato vuela o se arrastra."
+  },
+  {
+   "id": "gpu",
+   "label": "GPU",
+   "sub": "L40S · Ada",
+   "kind": "gpu",
+   "x": 62,
+   "y": 36,
+   "w": 14,
+   "h": 8,
+   "note": "La L40S es Ada (*compute capability* 8.9): corre AWQ, GPTQ y FP8 de verdad; no calcula en FP4."
+  }
+ ],
+ "edges": [
+  {
+   "from": "original",
+   "to": "herramienta",
+   "kind": "offline",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "calib",
+   "to": "herramienta",
+   "kind": "offline",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "herramienta",
+   "to": "archivo",
+   "kind": "offline",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "archivo",
+   "to": "examen",
+   "kind": "monitor",
+   "fromSide": "b",
+   "toSide": "t"
+  },
+  {
+   "from": "examen",
+   "to": "servidor",
+   "kind": "async",
+   "label": "aprobado",
+   "fromSide": "b",
+   "toSide": "t",
+   "dashed": true,
+   "via": [
+    [
+     66.5,
+     30
+    ],
+    [
+     29.5,
+     30
+    ]
+   ]
+  },
+  {
+   "from": "pregunta",
+   "to": "servidor",
+   "kind": "online",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "servidor",
+   "to": "kernel",
+   "kind": "online",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "kernel",
+   "to": "gpu",
+   "kind": "online",
+   "fromSide": "r",
+   "toSide": "l"
+  }
+ ],
+ "flows": [
+  {
+   "id": "despacho",
+   "label": "El AWQ del despacho",
+   "steps": [
+    {
+     "nodes": [
+      "original"
+     ],
+     "edges": [],
+     "text": "Todo empieza con **Qwen3 32B en BF16**, 65.5 GB: no cabe en una L40S de 48 GB."
+    },
+    {
+     "nodes": [
+      "original",
+      "calib",
+      "herramienta"
+     ],
+     "edges": [
+      "original>herramienta",
+      "calib>herramienta"
+     ],
+     "text": "Qwen ya corrió **AWQ** con sus datos de calibración: midió el tamaño de las activaciones de cada canal y escaló los pesos importantes antes de redondear."
+    },
+    {
+     "nodes": [
+      "archivo"
+     ],
+     "edges": [
+      "herramienta>archivo"
+     ],
+     "text": "Sale `Qwen/Qwen3-32B-AWQ`: 4 bits, grupos de 128 con punto cero, **19.32 GB**."
+    },
+    {
+     "nodes": [
+      "examen"
+     ],
+     "edges": [
+      "archivo>examen"
+     ],
+     "text": "El despacho corre sus **200 preguntas** con BF16 y con el AWQ, cuenta los flips y lee los que pasaron de bien a mal."
+    },
+    {
+     "nodes": [
+      "servidor",
+      "pregunta"
+     ],
+     "edges": [
+      "examen>servidor",
+      "pregunta>servidor"
+     ],
+     "text": "Aprobado, el archivo se carga en el servidor. Llega una pregunta de ≈ 6,000 tokens."
+    },
+    {
+     "nodes": [
+      "kernel",
+      "gpu"
+     ],
+     "edges": [
+      "servidor>kernel",
+      "kernel>gpu"
+     ],
+     "text": "Un kernel de W4A16 lee 4 bits por peso, los convierte a FP16 en el chip y multiplica en la L40S. En el decode, la cuenta de las dos fases da ≈ 28.9 tokens/s con una conversación."
+    }
+   ]
+  },
+  {
+   "id": "gguf",
+   "label": "La ruta de GGUF",
+   "steps": [
+    {
+     "nodes": [
+      "original",
+      "calib",
+      "herramienta"
+     ],
+     "edges": [
+      "original>herramienta",
+      "calib>herramienta"
+     ],
+     "text": "`llama-quantize` convierte el original a un [[k-quant|k-quant]], con o sin [[imatrix|imatrix]] medida sobre un texto de calibración."
+    },
+    {
+     "nodes": [
+      "archivo"
+     ],
+     "edges": [
+      "herramienta>archivo"
+     ],
+     "text": "Sale un solo archivo `.gguf`, con el tokenizador y los metadatos adentro: un Q4_K_M de Qwen3 32B mide 19.76 GB."
+    },
+    {
+     "nodes": [
+      "examen"
+     ],
+     "edges": [
+      "archivo>examen"
+     ],
+     "text": "El mismo examen pareado, ahora contra el GGUF."
+    },
+    {
+     "nodes": [
+      "servidor",
+      "kernel",
+      "gpu"
+     ],
+     "edges": [
+      "examen>servidor",
+      "servidor>kernel",
+      "kernel>gpu"
+     ],
+     "text": "Lo sirve llama.cpp (u Ollama) con sus kernels de ggml, en CPU, Mac o GPU. Para muchas personas a la vez en una GPU de servidor, vLLM con AWQ o GPTQ suele rendir más."
+    }
+   ]
+  }
+ ]
+}

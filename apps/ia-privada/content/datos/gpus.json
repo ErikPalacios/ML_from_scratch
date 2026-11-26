@@ -1579,7 +1579,7 @@
       ],
       "compra_usd": 16399,
       "compra_detalle": {
-        "descripcion": "Workstation Edition (600 W), la de estas especificaciones: US$16,399 en Newegg, 'en stock', visto en el agregador BuildCores el 2026-11-13; la NVIDIA Marketplace la lista en US$16,000 desde el 12-ago-2026 (Tom's Hardware, PCMag). Re-chequeo 2026-11-25: el configurador de Exxact suma +US$14,080 por una Workstation Edition; gpuprix da US$16,290 como la nueva más barata, pero es la versión Max-Q (300 W, 438.9 TFLOPS FP16 densos), otra tarjeta. Subió desde ≈ US$8,500 al lanzamiento.",
+        "descripcion": "Este precio es de la Workstation Edition (600 W), no de la Server Edition de rack (otra fila, sin precio): Workstation Edition, la de estas especificaciones: US$16,399 en Newegg, 'en stock', visto en el agregador BuildCores el 2026-11-13; la NVIDIA Marketplace la lista en US$16,000 desde el 12-ago-2026 (Tom's Hardware, PCMag). Re-chequeo 2026-11-25: el configurador de Exxact suma +US$14,080 por una Workstation Edition; gpuprix da US$16,290 como la nueva más barata, pero es la versión Max-Q (300 W, 438.9 TFLOPS FP16 densos), otra tarjeta. Subió desde ≈ US$8,500 al lanzamiento.",
         "fuente": {
           "url": "https://www.buildcores.com/products/GPU/eblltkoej/NVIDIA-RTX-PRO-6000-Blackwell-Workstation-Edition-96GB-GDDR7",
           "consultado": "2026-11-13",
@@ -1597,6 +1597,40 @@
             "fuente_tipo": "secundaria"
           }
         ]
+      }
+    },
+    {
+      "id": "rtx-pro-6000-blackwell-server",
+      "nombre": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "fabricante": "NVIDIA",
+      "arquitectura": "Blackwell",
+      "anio": 2025,
+      "segmento": "centro-de-datos",
+      "formato": "PCIe Gen5 (2 ranuras, pasiva, FHFL; también 1 ranura con enfriamiento líquido, FHXL)",
+      "vram_gb": 96,
+      "memoria": "GDDR7 con ECC",
+      "ancho_banda_gbs": 1597,
+      "potencia_w": 600,
+      "fp16_tflops_denso": 500,
+      "fp8_tflops_denso": 1000,
+      "fp4_tflops_denso": 2000,
+      "int8_tops_denso": null,
+      "bf16": true,
+      "fp8": true,
+      "fp4": true,
+      "mig": 4,
+      "interconexion": "PCIe Gen5 x16; la página no menciona NVLink",
+      "notas": "Variante pasiva de rack de la RTX PRO 6000 Blackwell (la de rack; la fila «rtx-pro-6000-blackwell» es la Workstation Edition, con ventilador, y de ella son el precio y el whitepaper). La página de NVIDIA publica: 96 GB GDDR7 con ECC, 1,597 GB/s, potencia máxima hasta 600 W (configurable de 400 a 600 W), pasiva; FP16 y BF16 «1 PFLOP», FP8 «2 PFLOPS», FP4 «4 PFLOPS»; MIG hasta 4 instancias; aire en doble ranura de alto y largo completos (FHFL) o líquido en una ranura (FHXL). La página no dice si esas cifras son densas o con sparsity. fp16_tflops_denso = 500, fp8_tflops_denso = 1000 y fp4_tflops_denso = 2000 son DERIVADOS: se leyeron como cifras con sparsity (como las de la Workstation, 1,007.6 / 2,015.2 / 4,030 con sparsity) y se dividieron entre 2; son aproximados, no publicados como densos. La Workstation da 503.8 / 1,007.6 / 2,015.2 densos a 600 W. Se supone que la Server Edition a 600 W rinde como la Workstation (no verificado; la lección «Comprar hardware» la usa con ≈ 500 TFLOPS). INT8 no se publica en la página: queda vacío. Sin precio publicado: se cotiza con un integrador.",
+      "fuente": {
+        "url": "https://www.nvidia.com/en-us/data-center/rtx-pro-6000-blackwell-server-edition/",
+        "consultado": "2026-11-26",
+        "fuente_tipo": "oficial"
+      },
+      "nube": [],
+      "compra_usd": null,
+      "compra_detalle": {
+        "descripcion": "Sin precio de compra publicado: la Server Edition se vende por cotización con integradores y OEM. El precio de US$16,399 de la fila de la Workstation Edition es de la Workstation, no de esta tarjeta. Referencia: el configurador de Exxact suma +US$14,080 por una Workstation Edition (2026-11-25).",
+        "fuente": null
       }
     },
     {

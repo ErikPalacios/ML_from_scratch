@@ -78,7 +78,7 @@ Cada pieza del nombre contesta una pregunta distinta: de qué familia y generaci
 - **Cómo se ajustó: Instruct.** «Base» es el modelo sin ajustar; «Instruct» (o «-it» en Gemma) sigue instrucciones; «Thinking» piensa antes de contestar. Si no dice nada, lee la ficha: Qwen3 32B es un solo modelo que hace las dos cosas con un interruptor.
 - **Revisión: 2507.** Año y mes: julio de 2025. El mismo modelo puede tener varias revisiones con comportamiento distinto; la de julio separó en dos archivos lo que en abril era uno solo.
 
-A veces el nombre trae un sufijo más, como «-AWQ», «-FP8» o «-GGUF»: es un formato de cuantización, el mismo modelo guardado con menos bits. Lo ves a fondo en la lección «Formatos de cuantización en la práctica».
+A veces el nombre trae un sufijo más, como «-AWQ», «-FP8» o «-GGUF»: es un formato de cuantización, el mismo modelo guardado con menos bits. Lo ves a fondo en la lección «[Formatos de cuantización en la práctica](/formatos-cuantizacion/)».
 
 :::ojo
 El nombre no es una ficha técnica. «20b» en gpt-oss-20b son 20.9 mil millones; «Qwen3-32B» son 32.76. Para las cuentas de memoria usa el número exacto de la API de Hugging Face o del config.json, como hace la herramienta de VRAM.
@@ -577,7 +577,7 @@ Memoria: en 4 bits sus pesos son ≈ 119.4 × 4.156 ÷ 8 ≈ **62.0 GB**, más q
 
 - **«[Open weight, open source y licencias](/licencias/)»**, en este mismo módulo: el filtro 1 a fondo, cómo leer [[apache-2|Apache 2.0]], MIT, la [[licencia-llama|licencia de Llama]] y las marcadas «other».
 - **«[Batching continuo y PagedAttention](/batching/)»** y **«[Concurrencia: la curva de usuarios contra latencia](/concurrencia/)»**: cómo un servidor atiende varias conversaciones con una sola lectura de los pesos, y por qué la memoria dice cuántas caben pero el cálculo dice cuántas se atienden bien.
-- **«Formatos de cuantización en la práctica»**: qué se pierde de calidad al pasar de BF16 a los 4 bits con que se examinó cada candidato.
+- **«[Formatos de cuantización en la práctica](/formatos-cuantizacion/)»**: qué se pierde de calidad al pasar de BF16 a los 4 bits con que se examinó cada candidato.
 - **«Demostrar que el modelo abierto sirve»**, en el módulo de evals: cómo se arma, se califica y se mantiene el examen propio de 200 preguntas.
 - En Sensei, [Transformers y LLMs](https://sensei.trueml.app/llms/) para el porqué del KV cache y de los expertos, y [Ruido, muestras y pruebas A/B](https://sensei.trueml.app/ruido/) para la prueba pareada y el diseño de una comparación.
 

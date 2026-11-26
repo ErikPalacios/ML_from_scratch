@@ -331,7 +331,7 @@ El [[tiempo-de-entrega|tiempo de entrega]] (*lead time*) es lo que pasa entre pe
 No hay una cifra oficial única. Circulan números de muchas semanas para las GPUs más nuevas que ningún fabricante ha confirmado. Lo honesto con un cliente es esto: **pueden ser semanas o meses; pregunta al proveedor y pide la fecha por escrito.** Y planear para eso: si el piloto termina y el equipo no ha llegado, la GPU rentada sigue mientras tanto.
 
 :::nota Lo que viene después
-La compra de verdad tiene más decisiones: workstation o servidor de rack, NVIDIA, AMD o Apple, dónde se pone, cuánta luz y aire acondicionado pide, cómo se importa a México. Son las lecciones «Comprar hardware: de la workstation al rack», «El cuarto: energía, enfriamiento y red», «TCO: API, nube o servidor propio» y «Cotizar, proponer y dar soporte».
+La compra de verdad tiene más decisiones: workstation o servidor de rack, NVIDIA, AMD o Apple, dónde se pone, cuánta luz y aire acondicionado pide, cómo se importa a México. Son las lecciones «[Comprar hardware: de la workstation al rack](/comprar-hardware/)», «[El cuarto: energía, enfriamiento y red](/el-cuarto/)», «TCO: API, nube o servidor propio» y «Cotizar, proponer y dar soporte».
 :::
 
 ## Despliegue: el stack en capas {Deployment: the layered stack}
@@ -342,7 +342,7 @@ El despliegue es armar todo lo que hace falta para que un abogado escriba una pr
 Las seis capas del despacho, con la lección donde se ve cada una a fondo.
 :::
 
-**1 · Hardware.** El servidor con sus GPUs (el candidato de hoy: L40S de 48 GB, 3 según el sizing completo), su CPU, su RAM, su disco y su red. Si el cuarto se calienta o falla la luz, todo lo de arriba se cae. Lecciones: «Comprar hardware: de la workstation al rack» y «El cuarto: energía, enfriamiento y red».
+**1 · Hardware.** El servidor con sus GPUs (el candidato de hoy: L40S de 48 GB, 3 según el sizing completo), su CPU, su RAM, su disco y su red. Si el cuarto se calienta o falla la luz, todo lo de arriba se cae. Lecciones: «[Comprar hardware: de la workstation al rack](/comprar-hardware/)» y «[El cuarto: energía, enfriamiento y red](/el-cuarto/)».
 
 **2 · Sistema y drivers.** Linux, el driver de NVIDIA (el programa que deja al sistema operativo hablar con la GPU) y CUDA (la plataforma con que los programas usan la GPU), y casi siempre contenedores: paquetes que llevan un programa con todo lo que necesita, para que corra igual en cualquier máquina. Es la capa más frágil en actualizaciones: basta un driver que no corresponda con la versión de CUDA que espera el servidor de inferencia para que no arranque nada. Para el TI del despacho, que sabe de Windows, es la capa más nueva. Lección: «Seguridad: aislamiento, sin internet y actualizaciones».
 
@@ -582,8 +582,8 @@ Las lecciones de esta app, en orden, y qué toma cada una de esta:
 - **«[Elegir un modelo para la tarea](/elegir-modelo/)»**: cómo se escogen los cuatro candidatos del despacho y por qué los [[benchmark|benchmarks]] públicos no reemplazan el examen de 200 preguntas.
 - **«[Batching continuo y PagedAttention](/batching/)»**: cómo el servidor de inferencia (capa 3) atiende 8 conversaciones a la vez en una GPU.
 - **«[Concurrencia: la curva de usuarios contra latencia](/concurrencia/)»**: el [[ttft|TTFT]], la velocidad, la [[ley-de-little|Ley de Little]] y el margen \(m\) de la servilleta, hechos con cuidado.
-- **«Formatos de cuantización en la práctica»** y **«Speculative decoding y contexto largo»**: de dónde salen los 19.32 GB del INT4 de AWQ y cómo se estira el contexto.
-- **«Comprar hardware: de la workstation al rack»** y **«El cuarto: energía, enfriamiento y red»**: la etapa de compra y la capa 1.
+- **«[Formatos de cuantización en la práctica](/formatos-cuantizacion/)»** y **«[Speculative decoding y contexto largo](/speculative/)»**: de dónde salen los 19.32 GB del INT4 de AWQ y cómo se estira el contexto.
+- **«[Comprar hardware: de la workstation al rack](/comprar-hardware/)»** y **«[El cuarto: energía, enfriamiento y red](/el-cuarto/)»**: la etapa de compra y la capa 1.
 - **«De requisitos a hardware»** y **«Varias GPUs: tensor y pipeline parallel»**: el sizing a fondo, más allá de la servilleta.
 - **«Del laptop al servidor»** y **«Gateway, API compatible con OpenAI y varios modelos»**: las capas 3 y 4 del despliegue.
 - **«RAG privado: embeddings y vector DB locales»** y **«Agentes, tools y guardrails»**: la capa 5, donde se gana la calidad.

@@ -122,8 +122,8 @@
           "id": "chunking",
           "titulo": "Chunking con contexto",
           "etapa": "datos",
-          "lista": false,
-          "url": null
+          "lista": true,
+          "url": "https://dojo.trueml.app/rag/chunking/"
         },
         {
           "num": 3,

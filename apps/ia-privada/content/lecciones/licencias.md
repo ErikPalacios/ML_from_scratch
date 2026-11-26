@@ -339,7 +339,7 @@ Hugging Face tiene una opción para que el autor bloquee las solicitudes que vie
 Un [[modelo-derivado]] es uno que sale de otro modelo. Casi todo lo que descargas en Hugging Face es un derivado: la página de un modelo popular tiene cientos de versiones de otras personas. Hay cuatro tipos:
 
 - **Fine-tune** (ajuste fino): alguien siguió entrenando el modelo con sus ejemplos. Los pesos cambian. Lo ves en [Transformers y LLMs](https://sensei.trueml.app/llms/), en la sección de cómo se adapta un modelo.
-- **Cuantizado**: los mismos pesos guardados con menos bits ([[cuantizacion]]). Los formatos (GGUF, AWQ, GPTQ, FP8) los ves en la lección «Formatos de cuantización en la práctica».
+- **Cuantizado**: los mismos pesos guardados con menos bits ([[cuantizacion]]). Los formatos (GGUF, AWQ, GPTQ, FP8) los ves en la lección «[Formatos de cuantización en la práctica](/formatos-cuantizacion/)».
 - **[[destilacion|Destilado]]**: un modelo más chico entrenado para imitar las salidas de uno grande.
 - **Merge** (fusión): los pesos de dos o más modelos combinados en uno, sin volver a entrenar.
 
@@ -620,7 +620,7 @@ La hoja para el abogado: el texto de las dos licencias con la fecha de lectura, 
 
 ## Lo que sigue {What comes next}
 
-La lección «[Elegir un modelo para la tarea](/elegir-modelo/)» toma los candidatos que pasaron esta revisión y los compara por familia, tamaño y [[benchmark|benchmarks]]: la licencia filtra, la calidad decide. En «Formatos de cuantización en la práctica» verás cómo se hacen los GGUF y AWQ de los que aquí solo importaba que heredan la licencia. Y si quieres repasar cómo se adapta un modelo (fine-tuning, LoRA, RAG), está en [Transformers y LLMs](https://sensei.trueml.app/llms/); la ley de datos que rige lo que le metes, en [Datos personales y la ley](https://sensei.trueml.app/privacidad/).
+La lección «[Elegir un modelo para la tarea](/elegir-modelo/)» toma los candidatos que pasaron esta revisión y los compara por familia, tamaño y [[benchmark|benchmarks]]: la licencia filtra, la calidad decide. En «[Formatos de cuantización en la práctica](/formatos-cuantizacion/)» verás cómo se hacen los GGUF y AWQ de los que aquí solo importaba que heredan la licencia. Y si quieres repasar cómo se adapta un modelo (fine-tuning, LoRA, RAG), está en [Transformers y LLMs](https://sensei.trueml.app/llms/); la ley de datos que rige lo que le metes, en [Datos personales y la ley](https://sensei.trueml.app/privacidad/).
 
 ## Palabras que vas a oír {Words you will hear}
 

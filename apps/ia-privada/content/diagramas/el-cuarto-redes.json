@@ -1,0 +1,50 @@
+{
+  "titulo": "Las tres redes del servidor del despacho",
+  "width": 78,
+  "height": 52,
+  "lanes": [
+    { "id": "usuarios", "label": "Red de la oficina: usuarios", "kind": "online", "x": 0, "y": 0, "w": 78, "h": 16 },
+    { "id": "gestion", "label": "Red de gestión: aparte, sin internet", "kind": "monitor", "x": 0, "y": 18, "w": 78, "h": 16 },
+    { "id": "entre", "label": "Entre servidores: el despacho no la necesita", "kind": "neutral", "x": 0, "y": 36, "w": 78, "h": 16 }
+  ],
+  "nodes": [
+    { "id": "abogados", "label": "Los abogados", "sub": "≈ 17 kbit/s en promedio", "kind": "client", "x": 1, "y": 5, "w": 18, "h": 8,
+      "note": "200 abogados y asistentes, 300 preguntas por hora en promedio y 750 en la hora pico. Con ≈ 4 bytes de texto por token, todo su tráfico es ≈ 17 kbit/s en promedio y ≈ 43 kbit/s en el pico: ≈ 0.002 % de un enlace de 1 GbE." },
+    { "id": "switch", "label": "Switch de la oficina", "sub": "con firewall", "kind": "edge", "x": 30, "y": 5, "w": 18, "h": 8,
+      "note": "El switch y el firewall que ya estaban en el cuarto. El servidor se conecta con un puerto de **10 GbE**: no por los usuarios, sino por bajar los pesos (19.32 GB tardan ≈ 15 s a 10 Gb/s), indexar expedientes y respaldar." },
+    { "id": "servidor", "label": "Servidor 4U", "sub": "4 L40S por PCIe", "kind": "gpu", "x": 58, "y": 5, "w": 19, "h": 8,
+      "note": "Cuatro L40S unidas a las CPUs por PCIe Gen4 x16, sin NVLink. Cada GPU tiene su propia [[copia-del-servidor|copia del modelo]] (cabe en una L40S), así que las GPUs no se hablan entre sí: un balanceador reparte las preguntas." },
+    { "id": "admin", "label": "Máquina de admin", "sub": "entra por VPN", "kind": "human", "x": 1, "y": 23, "w": 18, "h": 8,
+      "note": "Las 2 personas de TI administran desde una máquina dentro de la red de gestión, o entran a ella por VPN. Nadie llega al BMC desde la red de la oficina ni desde internet." },
+    { "id": "vlan", "label": "VLAN de gestión", "sub": "sin salida a internet", "kind": "edge", "x": 30, "y": 23, "w": 18, "h": 8,
+      "note": "Una red separada dentro del switch (una VLAN), solo para los puertos de gestión. Es la recomendación de CISA desde 2013: encerrar IPMI en una red aparte." },
+    { "id": "bmc", "label": "BMC del servidor", "sub": "consola por debajo del SO", "kind": "monitor", "x": 58, "y": 23, "w": 19, "h": 8,
+      "note": "El [[bmc|BMC]]: enciende, apaga, muestra la pantalla y actualiza firmware aunque el sistema operativo esté apagado. Contraseña propia el primer día, firmware al día y accesos anónimos apagados." },
+    { "id": "otro", "label": "Otro servidor", "sub": "solo si el modelo no cabe", "kind": "external", "x": 30, "y": 41, "w": 18, "h": 8,
+      "note": "Si un modelo no cupiera ni en un servidor entero, habría que partirlo entre varios y unirlos con [[rdma|RDMA]]: [[infiniband|InfiniBand]] (≈ 400 Gb/s por puerto en NDR) o RoCE sobre Ethernet. El despacho tiene un servidor y su modelo cabe en una GPU: no la necesita." },
+    { "id": "internet", "label": "Internet", "sub": "nunca hasta el BMC", "kind": "external", "x": 58, "y": 41, "w": 19, "h": 8,
+      "note": "Se han contado del orden de 24,000 BMCs expuestos en internet filtrando datos de sus contraseñas. El firewall no deja pasar nada de internet a la red de gestión." }
+  ],
+  "edges": [
+    { "from": "abogados", "to": "switch", "kind": "online", "label": "preguntas", "fromSide": "r", "toSide": "l" },
+    { "from": "switch", "to": "servidor", "kind": "online", "label": "10 GbE", "fromSide": "r", "toSide": "l" },
+    { "from": "admin", "to": "vlan", "kind": "monitor", "label": "VPN", "fromSide": "r", "toSide": "l" },
+    { "from": "vlan", "to": "bmc", "kind": "monitor", "label": "gestión", "fromSide": "r", "toSide": "l" },
+    { "from": "servidor", "to": "otro", "kind": "async", "label": "RDMA", "fromSide": "b", "toSide": "r", "dashed": true, "via": [[54, 15], [54, 45]] },
+    { "from": "internet", "to": "bmc", "kind": "async", "label": "bloqueado", "fromSide": "t", "toSide": "b", "dashed": true }
+  ],
+  "flows": [
+    { "id": "pregunta", "label": "Una pregunta", "steps": [
+      { "nodes": ["abogados", "switch"], "edges": ["abogados>switch"], "text": "Una abogada escribe su pregunta. Viajan unos cientos de bytes; la respuesta, ≈ 2 kB de texto, regresa token por token." },
+      { "nodes": ["switch", "servidor"], "edges": ["switch>servidor"], "text": "El switch la manda al servidor por su puerto de 10 GbE. Los ≈ 6,000 tokens del prompt se arman **dentro** del servidor con los fragmentos de su base de vectores: no cruzan la red." }
+    ] },
+    { "id": "mantenimiento", "label": "Una noche de mantenimiento", "steps": [
+      { "nodes": ["admin", "vlan"], "edges": ["admin>vlan"], "text": "Una persona de TI entra por VPN a la red de gestión desde su casa." },
+      { "nodes": ["vlan", "bmc"], "edges": ["vlan>bmc"], "text": "Desde el **BMC** reinicia el servidor colgado, ve su pantalla de arranque y actualiza el firmware, sin ir al cuarto." }
+    ] },
+    { "id": "nunca", "label": "Lo que no debe pasar nunca", "steps": [
+      { "nodes": ["internet", "bmc"], "edges": ["internet>bmc"], "text": "Alguien en internet intenta entrar al BMC con la contraseña de fábrica. No llega: la VLAN de gestión no tiene salida a internet y el firewall no la deja ver." },
+      { "nodes": ["servidor", "otro"], "edges": ["servidor>otro"], "text": "Y la red entre servidores queda punteada: existe para modelos que no caben en un servidor. Si algún día el despacho la necesita, es otra lección." }
+    ] }
+  ]
+}

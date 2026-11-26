@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 410" role="img" aria-labelledby="f-speculative-rope-t" class="f-svg" style="max-width:420px">
+<title id="f-speculative-rope-t">Cómo gira RoPE en Qwen3 32B y qué hace YaRN con factor 4. Cada cabeza tiene 64 pares de números, y cada par gira un ángulo fijo por token. El par 0 da una vuelta cada 6 tokens: en 32,768 tokens da 5,215 vueltas, y YaRN lo deja igual. El par 24 da una vuelta cada 1,117 tokens, 29.3 vueltas en 32,768: cae en la rampa y se estira un poco. El par 40 da una vuelta cada 35,333 tokens, 0.93 vueltas: nunca completó una vuelta en el entrenamiento y se estira 4 veces. El par 63 da una vuelta cada 5.06 millones de tokens y también se estira 4 veces. De los 64 pares, 24 quedan igual, 16 en la rampa y 24 se estiran 4 veces. La aguja de cada reloj marca el ángulo en la posición 32,768.</title>
+<rect class="f-card" x="10" y="10" width="340" height="390" rx="16"/>
+<text class="f-l" x="28" y="36">ROPE EN QWEN3 32B · YARN CON FACTOR 4</text>
+<text class="f-s" x="28" y="58" style="font-size:12px">Cada par gira un ángulo fijo por token. La aguja:</text>
+<text class="f-s" x="28" y="74" style="font-size:12px">dónde queda en la posición 32,768.</text>
+<circle class="f-linea" cx="46" cy="110" r="17"/>
+<line x1="46" y1="110" x2="59.0" y2="104.8" style="stroke:var(--tm-acc);stroke-width:2.5;stroke-linecap:round"/>
+<circle class="f-ink" cx="46" cy="110" r="2.5"/>
+<text class="f-s" x="76" y="101" style="font-weight:700">par 0</text>
+<text class="f-s" x="76" y="116" style="font-size:12px">una vuelta cada 6 tokens</text>
+<text class="f-s" x="76" y="131" style="font-size:12px">5,215 vueltas en 32,768 tokens</text>
+<rect class="f-g" x="282" y="111" width="50" height="22" rx="6"/>
+<text class="f-pill-t" x="307" y="126" text-anchor="middle" style="font-size:12px">igual</text>
+<circle class="f-linea" cx="46" cy="168" r="17"/>
+<line x1="46" y1="168" x2="58.4" y2="174.5" style="stroke:var(--tm-acc);stroke-width:2.5;stroke-linecap:round"/>
+<circle class="f-ink" cx="46" cy="168" r="2.5"/>
+<text class="f-s" x="76" y="159" style="font-weight:700">par 24</text>
+<text class="f-s" x="76" y="174" style="font-size:12px">una vuelta cada 1,117 tokens</text>
+<text class="f-s" x="76" y="189" style="font-size:12px">29.3 vueltas en 32,768 tokens</text>
+<rect class="f-y" x="282" y="169" width="50" height="22" rx="6"/>
+<text class="f-pill-t" x="307" y="184" text-anchor="middle" style="font-size:12px">rampa</text>
+<circle class="f-linea" cx="46" cy="226" r="17"/>
+<line x1="46" y1="226" x2="39.8" y2="213.4" style="stroke:var(--tm-acc);stroke-width:2.5;stroke-linecap:round"/>
+<circle class="f-ink" cx="46" cy="226" r="2.5"/>
+<text class="f-s" x="76" y="217" style="font-weight:700">par 40</text>
+<text class="f-s" x="76" y="232" style="font-size:12px">una vuelta cada 35,333 tokens</text>
+<text class="f-s" x="76" y="247" style="font-size:12px">0.93 vueltas en 32,768 tokens</text>
+<rect class="f-o" x="282" y="227" width="50" height="22" rx="6"/>
+<text class="f-pill-t" x="307" y="242" text-anchor="middle" style="font-size:12px">× 4</text>
+<circle class="f-linea" cx="46" cy="284" r="17"/>
+<line x1="46" y1="284" x2="46.6" y2="270.0" style="stroke:var(--tm-acc);stroke-width:2.5;stroke-linecap:round"/>
+<circle class="f-ink" cx="46" cy="284" r="2.5"/>
+<text class="f-s" x="76" y="275" style="font-weight:700">par 63</text>
+<text class="f-s" x="76" y="290" style="font-size:12px">una vuelta cada 5.06 M tokens</text>
+<text class="f-s" x="76" y="305" style="font-size:12px">0.01 vueltas en 32,768 tokens</text>
+<rect class="f-o" x="282" y="285" width="50" height="22" rx="6"/>
+<text class="f-pill-t" x="307" y="300" text-anchor="middle" style="font-size:12px">× 4</text>
+<text class="f-l" x="28" y="330">LOS 64 PARES CON YARN × 4</text>
+<rect class="f-g" x="28" y="340" width="114" height="24" rx="4"/><text class="f-pill-t" x="85" y="357" text-anchor="middle" style="font-size:12px">24 igual</text>
+<rect class="f-y" x="142" y="340" width="76" height="24" rx="4"/><text class="f-pill-t" x="180" y="357" text-anchor="middle" style="font-size:12px">16 rampa</text>
+<rect class="f-o" x="218" y="340" width="114" height="24" rx="4"/><text class="f-pill-t" x="275" y="357" text-anchor="middle" style="font-size:12px">24 × 4</text>
+<text class="f-s" x="28" y="384" style="font-size:12px">Los rápidos ya vieron todas sus vueltas; los lentos, no.</text>
+</svg>

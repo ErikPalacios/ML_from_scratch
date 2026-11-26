@@ -1,0 +1,50 @@
+{
+  "titulo": "Resumir un expediente que no cabe en 8,192 tokens",
+  "width": 78,
+  "height": 48,
+  "lanes": [
+    { "id": "llega", "label": "Lo que llega", "kind": "neutral", "x": 0, "y": 0, "w": 78, "h": 15 },
+    { "id": "caminos", "label": "Dos caminos para el resumen", "kind": "online", "x": 0, "y": 17, "w": 78, "h": 31 }
+  ],
+  "nodes": [
+    { "id": "exp", "label": "Expediente", "sub": "50 págs · ≈ 33–40 mil tokens", "kind": "store", "x": 2, "y": 4, "w": 20, "h": 8,
+      "note": "≈ 50 páginas a ≈ 500 palabras y 1.33–1.61 tokens por palabra (una estimación gruesa: hay que medirlo con el tokenizador del modelo): ≈ 33,000–40,000 tokens. Entre 4 y 5 veces el tope de 8,192 que el despacho le puso a cada conversación." },
+    { "id": "tope", "label": "¿Cabe en el tope?", "sub": "8,192 por conversación", "kind": "service", "x": 30, "y": 4, "w": 18, "h": 8,
+      "note": "El tope de 8,192 es del **servidor**, no del modelo: el despacho lo eligió para que quepan 8 conversaciones en la memoria. El modelo, Qwen3 32B, lee 32,768 tokens de forma nativa y 131,072 con [[yarn|YaRN]]." },
+    { "id": "rag", "label": "RAG", "sub": "si es una pregunta", "kind": "external", "x": 58, "y": 4, "w": 18, "h": 8,
+      "note": "Para **preguntar** algo del expediente no hace falta meterlo entero: se buscan los 5 fragmentos que importan, como en las preguntas diarias del despacho. Lo ve la lección de RAG privado." },
+    { "id": "larga", "label": "Una llamada larga", "sub": "YaRN × 2, tope 65,536", "kind": "job", "x": 6, "y": 22, "w": 22, "h": 8,
+      "note": "Subir el tope del servidor y activar [[yarn|YaRN]] con factor 2. En una L40S: prefill de ≈ 24 s y ≈ 10.8 GB de [[kv-cache|KV cache]] para una sola petición, y el modelo ve todo junto, con el riesgo de [[lost-in-the-middle|perderse lo de en medio]]." },
+    { "id": "mapa", "label": "Map: 8 trozos", "sub": "≈ 5,431 tokens c/u", "kind": "job", "x": 50, "y": 22, "w": 22, "h": 8,
+      "note": "Partir el expediente en 8 trozos que sí caben en 8,192 con sus instrucciones, y resumir cada uno por separado (se pueden atender juntos en un [[batch|batch]]). Ningún trozo necesita YaRN." },
+    { "id": "reduce", "label": "Reduce", "sub": "junta 8 resúmenes", "kind": "job", "x": 50, "y": 37, "w": 22, "h": 8,
+      "note": "Una última llamada recibe los 8 resúmenes (≈ 3,600 tokens con instrucciones) y escribe el resumen final. Es el patrón [[map-reduce]]; si los resúmenes no cupieran, se resume otra vez por grupos." },
+    { "id": "res", "label": "Resumen", "sub": "≈ 500 tokens", "kind": "client", "x": 6, "y": 37, "w": 22, "h": 8,
+      "note": "Lo que lee el abogado. Por cualquier camino, conviene revisarlo contra el expediente: los dos fallan distinto (uno se pierde en medio, el otro pierde las relaciones entre trozos)." }
+  ],
+  "edges": [
+    { "from": "exp", "to": "tope", "kind": "neutral", "label": "≈ 40 mil", "fromSide": "r", "toSide": "l" },
+    { "from": "tope", "to": "rag", "kind": "neutral", "label": "pregunta", "fromSide": "r", "toSide": "l", "dashed": true },
+    { "from": "tope", "to": "larga", "kind": "online", "label": "subir el tope", "fromSide": "b", "toSide": "t", "via": [[39, 18], [17, 18]] },
+    { "from": "tope", "to": "mapa", "kind": "online", "label": "partirlo", "fromSide": "b", "toSide": "t", "via": [[39, 18], [61, 18]] },
+    { "from": "larga", "to": "res", "kind": "online", "fromSide": "b", "toSide": "t" },
+    { "from": "mapa", "to": "reduce", "kind": "online", "label": "8 resúmenes", "fromSide": "b", "toSide": "t" },
+    { "from": "reduce", "to": "res", "kind": "online", "fromSide": "l", "toSide": "r" }
+  ],
+  "flows": [
+    { "id": "larga", "label": "Camino 1: una sola llamada larga",
+      "steps": [
+        { "nodes": ["exp", "tope"], "edges": ["exp>tope"], "text": "Llega un expediente de 50 páginas: **≈ 40,250 tokens** en la cuenta pesimista. No cabe en el tope de 8,192 por conversación." },
+        { "nodes": ["tope", "larga"], "edges": ["tope>larga"], "text": "Se sube el tope del servidor y se activa YaRN con **factor 2** (65,536 tokens), como recomienda la model card para ese largo, en vez del factor 4." },
+        { "nodes": ["larga"], "edges": [], "text": "El prefill de 40,650 tokens tarda **≈ 24 s** en una L40S con \\(η_c\\) = 0.5, y casi 4 de cada 10 FLOPs son de atención. El KV cache de esa petición pesa ≈ 10.8 GB: la mitad de lo que tiene libre la GPU." },
+        { "nodes": ["larga", "res"], "edges": ["larga>res"], "text": "Escribe 500 tokens a ≈ 20 por segundo (el KV largo alarga cada paso): **≈ 49 s** en total. El modelo ve todo, pero puede pasar por alto lo que está a media pila." }
+      ] },
+    { "id": "mapreduce", "label": "Camino 2: map-reduce",
+      "steps": [
+        { "nodes": ["exp", "tope", "mapa"], "edges": ["exp>tope", "tope>mapa"], "text": "El mismo expediente se parte en **8 trozos** de ≈ 5,031 tokens; con 400 de instrucciones, cada uno pide 5,431 y cabe en 8,192 con su resumen." },
+        { "nodes": ["mapa"], "edges": [], "text": "Los 8 prefills suman ≈ 17 s (la atención casi no pesa con trozos cortos) y los 8 resúmenes de 400 tokens se escriben juntos en un batch: **≈ 38 s** de map." },
+        { "nodes": ["mapa", "reduce"], "edges": ["mapa>reduce"], "text": "Los 8 resúmenes, ≈ 3,600 tokens con instrucciones, entran a una última llamada que escribe el resumen final: ≈ 18 s." },
+        { "nodes": ["reduce", "res"], "edges": ["reduce>res"], "text": "**≈ 56 s** en total: no es más rápido. Lo que gana es que nada sale del tope de 8,192, nada necesita YaRN y ningún trozo es largo. Lo que pierde es la vista de conjunto: una cláusula de la página 3 que cambia lo de la página 40." }
+      ] }
+  ]
+}

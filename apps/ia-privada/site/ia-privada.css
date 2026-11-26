@@ -682,7 +682,9 @@ a.tl:hover { box-shadow: 0 0 0 2px var(--accent); }
 .cx-cuenta { grid-column: 1 / -1; font: 12.5px/1.55 var(--mono); color: var(--muted); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 .cx-cuenta strong, .cx-cuenta b { color: var(--ink); }
 .cx-t { color: var(--accent-ink); font-weight: 700; }
-.cx-out--veredicto .cx-out__v { font: 800 15px/1.2 var(--sans); padding: 6px 12px; border-radius: 999px; }
+.cx-out--veredicto { grid-template-columns: minmax(0, 1fr) fit-content(50%); }   /* un veredicto largo se parte en su columna en vez de aplastar la etiqueta */
+.cx-out--veredicto .cx-out__v { font: 800 15px/1.25 var(--sans); padding: 6px 12px; border-radius: 14px; text-align: center; }
+@media (max-width: 560px) { .cx-out--veredicto { grid-template-columns: minmax(0, 1fr); } .cx-out--veredicto .cx-out__v { justify-self: start; text-align: left; } }
 .cx-out--si { background: var(--ok-soft); }
 .cx-out--si .cx-out__v { background: var(--g); color: #fff; }
 .cx-out--no { background: var(--bad-soft); }
