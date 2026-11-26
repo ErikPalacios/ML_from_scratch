@@ -1,11 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 438" role="img" aria-labelledby="f-requisitos-hardware-cola-t" class="f-svg" style="max-width:420px">
-<title id="f-requisitos-hardware-cola-t">El tiempo al primer token en la hora pico del despacho, en segundos, para tres opciones, sin red ni búsqueda. 3 L40S: 2.38 sin fila, 2.38 en el p95 repartiendo a la GPU más libre, 4.24 en el p95 repartiendo al azar y 5.79 con una cota pesimista. 4 L40S: 2.38, 2.38, 3.94 y 4.85. 2 RTX PRO 6000 Server Edition: 1.72, 1.77, 3.13 y 4.41. Una línea punteada marca la promesa de 2 segundos: solo quedan debajo el prefill solo y el p95 repartiendo a la más libre de la Server Edition.</title>
+<title id="f-requisitos-hardware-cola-t">El tiempo al primer token en la hora pico del despacho, en segundos, para tres opciones, sin red ni búsqueda. 3 L40S: 2.38 sin fila, 2.38 en el p95 repartiendo viendo la fila (a la GPU con menos prompts por leer), 4.24 en el p95 repartiendo al azar y 5.79 con una cota pesimista. 4 L40S: 2.38, 2.38, 3.94 y 4.85. 2 RTX PRO 6000 Server Edition: 1.72, 1.77, 3.13 y 4.41. Una línea punteada marca la promesa de 2 segundos: solo quedan debajo el prefill solo y el p95 repartiendo viendo la fila de la Server Edition.</title>
 <text class="f-l" x="14" y="24">TTFT EN LA HORA PICO, EN SEGUNDOS</text>
 <text class="f-t" x="14" y="54" style="font-size:14px">3 × L40S</text>
 <text class="f-s" x="14" y="74" style="font-size:12px">sin fila</text>
 <rect class="f-off" x="118" y="62" width="78.5" height="15" rx="3"/>
 <text class="f-s" x="201.5" y="74" style="font-size:12px">2.38</text>
-<text class="f-s" x="14" y="94" style="font-size:12px">p95 más libre</text>
+<text class="f-s" x="14" y="94" style="font-size:12px">p95 viendo fila</text>
 <rect class="f-g" x="118" y="82" width="78.5" height="15" rx="3"/>
 <text class="f-s" x="201.5" y="94" style="font-size:12px">2.38</text>
 <text class="f-s" x="14" y="114" style="font-size:12px">p95 al azar</text>
@@ -18,7 +18,7 @@
 <text class="f-s" x="14" y="190" style="font-size:12px">sin fila</text>
 <rect class="f-off" x="118" y="178" width="78.5" height="15" rx="3"/>
 <text class="f-s" x="201.5" y="190" style="font-size:12px">2.38</text>
-<text class="f-s" x="14" y="210" style="font-size:12px">p95 más libre</text>
+<text class="f-s" x="14" y="210" style="font-size:12px">p95 viendo fila</text>
 <rect class="f-g" x="118" y="198" width="78.5" height="15" rx="3"/>
 <text class="f-s" x="201.5" y="210" style="font-size:12px">2.38</text>
 <text class="f-s" x="14" y="230" style="font-size:12px">p95 al azar</text>
@@ -31,7 +31,7 @@
 <text class="f-s" x="14" y="306" style="font-size:12px">sin fila</text>
 <rect class="f-off" x="118" y="294" width="56.8" height="15" rx="3"/>
 <text class="f-s" x="179.8" y="306" style="font-size:12px">1.72</text>
-<text class="f-s" x="14" y="326" style="font-size:12px">p95 más libre</text>
+<text class="f-s" x="14" y="326" style="font-size:12px">p95 viendo fila</text>
 <rect class="f-g" x="118" y="314" width="58.4" height="15" rx="3"/>
 <text class="f-s" x="181.4" y="326" style="font-size:12px">1.77</text>
 <text class="f-s" x="14" y="346" style="font-size:12px">p95 al azar</text>

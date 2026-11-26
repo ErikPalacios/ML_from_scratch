@@ -108,7 +108,7 @@
       "nota": "cada copia con su propia fila, reparto al azar; sin red ni búsqueda",
       "cuenta": "ocupación por prefills \\(ρ\\) = {{lg|num|3}} ÷ {{k|int}} × {{tpre|num|2}} = {{rho|num|3}}; {{tpre|num|2}} + {{tq|num|2}} s = **{{tpre + tq|num|2}} s**" },
     { "label": "TTFT p95 con la fila, cota pesimista (M/M/1)", "sin_valor": "—", "formula": "t95 * 1000", "formato": "ms",
-      "nota": "el p95 real con reparto al azar queda entre el promedio y esta cota; repartiendo a la copia más libre, mucho más cerca del prefill solo",
+      "nota": "con reparto al azar, el p95 simulado de la lección queda entre el promedio y esta cota; repartiendo viendo la fila (a la copia con menos prompts por leer), casi en el prefill solo",
       "cuenta": "{{tpre|num|2}} + ln({{rho|num|3}} ÷ 0.05) ÷ (1 ÷ {{tpre|num|2}} − {{lg / k|num|4}}) = **{{t95|num|2}} s**" },
     { "label": "¿El prefill solo cabe en el objetivo de TTFT?", "formula": "obj - tpre",
       "veredicto": { "si": "Sí (falta la fila, la red y la búsqueda)", "no": "No: ni con la GPU libre" },

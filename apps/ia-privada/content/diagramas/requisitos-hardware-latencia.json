@@ -14,7 +14,7 @@
     { "id": "rag", "label": "Búsqueda", "sub": "≈ 150 ms", "badge": "2", "kind": "service", "x": 43, "y": 8, "w": 14, "h": 8,
       "note": "Convertir la pregunta en un vector y buscar los 5 fragmentos de expediente que se le pasan al modelo. **Supuesto**: ≈ 150 ms; la lección de RAG lo mide." },
     { "id": "fila", "label": "Fila", "sub": "0 s a varios s", "badge": "3", "kind": "queue", "x": 63, "y": 8, "w": 14, "h": 8,
-      "note": "Si la GPU está leyendo el prompt de otra pregunta, esta espera. En promedio es poco (≈ 0.24 s con 3 L40S), pero en el p95 con reparto al azar son ≈ 1.9 s más. Repartir a la GPU más libre casi la borra." },
+      "note": "Si la GPU está leyendo el prompt de otra pregunta, esta espera. En promedio es poco (≈ 0.24 s con 3 L40S), pero en el p95 con reparto al azar son ≈ 1.9 s más. Repartir viendo la fila (a la GPU con menos prompts por leer) casi la borra, en la simulación de la lección." },
     { "id": "prefill", "label": "Prefill", "sub": "2.38 s en L40S", "badge": "4", "kind": "gpu", "x": 63, "y": 32, "w": 14, "h": 8,
       "note": "Leer los ≈ 6,000 tokens del prompt: 4.31 × 10¹⁴ FLOPs. En una L40S, 2.38 s; en una RTX PRO 6000 Server Edition, ≈ 1.72 s. Es el tramo que más pesa, y sale del cómputo de la GPU." },
     { "id": "token", "label": "Primer token", "sub": "el TTFT", "kind": "model", "x": 43, "y": 32, "w": 14, "h": 8,
