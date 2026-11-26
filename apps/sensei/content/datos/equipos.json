@@ -51,14 +51,15 @@
       "gpu_id": "l40s",
       "gpus": 4,
       "compra_usd": 76101.3,
-      "potencia_w": null,
+      "potencia_w": 2500,
       "precio_calculado": true,
-      "descripcion": "CALCULADO, no un total visto en pantalla: base US$40,461.30 (configuración Essential sin GPU) + 4 × US$8,910 (adicional por L40S) = US$76,101.30; ambos números salen del configurador de Exxact hoy. El chasis acepta 10 ranuras PCIe de doble ancho (hasta 10 GPUs, no verifiqué el tope). Fuentes 4× 3000 W (3+1): 2,600 W a 200-220 V y 1,000 W a 100-127 V por fuente. Sin impuestos.",
+      "descripcion": "CALCULADO, no un total visto en pantalla: base US$40,461.30 (configuración Essential sin GPU) + 4 × US$8,910 (adicional por L40S) = US$76,101.30; ambos números salen del configurador de Exxact hoy. El chasis acepta 10 ranuras PCIe de doble ancho (hasta 10 GPUs, no verifiqué el tope). Fuentes 4× 3000 W (3+1): 2,600 W a 200-220 V y 1,000 W a 100-127 V por fuente. Sin impuestos. Potencia: 2,500 W es una ESTIMACIÓN derivada, no un dato de Exxact (Exxact no publica la potencia máxima del sistema): 4 × 350 W de GPUs (TDP de la hoja de NVIDIA) + ≈ 400 W de 2 CPUs EPYC 9124 + ≈ 700 W del resto (memoria, discos, ventiladores), supuestos de la lección «El cuarto».",
       "fuente": {
         "url": "https://configurator.exxactcorp.com/configure/TS4-115581668",
         "consultado": "2026-11-25",
         "fuente_tipo": "secundaria"
-      }
+      },
+      "potencia_estimada": true
     }
   ]
 }

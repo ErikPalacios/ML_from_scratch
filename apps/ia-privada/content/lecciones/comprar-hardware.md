@@ -44,10 +44,10 @@ Una hoja de datos (*datasheet*) de GPU trae decenas de cifras. Para servir un LL
 4. **Potencia máxima (TDP), en watts.** Decide la fuente, el enfriamiento y la luz. Va en la siguiente sección.
 5. **Formato.** Tarjeta PCIe de una o dos ranuras, con o sin ventilador, o módulo [[sxm|SXM]] que no se vende suelto.
 6. **Interconexión.** Si la tarjeta tiene NVLink o solo PCIe. Importa cuando un modelo se reparte entre varias GPUs (la lección «Varias GPUs: tensor y pipeline parallel» lo ve a fondo).
-7. **Formatos de número.** Si calcula en FP8 o en FP4 con hardware propio. Una GPU sin FP8 no acelera un modelo guardado en FP8.
+7. **Formatos de número.** Si calcula en FP8 o en [[fp4|FP4]] con hardware propio. Una GPU sin FP8 no acelera un modelo guardado en FP8.
 8. **Software.** CUDA, ROCm o Metal. Tiene su propia sección: puede decidir más que todo lo de arriba.
 
-El [catálogo de hardware](/herramientas/catalogo/) pone las cinco primeras columnas lado a lado para 25 equipos de NVIDIA, AMD y Apple, cada número con su fuente y su fecha. Úsalo como hoja de datos de todas las tarjetas a la vez; aquí no se repite la tabla.
+El [catálogo de hardware](/herramientas/catalogo/) pone las cinco primeras columnas lado a lado para 26 equipos de NVIDIA, AMD y Apple, cada número con su fuente y su fecha. Úsalo como hoja de datos de todas las tarjetas a la vez; aquí no se repite la tabla.
 
 ### Poner precio a lo que necesitas
 
@@ -95,7 +95,7 @@ El TDP importa tres veces:
 
 - **La fuente de poder** del equipo tiene que entregar la suma de los TDP más lo del resto: CPUs, RAM, discos y ventiladores.
 - **El enfriamiento** tiene que sacar ese mismo calor. Toda la energía que entra sale como calor: un servidor de 1,800 W es un calentador de 1,800 W.
-- **La luz y el circuito** del cuarto. Eso es tema de la lección «El cuarto: energía, enfriamiento y red», que hace las cuentas de amperes, aire acondicionado y recibo.
+- **La luz y el circuito** del cuarto. Eso es tema de la lección «[El cuarto: energía, enfriamiento y red](/el-cuarto/)», que hace las cuentas de amperes, aire acondicionado y recibo.
 
 :::formula Lo que pide el equipo y lo que aguanta la fuente
 P_{eq} = n × P_{GPU} + P_{resto}
@@ -139,7 +139,7 @@ La L40S es pasiva: su hoja de NVIDIA lo dice con esa palabra. Una L40S en una to
 Las tres traen 96 GB (fichas de NVIDIA, noviembre de 2026). Pedir «una RTX PRO 6000» sin decir cuál es pedir mal: la Server Edition en una torre se sobrecalienta, y la Workstation Edition no está hecha para el flujo de aire de un chasis de rack.
 
 :::ojo
-La tarjeta que va en el servidor del despacho es la **Server Edition**, pero gpus.json y el catálogo traen la **Workstation Edition**: su precio y sus cifras son los de la tarjeta de torre. La página de NVIDIA de la Server Edition (noviembre de 2026) da **1,597 GB/s**, ≈ 11 % menos ancho de banda que la Workstation, y «1 PFLOP» en FP16 sin decir si es con *sparsity*; como coincide con la cifra con *sparsity* de la Workstation (1,007.6 TFLOPS), su cálculo denso sería el mismo, ≈ 500 TFLOPS. Su potencia se configura entre 400 y 600 W, y existe una variante con enfriamiento líquido de una sola ranura. En esta lección, cuando una cuenta usa «la PRO 6000», dice cuál.
+La tarjeta que va en el servidor del despacho es la **Server Edition**, pero el precio de gpus.json y del catálogo es el de la **Workstation Edition**, la tarjeta de torre; la Server Edition tiene su propia ficha, sin precio. La página de NVIDIA de la Server Edition (noviembre de 2026) da **1,597 GB/s**, ≈ 11 % menos ancho de banda que la Workstation, y «1 PFLOP» en FP16 sin decir si es con *sparsity*; como coincide con la cifra con *sparsity* de la Workstation (1,007.6 TFLOPS), su cálculo denso sería el mismo, ≈ 500 TFLOPS. Su potencia se configura entre 400 y 600 W, y existe una variante con [[enfriamiento-liquido|enfriamiento líquido]] de una sola ranura. En esta lección, cuando una cuenta usa «la PRO 6000», dice cuál.
 :::
 
 ## La escalera: workstation y servidor de rack {The ladder: workstation and rack server}
@@ -170,9 +170,9 @@ Ejemplos con sus fichas oficiales:
 - **Dell PowerEdge R760xa** (2U, 2 Xeon): hasta 4 GPUs de doble ancho; fuentes de 2,400 o 2,800 W; sin precio publicado.
 - **Supermicro SYS-421GE-TNRT** (4U): hasta 10 GPUs de doble ancho, entre ellas la L40S; 4 fuentes de 2,700 W redundantes.
 - **Exxact TensorEX 4U con 4 L40S** (2 CPUs AMD EPYC 9124, 384 GB de RAM): US$76,101.30, el único servidor de L40S con precio verificado en el catálogo (lo calculas en la sección de tarjetas sueltas).
-- **HPE ProLiant DL380a Gen12** (4U, Xeon 6): hasta 8 RTX PRO 6000 Server Edition, con aire o con enfriamiento líquido directo.
+- **HPE ProLiant DL380a Gen12** (4U, Xeon 6): hasta 8 RTX PRO 6000 Server Edition, con aire o con [[enfriamiento-liquido|enfriamiento líquido]] directo.
 
-Un servidor de rack trae cosas que una torre no: **fuentes redundantes** (dos o más fuentes, de modo que si una falla las otras cargan con todo y el equipo sigue), ventiladores fuertes para las tarjetas pasivas, y una **tarjeta de gestión remota**, un pequeño computador propio que deja prender, apagar y ver el equipo por la red aunque el sistema operativo esté colgado. Las dos ideas se ven a fondo en la lección «El cuarto: energía, enfriamiento y red».
+Un servidor de rack trae cosas que una torre no: **[[fuente-redundante|fuentes redundantes]]** (dos o más fuentes, de modo que si una falla las otras cargan con todo y el equipo sigue), ventiladores fuertes para las tarjetas pasivas, y una **[[bmc|tarjeta de gestión remota]]**, un pequeño computador propio que deja prender, apagar y ver el equipo por la red aunque el sistema operativo esté colgado. Las dos ideas se ven a fondo en la lección «[El cuarto: energía, enfriamiento y red](/el-cuarto/)».
 
 Las fuentes de un servidor tienen un detalle que pega directo en México: **entregan menos a 127 V que a 220 V**. Las del servidor Exxact de 4 L40S son 4 de 3,000 W en «3 + 1» (tres trabajan y una sobra por si falla otra), pero cada una entrega 2,600 W a 200–220 V y solo **1,000 W a 100–127 V** (equipos.json).
 
@@ -207,7 +207,7 @@ Los números de los servidores HGX con precio en el catálogo, a noviembre de 20
 | Supermicro SYS-821GE-TNHR (8U) | 8 × H200 141 GB | 320,528.23 | 6 × 3,000 W |
 | Exxact TensorEX 8U | 8 × B200 180 GB | 447,238 | 12 × 3,002.4 W |
 
-Solo las 8 GPUs de la B200 suman 8 × 1,000 = 8,000 W de TDP. Eso ya no se enchufa en un cuarto de oficina: pide circuitos de 220 V dedicados. NVIDIA publica ≈ 14.3 kW como máximo para su propio servidor de 8 B200 (la DGX B200), así que un rack con cuatro pasa de 50 kW; a esas densidades enfriar se vuelve un proyecto de centro de datos, y muchos pasan al enfriamiento líquido. Es el tema del cuarto, no de la compra.
+Solo las 8 GPUs de la B200 suman 8 × 1,000 = 8,000 W de TDP. Eso ya no se enchufa en un cuarto de oficina: pide circuitos de 220 V dedicados. NVIDIA publica ≈ 14.3 kW como máximo para su propio servidor de 8 B200 (la DGX B200), así que un rack con cuatro pasa de 50 kW; a esas densidades enfriar se vuelve un proyecto de centro de datos, y muchos pasan al [[enfriamiento-liquido|enfriamiento líquido]]. Es el tema del cuarto, no de la compra.
 
 AMD tiene el mismo esquema con otro nombre. Sus Instinct MI300X, MI325X y MI355X vienen en módulos [[oam|OAM]] (*OCP Accelerator Module*, un formato abierto de la industria), de 8 en 8 sobre una placa base que el mismo proyecto llama UBB (*universal baseboard*). La ficha de AMD de la plataforma MI300X dice que se vende **a través de socios**: Dell (PowerEdge XE9680), Lenovo (ThinkSystem SR685a V3) y Supermicro, entre otros. No se encontró ninguna MI300X, MI325X ni MI355X a la venta suelta, y ninguna tiene precio en gpus.json: se cotizan.
 
@@ -307,7 +307,7 @@ Dónde se rompe: los cargadores no dependen de ti, pero el software sí puedes p
 :::
 
 :::ojo
-La pregunta no es «¿corre en AMD?», es «¿corre **mi** modelo, en **mi** formato de cuantización, con **mi** servidor de inferencia, a la velocidad que necesito, en esta tarjeta?». El despacho usa INT4 de AWQ en vLLM: hay que comprobar esa combinación exacta en la GPU que se vaya a comprar.
+La pregunta no es «¿corre en AMD?», es «¿corre **mi** modelo, en **mi** formato de cuantización, con **mi** servidor de inferencia, a la velocidad que necesito, en esta tarjeta?». El despacho usa INT4 de [[awq|AWQ]] en vLLM: hay que comprobar esa combinación exacta en la GPU que se vaya a comprar.
 :::
 
 ## Las alternativas, una por una {The alternatives, one by one}
@@ -334,7 +334,7 @@ H100 PCIe, \(t_{pre}\) // \(F\) = 756.5 TFLOPS | 3.93 × 10¹⁴ ÷ (0.5 × 756.
 
 ### NVIDIA RTX PRO 6000 Blackwell: la alternativa fuerte
 
-Es la tarjeta que más cambia la decisión del despacho. La Workstation Edition, la de gpus.json, trae 96 GB, 1,792 GB/s, 503.8 TFLOPS en FP16 y FP4 con hardware propio, a ≈ US$16,399. Con la herramienta de sizing y los números del despacho, **una sola** aguanta ≈ 7 conversaciones a 20 tokens por segundo con un TTFT de ≈ 1.7 s, y el despacho tiene ≈ 5.6 a la vez: la herramienta pide 1 GPU, donde con L40S pide 3. La que va en el rack es la Server Edition: con sus 1,597 GB/s y ≈ 500 TFLOPS, la misma herramienta da ≈ 6 conversaciones por tarjeta y el mismo TTFT, ≈ 1.7 s, y sigue pidiendo 1. Para las 8 de diseño, y para tener una de repuesto, serían 2 de cualquiera de las dos.
+Es la tarjeta que más cambia la decisión del despacho. La Workstation Edition, la de gpus.json, trae 96 GB, 1,792 GB/s, 503.8 TFLOPS en FP16 y [[fp4|FP4]] con hardware propio, a ≈ US$16,399. Con la herramienta de sizing y los números del despacho, **una sola** aguanta ≈ 7 conversaciones a 20 tokens por segundo con un TTFT de ≈ 1.7 s, y el despacho tiene ≈ 5.6 a la vez: la herramienta pide 1 GPU, donde con L40S pide 3. La que va en el rack es la Server Edition: con sus 1,597 GB/s y ≈ 500 TFLOPS, la misma herramienta da ≈ 6 conversaciones por tarjeta y el mismo TTFT, ≈ 1.7 s, y sigue pidiendo 1. Para las 8 de diseño, y para tener una de repuesto, serían 2 de cualquiera de las dos.
 
 Las cautelas son tres. La Server Edition no tiene precio publicado en el catálogo: el de US$16,399 es de la Workstation, y la de rack hay que cotizarla. Las cifras de cálculo salen de NVIDIA (el whitepaper de la Workstation y la página de la Server Edition), no de una medición con el modelo del despacho. Y la arquitectura es más nueva que la de la L40S: hay que comprobar que el formato y el servidor de inferencia del despacho le saquen todo. Por eso es **una alternativa para el piloto**, no una compra a ciegas: gpus.json trae una renta de ≈ US$2.69 por hora en RunPod, así que el despacho puede medirla una semana antes de decidir.
 
@@ -386,7 +386,7 @@ Hay una cuarta familia que no es ni torre con tarjetas ni servidor: **computador
 
 ¿Le sirve una Mac Studio al despacho? La memoria sobra. El decode se puede acotar: el techo de una conversación es el ancho de banda entre los pesos, 1,200 ÷ 19.32 ≈ 62 tokens por segundo, ≈ 43 con \(η_m\) = 0.7. El problema es el prefill. Apple no publica su cálculo, pero el benchmark oficial de llama.cpp en Apple Silicon da para un M5 Ultra ≈ 4,945 tokens por segundo de prefill con Llama 2 7B (6.74 mil millones de parámetros) en Q4_0, un formato de 4 bits de llama.cpp. Con un modelo ≈ 4.9 veces más grande, una extrapolación burda da ≈ 1,000 tokens por segundo: **≈ 6 s** para las 6,000 tokens de una pregunta, tres veces el objetivo. No es un dato medido, es una cuenta para ver el orden de magnitud, y apunta lejos de los 2 s.
 
-Además, una Mac no es un servidor de rack: no tiene fuentes redundantes ni tarjeta de gestión remota, y montarla en un rack pide un soporte de terceros (hay de 3U para una o dos Mac Studio; revisa que sea para tu modelo). Es una máquina excelente para un desarrollador que prueba modelos grandes en su escritorio, o para una oficina chica con pocas personas y prompts cortos. La DGX Spark juega el mismo papel con CUDA: un laboratorio personal, con poco ancho de banda (273 GB/s) para servir a 200 personas.
+Además, una Mac no es un servidor de rack: no tiene [[fuente-redundante|fuentes redundantes]] ni [[bmc|tarjeta de gestión remota]], y montarla en un rack pide un soporte de terceros (hay de 3U para una o dos Mac Studio; revisa que sea para tu modelo). Es una máquina excelente para un desarrollador que prueba modelos grandes en su escritorio, o para una oficina chica con pocas personas y prompts cortos. La DGX Spark juega el mismo papel con CUDA: un laboratorio personal, con poco ancho de banda (273 GB/s) para servir a 200 personas.
 
 ## Garantía, entrega y refacciones {Warranty, lead time and spares}
 
@@ -411,7 +411,7 @@ El [[tiempo-de-entrega|tiempo de entrega]] de una GPU depende de cuál. Para los
 Para el despacho, el tiempo de entrega no frena el proyecto: la prueba piloto corre en una GPU rentada, y puede seguir rentada mientras llega el equipo. Tres L40S rentadas a US$1.09 la hora cada una (la más barata de gpus.json) cuestan ≈ US$2,387 al mes las 730 horas: un puente caro si dura un año, barato si dura seis semanas.
 
 :::profundo Refacciones y segunda mano
-Además de las GPUs, en un servidor fallan las piezas que se mueven o se desgastan: ventiladores, fuentes y discos. Con fuentes redundantes y un par de discos en espejo, una falla no tumba el servicio, pero hay que reponer la pieza. Un equipo de TI chico debería tener **en el cuarto** una fuente y un ventilador de repuesto, o un contrato que los traiga al día siguiente.
+Además de las GPUs, en un servidor fallan las piezas que se mueven o se desgastan: ventiladores, fuentes y discos. Con [[fuente-redundante|fuentes redundantes]] y un par de discos en espejo, una falla no tumba el servicio, pero hay que reponer la pieza. Un equipo de TI chico debería tener **en el cuarto** una fuente y un ventilador de repuesto, o un contrato que los traiga al día siguiente.
 
 El mercado de reacondicionados (*refurbished*) es real: en gpus.json hay L40S reacondicionadas desde US$6,420 y A100 descontinuadas que solo existen así. Ahorran dinero a cambio de una garantía corta y de no saber cuántas horas trae la tarjeta. Para un servicio que 200 personas usan a diario, el ahorro rara vez compensa.
 :::
@@ -430,14 +430,14 @@ Toca cada pregunta para ver qué la decide. El recorrido sigue al despacho; los 
 
 La decisión, con sus razones:
 
-1. **Un servidor de rack, no una torre.** El servicio es para 200 personas, todos los días, en un cuarto de TI: necesita fuentes redundantes, gestión remota y el flujo de aire que piden las tarjetas pasivas. Una torre es para un equipo de desarrollo, no para un servicio.
+1. **Un servidor de rack, no una torre.** El servicio es para 200 personas, todos los días, en un cuarto de TI: necesita [[fuente-redundante|fuentes redundantes]], gestión remota y el flujo de aire que piden las tarjetas pasivas. Una torre es para un equipo de desarrollo, no para un servicio.
 2. **Un servidor de 2U o 4U con al menos 4 ranuras de doble ancho, certificado por NVIDIA y armado por un integrador.** Las 2 personas de TI no han operado una GPU: el equipo debe llegar probado, con una sola garantía y alguien que conteste. Comprar las tarjetas sueltas no ahorra.
-3. **NVIDIA, por el software.** El despacho sirve Qwen3 32B en INT4 de AWQ con vLLM; el camino más transitado para esa combinación es CUDA. AMD tendría sentido con un modelo mucho más grande y alguien en el equipo que ya opere ROCm.
+3. **NVIDIA, por el software.** El despacho sirve Qwen3 32B en INT4 de [[awq|AWQ]] con vLLM; el camino más transitado para esa combinación es CUDA. AMD tendría sentido con un modelo mucho más grande y alguien en el equipo que ya opere ROCm.
 4. **Dos cotizaciones para las tarjetas, y que decida el piloto.** Una con 3 L40S y la cuarta ranura libre (≈ US$67,191 en el configurador de Exxact; el sizing de la ficha). Otra con 2 RTX PRO 6000 Server Edition, la variante pasiva para rack, que en la cuenta cumple el TTFT de 2 s que la L40S no cumple y trae 192 GB en vez de 144 (su precio no está en el catálogo: se cotiza). La PRO 6000 se renta: una semana del piloto en ella dice si la cuenta se cumple con el modelo y el examen del despacho.
 5. **Garantía de piezas por escrito.** Al menos 3 años de piezas en las GPUs y las fuentes, o un contrato que lo cubra, y una fuente y un ventilador de repuesto en el cuarto.
 6. **La licencia de software, opcional.** NVIDIA AI Enterprise cuesta US$18,000 por GPU por 5 años; el despacho puede empezar con el software de código abierto y comprarla si necesita soporte del fabricante.
 
-Lo que falta para cerrar la compra ya no es de esta lección: si el cuarto de TI aguanta la potencia y el calor del servidor (lección «El cuarto: energía, enfriamiento y red»), cuánto cuesta al año con luz, personas y depreciación ([[tco|TCO]], en la herramienta [API, nube o servidor propio](/herramientas/tco/)), y cómo se cotiza, se importa y se le da soporte («Cotizar, proponer y dar soporte»).
+Lo que falta para cerrar la compra ya no es de esta lección: si el cuarto de TI aguanta la potencia y el calor del servidor (lección «[El cuarto: energía, enfriamiento y red](/el-cuarto/)»), cuánto cuesta al año con luz, personas y depreciación ([[tco|TCO]], en la herramienta [API, nube o servidor propio](/herramientas/tco/)), y cómo se cotiza, se importa y se le da soporte («Cotizar, proponer y dar soporte»).
 
 ## Errores comunes {Common mistakes}
 
@@ -480,7 +480,7 @@ A 127 V: \(P_{fuente}\) = (4 − 1) × 1,000 = 3,000 W; el límite es 0.8 × 3,0
 3: 40,461.30 + 3 × 8,910 = **US$67,191.30** para 144 GB → ≈ **US$466.6 por GB**. 4: 40,461.30 + 4 × 8,910 = **US$76,101.30** para 192 GB → ≈ **US$396.4 por GB**. El servidor base se reparte entre más tarjetas: la cuarta cuesta 13 % más en total y baja el costo por GB 15 %. Fíjate en que por GB el equipo completo cuesta más del doble que la tarjeta sola (US$187.6): el servidor no es gratis.
 ? [medio] Calcula el prefill de una pregunta del despacho (6,000 tokens, Qwen3 32B, \(η_c\) = 0.5) en una RTX 5090 (209.5 TFLOPS) y en una H100 NVL (835.5 TFLOPS). ¿Cuál cumple el TTFT de 2 s?
 FLOPs: 2 × 32.762 × 10⁹ × 6,000 ≈ 3.93 × 10¹⁴. RTX 5090: 3.93 × 10¹⁴ ÷ (0.5 × 209.5 × 10¹²) ≈ **3.75 s**: no cumple. H100 NVL: 3.93 × 10¹⁴ ÷ (0.5 × 835.5 × 10¹²) ≈ **0.94 s**: cumple con mucho margen. Y aunque la 5090 cumpliera, su licencia de GeForce no la deja ir a un centro de datos.
-? [reto] Una Mac Studio M5 Ultra (1,200 GB/s) sirve Qwen3 32B en INT4 de AWQ (19.32 GB). (a) ¿Cuál es el techo de tokens por segundo de una conversación sola con \(η_m\) = 0.7? (b) llama.cpp mide ≈ 4,945 tokens por segundo de prefill con un modelo de 6.74 mil millones en Q4_0. Suponiendo que el prefill escala con los parámetros, ¿cuánto tardaría la pregunta de 6,000 tokens? (c) ¿Le sirve al despacho?
+? [reto] Una Mac Studio M5 Ultra (1,200 GB/s) sirve Qwen3 32B en INT4 de [[awq|AWQ]] (19.32 GB). (a) ¿Cuál es el techo de tokens por segundo de una conversación sola con \(η_m\) = 0.7? (b) llama.cpp mide ≈ 4,945 tokens por segundo de prefill con un modelo de 6.74 mil millones en Q4_0. Suponiendo que el prefill escala con los parámetros, ¿cuánto tardaría la pregunta de 6,000 tokens? (c) ¿Le sirve al despacho?
 (a) 0.7 × 1,200 ÷ 19.32 ≈ **43 tokens/s**: más de los 20 que pide el despacho, con una conversación. (b) El modelo es 32.762 ÷ 6.74 ≈ 4.86 veces más grande: 4,945 ÷ 4.86 ≈ 1,017 tokens/s; 6,000 ÷ 1,017 ≈ **5.9 s** (optimista: con 6,000 tokens la atención pesa más que con 512). (c) No para el objetivo de 2 s: el prefill tarda ≈ 3 veces de más, y eso con una sola pregunta. La memoria sobra; el cálculo no alcanza. Es una extrapolación, no una medición: lo honesto es medirla.
 ? [reto] El servidor del despacho tarda 12 semanas en llegar. El piloto terminó y los abogados ya lo usan en 3 L40S rentadas a US$1.09 la hora cada una. ¿Cuánto cuesta el puente, y qué fracción del servidor de US$67,191.30 es? ¿Y si tardara 12 meses?
 12 semanas ≈ 12 × 7 × 24 = 2,016 horas; 3 × 1.09 × 2,016 ≈ **US$6,592**, ≈ **9.8 %** del servidor. 12 meses: 3 × 1.09 × 730 × 12 ≈ **US$28,646**, ≈ 43 % del servidor. Con plazos cortos, rentar mientras llega es barato; con plazos de un año, el tiempo de entrega pesa en la decisión y conviene elegir un equipo que esté en stock.
@@ -490,7 +490,7 @@ PRO 6000: ⌈8 ÷ 7⌉ = **2 tarjetas**, y con la Server Edition ⌈8 ÷ 6⌉ = 
 
 ## Lo que sigue {What comes next}
 
-- **«El cuarto: energía, enfriamiento y red»**, la siguiente lección de este módulo, toma el servidor que elegiste aquí y pregunta si el cuarto de TI del despacho lo aguanta: los watts se vuelven amperes, BTU por hora y toneladas de aire acondicionado, y la red se vuelve cables.
+- **«[El cuarto: energía, enfriamiento y red](/el-cuarto/)»**, la siguiente lección de este módulo, toma el servidor que elegiste aquí y pregunta si el cuarto de TI del despacho lo aguanta: los watts se vuelven amperes, BTU por hora y toneladas de aire acondicionado, y la red se vuelve cables.
 - **«De requisitos a hardware»** hace el sizing completo, del que aquí solo se usó el resultado, con picos, colas y márgenes.
 - **«Varias GPUs: tensor y pipeline parallel»** explica qué pasa cuando un modelo no cabe en una tarjeta y se reparte entre varias, y por qué ahí NVLink pesa tanto.
 - **«TCO: API, nube o servidor propio»** convierte el precio del servidor en un costo mensual con luz, personas y depreciación; mientras tanto, la herramienta [API, nube o servidor propio](/herramientas/tco/) ya hace la cuenta.

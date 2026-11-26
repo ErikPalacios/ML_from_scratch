@@ -7,14 +7,14 @@ sensei: cpu-gpu, maquinas
 ---
 
 :::idea
-Un servidor con GPUs es, para el edificio, una **plancha prendida todo el día**: jala del orden de 2.5 kW, y cada uno de esos watts termina como calor en el cuarto. De ahí salen todas las preguntas de esta lección. La luz que entra pide un **circuito propio a 220 V**, porque a 127 V los amperes no caben en un contacto normal. Para la luz que se va hace falta un **UPS**, que da minutos para apagar bien, no horas. El calor que sale pide un aire que funcione 24 horas y que no sea el único. La red, en cambio, casi no pesa para los usuarios; lo delicado es el puerto de gestión del servidor. Y si el cuarto no da para todo eso, existe la opción de rentar un rack en un centro de datos.
+Un [[servidor-gpu|servidor con GPUs]] es, para el edificio, una **plancha prendida todo el día**: jala del orden de 2.5 kW, y cada uno de esos watts termina como calor en el cuarto. La luz que entra pide un **circuito propio a 220 V**, porque a 127 V los amperes no caben en un contacto normal. Para la luz que se va hace falta un **UPS**, que da minutos para apagar bien, no horas. El calor que sale pide un aire que funcione 24 horas y que no sea el único. La red, en cambio, casi no pesa para los usuarios; lo delicado es el puerto de gestión del servidor. Y si el cuarto no da para todo eso, existe la opción de rentar un rack en un centro de datos.
 :::
 
 ## El cuarto del despacho {The despacho's room}
 
-Esta lección sigue a un ejemplo ficticio, **el despacho**: un despacho de abogados en la Ciudad de México que quiere preguntarle a sus 30,000 expedientes con un LLM sin que un solo documento salga de su red. Lo usarían 200 abogados y asistentes, de 9:00 a 19:00. Su modelo es **Qwen3 32B en INT4 de AWQ** y su sizing pide **3 × NVIDIA L40S**, y 4 si quiere que las 8 conversaciones de diseño vayan todas a 20 tokens por segundo o más. Su equipo de TI son 2 personas que saben de redes y Windows y nunca han operado una GPU.
+Esta lección sigue a un ejemplo ficticio, **el despacho**: un despacho de abogados en la Ciudad de México que quiere preguntarle a sus 30,000 expedientes con un LLM sin que un solo documento salga de su red. Lo usarían 200 abogados y asistentes, de 9:00 a 19:00. Su modelo es **Qwen3 32B en INT4 de [[awq|AWQ]]** y su sizing pide **3 × NVIDIA L40S**, y 4 si quiere que las 8 conversaciones de diseño vayan todas a 20 tokens por segundo o más. Su equipo de TI son 2 personas que saben de redes y Windows y nunca han operado una GPU.
 
-Esas GPUs viven en un servidor de 4U, la altura de cuatro unidades de rack (un rack es el mueble estándar donde se atornillan los servidores; cada unidad mide 1.75 pulgadas). El de referencia es el Exxact de 4 L40S de `equipos.json`, que cuesta ≈ US$76,101 sin impuestos a noviembre de 2026. Qué servidor se compra y por qué lo ve la lección «Comprar hardware: de la workstation al rack». Aquí la pregunta es otra: **¿dónde se pone?**
+Esas GPUs viven en un servidor de 4U, la altura de cuatro [[unidad-de-rack|unidades de rack]] (un rack es el mueble estándar donde se atornillan los servidores; cada unidad mide 1.75 pulgadas). El de referencia es el Exxact de 4 L40S de `equipos.json`, que cuesta ≈ US$76,101 sin impuestos a noviembre de 2026. Qué servidor se compra y por qué lo ve la lección «[Comprar hardware: de la workstation al rack](/comprar-hardware/)». Aquí la pregunta es otra: **¿dónde se pone?**
 
 El despacho tiene un cuarto de TI. Para esta lección se suponen estos datos del ejemplo:
 
@@ -23,8 +23,6 @@ El despacho tiene un cuarto de TI. Para esta lección se suponen estos datos del
 - Solo tiene contactos de pared de **127 V y 15 A**. El edificio recibe servicio trifásico de 220/127 V, y en el tablero del piso hay lugar para interruptores nuevos.
 - El aire central del edificio se apaga de noche y en fines de semana. El cuarto tiene un **minisplit de confort de 1 tonelada**, el mismo tipo de aparato que se pone en una recámara.
 - El edificio tiene planta de emergencia solo para elevadores y áreas comunes.
-
-La lección va en orden: la luz que entra, la que se va, el calor que sale, la red y, al final, dónde más.
 
 ### Volts, amperes y watts
 
@@ -50,7 +48,7 @@ El **[[factor-de-potencia|factor de potencia]]** existe porque algunos aparatos 
 
 ## Cuánta potencia jala el servidor {How much power the server draws}
 
-Un servidor no trae una etiqueta de «consumo». Trae piezas, y cada pieza tiene un tope. El de una GPU es su **TDP** (*thermal design power*): la potencia máxima que el fabricante diseñó para que la tarjeta disipe trabajando a fondo. La TDP de cada GPU está en `gpus.json`; la de la L40S es **350 W** según la hoja de NVIDIA. La L40S, además, es una tarjeta **pasiva**: no trae ventilador propio y depende del aire que empujen los ventiladores del chasis. Eso importa en la sección del calor.
+Un servidor no trae una etiqueta de «consumo». Trae piezas, y cada pieza tiene un tope. El de una GPU es su **[[tdp|TDP]]** (*thermal design power*): la potencia máxima que el fabricante diseñó para que la tarjeta disipe trabajando a fondo. La TDP de cada GPU está en `gpus.json`; la de la L40S es **350 W** según la hoja de NVIDIA. La L40S, además, es una tarjeta **[[tarjeta-pasiva|pasiva]]**: no trae ventilador propio y depende del aire que empujen los ventiladores del chasis. Eso importa en la sección del calor.
 
 El resto del servidor también jala:
 
@@ -79,7 +77,7 @@ Ojo con lo que es ese número: **2,500 W es una estimación derivada**, la suma 
 
 ¿Por qué diseñar para 4 si la ficha dice 3? Porque la cuarta es la que pide la prueba de carga para que las 8 conversaciones de diseño vayan a 20 tokens por segundo, y porque cambiar un circuito o un UPS después cuesta más que hacerlo una vez.
 
-La lección «Comprar hardware: de la workstation al rack» pide cotizar también **2 RTX PRO 6000 Server Edition** (TDP configurable de 400 a 600 W) en vez de las L40S. Al tope y con el mismo resto: 2 × 600 + 400 + 700 = 2,300 W, abajo de 2,500 W, así que el circuito, el UPS y el aire de esta lección le quedan con algo más de margen. Si ese servidor trae otras CPUs o fuentes, se rehace la cuenta con sus hojas.
+La lección «[Comprar hardware: de la workstation al rack](/comprar-hardware/)» pide cotizar también **2 RTX PRO 6000 Server Edition** (TDP configurable de 400 a 600 W) en vez de las L40S. Al tope y con el mismo resto: 2 × 600 + 400 + 700 = 2,300 W, abajo de 2,500 W, así que el circuito, el UPS y el aire de esta lección le quedan con algo más de margen. Si ese servidor trae otras CPUs o fuentes, se rehace la cuenta con sus hojas.
 
 ### Lo que jala de verdad: menos que el pico, casi nunca el pico
 
@@ -307,7 +305,7 @@ El cuarto del despacho visto desde arriba. A la izquierda, mal: el rack con la e
 
 ### El ruido
 
-Un servidor con GPUs pasivas hace ruido de verdad. Lenovo declara, para uno de sus servidores 2U con muchas GPUs, ≈ **68 dBA** trabajando, y Dell da cifras del orden de 76 dB a carga máxima para uno de 4 GPUs. Del 4U del despacho no hay dato publicado. Pero el orden de magnitud basta: es mucho más ruido del que se aguanta junto a un escritorio todo el día. **No va junto a los escritorios**; va en el cuarto, con la puerta cerrada.
+Un [[servidor-gpu|servidor con GPUs]] [[tarjeta-pasiva|pasivas]] hace ruido de verdad. Lenovo declara, para uno de sus servidores 2U con muchas GPUs, ≈ **68 dBA** trabajando, y Dell da cifras del orden de 76 dB a carga máxima para uno de 4 GPUs. Del 4U del despacho no hay dato publicado. Pero el orden de magnitud basta: es mucho más ruido del que se aguanta junto a un escritorio todo el día. **No va junto a los escritorios**; va en el cuarto, con la puerta cerrada.
 
 :::calculadora el-cuarto-circuito
 Arranca con el servidor del despacho: 4 L40S, 220 V, interruptor de 20 A y el minisplit de 1 tonelada que ya está. Cambia a 127 V y mira el veredicto del interruptor. Luego sube el minisplit a 2 toneladas. Prueba también a elegir la H100 SXM y poner 8 GPUs: aun sin tocar la CPU ni el resto, ni el circuito ni el aire de una oficina alcanzan.
@@ -386,7 +384,7 @@ Calor, \(Q_{t}\) | 14,300 ÷ 3,516.853 | ≈ 4.1 t
 = Más de 4 veces el servidor del despacho. Un equipo así pide alimentación trifásica, varios aires de precisión y casi seguro otro edificio: es el caso para un centro de datos.
 :::
 
-(HGX es la placa con 8 GPUs SXM que NVIDIA vende a los fabricantes para sus propios servidores; la cuenta supone los 14.3 kW del DGX B200.) Para el despacho, el enfriamiento líquido no es su problema. Pero si algún día quisiera un modelo de cientos de miles de millones de parámetros en 8 GPUs SXM, el cuarto de la oficina deja de ser opción.
+([[hgx|HGX]] es la placa con 8 GPUs SXM que NVIDIA vende a los fabricantes para sus propios servidores; la cuenta supone los 14.3 kW del DGX B200.) Para el despacho, el enfriamiento líquido no es su problema. Pero si algún día quisiera un modelo de cientos de miles de millones de parámetros en 8 GPUs SXM, el cuarto de la oficina deja de ser opción.
 
 ## Lo que cuesta la luz {What electricity costs}
 
@@ -414,7 +412,7 @@ Una oficina de 200 personas, con sus luces, computadoras y aire, razonablemente 
 
 ### Cuánta energía, de verdad
 
-Para la luz no se usa el pico. Se usan las horas. El despacho trabaja 10 horas al día; con 22 días hábiles al mes (supuesto del ejemplo) son **220 horas de uso** de las 730 que tiene un mes, y **510 horas de reposo**. En uso, las GPUs al 60 % de su TDP (supuesto, entre el decode y el prefill de la medición de arriba) y el resto del servidor en ≈ 800 W. En reposo, las GPUs al 20 % y el resto en ≈ 550 W.
+Para la luz no se usa el pico. Se usan las horas. El despacho trabaja 10 horas al día; con 22 días hábiles al mes (supuesto del ejemplo) son **220 horas de uso** de las 730 que tiene un mes, y **510 horas de reposo**. En uso, las GPUs al 60 % de su [[tdp|TDP]] (supuesto, entre el decode y el prefill de la medición de arriba) y el resto del servidor en ≈ 800 W. En reposo, las GPUs al 20 % y el resto en ≈ 550 W.
 
 Y aquí entra la **[[pue|PUE]]**: lo que gasta el cuarto entero ÷ lo que gastan solo los equipos. Cada watt del servidor pide más watts del minisplit para sacarlo. Para un clóset de servidores sin enfriamiento dedicado, el Laboratorio Nacional Lawrence Berkeley supuso, en su informe de 2016, una PUE de **2.0**; para un cuarto de servidores más grande, 2.5. El promedio de los centros de datos del mundo, según Uptime, era **1.56** en 2024, y los nuevos andan en ≈ 1.3 o menos. Para el cuarto del despacho se usa 2.0: un watt para el servidor, otro para sacarlo.
 
@@ -565,7 +563,7 @@ Cuesta en otras cosas. El servidor queda a ≈ 200 km de la oficina, si está en
 
 **El despacho.** El plan para su cuarto de 9 m² queda así. Dos circuitos dedicados de **20 A a 220 V**, A y B, con dos fuentes del servidor en cada uno. Un **UPS de 5–6 kVA de doble conversión** en el circuito A, conectado al servidor para que se apague solo; el switch también va en el UPS, para que el aviso de apagado viaje por la red. Los 500 W que ya había siguen en su circuito. **Dos minisplits de 2 toneladas** que se turnan, en circuitos propios, a 24 °C fijos y con arranque automático, más un sensor de temperatura al frente del rack que mande alertas. El rack con el frente hacia el aire frío y espacio atrás. Un puerto de 10 GbE al switch de la oficina, y el BMC en una VLAN de gestión sin internet. La luz: ≈ $4,800 al mes antes de IVA con GDBT y PUE 2.0, ≈ 7 centavos por pregunta. Y una pregunta abierta para la dirección: si el edificio no deja hacer las obras, la alternativa es un rack en colocation, con su cotización, su enlace y la revisión de los contratos con los clientes.
 
-**Una clínica con una workstation.** Supuesto del ejemplo: una clínica quiere un asistente de notas médicas en una workstation de torre con una RTX PRO 6000 Blackwell Workstation Edition (600 W según `gpus.json`; es la que trae ventilador, para torre), en total ≈ 1,000 W en el pico. A 127 V son ≈ 8.3 A, y con el 125 %, ≈ 10.4 A: **sí cabe** en un circuito de 15 A, siempre que sea dedicado (nada de compartirlo con el esterilizador). El calor, ≈ 3,400 BTU/h, lo saca el aire del consultorio si está prendido; de noche, la workstation se apaga o se va a un cuarto con aire. Si la clínica pone **dos** de esas GPUs (≈ 1,600 W), son ≈ 16.6 A con el 125 %: ya no cabe en 15 A. El salto de una a dos GPUs es el salto de «se enchufa» a «llama al electricista».
+**Una clínica con una [[workstation]].** Supuesto del ejemplo: una clínica quiere un asistente de notas médicas en una workstation de torre con una RTX PRO 6000 Blackwell Workstation Edition (600 W según `gpus.json`; es la que trae ventilador, para torre), en total ≈ 1,000 W en el pico. A 127 V son ≈ 8.3 A, y con el 125 %, ≈ 10.4 A: **sí cabe** en un circuito de 15 A, siempre que sea dedicado (nada de compartirlo con el esterilizador). El calor, ≈ 3,400 BTU/h, lo saca el aire del consultorio si está prendido; de noche, la workstation se apaga o se va a un cuarto con aire. Si la clínica pone **dos** de esas GPUs (≈ 1,600 W), son ≈ 16.6 A con el 125 %: ya no cabe en 15 A. El salto de una a dos GPUs es el salto de «se enchufa» a «llama al electricista».
 
 **Una fábrica con un modelo en la planta.** Supuesto del ejemplo: una planta quiere un LLM junto a la línea de producción, sin depender de internet. El problema no es la potencia sino el ambiente: en una nave sin aire puede hacer 35 °C, en el borde del rango «permitido» de ASHRAE para la clase A2, con polvo y vibración. Ahí la respuesta es un gabinete cerrado con su propio aire, o un servidor hecho para ese ambiente (cada fabricante publica su rango).
 
@@ -592,13 +590,13 @@ Carga térmica: 1,200 + 2,500 = 3,700 W. Nominal: 3,700 ÷ 0.6 ≈ 6,167 W ≈ *
 Con un circuito caído quedan 2 fuentes. A 127 V: 2 × 1,000 = **2,000 W** de tope; contra 2,500 W **faltan 500 W**: el servidor se apaga, o la redundancia solo funciona si el servidor jala menos de 2 kW. A 220 V: 2 × 2,600 = **5,200 W**; contra 2,500 W **sobran 2,700 W**. Incluso con una sola fuente viva (2,600 W) aguantaría el pico, por 100 W. A 127 V la redundancia es de mentira; a 220 V es de verdad.
 ? [reto] El servidor del despacho trabaja de noche resumiendo expedientes en lote: ahora pasa las 730 horas al ritmo de uso (1.64 kW). Con GDBT y PUE 2.0, ¿cuánto cuesta la luz al mes? ¿Cuánto más que con el horario de oficina? ¿Cambia la demanda?
 Energía: 1.64 × 730 ≈ 1,197 kWh; × 2.0 ≈ 2,394 kWh; × 1.942 ≈ **$4,649**. Demanda, con la aproximación de la lección: 1.64 × 2.0 × 542.70 ≈ **$1,780**, igual que antes. Total ≈ **$6,429**, ≈ $1,604 más que los ≈ $4,825 del horario de oficina. Si en el recibo manda la demanda máxima medida, no cambia: cuenta los 15 minutos de más consumo, no cuánto rato, y el servidor ya jalaba 1.64 kW de día. Entonces trabajar de noche solo paga energía, y es la forma barata de usar más el servidor. Si manda la cifra calculada con los kWh del mes, esos kWh de más también suben la demanda cobrada; lo dice el recibo.
-? [reto] Un despacho más grande quiere un servidor HGX B200 de 8 GPUs (≈ 14.3 kW, como el DGX B200) en su cuarto de oficina. Con lo de esta lección, haz la lista de lo que cambia: corriente a 220 V monofásica, interruptor, calor en toneladas, minisplits con \(k\) = 0.6 y N+1, UPS con 25 % de holgura y factor de potencia 0.95.
+? [reto] Un despacho más grande quiere un servidor [[hgx|HGX]] B200 de 8 GPUs (≈ 14.3 kW, como el DGX B200) en su cuarto de oficina. Con lo de esta lección, haz la lista de lo que cambia: corriente a 220 V monofásica, interruptor, calor en toneladas, minisplits con \(k\) = 0.6 y N+1, UPS con 25 % de holgura y factor de potencia 0.95.
 Corriente: 14,300 ÷ (220 × 0.95) ≈ **68 A**; × 1.25 ≈ **86 A**: fuera de cualquier circuito de oficina, pide alimentación trifásica y un tablero propio. Calor: 14,300 W ≈ 48,794 BTU/h ≈ **4.1 t**; nominal: 14,300 ÷ 0.6 ≈ 23,833 W ≈ **6.8 t** de minisplits, más otro tanto por N+1: es un aire de precisión, no minisplits. UPS: 14,300 ÷ 0.95 × 1.25 ≈ **18.8 kVA**. Ruido y peso (el DGX H100 pesa ≈ 130 kg) también cambian. Conclusión: es un equipo para un centro de datos.
 :::
 
 ## Lo que sigue {What comes next}
 
-- **«Comprar hardware: de la workstation al rack»** decide qué servidor entra al cuarto; su TDP y sus fuentes son los números de entrada de esta lección.
+- **«[Comprar hardware: de la workstation al rack](/comprar-hardware/)»** decide qué servidor entra al cuarto; su [[tdp|TDP]] y sus fuentes son los números de entrada de esta lección.
 - **«Varias GPUs: tensor y pipeline parallel»**: cuándo un modelo se parte entre GPUs, y por qué ahí sí importan NVLink, RDMA e InfiniBand.
 - **«Observabilidad de GPUs e inferencia»** vigila lo que aquí se pide medir: potencia, temperatura y reloj.
 - **«Seguridad: aislamiento, sin internet y actualizaciones»** sigue con la red de gestión, el BMC y lo que cambia si el servidor se va a colocation.

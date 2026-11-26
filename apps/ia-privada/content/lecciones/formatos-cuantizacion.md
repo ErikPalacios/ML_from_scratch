@@ -14,7 +14,7 @@ sensei: numeros-maquina, llms, ruido
 
 Esta lección sigue a un ejemplo ficticio, **el despacho**: un despacho de abogados en la Ciudad de México con 200 abogados y asistentes que quiere preguntarle a sus expedientes con un LLM sin que un solo documento salga de su red. Su modelo candidato es **Qwen3 32B en INT4 de AWQ**, con pesos de ≈ **19.32 GB**. Cada pregunta trae ≈ 6,000 tokens de entrada y la respuesta ≈ 500; quiere el primer token en ≤ 2 s y al menos 20 tokens por segundo para cada persona. El sizing completo pide **3 GPUs NVIDIA L40S** de 48 GB. Y para aceptar el modelo tiene un examen propio: **200 preguntas reales** escritas por sus abogados, con un criterio de ≥ 85 % bien contestadas (170 o más).
 
-Antes de seguir, lo que Sensei ya explica y aquí solo se recuerda. En [Cómo guarda números una computadora](https://sensei.trueml.app/numeros-maquina/) ves que [[cuantizacion|cuantizar]] es guardar cada número con menos bits, como un entero más una **escala** que dice cuánto vale cada escalón; que INT4 solo tiene 16 enteros y por eso necesita una [[escala-por-grupo|escala por grupo]] de pesos; que el **punto cero** deja usar todos los enteros cuando el rango no está centrado, y que FP8 es un punto flotante de 1 byte. También ves que ningún modelo convertido sale sin un examen. Aquí vamos más hondo: qué hay en los archivos de verdad, cómo los fabrica cada algoritmo y cómo se mide lo que cuestan.
+Antes de seguir, lo que Sensei ya explica y aquí solo se recuerda. En [Cómo guarda números una computadora](https://sensei.trueml.app/numeros-maquina/) ves que [[cuantizacion|cuantizar]] es guardar cada número con menos bits, como un entero más una **escala** que dice cuánto vale cada escalón; que INT4 solo tiene 16 enteros y por eso necesita una [[escala-por-grupo|escala por grupo]] de pesos; que el **punto cero** deja usar todos los enteros cuando el rango no está centrado, y que FP8 es un punto flotante de 1 byte. También ves que ningún modelo convertido sale sin un examen.
 
 ### El archivo, abierto
 
@@ -28,7 +28,7 @@ Si entras a la página de `Qwen/Qwen3-32B-AWQ` en Hugging Face, ves, además de 
 | `zero_point` | `true` | cada grupo trae además su punto cero |
 | `version` | `gemm` | el acomodo de los enteros pensado para el kernel GEMM (multiplicación de matrices) de AutoAWQ; la otra opción, GEMV, solo sirve con una conversación a la vez |
 
-Con eso ya puedes sacar la cuenta de los bytes. Cada grupo de 128 pesos guarda 128 enteros de 4 bits, una escala en FP16 (16 bits) y un punto cero de 4 bits. Las dos [[tablas-de-tokens|tablas de tokens]] (la de entrada y la de salida, cada una de 151,936 tokens × 5,120 números) no se cuantizan: se quedan en 16 bits, como casi siempre en AWQ, GPTQ y FP8.
+Cada grupo de 128 pesos guarda 128 enteros de 4 bits, una escala en FP16 (16 bits) y un punto cero de 4 bits. Las dos [[tablas-de-tokens|tablas de tokens]] (la de entrada y la de salida, cada una de 151,936 tokens × 5,120 números) no se cuantizan: se quedan en 16 bits, como casi siempre en AWQ, GPTQ y FP8.
 
 :::formula Bits efectivos por peso y tamaño del archivo
 b_{ef} = b + frac{b_s + b_z}{G}
@@ -53,7 +53,7 @@ Bits por parámetro de todo el archivo // \(W × 8 ÷ P\) | 19.32 × 8 ÷ 32.762
 = El «INT4» del despacho pesa ≈ 4.72 bits por parámetro, no 4: ≈ 18 % más que un INT4 ideal de 16.38 GB.
 :::
 
-Los cuatro *shards* suman 19,325,481,744 bytes; la cuenta da 19,324,296,612. La diferencia, ≈ 1.2 MB, es casi toda de las normalizaciones (≈ 0.68 millones de números que se quedan en 16 bits y la cuenta trató como de 4), más los encabezados de cada archivo. La cuenta cuadra: ahora sabes de dónde sale cada byte.
+Los cuatro *shards* suman 19,325,481,744 bytes; la cuenta da 19,324,296,612. La diferencia, ≈ 1.2 MB, es casi toda de las normalizaciones (≈ 0.68 millones de números que se quedan en 16 bits y la cuenta trató como de 4), más los encabezados de cada archivo.
 
 :::figura formatos-cuantizacion-grupo
 Un grupo de 128 pesos de AWQ: 512 bits de enteros, 16 de escala y 4 de punto cero. En total 532 bits, ≈ 4.156 por peso. Con grupos más chicos la escala se reparte entre menos pesos y cuesta más.
@@ -91,7 +91,7 @@ Toca cada caja para ver qué hace. El primer recorrido es el del despacho: de lo
 | FP8 (safetensors) | redondeo simple, con escalas | ≈ 8 | GPUs con FP8: Ada, Hopper, Blackwell | vLLM, SGLang |
 | NVFP4 y MXFP4 | redondeo con escalas por bloque | ≈ 4.5 y ≈ 4.25 | nativo en Blackwell | vLLM y otros |
 | EXL3 | una variante de QTIP, un método de investigación | el que pidas al convertir | GPUs NVIDIA | ExLlamaV3 |
-| MLX | entero afín por grupos | ≈ 4.5 con grupos de 64 | Mac con Apple Silicon | MLX |
+| [[mlx\|MLX]] | entero afín por grupos | ≈ 4.5 con grupos de 64 | Mac con Apple Silicon | MLX |
 
 Las columnas de «dónde corre» salen de la tabla de compatibilidad de vLLM a noviembre de 2026 y de la documentación de cada proyecto; las ves a fondo en la sección de kernels. Los bits efectivos son de la cuenta de arriba con cada esquema; en MLX la escala y el sesgo de cada grupo de 64 van en el tipo del modelo (16 bits), según su documentación.
 
@@ -293,7 +293,7 @@ En la familia Llama 2, con INT4 y grupos de 128, la perplejidad queda así (Tabl
 A 4 bits los tres métodos quedan cerca del original, y más cerca cuanto más grande es el modelo. AWQ gana a GPTQ por poco, pero no es una ley: en Qwen3 vas a ver una medición donde pasa al revés.
 
 :::ojo AutoAWQ está archivado
-La herramienta con la que se hicieron muchísimos checkpoints AWQ, **AutoAWQ**, se archivó el 11 de mayo de 2025 y su repositorio dice que ya no se mantiene. La documentación de vLLM también la marca como deprecada. El propio repositorio manda a dos reemplazos: **llm-compressor**, del proyecto de vLLM, que adoptó su trabajo y hoy trae AWQ entre sus algoritmos, y **MLX-LM**, para hacer AWQ en Mac. **GPTQModel** también hace AWQ (todo, a noviembre de 2026). Los archivos AWQ ya hechos, como `Qwen/Qwen3-32B-AWQ`, se siguen sirviendo con vLLM y SGLang; lo que cambia es con qué herramienta cuantizas tú un modelo nuevo.
+La herramienta con la que se hicieron muchísimos checkpoints AWQ, **AutoAWQ**, se archivó el 11 de mayo de 2025 y su repositorio dice que ya no se mantiene. La documentación de vLLM también la marca como deprecada. El propio repositorio manda a dos reemplazos: **llm-compressor**, del proyecto de vLLM, que adoptó su trabajo y hoy trae AWQ entre sus algoritmos, y **[[mlx|MLX]]-LM**, para hacer AWQ en Mac. **GPTQModel** también hace AWQ (todo, a noviembre de 2026). Los archivos AWQ ya hechos, como `Qwen/Qwen3-32B-AWQ`, se siguen sirviendo con vLLM y SGLang; lo que cambia es con qué herramienta cuantizas tú un modelo nuevo.
 :::
 
 ## GGUF y los k-quants: un archivo para todo {GGUF and k-quants: one file for everything}
@@ -391,7 +391,7 @@ NVFP4 paga un cuarto de bit más por bloques más chicos y una escala que puede 
 :::
 
 :::profundo El «4 bits» de una Mac
-MLX, la biblioteca de Apple para sus chips, cuantiza por omisión con el modo `affine`: enteros de 4 bits en grupos de 64, cada grupo con su escala y su sesgo. Es un INT4 asimétrico como el de AWQ, con grupos más chicos; el sesgo hace el papel del punto cero, pero es un número con decimales (el mínimo del grupo), no un entero. También soporta `mxfp4` (grupos de 32 con escala E8M0), `mxfp8` y `nvfp4` (grupos de 16 con escala E4M3). Cuando alguien dice «lo corro en 4 bits en mi Mac», casi siempre es el entero afín. La escala y el sesgo van en el tipo del modelo, 16 bits cada uno con un modelo en BF16: 4 + 32 ÷ 64 = **4.5 bits** efectivos.
+[[mlx|MLX]], la biblioteca de Apple para sus chips, cuantiza por omisión con el modo `affine`: enteros de 4 bits en grupos de 64, cada grupo con su escala y su sesgo. Es un INT4 asimétrico como el de AWQ, con grupos más chicos; el sesgo hace el papel del punto cero, pero es un número con decimales (el mínimo del grupo), no un entero. También soporta `mxfp4` (grupos de 32 con escala E8M0), `mxfp8` y `nvfp4` (grupos de 16 con escala E4M3). Cuando alguien dice «lo corro en 4 bits en mi Mac», casi siempre es el entero afín. La escala y el sesgo van en el tipo del modelo, 16 bits cada uno con un modelo en BF16: 4 + 32 ÷ 64 = **4.5 bits** efectivos.
 :::
 
 ## Kernels: por qué un formato vuela en una GPU y se arrastra en otra {Kernels: why a format flies on one GPU and crawls on another}
@@ -408,7 +408,7 @@ En un INT4 solo de pesos, la GPU no sabe multiplicar enteros de 4 bits por núme
 
 La ganancia viene del paso 1: leer 4 bits en vez de 16. En el [[decode|decode]], [[memory-bound|limitado por memoria]], eso es casi directo velocidad. Pero el paso 3 va igual que en FP16: en el [[prefill|prefill]] o con un [[batch|batch]] grande, donde manda el cálculo, un INT4 no ayuda, y la conversión del paso 2 hasta estorba.
 
-Cada kernel pide una generación mínima de GPU. NVIDIA la numera con la *compute capability*: Volta es 7.0, Turing 7.5, Ampere 8.0 y 8.6, Ada 8.9, Hopper 9.0 y Blackwell 10.0 o 12.0, según el modelo (la tabla de NVIDIA).
+Cada kernel pide una generación mínima de GPU. NVIDIA la numera con la *compute capability* de [[cuda|CUDA]]: Volta es 7.0, Turing 7.5, Ampere 8.0 y 8.6, Ada 8.9, Hopper 9.0 y Blackwell 10.0 o 12.0, según el modelo (la tabla de NVIDIA).
 
 **Marlin** es el kernel que hizo famoso a este esquema. Lo escribió el mismo grupo de GPTQ (Frantar y Alistarh, del IST Austria): multiplica FP16 por INT4 casi 4× más rápido que FP16 con batches de hasta 16 a 32 tokens (el techo es 3.87× por el costo de las escalas); con 64 a 128 la ventaja baja poco a poco, y dentro de vLLM, de punta a punta, llega a 2.8×. El Marlin original pide *compute capability* 8.0 (Ampere en adelante); la versión que trae vLLM ya corre desde Turing (7.5). Para la H100 (Hopper), donde Marlin «batalla», Neural Magic (hoy parte de Red Hat) escribió **Machete**: en Llama 3.1 70B mejora el rendimiento ≈ 30 %.
 
@@ -645,7 +645,7 @@ Los datos de **[[calibracion|calibración]]** pasan por el modelo: GPTQ y AWQ us
 
 ### Cuánto tarda
 
-Mucho menos que entrenar. GPTQ cuantizó 175 mil millones de parámetros en ≈ 4 horas de una A100, y AWQ calcula aún menos. Para un 32B no hay cifra publicada; por la de GPTQ, son horas. Y no hace falta una GPU donde quepa el modelo entero: llm-compressor puede procesarlo capa por capa (*sequential onloading*).
+GPTQ cuantizó 175 mil millones de parámetros en ≈ 4 horas de una A100, y AWQ calcula aún menos. Para un 32B no hay cifra publicada; por la de GPTQ, son horas. Y no hace falta una GPU donde quepa el modelo entero: llm-compressor puede procesarlo capa por capa (*sequential onloading*).
 
 ## Errores comunes {Common mistakes}
 
@@ -661,11 +661,11 @@ Mucho menos que entrenar. GPTQ cuantizó 175 mil millones de parámetros en ≈ 
 
 **El despacho.** Qwen3 32B en INT4 de AWQ, el archivo oficial de Qwen: 19.32 GB, ≈ 4.72 bits por parámetro. En la L40S (Ada) lo sirve vLLM con un kernel de W4A16 (Marlin). Con la cuenta de las dos fases (derivada, no medida) escribe a ≈ 28.9 tokens por segundo con una conversación, contra 16.8 del FP8, que además se come la memoria del KV cache; FP8 leería la pregunta en ≈ 1.07 s en vez de 2.17, pero no compensa. Ningún formato resuelve el TTFT: eso queda en el sizing de 3 L40S. Lo que hace con esta lección: (1) se queda con el AWQ oficial; si algún día cuantiza un modelo propio, lo hará con llm-compressor, no con AutoAWQ; (2) en la prueba piloto corre sus 200 preguntas con BF16 y con el AWQ y lee cada flip a mal; (3) agrega unas preguntas de resumen largo, revisadas por una abogada, porque las de respuesta corta no ven la repetición; (4) prueba el KV cache en FP8 solo si la memoria aprieta, con el mismo examen.
 
-**Una clínica con un asistente en una laptop.** Supuesto del ejemplo: una clínica chica quiere un asistente para ordenar notas médicas en la computadora de cada consultorio, sin GPU de servidor: Macs con 32 GB de [[memoria-unificada|memoria unificada]]. Ahí no hay vLLM ni Marlin: hay llama.cpp (o Ollama) con GGUF, o MLX. Un modelo de 8B en Q4_K_M ocupa ≈ 4.9 GB y deja memoria de sobra; en Q8_0, ≈ 8.5 GB, y pierde mucho menos (los tamaños son de Llama 3.1 8B, del README de llama.cpp; la pérdida, de la tabla de LLaMA 3 8B de arriba). Como cada consultorio atiende a una persona a la vez, el batch es 1 y la velocidad la pone el [[ancho-de-banda|ancho de banda]]: el Q4_K_M lee ≈ 1.7 veces menos bytes por token y, en teoría, escribe ≈ 1.7 veces más rápido que el Q8_0. La clínica elige con su propio examen de notas, no con la perplejidad.
+**Una clínica con un asistente en una laptop.** Supuesto del ejemplo: una clínica chica quiere un asistente para ordenar notas médicas en la computadora de cada consultorio, sin GPU de servidor: Macs con 32 GB de [[memoria-unificada|memoria unificada]]. Ahí no hay vLLM ni Marlin: hay llama.cpp (o Ollama) con GGUF, o [[mlx|MLX]]. Un modelo de 8B en Q4_K_M ocupa ≈ 4.9 GB y deja memoria de sobra; en Q8_0, ≈ 8.5 GB, y pierde mucho menos (los tamaños son de Llama 3.1 8B, del README de llama.cpp; la pérdida, de la tabla de LLaMA 3 8B de arriba). Como cada consultorio atiende a una persona a la vez, el batch es 1 y la velocidad la pone el [[ancho-de-banda|ancho de banda]]: el Q4_K_M lee ≈ 1.7 veces menos bytes por token y, en teoría, escribe ≈ 1.7 veces más rápido que el Q8_0. La clínica elige con su propio examen de notas, no con la perplejidad.
 
-**Un servicio de chat grande en GPUs Blackwell.** Supuesto del ejemplo: una empresa sirve un MoE grande a miles de usuarios en B200. Con batches enormes el cálculo pesa tanto como la memoria, y un W4A16 no ayuda ahí: multiplica en 16 bits. NVFP4 sí, porque Blackwell multiplica en FP4. Aquí cuantizar no es para que quepa, sino para que cada GPU atienda a más gente: el formato se elige por la GPU y por cómo se usa.
+**Un servicio de chat grande en GPUs Blackwell.** Supuesto del ejemplo: una empresa sirve un MoE grande a miles de usuarios en B200. Con batches enormes el cálculo pesa tanto como la memoria, y un W4A16 no ayuda ahí: multiplica en 16 bits. NVFP4 sí, porque Blackwell multiplica en FP4. Aquí cuantizar no es para que quepa, sino para que cada GPU atienda a más gente.
 
-**Fuera de las computadoras: la foto en JPEG.** Pesa varias veces menos que sin comprimir y se ve igual, hasta que la imprimes en grande y aparecen los cuadritos de 8 × 8 píxeles de la compresión. Un modelo cuantizado es igual: la diferencia aparece en lo exigente. Por eso el examen lleva preguntas difíciles de verdad.
+**Fuera de las computadoras: la foto en JPEG.** Pesa varias veces menos que sin comprimir y se ve igual, hasta que la imprimes en grande y aparecen los cuadritos de 8 × 8 píxeles de la compresión. Un modelo cuantizado es igual: la diferencia aparece en lo exigente.
 
 ## Ejercicios {Exercises}
 
@@ -679,7 +679,7 @@ NVFP4: 4 + 8 ÷ 16 = **4.5**. MXFP4: 4 + 8 ÷ 32 = **4.25**. NVFP4 tiene bloques
 ? [facil] En la tabla de llama.cpp para LLaMA 3 8B, ¿en cuántos tokens de cada 100 cambia el favorito con q8_0 y con q4_K_M? Una respuesta del despacho tiene 500 tokens: ¿cuántas bifurcaciones esperarías con q4_K_M?
 q8_0: 100 − 97.7 ≈ **2.3** de cada 100. q4_K_M: 100 − 91.9 ≈ **8.1**. En 500 tokens, ≈ 500 × 0.081 ≈ **40** posiciones donde el cuantizado elige otro token. Cada bifurcación cambia todo lo que sigue, así que el texto será distinto aunque diga lo mismo. (Es un modelo distinto del del despacho: sirve como orden de magnitud.)
 ? [medio] Con la cuenta de las dos fases, ¿cuántos tokens por segundo daría Qwen3 32B en BF16 (65.52 GB de pesos) en una L40S con una conversación de 6,250 tokens (\(η_m\) = 0.7)? ¿Cabría siquiera?
-\(t_{token}\) = (65.52 + 1.64) ÷ 604.8 ≈ 111 ms → ≈ **9 tokens/s**. Y no cabe: 65.52 GB de pesos contra 48 GB de la tarjeta. Por eso nadie sirve un 32B en BF16 en una L40S: la cuantización es la que lo hace posible, no un adorno.
+\(t_{token}\) = (65.52 + 1.64) ÷ 604.8 ≈ 111 ms → ≈ **9 tokens/s**. Y no cabe: 65.52 GB de pesos contra 48 GB de la tarjeta. Por eso nadie sirve un 32B en BF16 en una L40S: la cuantización es la que lo hace posible.
 ? [medio] En la cuenta de GPTQ con dos pesos, cambia el supuesto: las entradas se parecen a medias, \(E[x_1 x_2] ÷ E[x_2^2]\) = 0.5. ¿Cuánto se le suma a \(w_2\), en qué escalón cae y cuál es la suma de pesos?
 \(δ_2\) = −(−0.11) × 0.5 = +0.055. \(w_2\) corregido = 0.36 + 0.055 = 0.415; 0.415 ÷ 0.25 = 1.66 → **2 escalones** → 0.50. Suma: 0.25 + 0.50 = **0.75**. Salió igual que con la compensación completa, pero con entradas que no son iguales la salida ya no depende solo de la suma: GPTQ minimiza el error esperado sobre los datos, no el de una cuenta.
 ? [medio] El despacho corre sus 200 preguntas con BF16 (176 bien) y con un GPTQ: 12 flips de bien a mal y 4 de mal a bien. ¿Cuánto pierde, es ruido, y pasa el criterio?
@@ -688,7 +688,7 @@ Aciertos: 176 − 12 + 4 = **168** (84 %). \(Δ\) = (4 − 12) ÷ 200 = **−4 p
 Por token, en BF16: 2 × 64 × 8 × 128 × 2 = 262,144 bytes. 8 × 8,192 × 262,144 ≈ **17.18 GB**. En FP8 (1 byte por número), la mitad: **8.59 GB**. En q8_0 (8.5 bits por número = 0.53 de f16): 17.18 × 8.5 ÷ 16 ≈ **9.13 GB**.
 ? [reto] El despacho quiere detectar una pérdida de 1 punto con su examen pareado. Si al cuantizar cambia el 8 % de las respuestas (flips a mal y a bien juntos), ¿cuántas preguntas necesita como mínimo?
 Con \(N\) preguntas hay ≈ 0.08 \(N\) flips, y la pérdida es 0.01 \(N\) preguntas. Se distingue si \(c − b\) supera el ruido: 0.01 \(N\) > 1.96 × √(0.08 \(N\)). Elevando al cuadrado: 0.0001 \(N^2\) > 3.8416 × 0.08 \(N\) → \(N\) > 3.8416 × 0.08 ÷ 0.0001 ≈ **3,073 preguntas**. Con 200 no se puede ver una pérdida de 1 punto; sí una de ≈ 4. Para pérdidas chicas, lo que el despacho puede hacer con 200 es leer los flips, no medirlos.
-? [reto] Una empresa tiene una A100 de 80 GB y duda entre el FP8 oficial de Qwen3 32B (34.33 GB) y el AWQ (19.32 GB). Usa lo que sabes de los kernels: ¿qué gana y qué no con cada uno? Con \(η_m\) = 0.7 y el ancho de banda de la A100 de 80 GB (2,039 GB/s), ¿cuántos tokens por segundo daría cada uno con una conversación de 6,250 tokens?
+? [reto] Una empresa tiene una A100 de 80 GB y duda entre el FP8 oficial de Qwen3 32B (34.33 GB) y el AWQ (19.32 GB). ¿Qué gana y qué no con cada uno? Con \(η_m\) = 0.7 y el ancho de banda de la A100 de 80 GB (2,039 GB/s), ¿cuántos tokens por segundo daría cada uno con una conversación de 6,250 tokens?
 La A100 es Ampere: **no calcula en FP8**. vLLM corre el FP8 como solo pesos (W8A16) con Marlin: multiplica en FP16, igual que el AWQ, así que ninguno acelera el prefill. Decode: memoria efectiva 0.7 × 2,039 ≈ 1,427 GB/s. FP8: (34.33 + 1.64) ÷ 1,427 ≈ 25.2 ms → ≈ **40 tokens/s**. AWQ: (19.32 + 1.64) ÷ 1,427 ≈ 14.7 ms → ≈ **68 tokens/s**. En la A100 el AWQ gana en velocidad y en memoria; el FP8 solo tendría a favor una calidad algo más cercana al original, que se mide con el examen.
 ? [reto] Explica con números por qué el estudio de Qwen3 y la ficha de Qwen pueden no contradecirse, y qué haría falta para saber si los −3.2 puntos de MMLU del estudio son ruido.
 Miden cosas distintas: MMLU contra MMLU-Redux (otro conjunto de preguntas, corregido), un AWQ hecho por los autores contra el archivo oficial, quizá otra calibración. Para saber si −3.2 es ruido haría falta el tamaño del examen y, mejor, los flips, que el estudio no publica. Si el examen tuviera miles de preguntas, el error estándar de una exactitud de ≈ 80 % sería de décimas de punto (con 10,000 preguntas, √(0.8 × 0.2 ÷ 10,000) = 0.4 puntos): 3.2 puntos serían muy difíciles de explicar con azar. Pero eso dice que **ese** archivo pierde en **ese** examen; no dice cuánto pierde el archivo del despacho en sus 200 preguntas legales. Por eso la decisión sale del examen propio.
@@ -696,9 +696,9 @@ Miden cosas distintas: MMLU contra MMLU-Redux (otro conjunto de preguntas, corre
 
 ## Lo que sigue {What comes next}
 
-- **«Speculative decoding y contexto largo»**, la siguiente lección de este módulo, ataca el mismo límite del decode desde otro lado: en vez de leer menos bytes por token, sacar más de un token por cada lectura de los pesos. Y el contexto largo hace crecer justo el KV cache que aquí aprendiste a cuantizar.
+- **«[Speculative decoding y contexto largo](/speculative/)»**, la siguiente lección de este módulo, ataca el mismo límite del decode desde otro lado: en vez de leer menos bytes por token, sacar más de un token por cada lectura de los pesos. Y el contexto largo hace crecer justo el KV cache que aquí aprendiste a cuantizar.
 - **«Del laptop al servidor: llama.cpp, Ollama, vLLM, SGLang y TensorRT-LLM»** pone los formatos en programas concretos: cuál lee GGUF, cuál AWQ y FP8, y qué kernel usa cada uno.
-- **«Comprar hardware: de la workstation al rack»** retoma qué GPU calcula en FP8 y en FP4, porque esa columna de la hoja de datos decide qué formatos te sirven.
+- **«[Comprar hardware: de la workstation al rack](/comprar-hardware/)»** retoma qué GPU calcula en FP8 y en FP4, porque esa columna de la hoja de datos decide qué formatos te sirven.
 - La [herramienta de VRAM](/herramientas/vram/) hace la cuenta completa de memoria con cada formato, y el [catálogo de GPUs](/herramientas/catalogo/) dice cuáles calculan en FP8 y en FP4.
 - En Sensei: [Cómo guarda números una computadora](https://sensei.trueml.app/numeros-maquina/) tiene los cimientos (escala, punto cero, INT4 y FP8), y [Ruido, muestras y pruebas A/B](https://sensei.trueml.app/ruido/), la estadística de la comparación pareada.
 

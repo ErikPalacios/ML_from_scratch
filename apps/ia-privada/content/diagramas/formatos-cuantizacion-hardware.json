@@ -74,7 +74,7 @@
    "y": 4,
    "w": 17.5,
    "h": 8,
-   "note": "Ahí no corre vLLM con Marlin: corre llama.cpp (u Ollama) con GGUF, o MLX en Apple Silicon con su [[memoria-unificada|memoria unificada]]."
+   "note": "Ahí no corre vLLM con Marlin: corre llama.cpp (u Ollama) con GGUF, o [[mlx|MLX]] en Apple Silicon con su [[memoria-unificada|memoria unificada]]."
   },
   {
    "id": "f4",
@@ -118,7 +118,7 @@
    "y": 20,
    "w": 17.5,
    "h": 9,
-   "note": "[[k-quant|k-quants]] de llama.cpp o el entero afín de MLX. Con una persona a la vez, la velocidad la pone el [[ancho-de-banda|ancho de banda]]: menos bits, más tokens por segundo."
+   "note": "[[k-quant|k-quants]] de llama.cpp o el entero afín de [[mlx|MLX]]. Con una persona a la vez, la velocidad la pone el [[ancho-de-banda|ancho de banda]]: menos bits, más tokens por segundo."
   },
   {
    "id": "examen",

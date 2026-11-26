@@ -12,7 +12,7 @@ En el [[decode|decode]] la GPU tiene cálculo de sobra: lee todos los pesos para
 
 ## Varios tokens por cada lectura de los pesos {Several tokens per read of the weights}
 
-Esta lección sigue a un ejemplo ficticio, **el despacho**: un despacho de abogados en la Ciudad de México, con 200 abogados y asistentes, que quiere preguntarle a sus expedientes con un LLM sin que un documento salga de su red. Su modelo es **Qwen3 32B en INT4 de AWQ** (sus pesos guardados en 4 bits ocupan ≈ 19.32 GB) y lo sirve en **3 GPUs NVIDIA L40S** de 48 GB. Cada pregunta trae ≈ 6,000 tokens de entrada, la respuesta tiene ≈ 500, y cada conversación tiene un tope de 8,192 tokens. Se pide que cada persona vea al menos **20 tokens por segundo** y su primer token en **2 segundos** o menos. Además de preguntar, el despacho quiere **resumir expedientes completos**, de ≈ 50 páginas cada uno. Esa es la segunda mitad de la lección.
+Esta lección sigue a un ejemplo ficticio, **el despacho**: un despacho de abogados en la Ciudad de México, con 200 abogados y asistentes, que quiere preguntarle a sus expedientes con un LLM sin que un documento salga de su red. Su modelo es **Qwen3 32B en INT4 de [[awq|AWQ]]** (sus pesos guardados en 4 bits ocupan ≈ 19.32 GB) y lo sirve en **3 GPUs NVIDIA L40S** de 48 GB. Cada pregunta trae ≈ 6,000 tokens de entrada, la respuesta tiene ≈ 500, y cada conversación tiene un tope de 8,192 tokens. Se pide que cada persona vea al menos **20 tokens por segundo** y su primer token en **2 segundos** o menos. Además, el despacho quiere **resumir expedientes completos**, de ≈ 50 páginas cada uno.
 
 Tres cosas que se explican a fondo en otro lado y aquí solo se recuerdan:
 
@@ -287,7 +287,7 @@ La documentación de vLLM resume la diferencia: los métodos con modelo (EAGLE, 
 :::
 
 :::ojo
-Dos cosas que nadie ha medido para el despacho y que hay que medir antes de prometer: (1) los EAGLE-3 de Qwen3 32B se entrenaron sobre los pesos en BF16, y el despacho sirve el modelo en INT4 de AWQ; si su tasa de aceptación se sostiene con el modelo cuantizado no está publicado. (2) Se entrenaron con conversaciones generales, no con escritos jurídicos en español. Las dos cosas pueden bajar \(α\). Se mide con el examen y con los registros del servidor, que reportan la aceptación.
+Dos cosas que nadie ha medido para el despacho y que hay que medir antes de prometer: (1) los EAGLE-3 de Qwen3 32B se entrenaron sobre los pesos en BF16, y el despacho sirve el modelo en INT4 de [[awq|AWQ]]; si su tasa de aceptación se sostiene con el modelo cuantizado no está publicado. (2) Se entrenaron con conversaciones generales, no con escritos jurídicos en español. Las dos cosas pueden bajar \(α\). Se mide con el examen y con los registros del servidor, que reportan la aceptación.
 :::
 
 ## Cuándo deja de ayudar: el batch {When it stops helping: the batch}
@@ -397,7 +397,7 @@ Lo que queda para las demás // cada conversación normal, 1.64 GB | (21.88 − 
 = Un solo expediente ocupa la mitad del KV cache de una GPU: lo mismo que 6 o 7 conversaciones normales del despacho. Con 131,072 tokens serían ≈ 34 GB, más de lo que le queda libre a una L40S: no cabría en una sola.
 :::
 
-Una salida que estudia la lección «Formatos de cuantización en la práctica»: guardar el KV cache en FP8 (1 byte por número en vez de 2) lo deja en la mitad, ≈ 5.4 GB para este expediente, a cambio de algo de precisión que hay que medir.
+Una salida que estudia la lección «[Formatos de cuantización en la práctica](/formatos-cuantizacion/)»: guardar el [[cuantizar-kv-cache|KV cache en FP8]] (1 byte por número en vez de 2) lo deja en la mitad, ≈ 5.4 GB para este expediente, a cambio de algo de precisión que hay que medir.
 
 ### Lo que cuesta en cálculo: cuadrático
 
@@ -607,7 +607,7 @@ Para **preguntar** algo del expediente (no resumirlo entero) hay una tercera ví
 
 ## En la vida real {In real life}
 
-**El despacho.** Qwen3 32B en INT4 de AWQ en 3 L40S, con preguntas de ≈ 6,000 tokens y respuestas de ≈ 500. Casi todo el día hay ≈ 2.25 conversaciones a la vez en todo el despacho, menos de una por GPU: es el escenario donde el speculative decoding rinde. Con un EAGLE-3 de Qwen3 32B y una aceptación como la medida en resumen (\(α\) ≈ 0.6), la cuenta de techo da ≈ 1.9×: de ≈ 29 a ≈ 55 tokens por segundo con una conversación, y en el modelo simplificado sobrevive aun con las 8 conversaciones de diseño juntas en una GPU, porque sus prompts son largos. Las tres decisiones que salen de aquí: (1) **probar** el EAGLE-3 y el n-gram con el modelo en INT4 y con su examen, midiendo la aceptación y la velocidad con el tráfico real, antes de dejarlo prendido; (2) **no contar** con él para el TTFT ni para ahorrar GPUs: siguen siendo 3 L40S; (3) los **resúmenes de expedientes completos** (≈ 33–40 mil tokens) van en un servidor aparte, con YaRN factor 2 y tope de 65,536, en una fila de trabajos fuera de la hora pico, y se comparan contra map-reduce con preguntas de distintas páginas antes de elegir uno.
+**El despacho.** Qwen3 32B en INT4 de [[awq|AWQ]] en 3 L40S, con preguntas de ≈ 6,000 tokens y respuestas de ≈ 500. Casi todo el día hay ≈ 2.25 conversaciones a la vez en todo el despacho, menos de una por GPU: es el escenario donde el speculative decoding rinde. Con un EAGLE-3 de Qwen3 32B y una aceptación como la medida en resumen (\(α\) ≈ 0.6), la cuenta de techo da ≈ 1.9×: de ≈ 29 a ≈ 55 tokens por segundo con una conversación, y en el modelo simplificado sobrevive aun con las 8 conversaciones de diseño juntas en una GPU, porque sus prompts son largos. Las tres decisiones que salen de aquí: (1) **probar** el EAGLE-3 y el n-gram con el modelo en INT4 y con su examen, midiendo la aceptación y la velocidad con el tráfico real, antes de dejarlo prendido; (2) **no contar** con él para el TTFT ni para ahorrar GPUs: siguen siendo 3 L40S; (3) los **resúmenes de expedientes completos** (≈ 33–40 mil tokens) van en un servidor aparte, con YaRN factor 2 y tope de 65,536, en una fila de trabajos fuera de la hora pico, y se comparan contra map-reduce con preguntas de distintas páginas antes de elegir uno.
 
 **Un asistente de código para un equipo de desarrollo.** Supuesto del ejemplo: los programadores piden cambios a un archivo que ya está en el prompt, y la respuesta es el archivo casi igual con unas líneas cambiadas. Es el caso ideal del [[prompt-lookup|prompt lookup]]: casi todo lo que el modelo escribe ya está en la entrada, así que las propuestas por n-gram se aceptan en tramos largos sin entrenar ningún borrador. Aquí conviene una \(γ\) más alta, porque cuando atina, atina en serie.
 
@@ -645,7 +645,7 @@ De bueno: la cuenta de techo es correcta. Con 8 conversaciones de 6,250 tokens, 
 
 ## Lo que sigue {What comes next}
 
-- **«Formatos de cuantización en la práctica»**, la otra lección de este módulo, explica de dónde salen los 19.32 GB del INT4 de AWQ y cómo se guarda el KV cache en FP8: la mitad de memoria para un expediente largo, a cambio de una pérdida que se mide.
+- **«[Formatos de cuantización en la práctica](/formatos-cuantizacion/)»**, la otra lección de este módulo, explica de dónde salen los 19.32 GB del INT4 de [[awq|AWQ]] y cómo se guarda el [[cuantizar-kv-cache|KV cache en FP8]]: la mitad de memoria para un expediente largo, a cambio de una pérdida que se mide.
 - **«De requisitos a hardware»** junta todo lo que pesa en el sizing: prefills largos, decode, KV cache y, ahora, las peticiones largas que conviene apartar.
 - **«Varias GPUs: tensor y pipeline parallel»** explica cómo repartir un modelo entre GPUs, la salida cuando un contexto de 131 mil tokens no cabe en una sola.
 - **«Del laptop al servidor: llama.cpp, Ollama, vLLM, SGLang y TensorRT-LLM»** compara qué servidor soporta qué borrador, YaRN y chunked prefill.

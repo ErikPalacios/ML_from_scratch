@@ -67,7 +67,7 @@ ${chips('seg', segs.map((s) => [s, SEG[s]]))}
   // los servidores completos y las notas de cada precio
   const srv = (equipos.servidores || []).map((s) => {
     const g = gpus.gpus.find((y) => y.id === s.gpu_id);
-    return `<tr><th scope="row"><span class="cat-n">${esc(s.nombre)}</span><span class="cat-s">${s.gpus} × ${esc(g.nombre)}</span></th><td>${fmt(s.gpus * g.vram_gb)} GB</td><td>${s.potencia_w ? `${fmt(s.potencia_w)} W` : '<span class="cat-nd">—</span>'}</td><td>US$${fmt(s.compra_usd)}${fuenteCorta(s.fuente)}</td><td>US$${fmt(Math.round(s.compra_usd / s.gpus))}</td></tr>`;
+    return `<tr><th scope="row"><span class="cat-n">${esc(s.nombre)}</span><span class="cat-s">${s.gpus} × ${esc(g.nombre)}</span></th><td>${fmt(s.gpus * g.vram_gb)} GB</td><td>${s.potencia_w ? `${s.potencia_estimada ? '≈ ' : ''}${fmt(s.potencia_w)} W` : '<span class="cat-nd">—</span>'}</td><td>US$${fmt(s.compra_usd)}${fuenteCorta(s.fuente)}</td><td>US$${fmt(Math.round(s.compra_usd / s.gpus))}</td></tr>`;
   }).join('');
   const servidores = srv ? `<h3 class="cat-h">Servidores completos con precio publicado</h3><div class="cat-scroll" tabindex="0" role="region" aria-label="Servidores completos"><table class="cat-tabla cat-tabla--srv"><thead><tr><th scope="col">Servidor</th><th scope="col">VRAM en total</th><th scope="col">Consumo máximo</th><th scope="col">Precio</th><th scope="col">Por GPU, con todo</th></tr></thead><tbody>${srv}</tbody></table></div>` : '';
   const notas = gpus.gpus.filter((g) => g.compra_detalle?.descripcion).map((g) => `<li><b>${esc(g.nombre)}.</b> ${inline(g.compra_detalle.descripcion)} ${fuenteCorta(g.compra_detalle.fuente)}</li>`)
