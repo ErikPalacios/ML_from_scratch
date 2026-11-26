@@ -87,7 +87,7 @@
       "y": 21,
       "w": 18,
       "h": 8,
-      "note": "El resultado de la tool entra como turno de `user`: el modelo lo lee con autoridad de persona. Puede omitir la página 9, o pedir otra tool para cumplir la nota."
+      "note": "El resultado de la tool entra como turno de `user`: llega en el mismo lugar que las palabras de la persona. Puede omitir la página 9, o pedir otra tool para cumplir la nota."
     },
     {
       "id": "validar",

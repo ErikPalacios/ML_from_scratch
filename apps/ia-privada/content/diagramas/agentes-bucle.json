@@ -33,7 +33,7 @@
       "y": 5,
       "w": 18,
       "h": 8,
-      "note": "Pregunta desde la página de chat con su cuenta de Microsoft. Su Id de Entra viaja con la petición por el [[gateway-de-llm|gateway]]: es lo que después usa la tool para revisar el permiso."
+      "note": "Pregunta desde la página de chat con su cuenta de Microsoft. Su identidad de Entra ID viaja con la petición por el [[gateway-de-llm|gateway]]: es lo que después usa la tool para revisar el permiso."
     },
     {
       "id": "agente",

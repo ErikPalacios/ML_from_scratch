@@ -60,7 +60,7 @@
       "corto": "Un protocolo abierto para que un servidor ofrezca tools (y datos y plantillas) y cualquier app de IA las descubra y las llame: la tool se escribe una vez y la usan todos.",
       "largo": "Mensajes JSON-RPC por `stdio` o por Streamable HTTP. La especificación vigente es la **2026-07-28**, que quitó las sesiones y el saludo `initialize` (cada petición lleva su versión) y dejó deprecados *sampling*, *roots* y *logging*. Por HTTP, el servidor se protege como recurso de OAuth 2.1 y no puede reenviar el token de la persona a otra API. Un servidor MCP es código con acceso a tus datos: Open WebUI 0.13.5 solo deja que un administrador lo registre, y LiteLLM 1.111.0 los limita por clave.",
       "analogia": "Un enchufe estándar: el que hace el aparato y el que hace la casa no se conocen y todo conecta. Dónde se rompe: el enchufe no decide qué pasa por el cable; conectar un servidor MCP ajeno es enchufar algo que puede abrir tus cajones.",
-      "ejemplo": "El despacho tiene un solo servidor MCP propio, interno y de solo lectura, con `buscar_expedientes`, `leer_pagina` y `comparar_clausulas`, que revisa la ACL con el Id de Entra de quien pregunta.",
+      "ejemplo": "El despacho tiene un solo servidor MCP propio, interno y de solo lectura, con `buscar_expedientes`, `leer_pagina` y `comparar_clausulas`, que revisa la ACL con la identidad de Entra ID de quien pregunta.",
       "ver": ["tool", "agente", "gateway-de-llm"],
       "leccion": "agentes"
     },
@@ -142,7 +142,7 @@
       "en": "least privilege",
       "corto": "Dar a cada pieza solo los permisos que necesita para su trabajo, y nada más. En un agente: cada tool ejecuta con los permisos de la persona que pregunta y solo hace lo que dice su nombre.",
       "largo": "Ataca las tres raíces de la agencia excesiva del OWASP 2026 (LLM03): funcionalidad de más (una tool que lee y también borra), permisos de más (una cuenta de servicio que ve todo) y autonomía de más (acciones de alto impacto sin aprobación). La identidad la pone el programa, nunca el modelo, y la tool revisa la ACL antes de devolver nada.",
-      "ejemplo": "`leer_pagina` del despacho recibe el Id de Entra de la abogada desde el programa, revisa si puede ver el expediente y lee con una cuenta de base de datos que no puede escribir.",
+      "ejemplo": "`leer_pagina` del despacho recibe la identidad de Entra ID de la abogada desde el programa, revisa si puede ver el expediente y lee con una cuenta de base de datos que no puede escribir.",
       "ver": ["guardrail", "aprobacion-humana", "tool"],
       "leccion": "agentes",
       "sensei": "identidad"
