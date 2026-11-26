@@ -28,7 +28,7 @@
       "d": 128,
       "q": 64
      },
-     "nota": "Meta (config leído de una copia pública del repositorio oficial). 80 capas, 64 cabezas y 8 juegos de K y V."
+     "nota": "Meta (parámetros de su repositorio llama-models). 80 capas, 64 cabezas y 8 juegos de K y V."
     },
     {
      "label": "Qwen3 30B-A3B (MoE)",

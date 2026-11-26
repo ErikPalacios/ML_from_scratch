@@ -42,11 +42,11 @@
 <rect class="f-chip" x="28" y="360" width="88" height="58" rx="6"/>
 <text class="f-l" x="34" y="374">GPU 0</text>
 <rect class="f-g" x="33" y="380" width="78" height="28" rx="4"/>
-<text class="f-s" x="72" y="398" text-anchor="middle" style="font-size:12px;font-weight:700">capas 1–22</text>
+<text class="f-s" x="72" y="398" text-anchor="middle" style="font-size:12px;font-weight:700">capas 1–21</text>
 <rect class="f-chip" x="132" y="360" width="88" height="58" rx="6"/>
 <text class="f-l" x="138" y="374">GPU 1</text>
 <rect class="f-g" x="137" y="380" width="78" height="28" rx="4"/>
-<text class="f-s" x="176" y="398" text-anchor="middle" style="font-size:12px;font-weight:700">capas 23–43</text>
+<text class="f-s" x="176" y="398" text-anchor="middle" style="font-size:12px;font-weight:700">capas 22–43</text>
 <rect class="f-chip" x="236" y="360" width="88" height="58" rx="6"/>
 <text class="f-l" x="242" y="374">GPU 2</text>
 <rect class="f-g" x="241" y="380" width="78" height="28" rx="4"/>

@@ -3,7 +3,7 @@ titulo: Varias GPUs: tensor y pipeline parallel
 en: Multiple GPUs: tensor and pipeline parallel
 subtitulo: Las cuatro formas de usar varias GPUs para servir un LLM (réplicas, tensor parallel, pipeline parallel y expert parallel), qué se pasan las GPUs en cada una y cuánto tarda, y cómo se decide entre ellas cuando el enlace entre tarjetas es PCIe y no NVLink.
 pregunta: El despacho tiene 3 L40S. ¿Pone una copia del modelo en cada una o reparte un solo modelo entre las tres? ¿Y si mañana quiere Llama 3.3 70B, que no cabe en una sola?
-sensei: cpu-gpu, flops, percentiles, unidades
+sensei: cpu-gpu, flops, llms, percentiles, unidades
 ---
 
 :::idea
@@ -23,7 +23,7 @@ Antes de seguir, dos cosas que Sensei explica a fondo y aquí solo se recuerdan:
 
 ### Tres razones para usar más de una GPU
 
-1. **El modelo no cabe.** Llama 3.3 70B en INT4 pesa ≈ 39.77 GB. Una L40S tiene 48 GB, y con el margen y el programa le quedan ≈ 43.2 útiles: los pesos entran, pero no queda lugar ni para una conversación de 8,192 tokens. No hay forma de servirlo en una sola.
+1. **El modelo no cabe.** Llama 3.3 70B en INT4 pesa ≈ 39.77 GB. Una L40S tiene 48 GB; con el margen de 10 % le quedan 43.2 útiles, y 2 se van en el programa que sirve el modelo. Los pesos entran, pero sobran 1.43 GB: no alcanza ni para una conversación de 8,192 tokens (2.68 GB). No hay forma de servirlo en una sola.
 2. **Se quiere atender a más gente.** Una L40S atiende bien a unas pocas conversaciones a la vez; el despacho tiene en promedio ≈ 5.6 en la hora pico. Hacen falta más GPUs para más conversaciones.
 3. **Se quiere que cada pregunta vaya más rápido.** Una sola L40S tarda ≈ 2.2 s en el prefill de 6,000 tokens. Si dos GPUs se reparten ese trabajo, cada pregunta tardaría menos.
 
@@ -34,6 +34,8 @@ Las cuatro formas con tres o cuatro GPUs. Réplicas: una copia entera del modelo
 :::
 
 ### Las cuatro formas, en una frase cada una
+
+En documentación y foros se abrevian por sus siglas en inglés: DP, TP, PP y EP.
 
 - **Réplicas, o data parallel.** Una [[copia-del-servidor|copia]] completa del modelo en cada GPU; un balanceador manda cada pregunta a una. Las GPUs no se hablan.
 - **Tensor parallel.** Cada matriz de cada capa se parte entre las GPUs; cada una calcula su pedazo y, dos veces por capa, juntan sus resultados.
@@ -75,7 +77,7 @@ El 10 es el máximo bruto por memoria; la ficha del despacho diseña con 8 por L
 
 - **Fallas independientes.** Si una L40S se muere, las otras dos siguen atendiendo. Es la [[redundancia|redundancia]] gratis: el despacho pierde un tercio de la capacidad, no el servicio.
 - **Nada que afinar entre GPUs.** Sin comunicación, no importa cómo conecte la tarjeta madre las ranuras.
-- **Se puede hacer con o sin el flag.** Una forma es un solo proceso de vLLM con `--data-parallel-size 3`, que reparte internamente (y entonces `--max-num-seqs`, el tope de conversaciones, aplica a cada réplica). Otra, muy común, son tres procesos `vllm serve` independientes, uno por GPU, detrás de un balanceador. La documentación de vLLM llama a esto balanceo «externo». El balanceador puede ser nginx o el gateway que se pone delante de los modelos (lo ve la lección «[Gateway, API compatible con OpenAI, autenticación y varios modelos](/gateway/)»).
+- **Se pueden arrancar de dos maneras**, con un flag de vLLM o con procesos separados (abajo, el detalle).
 
 Y lo que cuestan:
 
@@ -83,6 +85,10 @@ Y lo que cuestan:
 - **Una réplica no hace más rápida una pregunta.** El prefill de 6,000 tokens sigue tardando ≈ 2.2 s en una L40S. Las réplicas atienden a **más** gente, no más **rápido**.
 - **Cada réplica necesita que el modelo quepa en sus GPUs.** Con Llama 3.3 70B en una L40S, no.
 
+
+:::profundo Dos maneras de arrancar las réplicas
+Una forma es un solo proceso de vLLM con `--data-parallel-size 3`, que reparte internamente (y entonces `--max-num-seqs`, el tope de conversaciones, aplica a cada réplica). Otra son tres procesos `vllm serve` independientes, uno por GPU, detrás de un balanceador: la documentación de vLLM lo llama balanceo «externo» y dice que un modelo que no es MoE lo puede usar así, con instancias independientes. El balanceador puede ser nginx (un proxy web muy usado) o el gateway que se pone delante de los modelos (lo ve la lección «[Gateway, API compatible con OpenAI, autenticación y varios modelos](/gateway/)»).
+:::
 
 ## Tensor parallel: partir cada matriz {Tensor parallel: splitting each matrix}
 
@@ -93,7 +99,7 @@ Cuando el modelo no cabe en una GPU, hay que partirlo. La idea más poderosa, y 
 Cada capa de un LLM hace dos cosas, una tras otra (lo ves en [Transformers y LLMs](https://sensei.trueml.app/llms/)):
 
 1. **La atención**, donde cada token mira a los anteriores. Trabaja con varias **cabezas** (*heads*) a la vez, cada una con sus propias matrices. Qwen3 32B tiene 64 cabezas por capa.
-2. **El MLP**, dos multiplicaciones de matrices con una función en medio. En Qwen3 32B, la primera lleva el vector del token de 5,120 números a 25,600 y la segunda lo regresa a 5,120.
+2. **El MLP**, dos multiplicaciones de matrices con una función en medio. En Qwen3 32B, la primera lleva el vector del token de 5,120 números a 25,600 y la segunda lo regresa a 5,120. (En Qwen3 la «primera» son dos matrices gemelas, *gate* y *up*, que se parten igual: aquí cuentan como una.)
 
 El vector de 5,120 números que entra y sale de cada capa se llama el *hidden state*, y su largo, \(h\) = 5,120, el *hidden size*. Es lo que viaja entre GPUs, así que vas a verlo mucho.
 
@@ -117,7 +123,7 @@ La atención se parte igual, pero por **cabezas**: cada GPU se queda con un grup
 
 Esa suma tiene nombre. Un [[all-reduce|all-reduce]] es una operación donde cada GPU pone un vector, se suman todos número por número, y **todas** las GPUs se quedan con el resultado. Es una [[colectiva|operación colectiva]]: participan todas las GPUs del grupo a la vez, y ninguna sigue hasta que la operación termina.
 
-Con el truco de Megatron, cada capa necesita exactamente **dos** all-reduce para servir un token: uno después de la atención y otro después del MLP. El paper lo cuenta como dos en la pasada hacia adelante y dos en la de regreso; la de regreso solo existe al entrenar. Qwen3 32B tiene 64 capas, así que cada token del despacho, con tensor parallel, hace **128 all-reduce**.
+Con el truco de Megatron, cada capa necesita exactamente **dos** all-reduce para servir un token: uno después de la atención y otro después del MLP. El paper lo cuenta como dos en la pasada hacia adelante y dos en la de regreso; la de regreso solo existe al entrenar. Qwen3 32B tiene 64 capas, así que cada token del despacho, con tensor parallel, hace **128 all-reduce**. (En vLLM hay dos juntas más, fuera de las capas: una al leer la tabla de tokens y otra al juntar la salida. Las cuentas las dejan fuera: son 2 contra 128.)
 
 :::analogia El equipo que llena una tabla gigante
 Imagina que dos contadores tienen que llenar una tabla de 25,600 columnas. Se reparten las columnas: cada uno llena la mitad, sin hablar, a la mitad del tiempo. Al final, el jefe necesita el total de cada renglón, y eso solo sale sumando lo de los dos. Tienen que juntarse, pasarse sus subtotales y sumar: esa junta es el all-reduce.
@@ -144,7 +150,7 @@ Durante otros \(n − 1\) pasos, cada GPU pasa su trozo ya sumado a la de al lad
 
 En cada paso, todas mandan y reciben a la vez: nadie es embudo. Cada GPU manda \(2(n − 1)\) trozos de tamaño \(N ÷ n\): en total, \(2(n − 1)/n\) veces su vector. La documentación de rendimiento de NVIDIA para sus pruebas de comunicación (*nccl-tests*) da ese mismo factor para el all-reduce: cada elemento necesita \(2(n − 1)\) transferencias, y eso vale para cualquier algoritmo hecho de envíos de una GPU a otra, no solo para el anillo.
 
-Quien hace todo esto en las GPUs de NVIDIA es [[nccl|NCCL]] (se pronuncia «nickel»), la biblioteca de comunicación entre GPUs de NVIDIA. Su documentación (versión 2.32.3, consultada el 2026-11-26) dice que conoce la **topología**, es decir, cómo están conectadas las GPUs, y que funciona por PCIe, por NVLink, por InfiniBand y por la red normal. vLLM y SGLang la usan por dentro. NCCL no siempre usa el anillo: para mensajes chicos tiene también algoritmos en forma de árbol, que tardan menos en arrancar. Por eso la fórmula del anillo es un **modelo** del costo, no el algoritmo exacto en todos los tamaños.
+Quien hace todo esto en las GPUs de NVIDIA es [[nccl|NCCL]] (se pronuncia «nickel»), la biblioteca de comunicación entre GPUs de NVIDIA. Su documentación (versión 2.32.3, consultada el 2026-11-26) dice que conoce la **topología**, es decir, cómo están conectadas las GPUs, y que funciona por PCIe, por NVLink, por InfiniBand (una red rápida para unir servidores) y por la red normal. vLLM y SGLang la usan por dentro. NCCL no siempre usa el anillo: desde 2019 (versión 2.4) tiene también algoritmos en forma de árbol, que según NVIDIA tardan menos en operaciones chicas y medianas, y por omisión elige el algoritmo solo, según la topología. Por eso la fórmula del anillo es un **modelo** del costo, no el algoritmo exacto en todos los tamaños.
 
 ### La misma cuenta, en Python
 
@@ -229,7 +235,7 @@ Lectura de memoria de cada GPU // la mitad de los pesos y del KV: (19.32 + 1.64)
 = La comunicación es ≈ 7 % del paso (≈ 18 % si \(α\) fuera 30 µs). Y casi toda es latencia: los bytes del token cruzan PCIe en 42 µs.
 :::
 
-Esa última línea contradice lo que casi todos adivinan: «PCIe es 14 veces más lenta que NVLink, así que tensor parallel por PCIe es 14 veces más lento». En el decode con pocas conversaciones, los bytes son poquísimos y lo que pesa son las **128 esperas** por token, que con NVLink seguirían ahí.
+Esa última línea contradice lo que casi todos adivinan: «PCIe es 14 veces más lenta que NVLink, así que tensor parallel por PCIe es 14 veces más lento». En el decode con pocas conversaciones, los bytes son poquísimos y lo que pesa son las **128 esperas** por token, que no dependen del ancho de banda: un cable más ancho no las quita (la cuenta usa la misma \(α\) para los dos cables, otro supuesto).
 
 ### Donde sí duele: el prefill
 
@@ -279,7 +285,7 @@ Entre PCIe 4.0 y NVLink 4 hay ≈ 14 veces: 450 ÷ 31.5 ≈ 14.3 por dirección,
 Un hallazgo honesto: **no hay un benchmark publicado de L40S con tensor parallel por PCIe contra NVLink** que se pueda citar, porque la L40S no tiene NVLink. Lo más cercano:
 
 - **NVIDIA, agosto de 2024.** Un blog con Llama 3.1 70B en H200 con tensor parallel de 2, con preguntas de 8,000 tokens y respuestas de 256. Compara NVSwitch (900 GB/s entre cualquier par) contra enlaces punto a punto de 128 GB/s. Con batch de 1, la ventaja de NVSwitch es **1.0×**: nada. Con batch de 32, **1.5×**. Dice que la sincronización de tensor parallel mueve hasta 20 GB por GPU en una consulta. Ojo: es NVLink contra NVLink con menos enlaces, no PCIe, y sus cifras son modeladas con mediciones internas.
-- **Una prueba casera con 2 GPUs L40 (no L40S) por PCIe**, Qwen3 14B con vLLM, publicada en LinkedIn: con 64 peticiones a la vez, tensor parallel dio un poco más de tokens por segundo que dos réplicas y que pipeline parallel. Es una fuente débil, sin método verificable, y con un modelo que cabe en una GPU.
+- **Una prueba de un usuario en el foro oficial de vLLM, julio de 2026.** Dos L40S por PCIe 4.0, sin NVLink, un MoE de ≈ 35 mil millones de parámetros en 8 bits, preguntas cortas de 512 tokens y respuestas de 128. Tensor parallel de 2 atendió ≈ 1.3 veces más peticiones por segundo que pipeline parallel de 2 (0.95 contra 0.72) y escribió cada token en 82 ms contra 109; el usuario dice que dos réplicas también quedaron atrás, sin dar números. Es una sola corrida, sin la versión de vLLM y con entradas 12 veces más cortas que las del despacho: sirve como pista, no como regla.
 
 La forma de la curva de NVIDIA coincide con la cuenta de la sección anterior: con batch chico el cable casi no importa; con batch grande y con prefills largos, sí.
 
@@ -287,7 +293,7 @@ La forma de la curva de NVIDIA coincide con la cuenta de la sección anterior: c
 
 La documentación de vLLM (consultada el 2026-11-26) da una regla general: si el modelo cabe en una GPU, probablemente no hace falta repartir; si no cabe pero cabe en un servidor, tensor parallel con todas sus GPUs; si no cabe en un servidor, tensor parallel dentro de cada servidor y pipeline parallel entre servidores.
 
-Y tiene una nota que nombra justo a la L40S. Está dentro del caso en que el número de GPUs no divide bien el modelo: ahí sugiere pipeline parallel, que admite repartos disparejos, y agrega que si las GPUs del servidor no tienen NVLink (pone de ejemplo la L40S), conviene pipeline parallel en vez de tensor parallel, «para más throughput y menos sobrecarga de comunicación». Dos matices: la nota **no trae una medición**, y habla de throughput, no de lo que tarda una pregunta. Úsala como lo que es, una recomendación del equipo de vLLM, y no la estires a «tensor parallel por PCIe siempre pierde». La prueba casera de arriba, débil como es, encontró lo contrario a concurrencia alta.
+Y tiene una nota que nombra justo a la L40S. Está dentro del caso en que el número de GPUs no divide bien el modelo: ahí sugiere pipeline parallel, que admite repartos disparejos, y agrega que si las GPUs del servidor no tienen NVLink (pone de ejemplo la L40S), conviene pipeline parallel en vez de tensor parallel, «para más [[throughput-de-tokens|throughput]] (tokens por segundo en total) y menos sobrecarga de comunicación». Dos matices: la nota **no trae una medición**, y habla de throughput, no de lo que tarda una pregunta. Úsala como lo que es, una recomendación del equipo de vLLM, y no la estires a «tensor parallel por PCIe siempre pierde». La prueba del foro, con todas sus limitaciones, encontró lo contrario con dos L40S.
 
 ### La cuenta, para 1, 2 y 4 GPUs
 
@@ -325,14 +331,14 @@ for n in (1, 2, 4):
 Lee dos cosas en la tabla. Primera: con 8 conversaciones, una L40S sola da 18.6 tokens por segundo a cada una, debajo de los 20 que pide el despacho; dos en tensor parallel dan 35.2. Repartir los pesos hace que cada GPU lea la mitad en cada paso. Segunda: de 2 a 4 GPUs, el cálculo del prefill se parte otra vez a la mitad (de 1.09 a 0.54 s), pero la comunicación **sube** (de 0.25 a 0.38 s), porque el factor del anillo pasa de 1 a 1.5. Cuantas más GPUs, más pesa el cable.
 
 :::profundo Lo que esta cuenta no ve
-La cuenta supone que la comunicación no se solapa con el cálculo (el peor caso) y que cada GPU sigue leyendo su memoria al 70 % aunque sus matrices sean la mitad de grandes; con matrices más chicas, la eficiencia suele bajar. Tampoco cuenta el tiempo de lanzar el doble de kernels pequeños. Todo eso empuja en contra de tensor parallel. Lo que la cuenta sí da es la **forma**: en el decode manda la latencia, en el prefill y con batches grandes manda el ancho de banda. El número de verdad sale de medir.
+La cuenta supone que la comunicación no se solapa con el cálculo (el peor caso) y que cada GPU sigue leyendo su memoria al 70 % aunque sus matrices sean la mitad de grandes; con matrices más chicas, la eficiencia suele bajar. Tampoco cuenta el tiempo de lanzar más *kernels* pequeños (cada kernel es una operación que la CPU le encarga a la GPU). Todo eso empuja en contra de tensor parallel. Lo que la cuenta sí da es la **forma**: en el decode manda la latencia, en el prefill y con batches grandes manda el ancho de banda. El número de verdad sale de medir.
 :::
 
 ### El camino que sí recorren los bytes
 
 Que dos GPUs estén en el mismo servidor no quiere decir que el camino entre ellas sea corto. El servidor que cotiza la lección «[Comprar hardware: de la workstation al rack](/comprar-hardware/)» tiene **2 CPUs**, y cada ranura PCIe cuelga de una de ellas. Dos GPUs del mismo CPU se hablan por PCIe pasando por ese CPU; dos de CPUs distintos tienen que cruzar además el enlace entre los dos procesadores.
 
-NCCL distingue esos casos. Su variable `NCCL_P2P_LEVEL` fija hasta qué distancia usa la comunicación directa entre GPUs, con niveles que van de cerca a lejos: `PIX` (mismo switch PCIe), `PXB` (varios switches), `PHB` (pasa por el CPU) y `SYS` (cruza entre los dos CPUs). Para tensor parallel en un servidor así, el par de GPUs debe ir en ranuras del **mismo** CPU. Cómo ver la topología de tu servidor está en la sección «Los flags, lo que se ve al arrancar y cómo se mide».
+NCCL distingue esos casos. Su variable `NCCL_P2P_LEVEL` fija hasta qué distancia usa la comunicación directa entre GPUs, con niveles que van de cerca a lejos: `PIX` (mismo switch PCIe; un switch es un chip que reparte un enlace PCIe entre varias ranuras), `PXB` (varios switches), `PHB` (pasa por el CPU) y `SYS` (cruza entre los dos CPUs). Para tensor parallel en un servidor así, conviene que el par de GPUs vaya en ranuras del **mismo** CPU (la doc de NCCL llama `PHB` a ese caso: mismo nodo NUMA, es decir, la misma CPU y su memoria). Cómo ver la topología de tu servidor está en la sección «Los flags, lo que se ve al arrancar y cómo se mide».
 
 :::nota Un detalle de vLLM con PCIe
 vLLM trae su propio all-reduce para mensajes chicos, más rápido que NCCL en ese caso. En su código (rama principal, 2026-11-26), lo **apaga** con más de 2 GPUs conectadas solo por PCIe, con el aviso de que no está soportado en más de dos GPUs solo-PCIe. Con 2 L40S puede usarlo; con 4, cae a NCCL. Es un detalle de implementación que puede cambiar entre versiones: compruébalo en la tuya.
@@ -342,7 +348,7 @@ vLLM trae su propio all-reduce para mensajes chicos, más rápido que NCCL en es
 
 ### La regla de las cabezas
 
-Tensor parallel reparte las cabezas de atención entre las GPUs, así que el número de GPUs tiene que **dividir** el número de cabezas. Qwen3 32B tiene 64 cabezas de consulta (*query*) por capa y 8 juegos de K y V compartidos ([[gqa|GQA]]); Llama 3.3 70B, también 64 y 8 (los dos, de su `config.json`; el de Llama, leído de una copia pública del repositorio oficial, que pide aceptar la licencia).
+Tensor parallel reparte las cabezas de atención entre las GPUs, así que el número de GPUs tiene que **dividir** el número de cabezas. Qwen3 32B tiene 64 cabezas de consulta (*query*) por capa y 8 juegos de K y V compartidos ([[gqa|GQA]]); Llama 3.3 70B, también 64 y 8 (el de Qwen, de su `config.json`; el de Llama, de los parámetros que publica Meta en su repositorio `llama-models`, porque su `config.json` en Hugging Face pide aceptar la licencia).
 
 - 64 se divide entre 1, 2, 4, 8, 16, 32 y 64. Esos son los tensor parallel posibles.
 - **64 no se divide entre 3.** Con las 3 L40S del despacho, tensor parallel de 3 **no existe**.
@@ -364,7 +370,7 @@ c_{máx} = ⌊ frac{(1 − f) × V − W/n − M_{prog}}{K_{conv}/n} ⌋
 - n: las GPUs de tensor parallel
 - K_{conv}: el [[kv-cache|KV cache]] de una conversación al tope de contexto, en GB (de todo el modelo)
 - c: las conversaciones a la vez
-- M_{prog}: el programa y sus búferes, **en cada GPU** (2 GB en el despacho, supuesto)
+- M_{prog}: el programa y sus búferes, **en cada GPU** (2 GB en el despacho, supuesto; ojo: la herramienta de VRAM lo cuenta una sola vez para todas las GPUs, ver abajo)
 - f: el margen que se deja libre (0.10)
 - V: la VRAM de una GPU (48 GB la L40S)
 - c_{máx}: las conversaciones que caben por memoria
@@ -390,7 +396,11 @@ Qwen3 32B en una L40S deja 21.88 GB libres: 10 conversaciones al tope. En dos L4
 :::
 
 :::ojo
-El \(M_{prog}\) de 2 GB por GPU es optimista con tensor parallel. NCCL reserva búferes en cada GPU, y vLLM guarda en cada una sus grafos de CUDA y las activaciones del pico del prefill. Con \(n\) > 1, usa 3 o 4 GB por GPU hasta que lo midas. Con 4 GB, Llama 3.3 70B en 2 L40S baja de 15 a 14 conversaciones.
+El \(M_{prog}\) de 2 GB por GPU es optimista con tensor parallel. NCCL reserva búferes para hablar con las otras GPUs (4 MiB cada uno por omisión, según su documentación), y vLLM guarda en cada GPU sus grafos de CUDA (las secuencias de operaciones que graba de antemano para lanzarlas de un jalón; su documentación avisa que ocupan memoria extra) y las activaciones del pico del prefill. Con \(n\) > 1, usa 3 o 4 GB por GPU hasta que lo midas: es un supuesto de esta lección, no una cifra publicada. Con 4 GB, Llama 3.3 70B en 2 L40S baja de 15 a 14 conversaciones.
+:::
+
+:::profundo La herramienta de VRAM cuenta el programa una sola vez
+La [herramienta de VRAM](/herramientas/vram/) suma la VRAM de las \(n\) GPUs y resta \(M_{prog}\) **una sola vez** (por eso su página pide subirlo cuando hay más GPUs); la fórmula de esta lección lo resta en **cada** GPU. Con los mismos 2 GB, Llama 3.3 70B en 2 L40S da 16 conversaciones en la herramienta y 15 aquí. Para tensor parallel, la de aquí es la que se parece a lo que pasa.
 :::
 
 :::calculadora varias-gpus-memoria
@@ -403,7 +413,7 @@ La otra forma de partir el modelo es por capas. Con [[pipeline-parallel|pipeline
 
 Lo bueno: entre etapas viaja **un solo vector por token**, de una GPU a la siguiente, en un envío de punto a punto. En Qwen3 32B son 10,240 bytes por token y por frontera, que por PCIe 4.0 cruzan en ≈ 0.3 µs más la latencia del envío. Contra los 128 all-reduce de tensor parallel, es casi nada. Por eso el paper de Megatron-LM de 2021 (Narayanan y otros) dice que tensor parallel va mejor **dentro** de un servidor, por su costosa comunicación all-reduce, y que pipeline parallel usa una comunicación punto a punto mucho más barata, que se puede hacer **entre** servidores. Es otro paper de **entrenamiento**, en servidores con NVLink; la regla se aplica a servir, pero no se traslada tal cual a 3 L40S por PCIe.
 
-También admite repartos **disparejos**: 64 capas entre 3 GPUs son 22, 21 y 21. Por eso, con las 3 L40S del despacho, pipeline parallel de 3 sí existe y tensor parallel de 3 no.
+También admite repartos **disparejos**: 64 capas entre 3 GPUs son 21, 22 y 21 (vLLM le da la capa que sobra a la etapa de en medio y no a la última, que además carga la salida del modelo; se puede cambiar con la variable `VLLM_PP_LAYER_PARTITION`). Por eso, con las 3 L40S del despacho, pipeline parallel de 3 sí existe y tensor parallel de 3 no.
 
 ### La burbuja
 
@@ -439,7 +449,7 @@ GPipe dice que con 4 micro-batches por cada etapa la burbuja ya es despreciable.
 - **No hace más rápido un token.** Cada token tiene que pasar por las 64 capas, en orden. Con 3 etapas, cada GPU lee un tercio de los pesos, pero una tras otra: el token tarda lo mismo que en una sola GPU, ≈ 35 ms con el despacho, más los envíos.
 - **No hace más rápido un prefill**, por la misma razón: las capas van en fila.
 - **Sí reparte la memoria.** Cada GPU guarda un tercio de los pesos y el KV cache de sus capas, así que caben modelos grandes y más conversaciones.
-- **Sí da throughput**, si hay suficientes conversaciones a la vez para llenar la tubería: con la tubería llena, las tres GPUs trabajan a la vez.
+- **Sí da [[throughput-de-tokens|throughput]]**, si hay suficientes conversaciones a la vez para llenar la tubería: con la tubería llena, las tres GPUs trabajan a la vez.
 
 :::analogia La línea de ensamble de una armadora
 En una armadora, el chasis pasa por la estación de soldadura, luego la de pintura, luego la de interiores. Si solo hay un coche en la planta, dos estaciones están paradas. Si entran coches uno tras otro, las tres trabajan siempre, y sale un coche por turno.
@@ -454,10 +464,10 @@ Un modelo [[moe|MoE]] (*mixture of experts*) tiene, en cada capa, muchas redes c
 Con [[expert-parallel|expert parallel]] (paralelismo de expertos), cada GPU guarda una parte de los expertos: con 4 GPUs, 32 de los 128 en cada una. La atención se sigue haciendo en cada GPU (con réplicas o con tensor parallel), pero cuando llega el MLP, cada token tiene que **viajar** a las GPUs donde viven sus 8 expertos y su resultado tiene que regresar. Eso no es un all-reduce, donde todos suman lo mismo: es un [[all-to-all|all-to-all]], donde cada GPU le manda a cada otra un paquete distinto (los tokens que le tocan).
 
 :::ejemplo Cuánto viaja con Qwen3 30B-A3B
-El *hidden size* de Qwen3 30B-A3B es 2,048: un token pesa 2,048 × 2 = 4,096 bytes en 16 bits. Si sus 8 expertos estuvieran todos en otras GPUs, el token viajaría 8 veces de ida y 8 de vuelta en cada una de las 48 capas: 2 × 8 × 4,096 × 48 ≈ 3.1 MB por token, en el peor caso. Es una cuenta de este curso, no una medición: en la práctica, varios de los 8 expertos de un token suelen vivir en la misma GPU, y entonces el token no viaja 8 veces.
+El *hidden size* de Qwen3 30B-A3B es 2,048: un token pesa 2,048 × 2 = 4,096 bytes en 16 bits. Si sus 8 expertos estuvieran todos en otras GPUs, el token viajaría 8 veces de ida y 8 de vuelta en cada una de las 48 capas: 2 × 8 × 4,096 × 48 ≈ 3.1 MB por token, en el peor caso. Es una cuenta de este curso, no una medición, y es el peor caso. Con 4 GPUs, 8 expertos siempre comparten GPU (no hay 8 GPUs donde ponerlos): si se eligen al azar, caen en promedio en ≈ 3.6 GPUs distintas, y una puede ser la propia, adonde no hay que viajar. Si el programa manda el token una sola vez a cada GPU de destino, viaja mucho menos que 8 veces; cómo agrupa los envíos depende de cada implementación.
 :::
 
-Los flags, según la documentación consultada el 2026-11-26: en vLLM, `--enable-expert-parallel`, que hace que las capas MoE usen expert parallel con el mismo grado que el tensor parallel (sin el flag, los expertos se parten como cualquier matriz, con tensor parallel); en SGLang, `--expert-parallel-size` (o `--ep-size`). Para MoE, la documentación de vLLM recomienda combinar réplicas en la atención con expert parallel en los expertos.
+Los flags, según la documentación consultada el 2026-11-26: en vLLM, `--enable-expert-parallel`, que reparte los expertos entre todas las GPUs del proceso (el tamaño del tensor parallel por el de las réplicas; con solo tensor parallel, el mismo número de GPUs). Sin el flag, los expertos se parten como cualquier matriz, con tensor parallel. En SGLang, `--expert-parallel-size` (o `--ep-size`). Para MoE, la documentación de vLLM sugiere réplicas (data parallel) en la atención y expert parallel o tensor parallel en los expertos.
 
 Ojo con las cabezas también aquí: Qwen3 30B-A3B tiene 32 cabezas de consulta y solo 4 juegos de K y V. Tensor parallel de 8 es válido (32 ÷ 8 = 4), pero repetiría los juegos de K y V. El despacho lo tiene en su lista de alternativas; con 30.5 mil millones de parámetros en total, en INT4 cabe en una L40S, y ahí vuelve a ganar la réplica.
 
@@ -549,13 +559,13 @@ Las cuentas de esta lección tienen un número inventado a propósito, \(α\), y
 
 ### Ver la topología
 
-El comando `nvidia-smi topo -m`, que viene con el driver de NVIDIA, imprime una tabla con cada par de GPUs y cómo se conectan, con las mismas siglas que usa NCCL: `PIX`, `PXB`, `PHB`, `SYS` o `NV#` si hay NVLink. En un servidor de 2 CPUs con 4 L40S, lo esperable es ver `PHB` (o `PIX`/`PXB`) entre las GPUs del mismo CPU y `SYS` entre las de CPUs distintos. Esa tabla dice qué par usar para tensor parallel.
+El comando `nvidia-smi topo -m`, que viene con el driver de NVIDIA, imprime una tabla con cada par de GPUs y cómo se conectan, con siglas casi iguales a las de NCCL: `PIX`, `PXB`, `PHB`, `SYS`, o `NV#` si hay NVLink (la leyenda que imprime el propio comando las explica). La tabla trae también `NODE`, que NCCL no usa como nivel: el camino pasa entre dos puentes PCIe de la misma CPU. En un servidor de 2 CPUs con 4 L40S, lo esperable es ver `NODE` o `PHB` (o `PIX`/`PXB` si hay un switch PCIe en la tarjeta madre) entre las GPUs de la misma CPU, y `SYS` entre las de CPUs distintas. Esa tabla dice qué par usar para tensor parallel.
 
 ### Medir el all-reduce
 
 Las pruebas de comunicación de NVIDIA, *nccl-tests*, traen un programa, `all_reduce_perf`, que hace all-reduce de tamaños crecientes entre las GPUs que le digas y reporta, para cada tamaño, el tiempo y dos anchos de banda: el *algbw* (el tamaño entre el tiempo) y el *busbw*, que es el *algbw* multiplicado por \(2(n − 1)/n\), el mismo factor del anillo, para que se pueda comparar contra el ancho de banda del cable. Dos lecturas importan para esta lección:
 
-- **Con mensajes chicos** (unos KB, como el decode del despacho), el tiempo casi no cambia con el tamaño: eso es \(α\).
+- **Con mensajes chicos** (unos KB, como el decode del despacho), si el modelo de esta lección vale, el tiempo casi no cambia con el tamaño: ese piso es \(α\).
 - **Con mensajes grandes** (decenas de MB, como el prefill), el *busbw* se acerca al techo del enlace: eso dice cuánto de los 31.5 GB/s de PCIe 4.0 llega de verdad.
 
 Con esos dos números, la calculadora de comunicación deja de usar supuestos.
@@ -582,9 +592,9 @@ Y al final, lo que de verdad decide: una prueba de carga con las preguntas del d
 
 **El despacho.** Qwen3 32B en INT4 de AWQ cabe en una L40S, así que las 3 L40S del sizing van como **3 réplicas**, una por GPU, con un balanceador que manda cada conversación a la misma réplica para aprovechar el prefix caching. Tensor parallel de 3 no existe con 64 cabezas, y pipeline parallel de 3 no haría más rápida ninguna pregunta. Lo que las réplicas no resuelven es el primer token de ≈ 2.4 s. La palanca que queda es tensor parallel de 2 en pares, que en la cuenta baja el prefill a ≈ 1.3 s, pero pide una cuarta L40S, depende de una latencia de PCIe que nadie ha medido en ese servidor y va contra la sugerencia de la documentación de vLLM: se prueba en el piloto, junto con la alternativa de 2 RTX PRO 6000 Server Edition. Si un día quiere Llama 3.3 70B, ya no cabe en una L40S: va en tensor parallel de 2 (15 conversaciones) o en una sola tarjeta de 96 GB, y con preguntas de 6,000 tokens el primer token pasa de 2 s salvo con 4 GPUs.
 
-**Una startup con un MoE grande.** Supuesto del ejemplo: una empresa que sirve a varios clientes un modelo MoE de varios cientos de miles de millones de parámetros en un servidor de 8 GPUs unidas por NVLink. El modelo no cabe en una GPU, pero cada token usa una fracción chica de los parámetros. Aquí la combinación típica es réplicas en la atención y expert parallel en los expertos (lo que recomienda la documentación de vLLM para MoE): cada GPU guarda un octavo de los expertos y los tokens viajan con all-to-all a donde viven los suyos. El riesgo propio de esta forma es el desbalance: si muchos tokens eligen los mismos expertos, la GPU que los tiene se vuelve el embudo y las demás esperan.
+**Una startup con un MoE grande.** Supuesto del ejemplo: una empresa que sirve a varios clientes un modelo MoE de varios cientos de miles de millones de parámetros en un servidor de 8 GPUs unidas por NVLink. El modelo no cabe en una GPU, pero cada token usa una fracción chica de los parámetros. Aquí la combinación típica es réplicas en la atención y expert parallel en los expertos (lo que recomienda la documentación de vLLM para MoE): cada GPU guarda un octavo de los expertos y los tokens viajan con all-to-all a donde viven los suyos. El riesgo propio de esta forma es el desbalance: si muchos tokens eligen los mismos expertos, la GPU que los tiene se vuelve el embudo y las demás esperan. La documentación de vLLM avisa que el reparto de tokens entre expertos puede estar muy cargado de un lado, y trae un balanceador de expertos (EPLB) que los cambia de GPU según el uso, o duplica los más pedidos a cambio de memoria.
 
-**Un laboratorio con 2 servidores de 8 GPUs.** Supuesto del ejemplo: un laboratorio de investigación con dos servidores HGX de 8 H100 cada uno (8 GPUs [[sxm|SXM]] unidas por NVLink 4 dentro de cada servidor) y una red InfiniBand entre los dos, que sirve un modelo que no cabe en 8 GPUs. Hace lo que dice la documentación de vLLM: tensor parallel de 8 **dentro** de cada servidor, donde están las 128 colectivas por token y hay 450 GB/s por dirección, y pipeline parallel de 2 **entre** servidores, donde solo cruza un vector por token. Si hicieran tensor parallel de 16 a través de la red, cada token esperaría decenas de all-reduce por un cable mucho más lento que NVLink. La regla de Megatron (tensor parallel dentro, pipeline entre) existe justo para este caso.
+**Un laboratorio con 2 servidores de 8 GPUs.** Supuesto del ejemplo: un laboratorio de investigación con dos servidores HGX de 8 H100 cada uno (HGX es la placa de NVIDIA con 8 GPUs ya unidas) (8 GPUs [[sxm|SXM]] unidas por NVLink 4 dentro de cada servidor) y una red InfiniBand entre los dos, que sirve un modelo que no cabe en 8 GPUs. Hace lo que dice la documentación de vLLM: tensor parallel de 8 **dentro** de cada servidor, donde están las 128 colectivas por token y hay 450 GB/s por dirección, y pipeline parallel de 2 **entre** servidores, donde solo cruza un vector por token. Si hicieran tensor parallel de 16 a través de la red, cada token esperaría decenas de all-reduce por un cable mucho más lento que NVLink. La regla de Megatron (tensor parallel dentro, pipeline entre) existe justo para este caso.
 
 **Fuera de las computadoras: una cocina de banquetes.** Tres cocineros pueden repartirse un banquete de tres formas: cada uno cocina platillos completos para sus mesas (réplicas); los tres hacen el mismo platillo y se juntan a mezclar dos veces (tensor parallel, que solo funciona con las estaciones pegadas); o uno pica, otro guisa y otro emplata (pipeline parallel, que solo rinde con muchos platillos en camino).
 

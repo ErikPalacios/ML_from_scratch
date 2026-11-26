@@ -26,7 +26,7 @@
       "W": 39.77,
       "K": 2.05
      },
-     "nota": "Hidden de 8,192 y 80 capas (config.json de Meta, leído de una copia pública). Pesos de 39.77 GB y 2.05 GB de KV por conversación a media respuesta (6,250 tokens × 320 KiB)."
+     "nota": "Hidden de 8,192 y 80 capas (los parámetros que publica Meta en su repositorio llama-models). Pesos de 39.77 GB y 2.05 GB de KV por conversación a media respuesta (6,250 tokens × 320 KiB)."
     }
    ]
   },
