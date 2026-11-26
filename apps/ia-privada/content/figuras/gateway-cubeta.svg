@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 470" role="img" aria-labelledby="f-gateway-cubeta-t" class="f-svg" style="max-width:420px">
+<title id="f-gateway-cubeta-t">El token bucket de una persona del despacho, contado en tokens del LLM. Una cubeta de 19,500 tokens que se rellena sola a 936 tokens por minuto. Cada pregunta típica cuesta 6,500 tokens: 6,000 de entrada más 500 de salida. Abajo, cuatro momentos: a las 10:00 la cubeta está llena; tres preguntas seguidas la vacían; una cuarta en ese momento recibe un 429 con Retry-After de unos 6.9 minutos; a las 10:07 la cubeta ya tiene 7 × 936 = 6,552 tokens y la cuarta pregunta pasa.</title>
+<text class="f-l" x="14" y="24">LA CUBETA DE UNA PERSONA, EN TOKENS</text>
+<rect class="f-card" x="10" y="36" width="340" height="190" rx="16"/>
+<rect class="f-b2" x="40" y="56" width="120" height="22" rx="6"/>
+<text class="f-s" x="100" y="72" text-anchor="middle" style="font-size:12px">recarga 936 / min</text>
+<line class="f-flecha" x1="100" y1="80" x2="100" y2="94"/><path class="f-punta" d="M94,92 L106,92 L100,100 Z"/>
+<path class="f-linea" d="M50,104 L58,210 L142,210 L150,104" style="stroke-width:2.5"/>
+<path class="f-b" d="M53.5,150 L58,210 L142,210 L146.5,150 Z" style="opacity:.85"/>
+<text class="f-s" x="100" y="186" text-anchor="middle" style="font-size:12px;font-weight:700;fill:var(--ink)">nivel</text>
+<text class="f-t" x="176" y="120" style="font-size:14px">Cubeta: 19,500 tokens</text>
+<text class="f-s" x="176" y="138" style="font-size:12px">= 3 preguntas de 6,500</text>
+<text class="f-t" x="176" y="166" style="font-size:14px">Cada pregunta cobra</text>
+<text class="f-s" x="176" y="184" style="font-size:12px">6,000 de entrada + 500 de salida</text>
+<text class="f-s" x="176" y="206" style="font-size:12px">pasa si el nivel ≥ 6,500</text>
+<text class="f-l" x="14" y="252">CUATRO MOMENTOS DE UNA MAÑANA</text>
+<rect class="f-card" x="10" y="262" width="340" height="198" rx="16"/>
+<text class="f-s" x="26" y="290" style="font-size:12px;font-weight:700">10:00</text>
+<rect class="f-chip" x="80" y="278" width="200" height="16" rx="4"/>
+<rect class="f-b" x="80" y="278" width="200" height="16" rx="4"/>
+<text class="f-s" x="290" y="291" style="font-size:12px">19,500</text>
+<text class="f-s" x="80" y="310" style="font-size:11px">llena: puede preguntar 3 seguidas</text>
+<text class="f-s" x="26" y="338" style="font-size:12px;font-weight:700">10:00</text>
+<rect class="f-chip" x="80" y="326" width="200" height="16" rx="4"/>
+<text class="f-s" x="290" y="339" style="font-size:12px">0</text>
+<text class="f-s" x="80" y="358" style="font-size:11px">tras 3 preguntas seguidas: vacía</text>
+<text class="f-s" x="26" y="386" style="font-size:12px;font-weight:700">10:00</text>
+<rect class="f-o" x="80" y="374" width="200" height="16" rx="4"/>
+<text class="f-s" x="180" y="386" text-anchor="middle" style="font-size:11px;font-weight:700;fill:var(--ink)">4.ª pregunta: 429 · Retry-After</text>
+<text class="f-s" x="80" y="406" style="font-size:11px">espera 6,500 ÷ 936 ≈ 6.9 min; la GPU ni se entera</text>
+<text class="f-s" x="26" y="434" style="font-size:12px;font-weight:700">10:07</text>
+<rect class="f-chip" x="80" y="422" width="200" height="16" rx="4"/>
+<rect class="f-g" x="80" y="422" width="67.2" height="16" rx="3"/>
+<text class="f-s" x="290" y="435" style="font-size:12px">6,552</text>
+<text class="f-s" x="80" y="453" style="font-size:11px">7 min × 936 = 6,552 ≥ 6,500: pasa</text>
+</svg>

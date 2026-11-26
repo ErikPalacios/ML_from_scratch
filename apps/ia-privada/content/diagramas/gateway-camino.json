@@ -1,0 +1,74 @@
+{
+  "titulo": "El camino de una pregunta del despacho, de la abogada a la GPU y de vuelta",
+  "width": 78,
+  "height": 58,
+  "lanes": [
+    { "id": "puerta", "label": "La puerta · interfaz, identidad y gateway", "kind": "online", "x": 0, "y": 18, "w": 78, "h": 18 },
+    { "id": "modelos", "label": "Los modelos · una copia de Qwen3 32B en cada L40S", "kind": "neutral", "x": 0, "y": 39, "w": 78, "h": 19 }
+  ],
+  "nodes": [
+    {
+      "id": "abogada", "label": "Abogada", "sub": "su navegador", "badge": "1", "kind": "client",
+      "x": 30, "y": 4, "w": 18, "h": 8,
+      "note": "Una de las 200 personas del despacho. No instala nada: abre una página dentro de la red del despacho y entra con **su cuenta de Microsoft**, la misma del correo."
+    },
+    {
+      "id": "registro", "label": "Registro", "sub": "quién, cuándo, tokens", "badge": "6", "kind": "store",
+      "x": 58, "y": 4, "w": 18, "h": 8,
+      "note": "Una fila por pregunta en la base del gateway (Postgres): quién, cuándo, qué modelo, cuántos tokens, cuánto tardó y cómo terminó. **Sin el texto** de la pregunta ni de la respuesta, y con fecha de borrado: el [[registro-de-auditoria|registro]] no debe volverse el lugar más jugoso para robar expedientes."
+    },
+    {
+      "id": "entra", "label": "Microsoft Entra ID", "sub": "SSO con OIDC", "badge": "2", "kind": "external",
+      "x": 2, "y": 23, "w": 18, "h": 9,
+      "note": "El directorio de cuentas del despacho en la nube de Microsoft. Comprueba la contraseña y el segundo factor, y le entrega a Open WebUI un **ID token** firmado con quién es la persona (`oid`) y sus roles. Por aquí no pasa ningún expediente: solo la identidad."
+    },
+    {
+      "id": "webui", "label": "Open WebUI", "sub": "la interfaz de chat", "badge": "3", "kind": "service",
+      "x": 30, "y": 23, "w": 18, "h": 9,
+      "note": "La página donde se escribe la pregunta y se lee la respuesta. Guarda las conversaciones en **su propia** base de datos (otro lugar donde queda el texto) y le habla al gateway con la [[api-compatible-openai|API compatible con OpenAI]], como si fuera OpenAI."
+    },
+    {
+      "id": "gateway", "label": "Gateway", "sub": "LiteLLM: clave, cuota, ruta", "badge": "4", "kind": "edge",
+      "x": 58, "y": 23, "w": 18, "h": 9,
+      "note": "La única puerta hacia los modelos. Revisa la [[clave-de-api|clave]], sabe qué persona pide (Open WebUI le pasa su Id), cobra la pregunta de su [[cuota-de-tokens|cuota de tokens]], elige a cuál de las tres copias mandarla y anota la fila del registro."
+    },
+    {
+      "id": "v1", "label": "vLLM · L40S 1", "sub": "copia 1", "kind": "gpu",
+      "x": 2, "y": 45, "w": 18, "h": 9,
+      "note": "Un servidor vLLM con una copia completa de Qwen3 32B en INT4 de AWQ. Atiende bien ≈ 2 conversaciones a 20 tokens por segundo. Su puerto **solo** lo alcanza el gateway."
+    },
+    {
+      "id": "v2", "label": "vLLM · L40S 2", "sub": "copia 2", "badge": "5", "kind": "gpu",
+      "x": 30, "y": 45, "w": 18, "h": 9,
+      "note": "La segunda copia, idéntica. Que sean tres copias independientes (y no un modelo partido entre tres GPUs) se explica en [Varias GPUs](/varias-gpus/)."
+    },
+    {
+      "id": "v3", "label": "vLLM · L40S 3", "sub": "copia 3", "kind": "gpu",
+      "x": 58, "y": 45, "w": 18, "h": 9,
+      "note": "La tercera copia. Entre las tres sostienen ≈ 6 conversaciones a 20 tokens por segundo: ≈ 7,200 tokens de salida por minuto, el número con el que se reparten las cuotas."
+    }
+  ],
+  "edges": [
+    { "from": "abogada", "to": "webui", "kind": "online", "label": "pregunta", "fromSide": "b", "toSide": "t" },
+    { "from": "webui", "to": "entra", "kind": "neutral", "label": "ID token", "fromSide": "l", "toSide": "r" },
+    { "from": "webui", "to": "gateway", "kind": "online", "label": "clave + Id", "fromSide": "r", "toSide": "l" },
+    { "from": "gateway", "to": "registro", "kind": "async", "label": "una fila", "fromSide": "t", "toSide": "b" },
+    { "from": "gateway", "to": "v3", "kind": "online", "fromSide": "b", "toSide": "t" },
+    { "from": "gateway", "to": "v2", "kind": "online", "fromSide": "b", "toSide": "t", "via": [[67, 39], [39, 39]] },
+    { "from": "gateway", "to": "v1", "kind": "online", "fromSide": "b", "toSide": "t", "via": [[67, 39], [11, 39]] }
+  ],
+  "flows": [
+    {
+      "id": "pregunta",
+      "label": "Una pregunta, de ida y vuelta",
+      "steps": [
+        { "nodes": ["abogada", "webui", "entra"], "edges": ["abogada>webui", "webui>entra"], "text": "**1 · Entrar.** La abogada abre Open WebUI y toca «Iniciar sesión con Microsoft». Entra ID le pide su contraseña y su segundo factor, y Open WebUI recibe un **ID token** firmado: quién es (`oid`), su nombre y sus roles. Es [[sso|SSO]] con [[oidc|OIDC]]: la misma cuenta del correo, sin otra contraseña." },
+        { "nodes": ["abogada", "webui"], "edges": ["abogada>webui"], "text": "**2 · Preguntar.** Escribe «¿El contrato del expediente 4127 permite ceder los derechos?». Open WebUI arma un `POST /v1/chat/completions` con `stream: true`, unos ≈ 6,000 tokens de entrada en total." },
+        { "nodes": ["webui", "gateway"], "edges": ["webui>gateway"], "text": "**3 · La puerta.** Open WebUI entra al gateway con **su** clave de servicio y le pasa el Id de la abogada en un encabezado. El gateway revisa la clave, busca la cuota de esa persona y reserva los tokens. Si no le alcanza, contesta **429** con `Retry-After` y la GPU ni se entera." },
+        { "nodes": ["gateway", "v2"], "edges": ["gateway>v2"], "text": "**4 · La ruta.** El nombre que pidió la app es `chat-grande`; detrás hay tres copias. El gateway elige una (aquí la 2) y le reenvía la request tal cual: es el [[enrutamiento-de-modelos|enrutamiento]]." },
+        { "nodes": ["v2", "gateway", "webui", "abogada"], "edges": ["gateway>v2", "webui>gateway", "abogada>webui"], "text": "**5 · El stream de vuelta.** vLLM lee los 6,000 tokens (≈ 2.4 s sin fila) y empieza a escribir. Cada pedazo viaja como un evento [[streaming-sse|SSE]] por el gateway y por Open WebUI sin detenerse: ninguno debe juntar pedazos. El gateway agrega milisegundos a un camino que tarda segundos." },
+        { "nodes": ["gateway", "registro"], "edges": ["gateway>registro"], "text": "**6 · La fila.** Al terminar, el último pedazo trae `usage`: 6,012 de entrada y 480 de salida, por ejemplo. El gateway ajusta la cuota con lo real y escribe la fila: Id, hora, `chat-grande`, réplica 2, tokens, 26.9 s, `stop`. **Sin el texto.**" }
+      ]
+    }
+  ]
+}

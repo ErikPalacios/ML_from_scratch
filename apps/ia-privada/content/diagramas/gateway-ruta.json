@@ -1,0 +1,87 @@
+{
+  "titulo": "Qué decide el gateway con cada request: clave, cuota, réplica, reintento y fallback",
+  "width": 78,
+  "height": 46,
+  "lanes": [
+    { "id": "puerta", "label": "Antes de tocar una GPU", "kind": "online", "x": 0, "y": 0, "w": 78, "h": 15 },
+    { "id": "ruta", "label": "La ruta · todo dentro del despacho", "kind": "neutral", "x": 0, "y": 17, "w": 78, "h": 29 }
+  ],
+  "nodes": [
+    {
+      "id": "req", "label": "Request", "sub": "model: chat-grande", "badge": "1", "kind": "client",
+      "x": 2, "y": 5, "w": 18, "h": 8,
+      "note": "Llega con `Authorization: Bearer` y el nombre de modelo que la app conoce: `chat-grande`. La app no sabe cuántas GPUs hay detrás ni cómo se llaman."
+    },
+    {
+      "id": "clave", "label": "¿Clave válida?", "sub": "si no: 401", "badge": "2", "kind": "edge",
+      "x": 30, "y": 5, "w": 18, "h": 8,
+      "note": "La [[clave-de-api|clave]] existe, no está vencida y puede usar ese modelo. Si falla algo, **401** (no sé quién eres) o **403** (sé quién eres, pero esto no te toca)."
+    },
+    {
+      "id": "cuota", "label": "¿Le queda cuota?", "sub": "si no: 429", "badge": "3", "kind": "service",
+      "x": 58, "y": 5, "w": 18, "h": 8,
+      "note": "Se reservan los tokens de la request contra la [[cuota-de-tokens|cuota]] de la persona o de la app ([[limite-de-tasa|límites]] por minuto y por día, y cuántas a la vez). Si no alcanza, **429** con `Retry-After`. La GPU no se entera."
+    },
+    {
+      "id": "chico", "label": "Modelo chico", "sub": "fallback local", "kind": "model",
+      "x": 2, "y": 21, "w": 18, "h": 8,
+      "note": "El [[fallback]]: otro modelo **dentro del despacho** (más chico y rápido) que contesta si las tres copias fallan. Nunca una API pública: mandar ahí un expediente rompería la razón del proyecto."
+    },
+    {
+      "id": "router", "label": "Router", "sub": "elige una copia", "badge": "4", "kind": "service",
+      "x": 30, "y": 21, "w": 18, "h": 8,
+      "note": "Detrás del nombre `chat-grande` hay tres copias. El router elige una (al azar, la menos ocupada o la de la conversación anterior) y, si falla, reintenta en otra."
+    },
+    {
+      "id": "enfriar", "label": "En pausa 30 s", "sub": "la copia que falló", "kind": "monitor",
+      "x": 58, "y": 21, "w": 18, "h": 8,
+      "note": "Si una copia falla 3 veces, el router deja de mandarle trabajo un rato (*cooldown*) y luego la vuelve a probar. Así una GPU que se reinicia no se come las preguntas de todos."
+    },
+    {
+      "id": "falla", "label": "503 claro", "sub": "«vuelve en un minuto»", "kind": "service",
+      "x": 2, "y": 35, "w": 18, "h": 8,
+      "note": "Si también falla el modelo chico, se contesta **503** con un mensaje que la persona entienda. Un error honesto es mejor que una respuesta de otro lado sin que nadie lo sepa."
+    },
+    { "id": "r1", "label": "Copia 1", "sub": "L40S 1", "kind": "gpu", "x": 31, "y": 35, "w": 13, "h": 8, "note": "vLLM con Qwen3 32B en la primera L40S." },
+    { "id": "r2", "label": "Copia 2", "sub": "L40S 2", "kind": "gpu", "x": 47, "y": 35, "w": 13, "h": 8, "note": "vLLM con Qwen3 32B en la segunda L40S." },
+    { "id": "r3", "label": "Copia 3", "sub": "L40S 3", "kind": "gpu", "x": 63, "y": 35, "w": 13, "h": 8, "note": "vLLM con Qwen3 32B en la tercera L40S." }
+  ],
+  "edges": [
+    { "from": "req", "to": "clave", "kind": "online", "label": "Bearer", "fromSide": "r", "toSide": "l" },
+    { "from": "clave", "to": "cuota", "kind": "online", "label": "sí", "fromSide": "r", "toSide": "l" },
+    { "from": "cuota", "to": "router", "kind": "online", "label": "reserva", "fromSide": "b", "toSide": "r", "via": [[67, 16], [52, 16], [52, 25]] },
+    { "from": "router", "to": "r1", "kind": "online", "fromSide": "b", "toSide": "t", "via": [[39, 32], [37.5, 32]] },
+    { "from": "router", "to": "r2", "kind": "online", "fromSide": "b", "toSide": "t", "via": [[39, 32], [53.5, 32]] },
+    { "from": "router", "to": "r3", "kind": "online", "fromSide": "b", "toSide": "t", "via": [[39, 32], [69.5, 32]] },
+    { "from": "r3", "to": "enfriar", "kind": "monitor", "label": "falló", "fromSide": "t", "toSide": "b", "dashed": true },
+    { "from": "router", "to": "chico", "kind": "neutral", "label": "fallback", "fromSide": "l", "toSide": "r" },
+    { "from": "chico", "to": "falla", "kind": "neutral", "label": "también", "fromSide": "b", "toSide": "t" }
+  ],
+  "flows": [
+    {
+      "id": "normal",
+      "label": "Una request normal",
+      "steps": [
+        { "nodes": ["req", "clave"], "edges": ["req>clave"], "text": "**1 · ¿Quién es?** La request trae la clave de Open WebUI y el Id de la persona. La clave es válida y puede usar `chat-grande`." },
+        { "nodes": ["clave", "cuota"], "edges": ["clave>cuota"], "text": "**2 · ¿Le alcanza?** A esa persona le quedan 19,500 tokens en su cubeta; la pregunta reserva ≈ 6,500 (6,000 de entrada más el `max_tokens` de 500)." },
+        { "nodes": ["cuota", "router", "r2"], "edges": ["cuota>router", "router>r2"], "text": "**3 · ¿A cuál?** El router elige la copia 2. Al terminar, el gateway corrige la reserva con los tokens reales del `usage`." }
+      ]
+    },
+    {
+      "id": "sin-cuota",
+      "label": "Se acabó la cuota",
+      "steps": [
+        { "nodes": ["req", "clave", "cuota"], "edges": ["req>clave", "clave>cuota"], "text": "Un script mal hecho repite la misma pregunta en un ciclo. Tras tres preguntas su cubeta está casi vacía: el gateway contesta **429** con `Retry-After: 417` (≈ 7 minutos, lo que tarda en reponerse una pregunta). Las tres L40S siguen atendiendo a los demás." }
+      ]
+    },
+    {
+      "id": "falla",
+      "label": "Una copia falla, y luego todas",
+      "steps": [
+        { "nodes": ["router", "r3", "enfriar"], "edges": ["router>r3", "r3>enfriar"], "text": "**1 ·** La copia 3 se reinició y no contesta. Tras 3 fallas el router la pone **en pausa 30 s**." },
+        { "nodes": ["router", "r1"], "edges": ["router>r1"], "text": "**2 ·** El mismo request se reintenta en la copia 1. La persona solo nota unos segundos más." },
+        { "nodes": ["router", "chico", "falla"], "edges": ["router>chico", "chico>falla"], "text": "**3 ·** Si las tres copias fallan, el [[fallback]] manda la pregunta al modelo chico **local**. Si también falla, **503** con un mensaje claro. Nunca a una API pública." }
+      ]
+    }
+  ]
+}

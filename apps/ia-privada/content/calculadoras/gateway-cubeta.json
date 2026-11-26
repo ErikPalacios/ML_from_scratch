@@ -1,0 +1,23 @@
+{
+  "titulo": "Token bucket con tokens del LLM",
+  "intro": "Una cubeta por persona de \\(B\\) tokens que se rellena sola a \\(R\\) tokens por minuto; cada pregunta se cobra \\(k\\) tokens (entrada + salida). Pasa si la cubeta tiene al menos \\(k\\); si no, el gateway responde 429 y la persona espera \\((k − text{lo que queda}) ÷ R\\) minutos. Arranca con la propuesta para el despacho: recarga de 936 tokens por minuto, cubeta de 19,500 (3 preguntas de 6,500) y un tope de 8,192 tokens por request.",
+  "entradas": [
+    { "id": "R", "label": "Recarga, \\(R\\)", "min": 100, "max": 20000, "paso": 1, "valor": 936, "unidad": "tokens/min", "tipo": "numero" },
+    { "id": "B", "label": "Tamaño de la cubeta, \\(B\\)", "min": 1000, "max": 200000, "paso": 500, "valor": 19500, "unidad": "tokens", "tipo": "numero" },
+    { "id": "k", "label": "Costo de una pregunta, \\(k\\) (entrada + salida)", "min": 100, "max": 32000, "paso": 100, "valor": 6500, "unidad": "tokens" },
+    { "id": "ctx", "label": "Tope de tokens de una sola request (el contexto)", "min": 1000, "max": 131072, "paso": 1, "valor": 8192, "unidad": "tokens", "tipo": "numero" }
+  ],
+  "calculos": [
+    { "id": "ns", "formula": "floor(B / k)" },
+    { "id": "resto", "formula": "B - floor(B / k) * k" }
+  ],
+  "salidas": [
+    { "label": "Preguntas seguidas que pasan con la cubeta llena", "formula": "ns", "formato": "int", "cuenta": "⌊{{B|int}} ÷ {{k|int}}⌋ = **{{ns|int}}**" },
+    { "label": "Lo que espera la siguiente", "formula": "max(k - resto, 0) / R", "formato": "num", "decimales": 1, "nota": "minutos", "cuenta": "({{k|int}} − {{resto|int}}) ÷ {{R|int}} = **{{max(k - resto, 0) / R|num|1}} min**" },
+    { "label": "Tiempo para reponer una pregunta", "formula": "k / R", "formato": "num", "decimales": 1, "nota": "minutos", "cuenta": "{{k|int}} ÷ {{R|int}} = **{{k / R|num|1}} min**" },
+    { "label": "De vacía a llena", "formula": "B / R", "formato": "num", "decimales": 1, "nota": "minutos", "cuenta": "{{B|int}} ÷ {{R|int}} = **{{B / R|num|1}} min**" },
+    { "label": "Preguntas por hora, sostenidas", "formula": "R * 60 / k", "formato": "num", "decimales": 1, "cuenta": "{{R|int}} × 60 ÷ {{k|int}} = **{{R * 60 / k|num|1}} preguntas/h**" },
+    { "label": "¿Cabe la request más grande en la cubeta?", "formula": "B - ctx", "veredicto": { "si": "Sí: siempre puede pasar", "no": "No: esa request nunca pasa" }, "cuenta": "{{B|int}} − {{ctx|int}} = {{B - ctx|int}} tokens" }
+  ],
+  "nota": "Prueba: sube la cubeta a 32,500 (5 preguntas) y mira que la ráfaga crece sin cambiar lo sostenido. Luego baja la cubeta a 6,000: ni una pregunta típica cabe y el veredicto dice que la request más grande nunca pasaría."
+}

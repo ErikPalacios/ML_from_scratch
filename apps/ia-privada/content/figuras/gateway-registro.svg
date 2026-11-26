@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 560" role="img" aria-labelledby="f-gateway-registro-t" class="f-svg" style="max-width:420px">
+<title id="f-gateway-registro-t">Una fila del registro del gateway del despacho. Se guarda: quién (el identificador de la persona, no su correo), cuándo, qué modelo y qué copia, los tokens de entrada y de salida, cuánto tardó, cómo terminó y un identificador de la request; todo se borra a los 90 días. No se guarda: el texto de la pregunta, los fragmentos de expediente que la acompañan ni la respuesta. Abajo, los cinco lugares donde el texto puede quedarse aunque el registro no lo guarde: los callbacks de logging del gateway, la tabla de gasto si se activa guardar prompts, los logs de errores, los chats que guarda Open WebUI y los respaldos de esas bases.</title>
+<text class="f-l" x="14" y="24">UNA FILA DEL REGISTRO</text>
+<rect class="f-card" x="10" y="36" width="340" height="236" rx="16"/>
+<text class="f-l" x="26" y="60">SE GUARDA</text>
+<g style="font-size:12px">
+<rect class="f-g" x="26" y="70" width="6" height="16" rx="2"/>
+<text class="f-s" x="40" y="83" style="font-size:12px;font-weight:700">quién</text><text class="f-s" x="130" y="83" style="font-size:12px">oid 8f3c…  (no el correo)</text>
+<rect class="f-g" x="26" y="94" width="6" height="16" rx="2"/>
+<text class="f-s" x="40" y="107" style="font-size:12px;font-weight:700">cuándo</text><text class="f-s" x="130" y="107" style="font-size:12px">2026-11-26 12:41:07</text>
+<rect class="f-g" x="26" y="118" width="6" height="16" rx="2"/>
+<text class="f-s" x="40" y="131" style="font-size:12px;font-weight:700">modelo</text><text class="f-s" x="130" y="131" style="font-size:12px">chat-grande · copia 2</text>
+<rect class="f-g" x="26" y="142" width="6" height="16" rx="2"/>
+<text class="f-s" x="40" y="155" style="font-size:12px;font-weight:700">tokens</text><text class="f-s" x="130" y="155" style="font-size:12px">6,012 entrada · 480 salida</text>
+<rect class="f-g" x="26" y="166" width="6" height="16" rx="2"/>
+<text class="f-s" x="40" y="179" style="font-size:12px;font-weight:700">tiempos</text><text class="f-s" x="130" y="179" style="font-size:12px">TTFT 2.4 s · total 26.9 s</text>
+<rect class="f-g" x="26" y="190" width="6" height="16" rx="2"/>
+<text class="f-s" x="40" y="203" style="font-size:12px;font-weight:700">cómo acabó</text><text class="f-s" x="130" y="203" style="font-size:12px">200 · stop · req 7c1e…</text>
+</g>
+<rect class="f-chip" x="26" y="220" width="308" height="38" rx="8"/>
+<text class="f-s" x="38" y="236" style="font-size:12px;font-weight:700">se borra a los 90 días</text>
+<text class="f-s" x="38" y="251" style="font-size:11px">sin fecha de borrado, la tabla crece para siempre</text>
+<rect class="f-card" x="10" y="284" width="340" height="110" rx="16"/>
+<text class="f-l" x="26" y="308">NO SE GUARDA</text>
+<rect class="f-o" x="26" y="318" width="6" height="16" rx="2"/>
+<text class="f-s" x="40" y="331" style="font-size:12px">el texto de la pregunta</text>
+<rect class="f-o" x="26" y="342" width="6" height="16" rx="2"/>
+<text class="f-s" x="40" y="355" style="font-size:12px">los fragmentos de expediente que la acompañan</text>
+<rect class="f-o" x="26" y="366" width="6" height="16" rx="2"/>
+<text class="f-s" x="40" y="379" style="font-size:12px">la respuesta del modelo</text>
+<rect class="f-dark" x="10" y="406" width="340" height="144" rx="16"/>
+<text class="f-dark-l" x="26" y="430">DONDE EL TEXTO SE QUEDA SIN PEDIRLO</text>
+<text class="f-dark-t" x="26" y="454">1 · callbacks de logging del gateway</text>
+<text class="f-dark-t" x="26" y="474">2 · tabla de gasto, si guardas prompts</text>
+<text class="f-dark-t" x="26" y="494">3 · logs de errores y excepciones</text>
+<text class="f-dark-t" x="26" y="514">4 · los chats que guarda Open WebUI</text>
+<text class="f-dark-t" x="26" y="534">5 · los respaldos de esas bases</text>
+</svg>

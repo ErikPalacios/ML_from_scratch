@@ -1,0 +1,37 @@
+{
+  "titulo": "Cuota por persona: repartir los tokens del servidor",
+  "intro": "Aplica \\(C = n × c × v × 60\\) (la capacidad de salida del servidor, en tokens por minuto) y \\(q_{p} = C ÷ (N × a)\\) (la parte de cada persona activa en la hora pico), y la convierte en preguntas por hora y en una cuota de tokens totales para el gateway. Arranca con el despacho: 3 L40S, 2 conversaciones por L40S a 20 tokens por segundo, 200 personas, la mitad activa en el pico, preguntas de ≈ 6,000 tokens de entrada y ≈ 500 de salida.",
+  "entradas": [
+    { "id": "n", "label": "GPUs con una copia del modelo cada una, \\(n\\)", "min": 1, "max": 16, "paso": 1, "valor": 3 },
+    { "id": "cpg", "label": "Conversaciones por GPU que van a la velocidad pedida, \\(c\\)", "min": 1, "max": 32, "paso": 1, "valor": 2 },
+    { "id": "v", "label": "Velocidad por persona, \\(v\\)", "min": 5, "max": 60, "paso": 1, "valor": 20, "unidad": "tokens/s" },
+    { "id": "per", "label": "Personas registradas, \\(N\\)", "min": 1, "max": 5000, "paso": 1, "valor": 200, "tipo": "numero" },
+    { "id": "fa", "label": "Fracción activa en la hora pico, \\(a\\)", "min": 5, "max": 100, "paso": 5, "valor": 50, "unidad": "%" },
+    { "id": "tin", "label": "Tokens de entrada por pregunta, \\(t_{in}\\)", "min": 100, "max": 32000, "paso": 100, "valor": 6000 },
+    { "id": "tout", "label": "Tokens de salida por respuesta, \\(t_{out}\\)", "min": 50, "max": 4000, "paso": 50, "valor": 500 },
+    { "id": "q", "label": "Preguntas por persona al día (uso típico)", "min": 1, "max": 100, "paso": 1, "valor": 15 },
+    { "id": "h", "label": "Horas de uso al día", "min": 1, "max": 24, "paso": 1, "valor": 10 },
+    { "id": "pk", "label": "Factor de la hora pico (veces el promedio)", "min": 1, "max": 10, "paso": 0.1, "valor": 2.5 },
+    { "id": "mp", "label": "Requests a la vez por persona (`max_parallel_requests`)", "min": 1, "max": 8, "paso": 1, "valor": 2 }
+  ],
+  "calculos": [
+    { "id": "cap", "formula": "n * cpg * v * 60" },
+    { "id": "act", "formula": "max(per * fa / 100, 1e-9)" },
+    { "id": "qp", "formula": "cap / act" },
+    { "id": "dem", "formula": "per * q / h * pk / 60 * tout" },
+    { "id": "tip", "formula": "q / h * pk" }
+  ],
+  "salidas": [
+    { "label": "Capacidad de salida del servidor, \\(C\\)", "formula": "cap", "formato": "int", "nota": "tokens por minuto", "cuenta": "{{n|int}} × {{cpg|int}} × {{v|int}} tokens/s × 60 = **{{cap|int}} tokens/min**" },
+    { "label": "Salida que pide la hora pico", "formula": "dem", "formato": "int", "nota": "tokens por minuto, con el uso típico", "cuenta": "{{per|int}} × {{q|int}} ÷ {{h|int}} h × {{pk|corto}} ÷ 60 × {{tout|int}} = **{{dem|int}} tokens/min**" },
+    { "label": "Uso de la capacidad en la hora pico", "formula": "dem / cap", "formato": "pct", "barra": true, "nota": "más de 100 %: la fila crece", "cuenta": "{{dem|int}} ÷ {{cap|int}} = **{{dem / cap * 100|num|1}} %**" },
+    { "label": "¿La hora pico cabe en el servidor?", "formula": "cap - dem", "veredicto": { "si": "Sí, en promedio", "no": "No: falta servidor" }, "cuenta": "{{cap|int}} − {{dem|int}} = {{cap - dem|int}} tokens/min" },
+    { "label": "Cuota de salida por persona activa, \\(q_{p}\\)", "formula": "qp", "formato": "num", "decimales": 1, "nota": "tokens de salida por minuto", "cuenta": "{{cap|int}} ÷ ({{per|int}} × {{fa|int}} %) = **{{qp|num|1}} tokens/min**" },
+    { "label": "Preguntas por hora que le alcanzan", "formula": "qp / tout * 60", "formato": "num", "decimales": 1, "cuenta": "{{qp|num|1}} ÷ {{tout|int}} × 60 = **{{qp / tout * 60|num|1}} preguntas/h**" },
+    { "label": "La misma cuota en tokens totales (el `tpm_limit`)", "formula": "qp / tout * (tin + tout)", "formato": "int", "nota": "entrada + salida, por minuto", "cuenta": "{{qp|num|1}} ÷ {{tout|int}} × ({{tin|int}} + {{tout|int}}) = **{{qp / tout * (tin + tout)|int}} tokens/min**" },
+    { "label": "Uso típico de una persona en la hora pico", "formula": "tip", "formato": "num", "decimales": 2, "nota": "preguntas por hora", "cuenta": "{{q|int}} ÷ {{h|int}} h × {{pk|corto}} = **{{tip|num|2}} preguntas/h**" },
+    { "label": "Cuota contra uso típico", "formula": "qp / tout * 60 / tip", "formato": "x", "decimales": 1, "nota": "menos de 1×: la cuota corta a quien usa normal", "cuenta": "{{qp / tout * 60|num|1}} ÷ {{tip|num|2}} = **{{qp / tout * 60 / tip|num|1}}×**" },
+    { "label": "Personas que llenan todas las conversaciones a la vez", "formula": "floor(n * cpg / mp)", "formato": "int", "cuenta": "⌊{{n|int}} × {{cpg|int}} ÷ {{mp|int}}⌋ = **{{floor(n * cpg / mp)|int}} personas**" }
+  ],
+  "nota": "Prueba: baja la fracción activa a 100 %, el peor caso en que las 200 personas piden a la vez, y mira la cuota caer a 4.3 preguntas por hora, apenas arriba del uso típico de 3.75. Luego sube las GPUs a 4: es el número que haría falta para que las 8 conversaciones de diseño vayan todas a 20 tokens por segundo."
+}

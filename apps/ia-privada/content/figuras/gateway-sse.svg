@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 500" role="img" aria-labelledby="f-gateway-sse-t" class="f-svg" style="max-width:420px">
+<title id="f-gateway-sse-t">Lo que viaja por el cable en una respuesta en streaming. Arriba, la app manda un POST a /v1/chat/completions con stream true. Durante unos 2.4 segundos no llega nada: el servidor lee los 6,000 tokens de entrada. Después llegan eventos, cada uno una línea que empieza con data: y termina con una línea en blanco: el primero trae el rol, los siguientes traen pedazos de texto en delta.content, uno cada 50 milisegundos más o menos, el último con texto trae finish_reason stop, luego un pedazo sin choices con usage (los tokens de entrada y de salida) si se pidió include_usage, y al final data: [DONE]. Abajo, una advertencia: si un proxy junta los pedazos antes de reenviarlos, la persona ve todo de golpe a los 27 segundos.</title>
+<text class="f-l" x="14" y="24">UNA RESPUESTA EN STREAMING, POR EL CABLE</text>
+<rect class="f-card" x="10" y="36" width="340" height="374" rx="16"/>
+<rect class="f-b2" x="24" y="50" width="312" height="30" rx="6"/>
+<text class="f-s" x="34" y="70" style="font-family:var(--mono);font-size:11px">POST /v1/chat/completions  "stream": true</text>
+<line class="f-flecha" x1="40" y1="84" x2="40" y2="96"/><path class="f-punta" d="M34,94 L46,94 L40,102 Z"/>
+<rect class="f-o" x="24" y="106" width="312" height="40" rx="6"/>
+<text class="f-s" x="34" y="123" style="font-size:12px;font-weight:700">≈ 2.4 s sin nada: el prefill</text>
+<text class="f-s" x="34" y="139" style="font-size:12px">lee los 6,000 tokens de entrada</text>
+<text class="f-l" x="24" y="168">TTFT · EL PRIMER EVENTO</text>
+<rect class="f-chip" x="24" y="176" width="312" height="26" rx="5"/>
+<text class="f-s" x="32" y="193" style="font-family:var(--mono);font-size:11px">data: {"delta":{"role":"assistant"}}</text>
+<rect class="f-chip" x="24" y="206" width="312" height="26" rx="5"/>
+<text class="f-s" x="32" y="223" style="font-family:var(--mono);font-size:11px">data: {"delta":{"content":"La cláusula"}}</text>
+<rect class="f-chip" x="24" y="236" width="312" height="26" rx="5"/>
+<text class="f-s" x="32" y="253" style="font-family:var(--mono);font-size:11px">data: {"delta":{"content":" 14 prohíbe"}}</text>
+<text class="f-s" x="180" y="278" text-anchor="middle" style="font-size:12px">… un pedazo cada ≈ 50 ms (20 tokens/s) …</text>
+<rect class="f-chip" x="24" y="288" width="312" height="26" rx="5"/>
+<text class="f-s" x="32" y="305" style="font-family:var(--mono);font-size:11px">data: {…,"finish_reason":"stop"}</text>
+<rect class="f-g" x="24" y="318" width="312" height="40" rx="5"/>
+<text class="f-s" x="32" y="334" style="font-family:var(--mono);font-size:11px;font-weight:700">data: {"choices":[],"usage":{…}}</text>
+<text class="f-s" x="32" y="350" style="font-size:11px">solo con "include_usage": true · lo que cobra el gateway</text>
+<rect class="f-y" x="24" y="362" width="312" height="26" rx="5"/>
+<text class="f-s" x="32" y="379" style="font-family:var(--mono);font-size:11px;font-weight:700">data: [DONE]</text>
+<text class="f-s" x="328" y="379" text-anchor="end" style="font-size:11px">fin ≈ 27 s</text>
+<text class="f-s" x="24" y="403" style="font-size:11px">cada evento: una línea «data: …» y una línea en blanco</text>
+<rect class="f-dark" x="10" y="420" width="340" height="70" rx="14"/>
+<text class="f-dark-l" x="26" y="443">SI UN PROXY JUNTA LOS PEDAZOS</text>
+<text class="f-dark-t" x="26" y="463">la abogada no ve nada en 27 s y luego todo</text>
+<text class="f-dark-t" x="26" y="480">de golpe: el stream no sirvió de nada</text>
+</svg>
