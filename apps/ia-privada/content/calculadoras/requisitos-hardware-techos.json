@@ -1,0 +1,131 @@
+{
+  "titulo": "Los tres techos de una GPU y cuántas hacen falta",
+  "intro": "Calcula por separado los tres techos de una copia del servidor: **memoria** \\(b_{mem} = ⌊((1 − f) × n × M − W − M_{prog}) ÷ (m × N_{tope})⌋\\), **ancho de banda** \\(b_{anch} = ⌊(1 ÷ v − a_0) ÷ a_1⌋\\) y **cómputo** \\(λ_{máx} = 1 ÷ t_{pre}\\). Luego los mezcla como la [herramienta de sizing](/herramientas/sizing/), \\(b_{vel} = ⌊(1 − v × a_0) ÷ (v × a_1 + v × t_{pre} ÷ N_o)⌋\\), y saca las GPUs con holgura, repuesto y crecimiento, y el TTFT con la fila. Arranca con el despacho: Qwen3 32B en INT4 de AWQ, 0.208 preguntas por segundo, 6,000 tokens de entrada, 500 de salida, ≥ 20 tokens/s, en una L40S.",
+  "preajustes": [
+    {
+      "label": "Modelo (pesos y arquitectura de su config.json)",
+      "inicial": 0,
+      "opciones": [
+        { "label": "Qwen3 32B · INT4 de AWQ", "valores": { "W": 19.32, "Wd": 19.32, "A": 32.762, "kv": 256, "L": 64, "q": 64, "d": 128, "fp": 16 }, "nota": "El del despacho. Denso: cada paso lee todos los pesos." },
+        { "label": "Qwen3 30B-A3B (MoE) · INT4 de AWQ", "valores": { "W": 16.78, "Wd": 1.81, "A": 3.3, "kv": 96, "L": 48, "q": 32, "d": 128, "fp": 16 }, "nota": "Cada token usa ≈ 3.3 mil millones de parámetros, y aquí el paso lee solo esa parte de los pesos (1.81 GB): es el caso optimista. Con muchas conversaciones el paso termina leyendo casi todos los expertos: escribe 16.78 en «GB que lee cada paso» para el caso pesimista." },
+        { "label": "Mistral Small 24B (2501) · INT4 de AWQ", "valores": { "W": 14.23, "Wd": 14.23, "A": 23.572, "kv": 160, "L": 40, "q": 32, "d": 128, "fp": 16 }, "nota": "Denso. 40 bloques, 32 cabezas de atención y 8 juegos de K y V." },
+        { "label": "Llama 3.3 70B · FP8", "valores": { "W": 72.66, "Wd": 72.66, "A": 70.554, "kv": 320, "L": 80, "q": 64, "d": 128, "fp": 8 }, "nota": "No cabe en una GPU de 48 GB: sube las GPUs por copia a 2. El prefill usa el pico de FP8." },
+        { "label": "Llama 3.3 70B · INT4 de AWQ", "valores": { "W": 39.77, "Wd": 39.77, "A": 70.554, "kv": 320, "L": 80, "q": 64, "d": 128, "fp": 16 }, "nota": "En una L40S no cabe con una conversación completa: sube las GPUs por copia a 2." }
+      ]
+    },
+    {
+      "label": "GPU (datos de gpus.json)",
+      "datos": "gpus",
+      "inicial": "l40s",
+      "campos": { "M": "vram_gb", "B": "ancho_banda_gbs", "F16": "fp16_tflops_denso", "F8": "fp8_tflops_denso" }
+    }
+  ],
+  "entradas": [
+    { "id": "lam", "label": "Preguntas por segundo en la hora pico, \\(λ\\) (sale del perfil de carga)", "min": 0.001, "max": 100, "paso": 0.001, "valor": 0.208, "tipo": "numero" },
+    { "id": "Np", "label": "Tokens de entrada de cada pregunta, \\(N_p\\)", "min": 100, "max": 100000, "paso": 100, "valor": 6000, "tipo": "numero" },
+    { "id": "No", "label": "Tokens de salida de cada respuesta, \\(N_o\\)", "min": 10, "max": 8000, "paso": 10, "valor": 500, "tipo": "numero" },
+    { "id": "v", "label": "**Velocidad objetivo** de cada conversación, \\(v\\)", "min": 1, "max": 200, "paso": 1, "valor": 20, "unidad": "tokens/s" },
+    { "id": "ctx", "label": "Tope de contexto por conversación, \\(N_{tope}\\) (para el techo de memoria)", "min": 512, "max": 131072, "paso": 512, "valor": 8192, "tipo": "numero" },
+    { "id": "obj", "label": "Objetivo de TTFT, en el p95", "min": 0.1, "max": 30, "paso": 0.1, "valor": 2, "unidad": "s" },
+    { "id": "W", "label": "Pesos del modelo en memoria, \\(W\\)", "min": 0.1, "max": 2000, "paso": 0.01, "valor": 19.32, "unidad": "GB", "tipo": "numero" },
+    { "id": "Wd", "label": "GB que lee cada paso de decode (= \\(W\\) en un modelo denso)", "min": 0.1, "max": 2000, "paso": 0.01, "valor": 19.32, "unidad": "GB", "tipo": "numero" },
+    { "id": "A", "label": "Parámetros que usa cada token, \\(A\\), en miles de millones", "min": 0.1, "max": 1000, "paso": 0.001, "valor": 32.762, "tipo": "numero" },
+    { "id": "kv", "label": "KV cache por token, \\(m\\), en KiB", "min": 1, "max": 4096, "paso": 1, "valor": 256, "tipo": "numero" },
+    { "id": "L", "label": "Bloques, \\(L\\)", "min": 1, "max": 200, "paso": 1, "valor": 64 },
+    { "id": "q", "label": "Cabezas de atención, \\(h\\)", "min": 1, "max": 256, "paso": 1, "valor": 64 },
+    { "id": "d", "label": "Números por cabeza, \\(d\\)", "min": 32, "max": 256, "paso": 32, "valor": 128 },
+    { "id": "fp", "label": "Formato de las cuentas del prefill", "tipo": "opcion", "valor": 16, "opciones": [
+      { "valor": 16, "label": "FP16 o BF16 (también INT4 de AWQ, que convierte a 16 bits)" },
+      { "valor": 8, "label": "FP8" }
+    ] },
+    { "id": "M", "label": "VRAM de cada GPU, \\(M\\)", "unidad": "GB", "min": 0, "max": 2000, "paso": 1, "valor": 48, "tipo": "numero" },
+    { "id": "B", "label": "Ancho de banda de cada GPU, \\(B\\)", "unidad": "GB/s", "min": 1, "max": 20000, "paso": 1, "valor": 864, "tipo": "numero" },
+    { "id": "F16", "label": "Pico FP16/BF16 denso de cada GPU, \\(F\\)", "unidad": "TFLOPS", "min": 0, "max": 20000, "paso": 0.1, "valor": 362.05, "tipo": "numero" },
+    { "id": "F8", "label": "Pico FP8 denso de cada GPU", "unidad": "TFLOPS", "min": 0, "max": 40000, "paso": 0.1, "valor": 733, "tipo": "numero" },
+    { "id": "n", "label": "GPUs por copia del servidor, \\(n\\)", "tipo": "opcion", "valor": 1, "opciones": [
+      { "valor": 1, "label": "1 GPU" }, { "valor": 2, "label": "2 GPUs" }, { "valor": 4, "label": "4 GPUs" }, { "valor": 8, "label": "8 GPUs" }
+    ] },
+    { "id": "prog", "label": "Programa que sirve el modelo, \\(M_{prog}\\), por copia", "min": 0, "max": 20, "paso": 0.5, "valor": 2, "unidad": "GB" },
+    { "id": "f", "label": "Margen de memoria que el servidor deja libre, \\(f\\)", "min": 0, "max": 0.5, "paso": 0.01, "valor": 0.1 },
+    { "id": "em", "label": "Eficiencia de la memoria, \\(η_m\\)", "min": 0.05, "max": 1, "paso": 0.05, "valor": 0.7 },
+    { "id": "ec", "label": "Eficiencia del cálculo, \\(η_c\\)", "min": 0.05, "max": 1, "paso": 0.05, "valor": 0.5 },
+    { "id": "u", "label": "Utilización máxima en el pico, \\(u_{máx}\\) (1 = sin holgura)", "min": 0.3, "max": 1, "paso": 0.05, "valor": 1 },
+    { "id": "rep", "label": "GPUs de repuesto (N+1)", "tipo": "opcion", "valor": 0, "opciones": [
+      { "valor": 0, "label": "Sin repuesto" }, { "valor": 1, "label": "N+1: una copia más" }, { "valor": 2, "label": "N+2: dos copias más" }
+    ] },
+    { "id": "g", "label": "Crecimiento del tráfico, en veces (1 = hoy; 2 = el doble)", "min": 0.5, "max": 5, "paso": 0.05, "valor": 1 }
+  ],
+  "calculos": [
+    { "id": "mtok", "formula": "kv * 1024" },
+    { "id": "util", "formula": "(1 - f) * n * M" },
+    { "id": "bmem", "formula": "max(0, floor((util - W - prog) * 1e9 / (mtok * ctx)))" },
+    { "id": "Bef", "formula": "n * B * 1e9 * em" },
+    { "id": "a0", "formula": "Wd * 1e9 / Bef" },
+    { "id": "a1", "formula": "mtok * (Np + No / 2) / Bef" },
+    { "id": "banch", "formula": "max(0, floor((1 / v - a0) / a1))" },
+    { "id": "pico", "formula": "(fp == 8 && F8 > 0 ? F8 : F16) * 1e12 * n" },
+    { "id": "Fpre", "formula": "2 * A * 1e9 * Np + 2 * L * q * d * Np * Np" },
+    { "id": "tpm", "formula": "(Wd * 1e9 + mtok * Np) / Bef" },
+    { "id": "tpre", "formula": "pico > 0 ? max(Fpre / (pico * ec), tpm) : 1 / 0" },
+    { "id": "carga", "formula": "tpre * v / No" },
+    { "id": "bvel", "formula": "max(0, floor((1 - a0 * v) / (a1 * v + carga)))" },
+    { "id": "b", "formula": "min(bmem, bvel)" },
+    { "id": "lg", "formula": "lam * g" },
+    { "id": "c", "formula": "lg * (tpre + No / v)" },
+    { "id": "k0", "formula": "b >= 1 && pico > 0 ? max(1, ceil(c / (b * u))) : 1 / 0" },
+    { "id": "k", "formula": "k0 + rep" },
+    { "id": "rho", "formula": "b >= 1 && pico > 0 ? lg / k * tpre : 1 / 0" },
+    { "id": "tq", "formula": "rho < 1 ? rho * tpre / (2 * (1 - rho)) : 1 / 0" },
+    { "id": "t95", "formula": "rho < 1 ? tpre + (rho > 0.05 ? log(rho / 0.05) / (1 / tpre - lg / k) : 0) : 1 / 0" }
+  ],
+  "salidas": [
+    { "label": "Techo 1 · **Memoria**: conversaciones que caben", "formula": "bmem", "formato": "int",
+      "nota": "con su KV cache al tope de contexto",
+      "cuenta": "⌊({{util|corto}} GB útiles − {{W|corto}} − {{prog|corto}}) ÷ {{mtok * ctx / 1e9|num|3}} GB por conversación⌋ = **{{bmem|int}}**" },
+    { "label": "Techo 2 · **Ancho de banda**: las que se escriben a \\(v\\), sin prompts nuevos", "formula": "banch", "formato": "int",
+      "nota": "paso de decode = \\(a_0 + b × a_1\\), sin pasar de \\(1 ÷ v\\)",
+      "cuenta": "\\(a_0\\) = {{a0 * 1000|num|2}} ms, \\(a_1\\) = {{a1 * 1000|num|3}} ms; ⌊({{1000 / v|num|1}} − {{a0 * 1000|num|2}}) ÷ {{a1 * 1000|num|3}}⌋ = **{{banch|int}}**" },
+    { "label": "Techo 3 · **Cómputo**: el prefill de una pregunta (TTFT sin fila)", "sin_valor": "Sin pico publicado", "formula": "tpre * 1000", "formato": "ms",
+      "nota": "\\(t_{pre} = (2 × A × N_p + 2 × L × h × d × N_p^2) ÷ (η_c × F)\\)",
+      "cuenta": "{{Fpre|sci|3}} FLOPs ÷ ({{ec|corto}} × {{pico / 1e12|corto}} TFLOPS) = **{{tpre|num|3}} s**; preguntas por segundo que una copia alcanza a leer, \\(λ_{máx}\\) = **{{1 / tpre|num|3}}**" },
+    { "label": "Lo que el pico le pediría a **una sola** copia en prefills", "sin_valor": "Sin pico publicado", "formula": "lg * tpre", "formato": "pct", "barra": true,
+      "cuenta": "{{lg|num|3}} preguntas/s × {{tpre|num|2}} s = **{{lg * tpre * 100|num|0}} %** del tiempo" },
+    { "label": "**Capacidad por copia**, \\(b\\): los techos 2 y 3 comparten el tiempo", "formula": "b", "formato": "int",
+      "nota": "lo que usa la herramienta de sizing",
+      "cuenta": "\\(b_{vel}\\) = ⌊(1 − {{a0 * v|num|3}}) ÷ ({{a1 * v|num|4}} + {{carga|num|4}})⌋ = {{bvel|int}}; \\(b\\) = mín({{bmem|int}}, {{bvel|int}}) = **{{b|int}}**" },
+    { "label": "¿Qué manda?", "formula": "bvel - bmem",
+      "veredicto": { "si": "La memoria: caben menos de las que se atenderían", "no": "El tiempo de la GPU (ancho de banda y prefill): caben más de las que se atienden bien" },
+      "cuenta": "\\(b_{vel}\\) − \\(b_{mem}\\) = {{bvel|int}} − {{bmem|int}}" },
+    { "label": "Conversaciones a la vez en el pico, \\(c\\)", "sin_valor": "Sin pico publicado", "formula": "c", "formato": "num", "decimales": 2,
+      "cuenta": "{{lam|num|3}} × {{g|corto}} × ({{tpre|num|2}} + {{No|int}} ÷ {{v|int}}) = **{{c|num|2}}**" },
+    { "label": "**GPUs en total**", "sin_valor": "No llega", "formula": "k * n", "formato": "int", "barra": true,
+      "nota": "\\(n × (⌈c ÷ (b × u_{máx})⌉ + \\) repuesto\\()\\)",
+      "cuenta": "{{n|int}} × (⌈{{c|num|2}} ÷ ({{b|int}} × {{u|corto}})⌉ + {{rep|int}}) = {{n|int}} × {{k|int}} = **{{k * n|int}} GPUs**" },
+    { "label": "Holgura del plan, \\(H\\)", "sin_valor": "—", "formula": "b >= 1 && pico > 0 ? k * b / c : 1 / 0", "formato": "x", "decimales": 2,
+      "nota": "capacidad ÷ demanda; 1 = justo",
+      "cuenta": "{{k|int}} copias × {{b|int}} ÷ {{c|num|2}} = **{{b >= 1 && pico > 0 ? k * b / c : 1 / 0|num|2}}×**" },
+    { "label": "TTFT promedio con la fila (cola M/D/1 por copia)", "sin_valor": "—", "formula": "(tpre + tq) * 1000", "formato": "ms",
+      "nota": "cada copia con su propia fila, reparto al azar; sin red ni búsqueda",
+      "cuenta": "ocupación por prefills \\(ρ\\) = {{lg|num|3}} ÷ {{k|int}} × {{tpre|num|2}} = {{rho|num|3}}; {{tpre|num|2}} + {{tq|num|2}} s = **{{tpre + tq|num|2}} s**" },
+    { "label": "TTFT p95 con la fila, cota pesimista (M/M/1)", "sin_valor": "—", "formula": "t95 * 1000", "formato": "ms",
+      "nota": "el p95 real con reparto al azar queda entre el promedio y esta cota; repartiendo a la copia más libre, mucho más cerca del prefill solo",
+      "cuenta": "{{tpre|num|2}} + ln({{rho|num|3}} ÷ 0.05) ÷ (1 ÷ {{tpre|num|2}} − {{lg / k|num|4}}) = **{{t95|num|2}} s**" },
+    { "label": "¿El prefill solo cabe en el objetivo de TTFT?", "formula": "obj - tpre",
+      "veredicto": { "si": "Sí (falta la fila, la red y la búsqueda)", "no": "No: ni con la GPU libre" },
+      "cuenta": "{{obj|corto}} s − {{tpre|num|2}} s = {{obj - tpre|num|2}} s" }
+  ],
+  "comparar": {
+    "titulo": "Los tres techos en cada GPU de gpus.json",
+    "lista": 1,
+    "orden": 4,
+    "columnas": [
+      { "label": "Memoria", "formula": "pico > 0 ? bmem : 1 / 0", "formato": "int" },
+      { "label": "Ancho de banda", "formula": "pico > 0 ? banch : 1 / 0", "formato": "int" },
+      { "label": "Prefill, s", "formula": "tpre", "formato": "num", "decimales": 2 },
+      { "label": "Capacidad, \\(b\\)", "formula": "pico > 0 ? b : 1 / 0", "formato": "int" },
+      { "label": "GPUs", "formula": "k * n", "formato": "int" }
+    ],
+    "nota": "Ordenada por GPUs. «—»: el fabricante no publica el pico de cálculo de esa GPU (escríbelo arriba con «Otro»), o no llega ni a una conversación a la velocidad objetivo. La RTX PRO 6000 de gpus.json es la Workstation Edition (de torre, 1,792 GB/s); para la Server Edition del despacho elige «Otro» y escribe 96 GB, 1,597 GB/s, ≈ 500 TFLOPS en FP16 y ≈ 1,000 en FP8 (estos dos, derivados)."
+  },
+  "nota": "Prueba: con la L40S, sube las conversaciones posibles bajando \\(N_p\\) a 3,500 (tres fragmentos en vez de cinco): la capacidad pasa de 2 a 4. Luego regresa a 6,000, pon el repuesto en N+1 y el crecimiento en 2: son 7 L40S. Las eficiencias \\(η_m\\) y \\(η_c\\) son supuestos: muévelas y mira cuánto depende el resultado de ellas."
+}

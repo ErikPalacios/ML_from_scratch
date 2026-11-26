@@ -1,0 +1,55 @@
+{
+  "titulo": "La receta: de la frase del cliente a una cotización",
+  "width": 78,
+  "height": 58,
+  "lanes": [
+    { "id": "cliente", "label": "Del cliente a números", "kind": "online", "x": 0, "y": 0, "w": 78, "h": 18 },
+    { "id": "gpu", "label": "De una GPU a cuántas GPUs", "kind": "neutral", "x": 0, "y": 20, "w": 78, "h": 18 },
+    { "id": "compra", "label": "Del número a la compra", "kind": "monitor", "x": 0, "y": 40, "w": 78, "h": 18 }
+  ],
+  "nodes": [
+    { "id": "socio", "label": "El cliente", "sub": "«somos 200, rápido»", "kind": "human", "x": 1, "y": 6, "w": 14, "h": 8,
+      "note": "El socio director del despacho dice dos [[requisito-no-funcional|requisitos no funcionales]] sin número: cuántos son y que sea rápido. Ninguno se puede comprar así." },
+    { "id": "p1", "label": "1 · Preguntas", "sub": "U, r, H, pico, tokens", "badge": "1", "kind": "service", "x": 22, "y": 6, "w": 14, "h": 8,
+      "note": "Cada pregunta del [[descubrimiento]] termina en un número o en un supuesto escrito: 200 personas, 15 preguntas al día, 10 horas, pico de 2.5, 6,000 tokens de entrada y 500 de salida, TTFT ≤ 2 s en el p95 y ≥ 20 tokens/s." },
+    { "id": "p2", "label": "2 · Perfil de carga", "sub": "λ, tokens/s, c", "badge": "2", "kind": "service", "x": 43, "y": 6, "w": 14, "h": 8,
+      "note": "El [[perfil-de-carga|perfil de carga]] del pico: 0.208 preguntas por segundo, 1,250 tokens/s de entrada, ≈ 104 de salida y, con la [[ley-de-little|ley de Little]], ≈ 5.7 conversaciones a la vez." },
+    { "id": "p3", "label": "3 · Presupuesto", "sub": "2,000 ms en el p95", "badge": "3", "kind": "service", "x": 63, "y": 6, "w": 14, "h": 8,
+      "note": "El [[presupuesto-de-latencia|presupuesto de latencia]]: de los 2,000 ms, ≈ 20 se van en red y gateway y ≈ 150 en buscar fragmentos (supuestos). Quedan ≈ 1,830 ms para la fila y el prefill, y 50 ms por token al escribir." },
+    { "id": "p4", "label": "4 · Tres techos", "sub": "memoria, ancho, cómputo", "badge": "4", "kind": "gpu", "x": 63, "y": 26, "w": 14, "h": 8,
+      "note": "En una L40S: por memoria caben **10** conversaciones; por [[ancho-de-banda|ancho de banda]] se escriben **6** a 20 tokens/s; por cómputo, el [[prefill]] de una pregunta tarda **2.38 s**." },
+    { "id": "p5", "label": "5 · Capacidad", "sub": "b = 2 por L40S", "badge": "5", "kind": "gpu", "x": 43, "y": 26, "w": 14, "h": 8,
+      "note": "La [[capacidad-por-gpu|capacidad por GPU]]: el prefill y el decode comparten el tiempo, y en la L40S caben **2** a 20 tokens/s. El [[cuello-de-botella|cuello de botella]] es el tiempo de la GPU, no la memoria." },
+    { "id": "p6", "label": "6 · Cuántas GPUs", "sub": "3; 4 con N+1", "badge": "6", "kind": "service", "x": 22, "y": 26, "w": 14, "h": 8,
+      "note": "⌈5.70 ÷ 2⌉ = **3 L40S**, con [[holgura]] de 1.05×. Con [[n-mas-1|N+1]] o para las 8 conversaciones de diseño, 4. El [[plan-de-capacidad|plan de capacidad]] agrega el crecimiento." },
+    { "id": "p7", "label": "7 · Candidatos", "sub": "L40S, PRO 6000, H100", "badge": "7", "kind": "gpu", "x": 1, "y": 26, "w": 14, "h": 8,
+      "note": "Los pasos 4 a 6 con cada GPU. La RTX PRO 6000 Server Edition: prefill ≈ 1.72 s, capacidad 6, una atiende el pico y la segunda es el repuesto." },
+    { "id": "cotiza", "label": "Dos cotizaciones", "sub": "3 L40S · 2 PRO 6000", "kind": "store", "x": 1, "y": 46, "w": 16, "h": 8,
+      "note": "Lo que se defiende ante el cliente: dos opciones con lo que compra cada una, sus supuestos y su sensibilidad. La decisión final no es de la cuenta: es del piloto." },
+    { "id": "piloto", "label": "Piloto", "sub": "mide r, pico, η, p95", "kind": "monitor", "x": 43, "y": 46, "w": 14, "h": 8,
+      "note": "La [[prueba-piloto|prueba piloto]] renta el hardware y mide lo que aquí fue supuesto: las preguntas por persona, el factor de pico, las [[eficiencia|eficiencias]] reales y el p95 del TTFT de punta a punta." }
+  ],
+  "edges": [
+    { "from": "socio", "to": "p1", "kind": "online", "fromSide": "r", "toSide": "l" },
+    { "from": "p1", "to": "p2", "kind": "online", "fromSide": "r", "toSide": "l" },
+    { "from": "p2", "to": "p3", "kind": "online", "fromSide": "r", "toSide": "l" },
+    { "from": "p3", "to": "p4", "kind": "online", "fromSide": "b", "toSide": "t" },
+    { "from": "p4", "to": "p5", "kind": "neutral", "fromSide": "l", "toSide": "r" },
+    { "from": "p5", "to": "p6", "kind": "neutral", "fromSide": "l", "toSide": "r" },
+    { "from": "p6", "to": "p7", "kind": "neutral", "fromSide": "l", "toSide": "r" },
+    { "from": "p7", "to": "cotiza", "kind": "neutral", "fromSide": "b", "toSide": "t" },
+    { "from": "cotiza", "to": "piloto", "kind": "monitor", "label": "se renta y se mide", "fromSide": "r", "toSide": "l" },
+    { "from": "piloto", "to": "p4", "kind": "monitor", "label": "calibra", "dashed": true, "fromSide": "r", "toSide": "b", "via": [[70, 50]] }
+  ],
+  "flows": [
+    { "id": "despacho", "label": "El despacho, de punta a punta",
+      "steps": [
+        { "nodes": ["socio", "p1"], "edges": ["socio>p1"], "text": "«Somos 200 y queremos que sea rápido» se vuelve números: **200 personas, 15 preguntas al día, 10 horas, pico de 2.5**, 6,000 tokens de entrada, 500 de salida, TTFT ≤ 2 s en el p95 y ≥ 20 tokens/s. El 15 y el 2.5 son supuestos." },
+        { "nodes": ["p2"], "edges": ["p1>p2"], "text": "El perfil de carga: **0.208 preguntas por segundo** en el pico, 1,250 tokens/s de entrada y ≈ **5.7 conversaciones a la vez**. Lee doce veces lo que escribe: el problema va a estar en el prefill." },
+        { "nodes": ["p3"], "edges": ["p2>p3"], "text": "El presupuesto: de 2,000 ms quedan ≈ **1,830** para la fila y el prefill. Con la L40S, el prefill solo son 2,380 ms: el presupuesto está roto antes de la fila." },
+        { "nodes": ["p4", "p5"], "edges": ["p3>p4", "p4>p5"], "text": "Los techos de la L40S: 10 por memoria, 6 por ancho de banda, 2.38 s de prefill. Juntos, porque comparten el tiempo de la GPU: **capacidad de 2**." },
+        { "nodes": ["p6", "p7"], "edges": ["p5>p6", "p6>p7"], "text": "⌈5.70 ÷ 2⌉ = **3 L40S**, la cuenta de la herramienta; 4 con repuesto. La RTX PRO 6000 Server Edition atiende 6: con 2 hay repuesto y margen." },
+        { "nodes": ["cotiza", "piloto"], "edges": ["p7>cotiza", "cotiza>piloto", "piloto>p4"], "text": "Se cotizan las dos opciones y el piloto mide. Lo que mida **calibra** los techos (las eficiencias, el p95 real) y, si hace falta, se rehace el sizing." }
+      ] }
+  ]
+}

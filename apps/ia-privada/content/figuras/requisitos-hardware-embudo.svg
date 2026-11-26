@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 418" role="img" aria-labelledby="f-requisitos-hardware-embudo-t" class="f-svg" style="max-width:420px">
+<title id="f-requisitos-hardware-embudo-t">Embudo de la carga del despacho. 200 personas por 15 preguntas son 3,000 preguntas al día; entre 10 horas, 300 por hora en promedio; por el factor de pico de 2.5, 750 en la hora pico; entre 3,600 segundos, 0.208 por segundo; por los 27.4 segundos que dura cada conversación, unas 5.7 conversaciones a la vez. Esas preguntas le piden a la GPU 1,250 tokens por segundo de entrada (prefill) y unos 104 de salida (decode).</title>
+<text class="f-l" x="14" y="24">DE 200 PERSONAS A CONVERSACIONES A LA VEZ</text>
+<rect class="f-b2" x="82" y="40" width="266" height="32" rx="8"/>
+<text class="f-s" x="94" y="61">200 personas</text>
+<text class="f-l" x="16" y="104">× 15</text>
+<rect class="f-b2" x="82" y="84" width="236" height="32" rx="8"/>
+<text class="f-s" x="94" y="105">3,000 preguntas al día</text>
+<text class="f-l" x="16" y="148">÷ 10 h</text>
+<rect class="f-b2" x="82" y="128" width="206" height="32" rx="8"/>
+<text class="f-s" x="94" y="149">300 por hora, en promedio</text>
+<text class="f-l" x="16" y="192">× 2.5</text>
+<rect class="f-y" x="82" y="172" width="176" height="32" rx="8"/>
+<text class="f-s" x="94" y="193">750 en la hora pico</text>
+<text class="f-l" x="16" y="236">÷ 3,600 s</text>
+<rect class="f-y" x="82" y="216" width="146" height="32" rx="8"/>
+<text class="f-s" x="94" y="237">0.208 por segundo</text>
+<text class="f-l" x="16" y="280">× 27.4 s</text>
+<rect class="f-o" x="82" y="260" width="116" height="32" rx="8"/>
+<text class="f-s" x="94" y="281">≈ 5.7 a la vez</text>
+<rect class="f-card" x="10" y="310" width="340" height="96" rx="14"/>
+<text class="f-l" x="26" y="334">LO QUE LE PIDEN A LA GPU EN EL PICO</text>
+<text class="f-t" x="26" y="358">1,250 tokens/s de entrada</text>
+<text class="f-s" x="26" y="376">0.208 × 6,000: prefill, depende del cómputo</text>
+<text class="f-t" x="26" y="396" style="font-size:13px">≈ 104 tokens/s de salida · decode</text>
+</svg>

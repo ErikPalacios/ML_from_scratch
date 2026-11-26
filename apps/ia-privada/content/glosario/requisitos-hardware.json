@@ -1,0 +1,133 @@
+{
+ "terminos": [
+  {
+   "id": "requisito-no-funcional",
+   "termino": "Requisito no funcional",
+   "en": "non-functional requirement",
+   "corto": "Lo que dice qué tan bien hace el sistema su trabajo: qué tan rápido, para cuántos, cuántas horas, cuánto puede fallar. Los funcionales dicen qué hace.",
+   "largo": "«Contesta preguntas sobre los expedientes con cita» es funcional; «el primer token en 2 s o menos en el p95, para 200 personas» es no funcional. El hardware sale casi entero de los no funcionales, y por eso cada uno tiene que llevar un número: «rápido» no se puede comprar. Del requisito al número es el paso 1 del [[sizing]].",
+   "analogia": "Un puente: «que cruce el río» es lo que hace; «que aguante 40 toneladas en la hora pico con viento de 100 km/h» es lo que decide cuánto acero lleva.",
+   "ejemplo": "El despacho: «somos 200 y queremos que sea rápido» se vuelve 200 personas, 15 preguntas al día, un pico de 2.5, TTFT ≤ 2 s en el p95 y ≥ 20 tokens por segundo.",
+   "ver": ["perfil-de-carga", "presupuesto-de-latencia", "slo"],
+   "leccion": "requisitos-hardware"
+  },
+  {
+   "id": "perfil-de-carga",
+   "termino": "Perfil de carga",
+   "en": "load profile",
+   "corto": "La carga que llega al servidor, en números: preguntas por segundo en la hora pico, tokens de entrada y de salida, conversaciones a la vez y cómo se reparte por tarea.",
+   "largo": "Es la frontera entre el cliente y la GPU: antes se habla de personas; después, de tokens y segundos. Se arma con \\(λ = U × r ÷ (H × 3,600) × k_{pico}\\), los tokens por segundo \\(λ × N_p\\) y \\(λ × N_o\\), y la [[ley-de-little|ley de Little]] para las conversaciones a la vez. La proporción entre entrada y salida dice de qué lado va a estar el problema: leer es [[prefill]] (cómputo), escribir es [[decode]] (ancho de banda).",
+   "ejemplo": "El despacho en su hora pico: 0.208 preguntas por segundo, 1,250 tokens por segundo de entrada, ≈ 104 de salida y ≈ 5.7 conversaciones a la vez. Lee doce veces lo que escribe.",
+   "ver": ["mezcla-de-tareas", "factor-de-pico", "ley-de-little"],
+   "leccion": "requisitos-hardware",
+   "sensei": "unidades"
+  },
+  {
+   "id": "mezcla-de-tareas",
+   "termino": "Mezcla de tareas",
+   "en": "task mix, workload mix",
+   "corto": "Qué fracción del tráfico es cada tarea (preguntar, resumir, buscar…). Cada una pesa distinto en la GPU, así que la mezcla cambia el sizing aunque el número de peticiones no cambie.",
+   "largo": "Una herramienta de [[sizing]] suele dimensionar una sola tarea. Si se mezclan tareas con prompts muy distintos, el [[prefill]] medio sube y la fila crece. La regla práctica: un [[perfil-de-carga|perfil]] por tarea, y las tareas de lote (que nadie mira mientras se escriben) en otra fila o de noche, dimensionadas por throughput.",
+   "ejemplo": "90 % preguntas de 6,000 tokens, 5 % resúmenes de 40,250 y 5 % búsquedas de cláusulas (supuesto): el prefill medio en una L40S sube de 2.38 s a ≈ 3.46 s, +45 %.",
+   "ver": ["perfil-de-carga"],
+   "leccion": "requisitos-hardware"
+  },
+  {
+   "id": "presupuesto-de-latencia",
+   "termino": "Presupuesto de latencia",
+   "en": "latency budget",
+   "corto": "Repartir el tiempo de la promesa (por ejemplo, 2 s al primer token) entre las piezas del camino: red, gateway, búsqueda, fila y prefill. Si lo comprometido ya pasa del total, no hay GPU que lo arregle.",
+   "largo": "El [[ttft|TTFT]] que siente la persona es \\(t_{red} + t_{rec} + t_{cola} + t_{pre}\\). El presupuesto dice cuánto le queda a la GPU (fila + prefill) después de lo demás. La segunda mitad es la velocidad de escritura: ≥ 20 tokens por segundo es ≤ 50 ms por token ([[tpot|TPOT]]). Sumar los p95 de cada tramo da una cota pesimista, útil para presupuestar; el número real se mide de punta a punta.",
+   "analogia": "El dinero de un viaje: tanto para el avión, tanto para el hotel, y lo que sobra para comer. Si el avión ya cuesta más que todo el presupuesto, no se arregla con un hotel más barato.",
+   "ejemplo": "El despacho: 2,000 ms − 20 de red y gateway − 150 de búsqueda (supuestos) = 1,830 ms para fila y prefill. El prefill de una L40S son 2,380 ms: roto antes de la fila. El de una RTX PRO 6000 Server Edition, ≈ 1,724: le deja ≈ 106 ms a la fila.",
+   "ver": ["ttft-con-cola", "slo"],
+   "leccion": "requisitos-hardware",
+   "sensei": "latencia"
+  },
+  {
+   "id": "capacidad-por-gpu",
+   "termino": "Capacidad por GPU",
+   "en": "per-GPU capacity",
+   "corto": "Cuántas conversaciones a la vez atiende una GPU (o una copia del servidor) cumpliendo la promesa: que quepan en la memoria y que cada una reciba su velocidad.",
+   "largo": "Es el menor de los techos de memoria, ancho de banda y cómputo, pero bien mezclados: el [[prefill]] y el [[decode]] comparten el tiempo de la GPU, así que \\(b_{vel} = ⌊(1 − v × a_0) ÷ (v × a_1 + v × t_{pre} ÷ N_o)⌋\\) y \\(b = mín(b_{mem}, b_{vel})\\). Calculada es una primera estimación; la de verdad se mide en una prueba de carga.",
+   "ejemplo": "Una L40S con el despacho: caben 10 por memoria y 6 se escribirían a 20 tokens por segundo sin prompts nuevos, pero con los prefills de 2.38 s la capacidad es **2**. Una RTX PRO 6000 Server Edition: 6.",
+   "ver": ["cuello-de-botella", "copia-del-servidor"],
+   "leccion": "requisitos-hardware"
+  },
+  {
+   "id": "cuello-de-botella",
+   "termino": "Cuello de botella",
+   "en": "bottleneck",
+   "corto": "El recurso que se acaba primero: si lo agrandas, la capacidad sube; si agrandas cualquier otro, no cambia nada.",
+   "largo": "En una GPU que sirve un LLM los recursos son la memoria, el [[ancho-de-banda|ancho de banda]] y el cómputo, y a veces el cuello es el **tiempo** que comparten el [[prefill]] y el [[decode]]. Nombrarlo dice qué palanca mover: más ancho de banda, más cómputo, menos tokens de entrada… y descarta las que no sirven.",
+   "analogia": "Una cadena de tubos: el agua que sale la decide el más angosto. Dentro de la GPU, además, dos tubos los abre y cierra el mismo cocinero.",
+   "ejemplo": "El despacho en una L40S: la memoria sobra (10 lugares, se usan 2); el cuello es el tiempo de la GPU entre leer los pesos (64 % de cada segundo) y leer prompts de 6,000 tokens. Una L40S con el doble de memoria atendería las mismas 2.",
+   "ver": ["capacidad-por-gpu", "roofline"],
+   "leccion": "requisitos-hardware",
+   "sensei": "latencia"
+  },
+  {
+   "id": "holgura",
+   "termino": "Holgura",
+   "en": "headroom",
+   "corto": "La capacidad que se deja sin usar a propósito, para absorber picos, errores del cálculo y fallas. Se mide como capacidad ÷ demanda.",
+   "largo": "Se fija con una utilización máxima en la hora pico: \\(k = ⌈c ÷ (b × u_{máx})⌉\\). No hay un porcentaje oficial; la regla práctica para un servicio en línea es planear a ≈ 50–70 % de la capacidad medida. En un LLM hay una razón más para no apretarla: la capacidad suele estar calculada con [[eficiencia|eficiencias]] supuestas, no medida.",
+   "ejemplo": "3 L40S para el despacho: 6 lugares contra 5.70 conversaciones, holgura de 1.05× (casi nada). Con \\(u_{máx}\\) = 0.7, ⌈5.70 ÷ 1.4⌉ = 5 L40S.",
+   "ver": ["n-mas-1", "plan-de-capacidad"],
+   "leccion": "requisitos-hardware",
+   "sensei": "latencia"
+  },
+  {
+   "id": "n-mas-1",
+   "termino": "N+1",
+   "en": "N+1 redundancy",
+   "corto": "Si el pico pide N unidades, tener N + 1, para que si una falla las demás todavía aguanten el pico.",
+   "largo": "Es la forma concreta de la [[redundancia]] en un grupo de copias iguales detrás de un balanceador (a diferencia de un par activo y pasivo, 1 + 1, donde una espera sin hacer nada). Se elige por servicio: algunos piden N + 2. Ojo con qué protege: el pico promedio, o el peor momento de diseño.",
+   "ejemplo": "El despacho con L40S: el pico pide 3; con 3, si una falla quedan 4 lugares para 5.7 conversaciones, no alcanza. N+1 son 4 L40S. Con 2 RTX PRO 6000 Server Edition, si una falla la otra atiende el promedio (6 ≥ 5.57), pero no las 8 de diseño.",
+   "ver": ["redundancia", "holgura"],
+   "leccion": "requisitos-hardware"
+  },
+  {
+   "id": "plan-de-capacidad",
+   "termino": "Plan de capacidad",
+   "en": "capacity plan",
+   "corto": "La tabla que dice cuánto hardware hace falta en cada fecha según cómo crezca la carga, y cuándo hay que pedir el siguiente.",
+   "largo": "Junta el [[sizing]] de hoy con escenarios de [[crecimiento]] y con el [[tiempo-de-entrega|tiempo de entrega]]: el pronóstico tiene que llegar más lejos que lo que tarda en llegar una GPU. También decide lo que el servidor debe traer desde el primer día (ranuras, fuente de poder, enfriamiento) aunque las tarjetas se compren después.",
+   "ejemplo": "El despacho con L40S: 3 hoy, 4 con +25 %, 5 con +50 % y 6 con el doble del tráfico. Con RTX PRO 6000 Server Edition: 1 hoy y 2 hasta el doble.",
+   "ver": ["crecimiento", "holgura", "n-mas-1"],
+   "leccion": "requisitos-hardware"
+  },
+  {
+   "id": "crecimiento",
+   "termino": "Crecimiento orgánico e inorgánico",
+   "en": "organic and inorganic growth",
+   "corto": "Cómo va a subir la carga con el tiempo: orgánico es más gente usándolo y más preguntas por persona; inorgánico, un cambio del negocio (una tarea nueva, una fusión, un lanzamiento).",
+   "largo": "Nadie lo sabe con certeza y no hay un «% al año» publicado que sirva para una empresa concreta. Se calcula con escenarios supuestos (+25 %, +50 %, el doble a 12 y 24 meses) y se mira cuándo cada uno obliga a comprar. El inorgánico suele pesar más: una tarea nueva con prompts largos cambia el [[perfil-de-carga|perfil]] entero.",
+   "ejemplo": "Si el despacho duplica su tráfico (≈ 11.4 conversaciones a la vez), pasa de 3 a 6 L40S, o de 1 a 2 RTX PRO 6000 Server Edition. Si mete los resúmenes de expediente en la hora pico, el cambio es mayor que duplicar la gente.",
+   "ver": ["plan-de-capacidad"],
+   "leccion": "requisitos-hardware"
+  },
+  {
+   "id": "ttft-con-cola",
+   "termino": "TTFT con cola",
+   "en": "TTFT under queueing",
+   "corto": "El tiempo al primer token que de verdad siente la persona en la hora pico: el prefill más lo que su pregunta esperó en la fila de la GPU (y, de punta a punta, la red y la búsqueda).",
+   "largo": "Una herramienta de [[sizing]] suele dar el TTFT **sin fila**: el [[prefill]] con la GPU libre. En el pico, las preguntas llegan al azar y a veces esperan a otra, y el p95 sube mucho más que el promedio. Depende de la ocupación de cada GPU y de cómo se reparten las preguntas: con [[menos-pendientes|reparto a la copia más libre]] la fila casi desaparece.",
+   "ejemplo": "3 L40S en la hora pico del despacho: sin fila, 2.38 s; promedio con fila ≈ 2.62 s; p95 ≈ 4.2 s con reparto al azar (simulado; una cota pesimista da ≈ 5.8 s) y ≈ 2.4 s repartiendo a la más libre.",
+   "ver": ["ttft", "presupuesto-de-latencia", "menos-pendientes"],
+   "leccion": "requisitos-hardware",
+   "sensei": "latencia"
+  },
+  {
+   "id": "menos-pendientes",
+   "termino": "Reparto a la copia más libre",
+   "en": "least outstanding requests",
+   "corto": "Que el balanceador mande cada petición a la copia del servidor con menos trabajo pendiente, en vez de al azar o por turno.",
+   "largo": "Es la fila única del banco contra una fila por caja. Con prefills largos, como los de un RAG, es la palanca más barata para el p95 del [[ttft-con-cola|TTFT con cola]]: evita que dos preguntas caigan juntas en la misma GPU mientras otra está libre. En la práctica, «más libre» se aproxima contando las peticiones abiertas de cada copia.",
+   "ejemplo": "El despacho con 2 RTX PRO 6000 Server Edition: p95 del TTFT ≈ 3.1 s repartiendo al azar y ≈ 1.8 s a la más libre (simulación simple), con el mismo hardware.",
+   "ver": ["ttft-con-cola", "copia-del-servidor"],
+   "leccion": "requisitos-hardware",
+   "sensei": "balanceo"
+  }
+ ]
+}

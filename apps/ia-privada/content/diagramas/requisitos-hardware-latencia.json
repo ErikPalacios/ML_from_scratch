@@ -1,0 +1,44 @@
+{
+  "titulo": "El presupuesto de 2 s, tramo por tramo",
+  "width": 78,
+  "height": 46,
+  "lanes": [
+    { "id": "ida", "label": "Una pregunta, hasta su primera palabra", "kind": "online", "x": 0, "y": 0, "w": 78, "h": 22 },
+    { "id": "gpu", "label": "En la GPU", "kind": "neutral", "x": 0, "y": 24, "w": 78, "h": 22 }
+  ],
+  "nodes": [
+    { "id": "abogada", "label": "Una abogada", "sub": "pregunta y espera", "kind": "client", "x": 1, "y": 8, "w": 14, "h": 8,
+      "note": "Escribe su pregunta en el chat del despacho. Lo que siente es el [[ttft-con-cola|TTFT con cola]] de punta a punta: desde que aprieta «Enviar» hasta la primera palabra." },
+    { "id": "red", "label": "Red y gateway", "sub": "≈ 20 ms", "badge": "1", "kind": "edge", "x": 22, "y": 8, "w": 14, "h": 8,
+      "note": "La red local de la oficina y el gateway que revisa quién es y a qué GPU va. **Supuesto**: ≈ 20 ms ida y vuelta. Es décimas de lo demás." },
+    { "id": "rag", "label": "Búsqueda", "sub": "≈ 150 ms", "badge": "2", "kind": "service", "x": 43, "y": 8, "w": 14, "h": 8,
+      "note": "Convertir la pregunta en un vector y buscar los 5 fragmentos de expediente que se le pasan al modelo. **Supuesto**: ≈ 150 ms; la lección de RAG lo mide." },
+    { "id": "fila", "label": "Fila", "sub": "0 s a varios s", "badge": "3", "kind": "queue", "x": 63, "y": 8, "w": 14, "h": 8,
+      "note": "Si la GPU está leyendo el prompt de otra pregunta, esta espera. En promedio es poco (≈ 0.24 s con 3 L40S), pero en el p95 con reparto al azar son ≈ 1.9 s más. Repartir a la GPU más libre casi la borra." },
+    { "id": "prefill", "label": "Prefill", "sub": "2.38 s en L40S", "badge": "4", "kind": "gpu", "x": 63, "y": 32, "w": 14, "h": 8,
+      "note": "Leer los ≈ 6,000 tokens del prompt: 4.31 × 10¹⁴ FLOPs. En una L40S, 2.38 s; en una RTX PRO 6000 Server Edition, ≈ 1.72 s. Es el tramo que más pesa, y sale del cómputo de la GPU." },
+    { "id": "token", "label": "Primer token", "sub": "el TTFT", "kind": "model", "x": 43, "y": 32, "w": 14, "h": 8,
+      "note": "El último paso del prefill ya produce el primer token. Desde aquí cuenta la otra mitad de la promesa: un token cada ≤ 50 ms." },
+    { "id": "cuenta", "label": "Presupuesto: 2,000 ms", "sub": "quedan 1,830 para 3 + 4", "kind": "monitor", "x": 1, "y": 32, "w": 30, "h": 8,
+      "note": "2,000 − 20 − 150 = **1,830 ms** para la fila y el prefill. La L40S se pasa por 550 ms sin fila; la Server Edition deja ≈ 106 ms para la fila." }
+  ],
+  "edges": [
+    { "from": "abogada", "to": "red", "kind": "online", "fromSide": "r", "toSide": "l" },
+    { "from": "red", "to": "rag", "kind": "online", "fromSide": "r", "toSide": "l" },
+    { "from": "rag", "to": "fila", "kind": "online", "fromSide": "r", "toSide": "l" },
+    { "from": "fila", "to": "prefill", "kind": "online", "fromSide": "b", "toSide": "t" },
+    { "from": "prefill", "to": "token", "kind": "online", "fromSide": "l", "toSide": "r" },
+    { "from": "token", "to": "abogada", "kind": "online", "label": "primera palabra", "dashed": true, "fromSide": "t", "toSide": "b", "via": [[50, 20], [8, 20]] },
+    { "from": "token", "to": "cuenta", "kind": "neutral", "label": "se compara", "fromSide": "l", "toSide": "r" }
+  ],
+  "flows": [
+    { "id": "suma", "label": "Sumar el presupuesto",
+      "steps": [
+        { "nodes": ["abogada", "red"], "edges": ["abogada>red"], "text": "La pregunta sale del navegador y pasa por la red y el gateway: **≈ 20 ms** (supuesto). Van 20 de 2,000." },
+        { "nodes": ["rag"], "edges": ["red>rag"], "text": "Se buscan los 5 fragmentos: **≈ 150 ms** (supuesto). Van 170: quedan **1,830 ms** para la GPU." },
+        { "nodes": ["fila"], "edges": ["rag>fila"], "text": "Si la GPU está ocupada con otro prefill, la pregunta espera. Con 3 L40S y reparto al azar, el p95 de la espera es de casi 2 s: ya se comió todo." },
+        { "nodes": ["prefill", "token"], "edges": ["fila>prefill", "prefill>token"], "text": "El prefill: **2,380 ms** en una L40S. Aun sin fila, 170 + 2,380 = 2,550 ms: el presupuesto ya no cabe. En una Server Edition, 170 + 1,724 ≈ 1,894 ms: cabe, con ≈ 106 ms para la fila." },
+        { "nodes": ["token", "abogada", "cuenta"], "edges": ["token>abogada", "token>cuenta"], "text": "La primera palabra llega a la pantalla. Lo que decide si se cumple la promesa no es la red: es **la GPU y el tamaño del prompt**, y luego la fila." }
+      ] }
+  ]
+}
