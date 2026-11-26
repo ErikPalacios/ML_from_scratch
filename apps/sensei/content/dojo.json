@@ -130,8 +130,8 @@
           "id": "permisos",
           "titulo": "Permisos en cada chunk",
           "etapa": "datos",
-          "lista": false,
-          "url": null
+          "lista": true,
+          "url": "https://dojo.trueml.app/rag/permisos/"
         },
         {
           "num": 4,
