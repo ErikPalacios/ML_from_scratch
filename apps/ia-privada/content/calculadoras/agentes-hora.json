@@ -1,6 +1,6 @@
 {
   "titulo": "¿Caben los agentes? La sobra de la hora pico y la cuota de una persona",
-  "intro": "Aplica \\(H = Q × (1 ÷ u − 1)\\) (las preguntas de RAG que todavía caben en la hora) y \\(A = H ÷ m\\) (los agentes que caben, si cada uno «vale» \\(m\\) preguntas), y compara un agente contra la cuota del chat de una persona (`rpm` y cubeta de tokens). Arranca con el despacho en la hora pico (750 preguntas, uso de 86.8 %) y el agente del socio (6 requests, 22,590 tokens, ≈ 45.4 s), contando el prefill sin caché.",
+  "intro": "Aplica \\(H = Q × (1 ÷ u − 1)\\) (las preguntas de [[rag|RAG]] que todavía caben en la hora) y \\(A = H ÷ m\\) (los agentes que caben, si cada uno «vale» \\(m\\) preguntas), y compara un agente contra la cuota del chat de una persona (`rpm` y cubeta de tokens). Arranca con el despacho en la hora pico (750 preguntas, uso de 86.8 %) y el agente del socio (6 requests, 22,590 tokens, ≈ 45.4 s), contando el prefill sin caché.",
   "preajustes": [
     {
       "label": "Cuánto «vale» un agente en preguntas de RAG",

@@ -445,7 +445,7 @@ Lo que tu examen ve y un benchmark no:
 
 Y lo que no ve: con 200 preguntas, un puntaje de 85 % trae ±4.9 puntos de ruido, y dos modelos tienen que estar a ≈ 7 puntos para distinguirse. Por eso el examen propio sirve para **descartar los que fallan** en tu tarea y para encontrar diferencias grandes, no para decidir entre dos que empatan. Cuando empatan, decide otra cosa: la velocidad, la memoria, lo que ya funciona.
 
-Cómo armar ese examen sin que te engañe (cuántas preguntas, cómo calificar respuestas abiertas, cómo usar otro LLM como calificador y cómo evitar que el examen se cuele al prompt) lo ves a fondo en la lección «Demostrar que el modelo abierto sirve», del módulo de evals.
+Cómo armar ese examen sin que te engañe (cuántas preguntas, cómo calificar respuestas abiertas, cómo usar otro LLM como calificador y cómo evitar que el examen se cuele al prompt) lo ves a fondo en la lección «[Demostrar que el modelo abierto sirve](/evals/)», del módulo de evals.
 
 ## Elegir para el despacho, paso a paso {Choosing for the law firm, step by step}
 
@@ -578,7 +578,7 @@ Memoria: en 4 bits sus pesos son ≈ 119.4 × 4.156 ÷ 8 ≈ **62.0 GB**, más q
 - **«[Open weight, open source y licencias](/licencias/)»**, en este mismo módulo: el filtro 1 a fondo, cómo leer [[apache-2|Apache 2.0]], MIT, la [[licencia-llama|licencia de Llama]] y las marcadas «other».
 - **«[Batching continuo y PagedAttention](/batching/)»** y **«[Concurrencia: la curva de usuarios contra latencia](/concurrencia/)»**: cómo un servidor atiende varias conversaciones con una sola lectura de los pesos, y por qué la memoria dice cuántas caben pero el cálculo dice cuántas se atienden bien.
 - **«[Formatos de cuantización en la práctica](/formatos-cuantizacion/)»**: qué se pierde de calidad al pasar de BF16 a los 4 bits con que se examinó cada candidato.
-- **«Demostrar que el modelo abierto sirve»**, en el módulo de evals: cómo se arma, se califica y se mantiene el examen propio de 200 preguntas.
+- **«[Demostrar que el modelo abierto sirve](/evals/)»**, en el módulo de evals: cómo se arma, se califica y se mantiene el examen propio de 200 preguntas.
 - En Sensei, [Transformers y LLMs](https://sensei.trueml.app/llms/) para el porqué del KV cache y de los expertos, y [Ruido, muestras y pruebas A/B](https://sensei.trueml.app/ruido/) para la prueba pareada y el diseño de una comparación.
 
 ## Palabras que vas a oír {Words you'll hear}

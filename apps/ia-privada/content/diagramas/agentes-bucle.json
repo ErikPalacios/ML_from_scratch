@@ -92,7 +92,7 @@
       "y": 37,
       "w": 18,
       "h": 8,
-      "note": "La [[tool]] recibe el Id de la persona **del programa**, no del modelo, y revisa la ACL antes de leer. Es [[minimo-privilegio|mínimo privilegio]]: si la abogada no puede ver el expediente, la tool tampoco lo devuelve."
+      "note": "La [[tool]] recibe el Id de la persona **del programa**, no del modelo, y revisa la [[acl-por-chunk|ACL]] antes de leer. Es [[minimo-privilegio|mínimo privilegio]]: si la abogada no puede ver el expediente, la tool tampoco lo devuelve."
     },
     {
       "id": "datos",
@@ -220,7 +220,7 @@
             "validar>tool",
             "tool>datos"
           ],
-          "text": "**4 · La tool lee con el permiso de la persona.** El EXP-0412 sí está en su ACL: devuelve un extracto de ≈ 500 tokens con expediente y página."
+          "text": "**4 · La tool lee con el permiso de la persona.** El EXP-0412 sí está en su [[acl-por-chunk|ACL]]: devuelve un extracto de ≈ 500 tokens con expediente y página."
         },
         {
           "nodes": [
@@ -259,7 +259,7 @@
             "validar>tool",
             "tool>datos"
           ],
-          "text": "La tool revisa la ACL con el Id que puso el programa: la abogada no puede ver el EXP-0977. Devuelve `{\"error\": \"sin acceso\"}`. Ningún texto cambia eso."
+          "text": "La tool revisa la [[acl-por-chunk|ACL]] con el Id que puso el programa: la abogada no puede ver el EXP-0977. Devuelve `{\"error\": \"sin acceso\"}`. Ningún texto cambia eso."
         },
         {
           "nodes": [

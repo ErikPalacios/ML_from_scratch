@@ -15,7 +15,7 @@
     {
       "id": "busqueda", "label": "Búsqueda", "sub": "los 5 fragmentos", "badge": "2", "kind": "service",
       "x": 30, "y": 6, "w": 18, "h": 8,
-      "note": "La capa del RAG: busca en los expedientes que la persona puede ver y trae los 5 fragmentos más parecidos. Si la página correcta no llega aquí, el modelo no la puede citar, por bueno que sea."
+      "note": "La capa del [[rag|RAG]]: busca en los expedientes que la persona puede ver y trae los 5 [[chunk|fragmentos]] más parecidos. Si la página correcta no llega aquí, el modelo no la puede citar, por bueno que sea."
     },
     {
       "id": "llm", "label": "Qwen3 32B", "sub": "respuesta + cita", "badge": "3", "kind": "model",
@@ -30,7 +30,7 @@
     {
       "id": "ret", "label": "Retrieval", "sub": "¿llegó la página? · código", "kind": "monitor",
       "x": 30, "y": 25, "w": 18, "h": 8,
-      "note": "Una [[metrica-de-retrieval|métrica de retrieval]]: ¿está la página de oro entre los 5 fragmentos? Es un sí o no que calcula un programa, sin juez. Y en las de permisos: ¿llegó un fragmento que no debía? Eso es una fuga."
+      "note": "Una [[metrica-de-retrieval|métrica de retrieval]]: ¿está la página de oro entre los 5 [[chunk|fragmentos]]? Es un sí o no que calcula un programa, sin juez. Y en las de permisos: ¿llegó un fragmento que no debía? Eso es una fuga."
     },
     {
       "id": "cita", "label": "Cita", "sub": "¿existe y lo dice? · código", "kind": "monitor",
@@ -50,7 +50,7 @@
     {
       "id": "juez", "label": "Juez", "sub": "¿correcta y fiel?", "kind": "model",
       "x": 58, "y": 38, "w": 18, "h": 8,
-      "note": "El [[llm-as-judge|LLM como juez]], corriendo **dentro** de la red: compara la respuesta con la referencia y con los fragmentos siguiendo una [[rubrica|rúbrica]]. Solo califica lo que el código no puede: si dice lo correcto y si es [[fidelidad|fiel]] a los fragmentos."
+      "note": "El [[llm-as-judge|LLM como juez]], corriendo **dentro** de la red: compara la respuesta con la referencia y con los [[chunk|fragmentos]] siguiendo una [[rubrica|rúbrica]]. Solo califica lo que el código no puede: si dice lo correcto y si es [[fidelidad|fiel]] a los fragmentos."
     }
   ],
   "edges": [
@@ -70,16 +70,16 @@
       "label": "Una pregunta que sale bien",
       "steps": [
         { "nodes": ["pregunta", "busqueda"], "edges": ["pregunta>busqueda"], "text": "**1 · Se pregunta como abogado.** «¿El contrato del expediente 4127 permite ceder los derechos?», con la cuenta de una asociada que sí puede ver ese expediente." },
-        { "nodes": ["busqueda", "ret", "golden"], "edges": ["busqueda>ret", "golden>ret"], "text": "**2 · Retrieval.** La página de oro (exp. 4127, p. 12) está entre los 5 fragmentos. Lo revisa un programa: **sí**." },
+        { "nodes": ["busqueda", "ret", "golden"], "edges": ["busqueda>ret", "golden>ret"], "text": "**2 · Retrieval.** La página de oro (exp. 4127, p. 12) está entre los 5 [[chunk|fragmentos]]. Lo revisa un programa: **sí**." },
         { "nodes": ["llm", "cita"], "edges": ["busqueda>llm", "llm>cita"], "text": "**3 · Cita.** La respuesta cita «exp. 4127, p. 12» con un pedazo de texto; el programa confirma que esa página existe y dice eso: **correcta**." },
-        { "nodes": ["juez", "tabla"], "edges": ["cita>juez", "juez>tabla", "ret>tabla"], "text": "**4 · Juez.** Compara la respuesta con la referencia y con los fragmentos: correcta y fiel. El renglón queda con las cuatro capas en verde." }
+        { "nodes": ["juez", "tabla"], "edges": ["cita>juez", "juez>tabla", "ret>tabla"], "text": "**4 · Juez.** Compara la respuesta con la referencia y con los [[chunk|fragmentos]]: correcta y fiel. El renglón queda con las cuatro capas en verde." }
       ]
     },
     {
       "id": "no-llego",
       "label": "La búsqueda no trajo la página",
       "steps": [
-        { "nodes": ["busqueda", "ret"], "edges": ["busqueda>ret", "golden>ret"], "text": "La página de oro no está en los 5 fragmentos. El retrieval sale **mal** antes de que el modelo escriba una palabra." },
+        { "nodes": ["busqueda", "ret"], "edges": ["busqueda>ret", "golden>ret"], "text": "La página de oro no está en los 5 [[chunk|fragmentos]]. El retrieval sale **mal** antes de que el modelo escriba una palabra." },
         { "nodes": ["llm", "cita", "tabla"], "edges": ["llm>cita", "ret>tabla"], "text": "Si el modelo dice «no lo encontré», es honesto aunque la pregunta cuente como mal. Si cita un texto que no está en la página que nombra, el programa la marca **inventada**. En los dos casos el renglón dice dónde arreglar: en la búsqueda, no en el modelo." }
       ]
     },
@@ -87,7 +87,7 @@
       "id": "permisos",
       "label": "Una pregunta de permisos",
       "steps": [
-        { "nodes": ["pregunta", "busqueda", "ret"], "edges": ["pregunta>busqueda", "busqueda>ret"], "text": "Un pasante pregunta por un expediente de otro equipo. Lo único que se revisa: que **ningún** fragmento de ese expediente salga de la búsqueda y llegue al modelo. Una sola fuga y el examen no pasa, sin importar el porcentaje." }
+        { "nodes": ["pregunta", "busqueda", "ret"], "edges": ["pregunta>busqueda", "busqueda>ret"], "text": "Un pasante pregunta por un expediente de otro equipo. Lo único que se revisa: que **ningún** [[chunk|fragmento]] de ese expediente salga de la búsqueda y llegue al modelo. Una sola fuga y el examen no pasa, sin importar el porcentaje." }
       ]
     }
   ]

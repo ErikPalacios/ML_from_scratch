@@ -73,7 +73,7 @@
     "en": "load-test dataset",
     "corto": "La lista de peticiones que manda el generador en una prueba de carga: cada una con su texto de entrada y su tope de salida. Tiene que parecerse al tráfico real en largos, variación y en lo que se repite.",
     "largo": "Es lo que más cambia el resultado: en la misma GPU, preguntas de 200 tokens y de 5,000 dan tokens por segundo casi 5 veces distintos. Debe copiar el [[perfil-de-carga|perfil de carga]]: largo medio y variación de la entrada y la salida, y el prefijo que de verdad se comparte (el prompt de sistema) sin repetir lo que no se comparte, porque con [[prefix-caching|prefix caching]] un prompt repetido es casi gratis. Con datos sensibles, el dataset se escribe sintético. Formatos comunes: JSONL con un campo `prompt`, datasets públicos (ShareGPT) o trazas grabadas.",
-    "ejemplo": "El del despacho: ≥ 1,000 prompts de ≈ 6,000 tokens (± 30 %), las mismas instrucciones de ≈ 400 al inicio de todos y cinco fragmentos sintéticos distintos en cada uno; tope de 500 de salida.",
+    "ejemplo": "El del despacho: ≥ 1,000 prompts de ≈ 6,000 tokens (± 30 %), las mismas instrucciones de ≈ 400 al inicio de todos y cinco [[chunk|fragmentos]] sintéticos distintos en cada uno; tope de 500 de salida.",
     "ver": ["prueba-de-carga", "prefix-caching", "perfil-de-carga"],
     "leccion": "pruebas-carga"
   },

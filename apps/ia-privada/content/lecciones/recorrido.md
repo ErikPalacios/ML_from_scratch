@@ -143,7 +143,7 @@ Un [[caso-de-uso|caso de uso]] es una tarea concreta para alguien concreto: qui�
 2. Resumir un expediente.
 3. Encontrar cláusulas parecidas en otros contratos.
 
-Se empieza por **uno**, el 1, porque cumple las tres condiciones de un buen primer caso: es **frecuente** (es lo que más piden), se puede **medir** (una respuesta con cita se revisa: la cita existe y dice eso, o no) y **no es el más riesgoso** (un abogado revisa la respuesta antes de usarla; nadie firma un contrato que escribió la máquina). Técnicamente es un RAG (*retrieval-augmented generation*): el sistema primero busca los fragmentos de expediente que hablan del tema y después le pide al modelo que conteste solo con ellos y diga de dónde los sacó. Lo ves a fondo en la lección «RAG privado: embeddings y vector DB locales».
+Se empieza por **uno**, el 1, porque cumple las tres condiciones de un buen primer caso: es **frecuente** (es lo que más piden), se puede **medir** (una respuesta con cita se revisa: la cita existe y dice eso, o no) y **no es el más riesgoso** (un abogado revisa la respuesta antes de usarla; nadie firma un contrato que escribió la máquina). Técnicamente es un [[rag|RAG]] (*retrieval-augmented generation*): el sistema primero busca los fragmentos de expediente que hablan del tema y después le pide al modelo que conteste solo con ellos y diga de dónde los sacó. Lo ves a fondo en la lección «[RAG privado: embeddings y vector DB locales](/rag-privado/)».
 
 Hacer los tres a la vez es la forma más común de no terminar ninguno.
 
@@ -302,7 +302,7 @@ Tiempo, \(t_{prefill}\) | 3.9 × 10¹⁴ ÷ 1.81 × 10¹⁴ | **≈ 2.17 s**
 = Con una sola pregunta y la GPU libre, la primera palabra ya tarda más que los 2 s del objetivo. La [herramienta de sizing](/herramientas/sizing/), que cuenta todo lo demás, da ≈ 2.38 s.
 :::
 
-Y hay más: mientras la GPU hace el prefill de una pregunta nueva, las conversaciones que [[decode|ya escriben]] se frenan. La cuenta completa de la [herramienta de sizing](/herramientas/sizing/) (con cómputo y ancho de banda) dice que, con prefills de 6,000 tokens llegando, una L40S solo mantiene **2** conversaciones a ≥ 20 tokens/s. Para las ≈ 5.6 del despacho en promedio hacen falta **3 L40S** (5.6 ÷ 2, hacia arriba), y aun así el tiempo al primer token queda en ≈ 2.4 s: el objetivo de ≤ 2 s **no se cumple** con L40S. Y si se quiere que las 8 de diseño vayan todas a ≥ 20 tokens/s, como pide el criterio en la prueba de carga, la misma cuenta da 4 (8 ÷ 2). El detalle, con la curva de usuarios contra latencia, está en la lección «Concurrencia: la curva de usuarios contra latencia».
+Y hay más: mientras la GPU hace el prefill de una pregunta nueva, las conversaciones que [[decode|ya escriben]] se frenan. La cuenta completa de la [herramienta de sizing](/herramientas/sizing/) (con cómputo y ancho de banda) dice que, con prefills de 6,000 tokens llegando, una L40S solo mantiene **2** conversaciones a ≥ 20 tokens/s. Para las ≈ 5.6 del despacho en promedio hacen falta **3 L40S** (5.6 ÷ 2, hacia arriba), y aun así el tiempo al primer token queda en ≈ 2.4 s: el objetivo de ≤ 2 s **no se cumple** con L40S. Y si se quiere que las 8 de diseño vayan todas a ≥ 20 tokens/s, como pide el criterio en la [[prueba-de-carga|prueba de carga]], la misma cuenta da 4 (8 ÷ 2). El detalle, con la curva de usuarios contra latencia, está en la lección «Concurrencia: la curva de usuarios contra latencia».
 
 :::ojo
 La memoria dice cuántas **caben**; el cómputo y el ancho de banda, cuántas se atienden **bien**. «Caben 8 en 1 L40S» es cierto y no basta: con lo que pide el despacho, 1 L40S no alcanza.
@@ -350,7 +350,7 @@ Las seis capas del despacho, con la lección donde se ve cada una a fondo.
 
 **4 · La API.** La ventanilla por donde los programas le preguntan al modelo. Se usa casi siempre una API compatible con la de OpenAI, para que cualquier herramienta que ya sepa hablar con OpenAI hable con el servidor propio. Delante va un *gateway* que pide usuario y llave, registra quién preguntó qué y reparte entre modelos. Lección: «[Gateway, API compatible con OpenAI, autenticación y varios modelos](/gateway/)».
 
-**5 · La aplicación con RAG.** Lo que el abogado usa: busca en los 30,000 expedientes los fragmentos que hablan de su pregunta, se los pasa al modelo y muestra la respuesta con su cita. Aquí se gana o se pierde la calidad: si la búsqueda no encuentra la página correcta, el mejor modelo del mundo no la puede citar. Lección: «RAG privado: embeddings y vector DB locales».
+**5 · La aplicación con [[rag|RAG]].** Lo que el abogado usa: busca en los 30,000 expedientes los fragmentos que hablan de su pregunta, se los pasa al modelo y muestra la respuesta con su cita. Aquí se gana o se pierde la calidad: si la búsqueda no encuentra la página correcta, el mejor modelo del mundo no la puede citar. Lección: «[RAG privado: embeddings y vector DB locales](/rag-privado/)».
 
 **6 · Usuarios.** 200 abogados y asistentes, con su cuenta del despacho y sus permisos. Ojo con esto: no todos pueden ver todos los expedientes. Si la búsqueda no respeta los permisos, el sistema le enseña a un asistente un expediente que no le toca. Lección: «Seguridad: aislamiento, sin internet y actualizaciones».
 
@@ -370,18 +370,18 @@ Se le dan al sistema las **200 preguntas reales** del despacho, escritas por sus
 
 - **Preguntas del cliente, no de internet.** Un modelo puede brillar en un examen público y fallar con contratos mexicanos. Esos exámenes públicos, iguales para todos los modelos, se llaman *[[benchmark|benchmarks]]*: sirven para elegir candidatos; el examen del despacho decide. Lo ves en «[Elegir un modelo para la tarea](/elegir-modelo/)».
 - **Se evalúa el sistema completo**, búsqueda y modelo juntos. Si falla, hay que saber dónde: ¿no encontró el fragmento o lo encontró y contestó mal?
-- **El examen se guarda** y se repite con cada cambio. Es lo que en la lección «Demostrar que el modelo abierto sirve» se llama un *golden set*, junto con cómo se califica a escala.
+- **El examen se guarda** y se repite con cada cambio. Es lo que en la lección «[Demostrar que el modelo abierto sirve](/evals/)» se llama un *[[golden-set|golden set]]*, junto con cómo se califica a escala.
 
 Con 200 preguntas, un 85 % no es exacto: otra muestra de 200 podría dar unos puntos más o menos. Cuánto ruido hay en un examen y cómo comparar dos modelos sin engañarse lo viste en [Ruido, muestras y pruebas A/B](https://sensei.trueml.app/ruido/).
 
 ### ¿Aguanta?
 
-Un modelo que contesta perfecto a una persona puede ser lento con ocho. La **prueba de carga** simula la hora pico: 8 conversaciones a la vez, cada una con ≈ 6,000 tokens de entrada y ≈ 500 de salida, y mide:
+Un modelo que contesta perfecto a una persona puede ser lento con ocho. La **[[prueba-de-carga|prueba de carga]]** simula la hora pico: 8 conversaciones a la vez, cada una con ≈ 6,000 tokens de entrada y ≈ 500 de salida, y mide:
 
 - el **[[ttft|tiempo al primer token]]** de cada pregunta, contra **≤ 2 s en el p95**;
 - la **velocidad de escritura** de cada persona, contra **≥ 20 tokens/s**.
 
-Esto ya da una pista de cuánto trabaja la GPU: 8 personas a 20 tokens/s son 160 tokens por segundo de salida que debe sostener a la vez, mientras además lee los 6,000 tokens de cada pregunta nueva. Cómo se diseña una prueba de carga honesta (con prompts reales, sin trampas de calentamiento) es la lección «Pruebas de carga y benchmarks honestos».
+Esto ya da una pista de cuánto trabaja la GPU: 8 personas a 20 tokens/s son 160 tokens por segundo de salida que debe sostener a la vez, mientras además lee los 6,000 tokens de cada pregunta nueva. Cómo se diseña una prueba de carga honesta (con prompts reales, sin trampas de calentamiento) es la lección «[Pruebas de carga y benchmarks honestos](/pruebas-carga/)».
 
 :::ojo
 Las dos pruebas se hacen **en el hardware de verdad**, o en uno igual. Una prueba de carga en una GPU distinta a la que vas a comprar no dice nada de la que vas a comprar. Por eso el piloto renta el mismo modelo de GPU que se piensa comprar (una sola basta para medir cuántas atiende cada una), y la prueba se repite cuando llega el equipo propio.
@@ -393,7 +393,7 @@ El día 1 se instala. El [[operacion|día 2]] son todos los demás, y suele cost
 
 **Monitoreo.** Medir todo el tiempo lo que el criterio promete: [[ttft|tiempo al primer token]], velocidad, errores, cuántas conversaciones hay a la vez, memoria y temperatura de la GPU. Y algo que la máquina no mide sola: si las respuestas siguen siendo buenas (por ejemplo, un botón de «esta cita está mal» que los abogados aprieten). Lección: «Observabilidad de GPUs e inferencia».
 
-**Actualizaciones.** Del modelo (sale Qwen nuevo), del servidor de inferencia (versión nueva, a veces con valores por omisión distintos), de los drivers y del sistema. Cada una se prueba primero contra el examen de 200 preguntas y la prueba de carga: esa es la flecha de regreso a evals del diagrama. Lección: «Seguridad: aislamiento, sin internet y actualizaciones».
+**Actualizaciones.** Del modelo (sale Qwen nuevo), del servidor de inferencia (versión nueva, a veces con valores por omisión distintos), de los drivers y del sistema. Cada una se prueba primero contra el examen de 200 preguntas y la [[prueba-de-carga|prueba de carga]]: esa es la flecha de regreso a evals del diagrama. Lección: «Seguridad: aislamiento, sin internet y actualizaciones».
 
 **Respaldos.** De lo que costaría rehacer: el índice de búsqueda de los expedientes, la configuración del servidor, el archivo exacto del modelo que pasó el examen (con su huella, un código corto que cambia si cambia un solo byte del archivo, para saber que es el mismo), el examen y los registros de quién preguntó qué, que en un despacho pueden importar.
 
@@ -412,9 +412,9 @@ La [[prueba-piloto|prueba piloto]] es una prueba corta, con fecha de fin, usuari
 | Semana | Qué pasa | Entregable |
 |---|---|---|
 | 1 | Cerrar descubrimiento, elegir a los 20 abogados, acordar con el abogado del despacho qué documentos entran al piloto | Hoja de descubrimiento y criterio de aceptación firmados |
-| 2 | Rentar la L40S, levantar el servidor y el primer RAG con una parte de los expedientes | El sistema contestando, todavía sin evaluar |
+| 2 | Rentar la L40S, levantar el servidor y el primer [[rag\|RAG]] con una parte de los expedientes | El sistema contestando, todavía sin evaluar |
 | 3 | Los abogados escriben las 200 preguntas con su respuesta y su cita; se evalúan los candidatos | Tabla de calidad por modelo |
-| 4 | Prueba de carga con 8 a la vez; ajustar el servidor | [[ttft\|TTFT]] p95 y tokens/s medidos |
+| 4 | [[prueba-de-carga\|Prueba de carga]] con 8 a la vez; ajustar el servidor | [[ttft\|TTFT]] p95 y tokens/s medidos |
 | 5–6 | Los 20 abogados lo usan en su trabajo diario; se registran quejas y preguntas reales | Preguntas por persona y tokens reales, medidos |
 | 7 | Rehacer el sizing con lo medido; cotizar el equipo | Informe: ¿pasa el criterio?, sizing final, cotización con fecha de entrega |
 | 8 | Decisión del despacho | Seguir y comprar, regresar o detener |
@@ -489,7 +489,7 @@ Fíjate en dónde están las puertas: casi todas antes de la compra. Un proyecto
 1. **Empezar por el hardware.** «¿Qué GPU compro?» antes de saber la tarea, los usuarios y la latencia. **Cómo evitarlo:** no hables de GPUs hasta llenar la hoja de descubrimiento.
 2. **Dimensionar con usuarios registrados.** Diseñar para 200 a la vez cuando son 8. Compras 25 veces de más, o te asustas y cancelas. **Cómo evitarlo:** de personas a llegadas por segundo en la hora pico, y de ahí, con la [[ley-de-little|Ley de Little]], a conversaciones a la vez.
 3. **Un criterio de aceptación sin números, o escrito después.** «Que funcione bien» termina en opiniones; un 85 % fijado después de ver un 86 % no es un criterio. **Cómo evitarlo:** números firmados antes del piloto.
-4. **Creer que «cabe» es «sirve».** La VRAM dice si arranca, no si contesta rápido ni si contesta bien. **Cómo evitarlo:** la prueba de carga y el examen en el hardware de verdad.
+4. **Creer que «cabe» es «sirve».** La VRAM dice si arranca, no si contesta rápido ni si contesta bien. **Cómo evitarlo:** la [[prueba-de-carga|prueba de carga]] y el examen en el hardware de verdad.
 5. **Comprar antes de probar.** Con tiempos de entrega de semanas o meses, un equipo equivocado cuesta dinero y tiempo. **Cómo evitarlo:** rentar para el piloto y comprar con lo medido.
 6. **Olvidar que el piloto en la nube también mueve datos.** «Es solo una prueba» con expedientes reales en un servidor en otro país. **Cómo evitarlo:** decidir con el cliente y su abogado qué documentos entran al piloto y dónde.
 7. **Entregar sin plan de día 2.** El sistema funciona el día de la entrega y nadie sabe qué hacer cuando sale un driver nuevo. **Cómo evitarlo:** manual, capacitación, respaldos y un contrato de soporte, desde el diseño.
@@ -560,7 +560,7 @@ Necesita números, la muestra con que se mide y la carga: «Con un examen de 200
 - En la hora pico: 0.30 × 3,000 = 900 preguntas. El promedio por hora es 300, así que \(k\) = 900 ÷ 300 = **3**.
 - \(λ\) = 900 ÷ 3,600 = 0.25 por segundo; \(u\) = 0.25 × 27 = **6.75**.
 - De diseño: ⌈6.75 × 1.4⌉ = ⌈9.45⌉ = **10**.
-- Por memoria, una L40S guarda hasta 10 conversaciones de 8,192 tokens: caben justo, sin margen. Pero por velocidad cada L40S atiende bien ≈ 2: con 6.75 a la vez en promedio harían falta ≈ 4 (6.75 ÷ 2, hacia arriba) en vez de 3. Lo confirma la [herramienta de sizing](/herramientas/sizing/) y, al final, la prueba de carga.
+- Por memoria, una L40S guarda hasta 10 conversaciones de 8,192 tokens: caben justo, sin margen. Pero por velocidad cada L40S atiende bien ≈ 2: con 6.75 a la vez en promedio harían falta ≈ 4 (6.75 ÷ 2, hacia arriba) en vez de 3. Lo confirma la [herramienta de sizing](/herramientas/sizing/) y, al final, la [[prueba-de-carga|prueba de carga]].
 
 ? [reto] El piloto termina: el modelo contesta bien el 78 % de las 200 preguntas, con 3 citas inventadas, y la prueba de carga pasa. ¿Pasa el criterio? ¿Qué harías, y qué no harías?
 - No pasa: la calidad pide ≥ 85 % (170), y 78 % son 156. Las citas inventadas (3, ≤ 4) y la carga sí pasan.
@@ -586,8 +586,8 @@ Las lecciones de esta app, en orden, y qué toma cada una de esta:
 - **«[Comprar hardware: de la workstation al rack](/comprar-hardware/)»** y **«[El cuarto: energía, enfriamiento y red](/el-cuarto/)»**: la etapa de compra y la capa 1.
 - **«[De requisitos a hardware](/requisitos-hardware/)»** y **«[Varias GPUs: tensor y pipeline parallel](/varias-gpus/)»**: el sizing a fondo, más allá de la servilleta.
 - **«[Del laptop al servidor](/stack-serving/)»** y **«[Gateway, API compatible con OpenAI, autenticación y varios modelos](/gateway/)»**: las capas 3 y 4 del despliegue.
-- **«RAG privado: embeddings y vector DB locales»** y **«Agentes, tools y guardrails»**: la capa 5, donde se gana la calidad.
-- **«Demostrar que el modelo abierto sirve»** y **«Pruebas de carga y benchmarks honestos»**: las dos mitades de las evals.
+- **«[RAG privado: embeddings y vector DB locales](/rag-privado/)»** y **«[Agentes, tools y guardrails](/agentes/)»**: la capa 5, donde se gana la calidad.
+- **«[Demostrar que el modelo abierto sirve](/evals/)»** y **«[Pruebas de carga y benchmarks honestos](/pruebas-carga/)»**: las dos mitades de las evals.
 - **«Observabilidad de GPUs e inferencia»** y **«Seguridad: aislamiento, sin internet y actualizaciones»**: el día 2.
 - **«TCO: API, nube o servidor propio»** y **«Cotizar, proponer y dar soporte»**: el costo de verdad y cómo se vende.
 

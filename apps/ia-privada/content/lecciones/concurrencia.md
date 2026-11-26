@@ -14,7 +14,7 @@ En esta lección seguimos a **el despacho**, un ejemplo ficticio: un despacho de
 
 Esa última frase es la trampa de esta lección. Al final vas a ver por qué una sola L40S no alcanza, aunque las 8 conversaciones quepan de sobra.
 
-Das por leídas tres lecciones de Sensei. De [Qué tan rápido y cuánto: latencia y throughput](https://sensei.trueml.app/latencia/) necesitas cuatro ideas: la latencia es viajar, esperar y trabajar; la espera explota cuando un servidor se acerca al 100 % de ocupación; la [[ley-de-little|ley de Little]] dice cuántas peticiones hay adentro a la vez, y una prueba de carga sube el tráfico hasta encontrar el codo, donde el throughput se aplana y la latencia se dispara. De [Promedios, medianas y percentiles](https://sensei.trueml.app/percentiles/), que una promesa se escribe en un percentil alto. Y de [Transformers y LLMs](https://sensei.trueml.app/llms/), que una respuesta tiene dos fases: el **[[prefill|prefill]]**, que lee todo el prompt de una pasada, y el **[[decode|decode]]**, que escribe un token por paso; y que cada fase tiene su reloj, el [[ttft|TTFT]] y el TPOT. Aquí vamos a lo que es propio de servir LLMs a mucha gente, con números de una GPU real.
+Das por leídas tres lecciones de Sensei. De [Qué tan rápido y cuánto: latencia y throughput](https://sensei.trueml.app/latencia/) necesitas cuatro ideas: la latencia es viajar, esperar y trabajar; la espera explota cuando un servidor se acerca al 100 % de ocupación; la [[ley-de-little|ley de Little]] dice cuántas peticiones hay adentro a la vez, y una [[prueba-de-carga|prueba de carga]] sube el tráfico hasta encontrar el codo, donde el throughput se aplana y la latencia se dispara. De [Promedios, medianas y percentiles](https://sensei.trueml.app/percentiles/), que una promesa se escribe en un percentil alto. Y de [Transformers y LLMs](https://sensei.trueml.app/llms/), que una respuesta tiene dos fases: el **[[prefill|prefill]]**, que lee todo el prompt de una pasada, y el **[[decode|decode]]**, que escribe un token por paso; y que cada fase tiene su reloj, el [[ttft|TTFT]] y el TPOT. Aquí vamos a lo que es propio de servir LLMs a mucha gente, con números de una GPU real.
 
 ## Más gente, más tokens, menos para cada quien {More people, more tokens, less for each}
 
@@ -179,7 +179,7 @@ X = N × v
 - X: los tokens por segundo totales
 :::
 
-Las dos eficiencias son supuestos, los mismos que usa la [herramienta de sizing](/herramientas/sizing/) de esta app: ninguna GPU lee a su ancho de banda de hoja de datos ni calcula a su pico. Una prueba de carga en tu hardware te da los reales.
+Las dos eficiencias son supuestos, los mismos que usa la [herramienta de sizing](/herramientas/sizing/) de esta app: ninguna GPU lee a su ancho de banda de hoja de datos ni calcula a su pico. Una [[prueba-de-carga|prueba de carga]] en tu hardware te da los reales.
 
 :::cuenta El despacho en una L40S, sin contar los prefills
 KV por token, \(m\) // Qwen3 32B: 64 bloques, 8 juegos de K y V de 128 números, 2 bytes | 2 × 64 × 8 × 128 × 2 | 262,144 bytes = 256 KiB
@@ -468,7 +468,7 @@ Toca cada techo para ver su cuenta, o usa «Recorrer» para subir la gente hasta
 
 - **Modelo grande con prompts cortos**, como un asistente de soporte: casi siempre el **techo 2**. La velocidad por persona cae antes de que se acabe la memoria.
 - **Pesos grandes en una GPU justa**, como Llama 3.1 8B en BF16 en la curva de NVIDIA o un 32B en FP8 en una L40S: el **techo 1**. El KV cache se acaba pronto y el codo llega de golpe.
-- **Prompts largos**, como un RAG con 5 fragmentos: el **techo 3**, por los prefills. Es el caso del despacho, que llega a él antes de llenar la memoria.
+- **Prompts largos**, como un [[rag|RAG]] con 5 fragmentos: el **techo 3**, por los prefills. Es el caso del despacho, que llega a él antes de llenar la memoria.
 
 ### La promesa: SLO y goodput
 
@@ -524,7 +524,7 @@ Lo importante del goodput es que cambia la pregunta de compra. No es «¿cuánto
 
 Todos los fabricantes y blogs publican tablas de tokens por segundo. Casi todas son verdad y casi ninguna es tu caso. Antes de creerle a una, revisa cinco cosas.
 
-**1. Las longitudes de entrada y salida.** Es lo que más cambia el resultado. En la misma L40S y el mismo modelo, NVIDIA mide 4,251 tokens/s con 100 a la vez y peticiones de 200/200, y 2,869 con 1,000/1,000. Con 5,000 de entrada y 500 de salida, 889. Una tabla con prompts de 200 tokens no dice nada de un RAG con 6,000.
+**1. Las longitudes de entrada y salida.** Es lo que más cambia el resultado. En la misma L40S y el mismo modelo, NVIDIA mide 4,251 tokens/s con 100 a la vez y peticiones de 200/200, y 2,869 con 1,000/1,000. Con 5,000 de entrada y 500 de salida, 889. Una tabla con prompts de 200 tokens no dice nada de un [[rag|RAG]] con 6,000.
 
 **2. La cuantización y el modelo exacto.** FP8 contra BF16 en la misma GPU: 2,869 contra 1,613 tokens/s a 100 a la vez. Un 8B no es un 32B. Y el KV cache puede ir en otro formato que los pesos, y casi nunca se dice.
 
@@ -535,14 +535,14 @@ Todos los fabricantes y blogs publican tablas de tokens por segundo. Casi todas 
 **5. Quién midió y cómo.** Las tablas de NVIDIA se pueden comprobar (como hiciste con Little). Los blogs son útiles para contrastar, pero son fuentes secundarias. Uno que midió Qwen3 32B en FP8 en una L40S con vLLM (prompts de 1,024 tokens, salidas de 256) reporta, con 8 a la vez, 119 tokens/s totales, un ITL de ≈ 50 ms y un TTFT medio de 4.2 s; con 32 a la vez, 230 tokens/s y TTFT de 9.2 s, porque con pesos de ≈ 32 GB casi no le queda memoria para KV cache. Es una fuente de segunda mano, pero va en la misma dirección que tus cuentas: un 32B en una L40S está justo.
 
 :::ojo
-Un benchmark responde «¿qué tan rápido va este servidor con esta carga?». Tú necesitas «¿cumple mi promesa con mi carga?». La única forma de saberlo es una prueba de carga con tus prompts, tu modelo y tu hardware; la verás a fondo en la lección «Pruebas de carga y benchmarks honestos».
+Un benchmark responde «¿qué tan rápido va este servidor con esta carga?». Tú necesitas «¿cumple mi promesa con mi carga?». La única forma de saberlo es una [[prueba-de-carga|prueba de carga]] con tus prompts, tu modelo y tu hardware; la verás a fondo en la lección «[Pruebas de carga y benchmarks honestos](/pruebas-carga/)».
 :::
 
 ## Errores comunes {Common mistakes}
 
 **1. Dimensionar solo por memoria.** «Caben 8 conversaciones, entonces atiendo a 8.» La memoria dice cuántas caben; el [[ancho-de-banda|ancho de banda]] y el cómputo, cuántas se atienden bien. En el despacho caben 8 y en la hora pico no se atiende bien ni una. Haz siempre las tres cuentas: memoria, velocidad de [[decode|decode]] y [[prefill|prefill]].
 
-**2. Olvidar el prefill.** Con prompts cortos casi no pesa; con un RAG de 6,000 tokens, es lo que decide. Calcula \(2 × P × T_{ent}\) antes de prometer un [[ttft|TTFT]], y multiplica por las preguntas por segundo para ver cuánto tiempo de GPU se lleva.
+**2. Olvidar el prefill.** Con prompts cortos casi no pesa; con un [[rag|RAG]] de 6,000 tokens, es lo que decide. Calcula \(2 × P × T_{ent}\) antes de prometer un [[ttft|TTFT]], y multiplica por las preguntas por segundo para ver cuánto tiempo de GPU se lleva.
 
 **3. Confundir usuarios registrados con conversaciones a la vez.** Doscientas personas no son doscientas conversaciones: con Little son ≈ 5.6 en la hora pico. Y al revés: el promedio de Little no es el peor momento; en el despacho los picos llegan a 14.
 
@@ -603,7 +603,7 @@ Los 3,676 son a 250 a la vez, con TTFT de 5 s: no cumple. A 200, el ITL es 55.33
 - **[[batching-continuo|Batching continuo]] y [[pagedattention|PagedAttention]]** (de esta app) explica el mecanismo que esta lección usó como resultado: por qué el [[decode|decode]] espera a la memoria, cómo el servidor mete y saca conversaciones del [[batch|lote]] en cada paso, cómo reparte el KV cache en bloques para que quepan ≈ 12 en vez de 8 y cómo parte los prefills en trozos.
 - **[De requisitos a hardware](/requisitos-hardware/)** convierte todo esto en una compra: de personas, tokens y promesas a cuántas GPUs y de cuál tipo, con la [herramienta de sizing](/herramientas/sizing/).
 - **Elegir un modelo para la tarea** retoma una de las salidas del despacho: un modelo con menos [[parametros-activos|parámetros activos]] hace el [[prefill|prefill]] más barato.
-- **Pruebas de carga y benchmarks honestos** (de esta app): cómo medir con tus prompts y tu tasa de llegada, la única forma de cambiar las eficiencias supuestas por las tuyas.
+- **[Pruebas de carga y benchmarks honestos](/pruebas-carga/)** (de esta app): cómo medir con tus prompts y tu tasa de llegada, la única forma de cambiar las eficiencias supuestas por las tuyas.
 - En Sensei, [Qué tan rápido y cuánto: latencia y throughput](https://sensei.trueml.app/latencia/) tiene la teoría de colas detrás de la fila de los prefills, y [Promedios, medianas y percentiles](https://sensei.trueml.app/percentiles/), por qué las promesas van en p95.
 
 ## Palabras que vas a oír {Words you will hear}
@@ -624,7 +624,7 @@ Porque en cada paso de [[decode|decode]] los pesos se leen una sola vez para tod
 ? ¿Qué diferencia hay entre TPOT e ITL en vLLM?
 El TPOT es un promedio por respuesta, sin el primer token. El ITL es cada intervalo suelto entre dos tokens, y sus estadísticas juntan todos los de todas las respuestas: deja ver los tirones.
 
-? ¿Cuánto cuesta el [[prefill|prefill]] de un prompt y por qué importa tanto en un RAG?
+? ¿Cuánto cuesta el [[prefill|prefill]] de un prompt y por qué importa tanto en un [[rag|RAG]]?
 ≈ 2 × parámetros × tokens de entrada operaciones, y lo limita el cómputo de la GPU. Con 6,000 tokens y un 32B son ≈ 3.9 × 10¹⁴ FLOPs, ≈ 2.2 s en una L40S: más que la promesa de [[ttft|TTFT]] del despacho.
 
 ? ¿Qué dice la [[ley-de-little|ley de Little]] del despacho en la hora pico?

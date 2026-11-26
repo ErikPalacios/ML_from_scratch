@@ -10,7 +10,7 @@
     {
       "id": "datos", "label": "Dataset de carga", "sub": "≥ 1,000 prompts", "badge": "1", "kind": "store",
       "x": 2, "y": 5, "w": 18, "h": 8,
-      "note": "El [[dataset-de-carga|dataset de carga]]: prompts sintéticos de ≈ 6,000 tokens, todos con las mismas instrucciones de ≈ 400 al inicio y cinco fragmentos distintos. Ningún expediente real."
+      "note": "El [[dataset-de-carga|dataset de carga]]: prompts sintéticos de ≈ 6,000 tokens, todos con las mismas instrucciones de ≈ 400 al inicio y cinco [[chunk|fragmentos]] distintos. Ningún expediente real."
     },
     {
       "id": "gen", "label": "Generador", "sub": "vllm bench serve", "badge": "2", "kind": "client",

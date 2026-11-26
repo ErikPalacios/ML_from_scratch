@@ -8,12 +8,12 @@ dojo: evals
 ---
 
 :::idea
-Una [[eval]] de un LLM con RAG no es un número: es un examen **por capas** (¿llegó la página?, ¿la respuesta es fiel?, ¿es correcta?, ¿la cita existe?), calificado con **código** donde se puede y con un [[llm-as-judge|LLM juez]] local, medido contra abogados, donde no. Con 200 preguntas el examen es ruidoso: sirve para descartar lo que falla y para detener cambios que pierden mucho, si se compara **pareado** contra lo que ya funciona y se leen las respuestas que cambiaron.
+Una [[eval]] de un LLM con [[rag|RAG]] no es un número: es un examen **por capas** (¿llegó la página?, ¿la respuesta es fiel?, ¿es correcta?, ¿la cita existe?), calificado con **código** donde se puede y con un [[llm-as-judge|LLM juez]] local, medido contra abogados, donde no. Con 200 preguntas el examen es ruidoso: sirve para descartar lo que falla y para detener cambios que pierden mucho, si se compara **pareado** contra lo que ya funciona y se leen las respuestas que cambiaron.
 :::
 
 ## La pregunta del socio {The partner's question}
 
-Esta lección sigue a un ejemplo ficticio, **el despacho**: un despacho de abogados en la Ciudad de México con 200 personas y 30,000 expedientes, que quiere preguntarle a sus documentos con un LLM sin que un solo documento salga de su red. Corre **Qwen3 32B en INT4 de [[awq|AWQ]]**, con el razonamiento apagado, en **3 GPUs L40S** con [[vllm|vLLM]] 0.34.0, detrás de un [[gateway-de-llm|gateway]] (LiteLLM). Cada pregunta lleva ≈ 6,000 tokens de entrada (instrucciones, la pregunta y cinco fragmentos de expediente) y la respuesta ≈ 500. En la hora pico, los abogados ya usan ≈ 86.8 % de la capacidad de salida del servidor (6,250 de 7,200 tokens por minuto).
+Esta lección sigue a un ejemplo ficticio, **el despacho**: un despacho de abogados en la Ciudad de México con 200 personas y 30,000 expedientes, que quiere preguntarle a sus documentos con un LLM sin que un solo documento salga de su red. Corre **Qwen3 32B en INT4 de [[awq|AWQ]]**, con el razonamiento apagado, en **3 GPUs L40S** con [[vllm|vLLM]] 0.34.0, detrás de un [[gateway-de-llm|gateway]] (LiteLLM). Cada pregunta lleva ≈ 6,000 tokens de entrada (instrucciones, la pregunta y cinco [[chunk|fragmentos]] de expediente) y la respuesta ≈ 500. En la hora pico, los abogados ya usan ≈ 86.8 % de la capacidad de salida del servidor (6,250 de 7,200 tokens por minuto).
 
 El criterio de calidad que el despacho firmó antes del piloto dice: con un examen de **200 preguntas reales** escritas por sus abogados, cada una con su respuesta y su cita, **≥ 85 % bien y con la cita correcta (170 o más)** y **a lo más 2 % con una cita inventada (4 o menos)**. La [[prueba-piloto|prueba piloto]] dura 8 semanas con 20 abogados, con una GPU rentada de la semana 2 a la 7; en la semana 3 los abogados escriben las preguntas.
 
@@ -63,7 +63,7 @@ Las 200 preguntas de la propuesta, una por cuadrito. Más de la mitad es la tare
 Tres estratos piden explicación:
 
 - **Las preguntas sin respuesta.** Un abogado pregunta por una cláusula que el contrato no tiene. La respuesta correcta es «no encontré eso en los expedientes que puedes ver». Sin ellas, el examen premiaría al que siempre contesta algo, con seguridad.
-- **Las preguntas de permisos.** Cada pregunta del examen se hace **con la cuenta de alguien**. En estas 20, el documento que contesta existe, pero quien pregunta no lo puede ver (un pasante que pregunta por un expediente de otro equipo). Lo único que se revisa es que ningún fragmento de ese documento llegue al modelo. No es un porcentaje: es una regla que vale con una sola falla. La lección [RAG privado: embeddings y vector DB locales](/rag-privado/) explica cómo se pone esa muralla; aquí se prueba.
+- **Las preguntas de permisos.** Cada pregunta del examen se hace **con la cuenta de alguien**. En estas 20, el documento que contesta existe, pero quien pregunta no lo puede ver (un pasante que pregunta por un expediente de otro equipo). Lo único que se revisa es que ningún [[chunk|fragmento]] de ese documento llegue al modelo. No es un porcentaje: es una regla que vale con una sola falla. La lección [RAG privado: embeddings y vector DB locales](/rag-privado/) explica cómo se pone esa [[muralla-etica|muralla]]; aquí se prueba.
 - **Resumir y buscar cláusulas.** No tienen una sola respuesta correcta. Resumir se califica con una [[rubrica|rúbrica]] («¿menciona a las partes, el monto y el estado?»); buscar cláusulas, con la lista de páginas que un abogado marcó como correctas.
 
 ### Lo que lleva cada pregunta
@@ -76,7 +76,7 @@ La cita esperada se escribe con el número de página **del documento indexado**
 
 ### Dos conjuntos: desarrollo y candado
 
-Mientras se ajusta el sistema (el prompt, cuántos fragmentos se pasan, cómo se parte cada documento), alguien va a mirar respuestas y corregir. Si mira las del examen, el examen deja de medir: el prompt termina diseñado para esas 200. Por eso se separan dos conjuntos:
+Mientras se ajusta el sistema (el prompt, [[top-k|cuántos fragmentos se pasan]], cómo se parte cada documento), alguien va a mirar respuestas y corregir. Si mira las del examen, el examen deja de medir: el prompt termina diseñado para esas 200. Por eso se separan dos conjuntos:
 
 - **Desarrollo:** unas 50 preguntas aparte (supuesto), escritas igual, que el equipo puede leer, usar como ejemplos y repetir cuantas veces quiera.
 - **Candado:** las 200. Nunca van en el prompt, nunca como ejemplo (*few-shot*) y nunca en un ajuste fino. Se guardan con versión («examen v1, semana 3») y solo se miran sus resultados, no se ajusta contra ellos.
@@ -119,7 +119,7 @@ La guía de evaluación de Anthropic recomienda lo contrario: **más preguntas**
 
 | Capa | Pregunta | Quién califica | Si falla, se arregla en |
 |---|---|---|---|
-| **Retrieval** | ¿la página de oro llegó entre los 5 fragmentos? | código | la búsqueda: cómo se parte, qué modelo de embeddings, cuántos fragmentos |
+| **Retrieval** | ¿la página de oro llegó entre los 5 [[chunk\|fragmentos]]? | código | la búsqueda: cómo se parte, qué [[modelo-de-embeddings\|modelo de embeddings]], [[top-k\|cuántos fragmentos]] |
 | **Fidelidad** | ¿la respuesta dice solo lo que dicen los fragmentos? | juez | el prompt o el modelo |
 | **Corrección** | ¿llega a lo mismo que la referencia? | juez (y una muestra a mano) | el modelo, el prompt |
 | **Cita** | ¿el expediente y la página existen y contienen lo citado? | código | el formato de la cita, el prompt |
@@ -144,7 +144,7 @@ Hay una métrica que suena bien y engaña: la **relevancia de la respuesta** (si
 
 ### La cita: con código, no con juez
 
-La cita es lo único que el abogado va a revisar antes de confiar en la respuesta, y es lo que más daño hace si está mal. Por suerte, es lo más fácil de calificar sin juez: un programa busca el expediente, busca la página y confirma que el texto citado esté ahí. Si falla cualquiera de las tres, es una [[cita-inventada|cita inventada]]. Este es un revisor de juguete, con un índice diminuto en lugar de los 30,000 expedientes:
+La [[cita]] es lo único que el abogado va a revisar antes de confiar en la respuesta, y es lo que más daño hace si está mal. Por suerte, es lo más fácil de calificar sin juez: un programa busca el expediente, busca la página y confirma que el texto citado esté ahí. Si falla cualquiera de las tres, es una [[cita-inventada|cita inventada]]. Este es un revisor de juguete, con un índice diminuto en lugar de los 30,000 expedientes:
 
 ```python
 import re
@@ -200,7 +200,7 @@ Una respuesta puede traer varias citas. «2 % con cita inventada» del criterio 
 
 Calificar 200 respuestas a mano son ≈ 17 horas de abogado por sistema (5 minutos por respuesta, supuesto), con cuatro candidatos en el piloto y una corrida por cada cambio. No alcanza. El [[llm-as-judge|LLM como juez]] (*LLM-as-a-judge*) es usar un LLM para calificar las respuestas de otro sistema, siguiendo instrucciones escritas.
 
-El juez del despacho recibe, por cada pregunta: la pregunta, la respuesta de referencia, los 5 fragmentos que vio el sistema, la respuesta del sistema y la rúbrica. Devuelve un razonamiento corto y un veredicto. Un ejemplo de rúbrica (ilustrativo):
+El juez del despacho recibe, por cada pregunta: la pregunta, la respuesta de referencia, los 5 [[chunk|fragmentos]] que vio el sistema, la respuesta del sistema y la rúbrica. Devuelve un razonamiento corto y un veredicto. Un ejemplo de rúbrica (ilustrativo):
 
 ```text
 Eres revisor del despacho. Califica la RESPUESTA contra la REFERENCIA y los FRAGMENTOS.
@@ -332,7 +332,7 @@ Si el juez aprueba de más, el porcentaje que reporta está inflado. Con la mues
 
 ## El dilema del juez privado {The private judge's dilemma}
 
-El juez lee la pregunta, los fragmentos de expediente y la respuesta: **todo lo que el proyecto existe para no sacar de la red.** Mandar el examen a un juez de nube sería exactamente lo que hacían los abogados con el chatbot público, el [[shadow-ai|*shadow AI*]] que disparó el proyecto. El juez tiene que correr dentro. Las opciones:
+El juez lee la pregunta, los [[chunk|fragmentos]] de expediente y la respuesta: **todo lo que el proyecto existe para no sacar de la red.** Mandar el examen a un juez de nube sería exactamente lo que hacían los abogados con el chatbot público, el [[shadow-ai|*shadow AI*]] que disparó el proyecto. El juez tiene que correr dentro. Las opciones:
 
 | Juez | A favor | En contra |
 |---|---|---|
@@ -386,13 +386,13 @@ No hace falta escribir todo desde cero. Hay herramientas abiertas que corren un 
 
 | Herramienta | Versión y fecha | Licencia | Para qué sirve | Lo que hace por omisión |
 |---|---|---|---|---|
-| RAGAS | 0.4.4, 14-nov-2026 | Apache 2.0 | métricas de RAG: fidelidad, precisión y recall del contexto, relevancia | sus ejemplos crean el juez con un cliente de OpenAI; **telemetría prendida** |
+| RAGAS | 0.4.4, 14-nov-2026 | Apache 2.0 | métricas de [[rag\|RAG]]: fidelidad, precisión y recall del contexto, relevancia | sus ejemplos crean el juez con un cliente de OpenAI; **telemetría prendida** |
 | DeepEval | 4.3.6, 25-nov-2026 | Apache 2.0 | métricas de RAG y G-Eval, con modelo local documentado (su página de integración se llama «vLLM») | si no se configura juez, usa **un modelo GPT de OpenAI**; telemetría prendida (incluye la IP pública) |
 | promptfoo | 0.126.0, 18-nov-2026 | MIT | aserciones (`llm-rubric`, `context-faithfulness`…) y pruebas en integración continua (CI: correr las pruebas solas en cada cambio) | el juez **se elige por las credenciales que haya en el entorno**; telemetría prendida; desde 2026 su README dice que forma parte de OpenAI (sigue siendo MIT) |
 | lm-evaluation-harness | 0.4.13, 31-ago-2026 | MIT | benchmarks públicos (MMLU y otros), no RAG con citas | corre contra un servidor local con `local-completions` |
 | Inspect AI | 0.3.292, 23-nov-2026 | MIT | evals con calificadores por modelo (`model_graded_qa`), varios jueces que votan, `stderr()` | proveedores propios para vLLM, Ollama y SGLang |
 
-Tres de las cinco **asumen nube** si no se configuran, y las tres traen [[telemetria|telemetría]] activa: datos de uso que el programa manda solo a sus autores. En el despacho eso es un riesgo doble. Primero, el juez: una sola corrida con una variable `OPENAI_API_KEY` olvidada en la máquina de alguien de TI manda 200 respuestas con fragmentos de expediente a un servidor en Estados Unidos, sin que nadie lo decida. Segundo, la telemetría: aunque no mande textos, es un canal de salida que nadie autorizó.
+Tres de las cinco **asumen nube** si no se configuran, y las tres traen [[telemetria|telemetría]] activa: datos de uso que el programa manda solo a sus autores. En el despacho eso es un riesgo doble. Primero, el juez: una sola corrida con una variable `OPENAI_API_KEY` olvidada en la máquina de alguien de TI manda 200 respuestas con [[chunk|fragmentos]] de expediente a un servidor en Estados Unidos, sin que nadie lo decida. Segundo, la telemetría: aunque no mande textos, es un canal de salida que nadie autorizó.
 
 El remedio tiene dos partes, y las dos van en la configuración, no en la buena voluntad:
 
@@ -618,7 +618,7 @@ Arranca con el segundo caso: B gana 6 puntos y se distingue. Cambia al primero (
 
 ## Regresiones y el gate {Regressions and the gate}
 
-Una [[regresion|regresión]] es que algo que funcionaba deje de funcionar después de un cambio. En un LLM con RAG, casi todo puede causarla: el modelo, su cuantización, la versión de [[vllm|vLLM]] (hoy 0.34.0), el prompt, cómo se parten los documentos, el modelo de embeddings, cuántos fragmentos se pasan. Y, como viste, a veces nada: el motor no repite exacto por omisión. El examen completo corre **con cada uno de esos cambios**. Es la flecha de regreso a evals que pintó [El recorrido de un proyecto de IA privada](/recorrido/).
+Una [[regresion|regresión]] es que algo que funcionaba deje de funcionar después de un cambio. En un LLM con [[rag|RAG]], casi todo puede causarla: el modelo, su cuantización, la versión de [[vllm|vLLM]] (hoy 0.34.0), el prompt, cómo se parten los documentos, el [[modelo-de-embeddings|modelo de embeddings]], [[top-k|cuántos fragmentos se pasan]]. Y, como viste, a veces nada: el motor no repite exacto por omisión. El examen completo corre **con cada uno de esos cambios**. Es la flecha de regreso a evals que pintó [El recorrido de un proyecto de IA privada](/recorrido/).
 
 El [[gate-de-calidad|gate de calidad]] es el candado: un proceso que corre el examen, aplica reglas escritas antes y, si alguna falla, el cambio no llega a los abogados. Nadie tiene que discutirlo en la junta del lunes.
 
@@ -709,7 +709,7 @@ Pasa: 2 ≤ 4. No demuestra: la cota exacta de una cola con 2 de 200 es **3.11 %
 Margen mínimo = (1.645 + 0.842) × \(SE_{Δ}\). Con \(d\) = 0.10 y \(N\) = 200, \(SE_{Δ}\) ≈ √(0.10 ÷ 200) = 0.0224 = 2.24 puntos; margen = 2.487 × 2.24 ≈ **5.6 puntos**. No logra 3. Para 3 puntos: \(N\) = (2.487 ÷ 3)² × 0.10 × 10,000 ≈ **687 preguntas**; o bajar la discrepancia (con 6 %, ≈ 412). Mientras tanto, la regla extra de «cae 3 puntos o más en el observado» y leer los flips cubren el hueco.
 ? [reto] Con la propuesta de estratos, el sistema saca: 100 de 110 en «preguntar», 24 de 30 «sin respuesta», 0 fugas en «permisos» (las 20 bien), 15 de 20 en «resumir» y 16 de 20 en «cláusulas». ¿Pasa el criterio si el denominador son las 200? ¿Y si fueran solo las 150 que se contestan (preguntar, resumir, cláusulas)? ¿Qué te dice el estrato «sin respuesta»?
 Con las 200: 100 + 24 + 20 + 15 + 16 = **175 de 200 (87.5 %)**: pasa. Con las 150 que se contestan: 100 + 15 + 16 = **131 de 150 (87.3 %)**: pasa con 85 % (127.5). «Sin respuesta»: 24 de 30 (80 %); en las otras 6 contestó algo cuando no había respuesta. Por la regla del estrato, cada una que traiga cita cuenta como cita inventada. Si las 6 citaron, son 6 solo ahí: **no pasa** el «≤ 4» aunque pase el 85 %. El porcentaje y el criterio de citas se revisan por separado, y aquí decide el segundo. El estrato chico no sostiene un porcentaje (Wilson de 24 de 30: ≈ 62.7 % a 90.5 %), pero cada error suyo se lee y cuenta en el criterio de citas.
-? [reto] Un proveedor ofrece al despacho «un juez de frontera con κ = 0.72 contra abogados» por API, a cambio de mandarle las 200 respuestas con sus fragmentos. ¿Qué le contestas, con números de la lección?
+? [reto] Un proveedor ofrece al despacho «un juez de frontera con κ = 0.72 contra abogados» por API, a cambio de mandarle las 200 respuestas con sus [[chunk|fragmentos]]. ¿Qué le contestas, con números de la lección?
 Que el κ de 0.72 es parecido al de Legal Research Bench (0.708–0.726), medido en derecho de Estados Unidos y en inglés, no en sus expedientes; y que en ese mismo estudio los abogados concordaron con κ = 0.644, así que el techo realista de cualquier juez está cerca del acuerdo entre abogados, no muy arriba. Pero el punto decisivo no es estadístico: mandar las respuestas con fragmentos saca los expedientes de la red, que es lo que el proyecto existe para evitar (el mismo riesgo del chatbot público). La contrapropuesta: juez local (Qwen3 32B), calibrado con 100 respuestas por dos abogados; si el κ local queda más de ≈ 0.1 abajo del de los abogados entre sí, probar un juez abierto de otra familia, también local. Si el despacho aun así quisiera el juez externo, solo con preguntas públicas o sintéticas y con la autorización escrita de su abogado.
 :::
 
@@ -717,7 +717,7 @@ Que el κ de 0.72 es parecido al de Legal Research Bench (0.708–0.726), medido
 
 - **[Pruebas de carga y benchmarks honestos](/pruebas-carga/)** es la otra mitad de las evals: esta lección pregunta «¿contesta bien?»; aquella, «¿aguanta 8 conversaciones a la vez en la hora pico?». Las dos se firman en el mismo criterio de aceptación.
 - **[RAG privado: embeddings y vector DB locales](/rag-privado/)** construye la búsqueda que aquí se califica en la capa de retrieval, y la muralla de permisos que prueban las 20 preguntas de permisos.
-- **[Agentes, tools y guardrails](/agentes/)** usa este mismo examen para aceptar un agente: con más pasos, más formas de fallar y la misma regla de cero fugas.
+- **[Agentes, tools y guardrails](/agentes/)** usa este mismo examen para aceptar un [[agente|agente]]: con más pasos, más formas de fallar y la misma regla de cero fugas.
 - **[Formatos de cuantización en la práctica](/formatos-cuantizacion/)** tiene el caso del gate que más se repite: el modelo cuantizado contra el original, con sus flips.
 - **«Seguridad: aislamiento, sin internet y actualizaciones»** cierra la salida a internet de la máquina del examen y es la que dispara el gate en cada actualización; **«Observabilidad de GPUs e inferencia»** mide en producción lo que el examen mide antes.
 - En Sensei: [¿Aprendió de verdad?](https://sensei.trueml.app/aprendio/) tiene el golden set, la matriz de confusión y el gate en general; [Ruido, muestras y pruebas A/B](https://sensei.trueml.app/ruido/), el error estándar, los intervalos, el A/B y la intuición de McNemar.
@@ -734,7 +734,7 @@ eval golden-set estratificar respuesta-de-referencia metrica-de-retrieval fideli
 ? ¿Por qué el examen del despacho tiene 30 preguntas sin respuesta?
 Porque sin ellas el examen premia al sistema que siempre contesta algo. En esas, lo correcto es decir «no lo encontré», y cualquier cita que dé es inventada.
 ? ¿Qué capas del examen se califican con código y cuáles con juez?
-Con código: el retrieval (¿llegó la página de oro?, ¿se filtró algo prohibido?) y la cita (¿existe el expediente, la página y el texto?). Con juez: la corrección contra la referencia y la fidelidad a los fragmentos.
+Con código: el retrieval (¿llegó la página de oro?, ¿se filtró algo prohibido?) y la cita (¿existe el expediente, la página y el texto?). Con juez: la corrección contra la referencia y la fidelidad a los [[chunk|fragmentos]].
 ? Nombra los tres sesgos del juez más estudiados y una forma de mitigar cada uno.
 Posición (calificar en los dos órdenes, o una respuesta a la vez contra la referencia), verbosidad (rúbrica de sí o no, controlar el largo) y auto-preferencia (que el juez no sea el modelo que se está comparando).
 ? ¿Por qué no basta el porcentaje de acuerdo entre la abogada y el juez?

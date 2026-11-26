@@ -75,7 +75,7 @@ Con 3 GPUs | 1,050 + 400 + 700 | 2,150 W
 
 Ojo con lo que es ese número: **2,500 W es una estimación derivada**, la suma de las hojas de las piezas más un resto supuesto. Exxact no publica la potencia máxima de este servidor, y nadie la ha medido aquí. Sirve para dimensionar porque se equivoca hacia arriba; el número de verdad sale de medir (abajo).
 
-¿Por qué diseñar para 4 si la ficha dice 3? Porque la cuarta es la que pide la prueba de carga para que las 8 conversaciones de diseño vayan a 20 tokens por segundo, y porque cambiar un circuito o un UPS después cuesta más que hacerlo una vez.
+¿Por qué diseñar para 4 si la ficha dice 3? Porque la cuarta es la que pide la [[prueba-de-carga|prueba de carga]] para que las 8 conversaciones de diseño vayan a 20 tokens por segundo, y porque cambiar un circuito o un UPS después cuesta más que hacerlo una vez.
 
 La lección «[Comprar hardware: de la workstation al rack](/comprar-hardware/)» pide cotizar también **2 RTX PRO 6000 Server Edition** (TDP configurable de 400 a 600 W) en vez de las L40S. Al tope y con el mismo resto: 2 × 600 + 400 + 700 = 2,300 W, abajo de 2,500 W, así que el circuito, el UPS y el aire de esta lección le quedan con algo más de margen. Si ese servidor trae otras CPUs o fuentes, se rehace la cuenta con sus hojas.
 

@@ -577,7 +577,7 @@ Con esos dos números, la calculadora de comunicación deja de usar supuestos.
 - La guía de problemas de vLLM menciona `NCCL_P2P_DISABLE=1`, que apaga la comunicación directa entre GPUs, como arreglo temporal si una prueba se cuelga, y avisa que baja el rendimiento. La documentación de NCCL dice que no se deje fijada en producción. Si alguien la dejó en el arranque, el tensor parallel va más lento de lo que dice cualquier cuenta.
 - Con varios servidores, la documentación de vLLM sugiere prender `NCCL_DEBUG=TRACE` y buscar `[send] via NET/Socket`: si aparece, los servidores se están hablando por TCP normal, que no es eficiente para tensor parallel entre servidores.
 
-Y al final, lo que de verdad decide: una prueba de carga con las preguntas del despacho, que mide el primer token y los tokens por segundo con la hora pico encima, en cada configuración. Esa es la lección «Pruebas de carga y benchmarks honestos», más adelante en esta app.
+Y al final, lo que de verdad decide: una [[prueba-de-carga|prueba de carga]] con las preguntas del despacho, que mide el primer token y los tokens por segundo con la hora pico encima, en cada configuración. Esa es la lección «[Pruebas de carga y benchmarks honestos](/pruebas-carga/)», más adelante en esta app.
 
 ## Errores comunes {Common mistakes}
 
@@ -626,7 +626,7 @@ Memoria: el par, **15**; la PRO 6000, (0.9 × 96 − 39.77 − 2) ÷ 2.684 = 44.
 - **«[Del laptop al servidor: llama.cpp, Ollama, vLLM, SGLang y TensorRT-LLM](/stack-serving/)»** pone estas formas en programas concretos: cuáles hacen tensor parallel, cuáles réplicas y cómo se arrancan las 3 réplicas del despacho con todos sus flags.
 - **«[Gateway, API compatible con OpenAI, autenticación y varios modelos](/gateway/)»** es lo que va delante de las réplicas: el balanceador que reparte las conversaciones entre las 3 L40S y las manda siempre a la misma.
 - **«[De requisitos a hardware](/requisitos-hardware/)»** hace la cuenta completa de cuántas GPUs pide el despacho, con la cola de la hora pico que esta lección dejó fuera de sus primeros tokens «sin cola».
-- **«Pruebas de carga y benchmarks honestos»**, más adelante, mide lo que aquí se supuso: el primer token en el p95 con cada configuración.
+- **«[Pruebas de carga y benchmarks honestos](/pruebas-carga/)»**, más adelante, mide lo que aquí se supuso: el primer token en el p95 con cada configuración.
 - En Sensei: [CPU y GPU](https://sensei.trueml.app/cpu-gpu/) tiene PCIe, NVLink y la HBM por dentro; [Matrices y FLOPs](https://sensei.trueml.app/flops/), por qué el decode espera a la memoria y el prefill al cálculo; [Números grandes, unidades y estimaciones](https://sensei.trueml.app/unidades/), cómo no perderse entre µs, ms y GB/s; y [Promedios, medianas y percentiles](https://sensei.trueml.app/percentiles/), por qué el objetivo del despacho es el p95 y no el promedio.
 
 ## Palabras que vas a oír {Words you'll hear}

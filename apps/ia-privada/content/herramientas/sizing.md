@@ -145,7 +145,7 @@ Elegir la GPU también depende de cosas que la tabla no ve: si se consigue, si c
 1. **Dimensionar por usuarios registrados.** 200 usuarios no son 200 conversaciones a la vez. **Cómo evitarlo:** usa la ley de Little con el tráfico de la hora pico.
 2. **Dimensionar por el promedio del día.** Si el tráfico se reparte en 24 horas en vez de 10, y sin factor de pico de 2.5, sale 6 veces menos. **Cómo evitarlo:** pon las horas reales y un factor de pico de 2 a 3 si no tienes datos.
 3. **Ver solo la memoria.** «Caben 12 conversaciones, así que una GPU basta». Caben, pero a 20 tokens por segundo solo van 2. **Cómo evitarlo:** el número por copia es el menor de los dos límites.
-4. **Olvidar el prefill.** Con prompts largos (RAG con muchos documentos), leer los prompts se come una parte grande del tiempo de la GPU. **Cómo evitarlo:** pon el prompt real, con todo el contexto que se le agrega.
+4. **Olvidar el prefill.** Con prompts largos ([[rag|RAG]] con muchos documentos), leer los prompts se come una parte grande del tiempo de la GPU. **Cómo evitarlo:** pon el prompt real, con todo el contexto que se le agrega.
 5. **Prometer una velocidad sin preguntar para qué.** 20 tokens por segundo se leen cómodos; 50 solo hacen falta si otra máquina lee la respuesta. Cada punto de más cuesta GPUs. **Cómo evitarlo:** acuerda la velocidad con el cliente antes de cotizar.
 6. **No dejar una copia de sobra.** Con 2 GPUs justas, una falla y el sistema no aguanta el pico. **Cómo evitarlo:** suma una copia si el servicio importa.
 

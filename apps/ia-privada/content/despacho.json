@@ -166,7 +166,8 @@
     {
       "id": "criterio_calidad",
       "dato": "Criterio de aceptación de calidad",
-      "valor": "≥ 85 % de las 200 preguntas bien y con la cita correcta (170 o más); a lo más 2 % con una cita inventada (4 o menos)"
+      "valor": "≥ 85 % de las 200 preguntas bien y con la cita correcta (170 o más); a lo más 2 % con una cita inventada (4 o menos)",
+      "nota": "Se cuenta sobre las 200 (en las sin respuesta, «bien» = decir que no está; en las de permisos, no filtrar nada de lo prohibido; en las sin respuesta, cualquier cita cuenta como inventada, regla del examen). 170 es «pasa, sin margen»: demostrar ≥ 85 % al 95 % pide observar 179 (exacta, una cola) o 180 (Wilson); 4 citas inventadas en 200 no demuestran ≤ 2 % (cota exacta 4.52 %): solo 0 lo demuestra (1.49 %). El denominador de citas inventadas son respuestas, no citas, y cada una se lee (lección «Demostrar que el modelo abierto sirve»)."
     },
     {
       "id": "piloto",
@@ -241,13 +242,13 @@
       "id": "ttft_p95_con_cola",
       "dato": "Tiempo al primer token con cola, p95 en la hora pico",
       "valor": "3 L40S: ≈ 4.2 s repartiendo al azar, ≈ 3.3 s contando peticiones abiertas (least-busy), 2.38 s (el prefill solo) por turno o viendo la fila. 2 RTX PRO 6000 Server Edition: ≈ 3.1 s, ≈ 2.7 s y 1.77 s",
-      "nota": "Simulación de la lección «De requisitos a hardware»: llegadas de Poisson a 0.208/s, una fila de prefill por GPU, servicio fijo igual al prefill de la herramienta de sizing, decode sin frenar al prefill; sin red ni búsqueda. La cota pesimista (espera M/M/1 + prefill) da 5.8 s y 4.4 s. El 2.38 s de «prefill» es sin fila. El piloto mide el real."
+      "nota": "Simulación de la lección «De requisitos a hardware»: llegadas de Poisson a 0.208/s, una fila de prefill por GPU, servicio fijo igual al prefill de la herramienta de sizing, decode sin frenar al prefill; sin red ni búsqueda. La cota pesimista (espera M/M/1 + prefill) da 5.8 s y 4.4 s. El 2.38 s de «prefill» es sin fila. El piloto mide el real. La lección «RAG privado» agrega que, con 3 fragmentos más el reranker (en vez de 5), y un reparto por turno o viendo la fila, la simulación daría ≈ 1.85–1.99 s (en la raya de 2 s), y con el reparto al azar nadie cumple. Lo reemplaza el p95 medido en la prueba abierta a 0.21/s del piloto, con su intervalo y su fecha (lección «Pruebas de carga y benchmarks honestos»)."
     },
     {
       "id": "presupuesto_latencia",
       "dato": "Presupuesto de latencia",
       "valor": "2,000 ms = ≈ 20 ms de red y gateway + ≈ 150 ms de búsqueda + fila + prefill",
-      "nota": "Los 20 y los 150 ms son supuestos de la lección «De requisitos a hardware», no datos de la ficha: quedan ≈ 1,830 ms para la fila y el prefill."
+      "nota": "Los 20 y los 150 ms son supuestos de la lección «De requisitos a hardware», no datos de la ficha: quedan ≈ 1,830 ms para la fila y el prefill. El reranker (≈ 97–232 ms en una L40S) no cabe en los ≈ 150 ms de búsqueda; solo se paga si baja el prompt de 5 a 3 fragmentos (≈ 0.72 s menos de prefill) y el examen lo acepta."
     },
     {
       "id": "holgura",
@@ -272,7 +273,7 @@
       "id": "servidor",
       "dato": "Servidor",
       "valor": "Exxact TensorEX 4U con 2 CPUs AMD EPYC 9124 y 4 ranuras PCIe de doble ancho: 3 L40S y la cuarta ranura libre",
-      "nota": "El de «compra» y de la lección «Comprar hardware: de la workstation al rack». Las 3 L40S sin NVLink, por PCIe 4.0; si un par va en tensor parallel, conviene que cuelgue del mismo CPU."
+      "nota": "El de «compra» y de la lección «Comprar hardware: de la workstation al rack». Las 3 L40S sin NVLink, por PCIe 4.0; si un par va en tensor parallel, conviene que cuelgue del mismo CPU. Tiene 384 GB de RAM (equipos.json): el índice de vectores del RAG (≈ 5.70 GB) cabe 67 veces."
     },
     {
       "id": "prototipo",
@@ -284,7 +285,7 @@
       "id": "motor",
       "dato": "Motor de inferencia",
       "valor": "vLLM 0.34.0 (noviembre de 2026), una copia por L40S (3), en Linux; vllm serve Qwen/Qwen3-32B-AWQ --max-model-len 8192 --max-num-seqs 8 --served-model-name qwen3-32b --api-key \"$VLLM_CLAVE\" --reasoning-parser qwen3 --default-chat-template-kwargs '{\"enable_thinking\": false}'",
-      "nota": "Sin --gpu-memory-utilization: la 0.34.0 dimensiona el KV cache extensible con la memoria libre y recomienda quitar el flag. El 8 del --max-num-seqs es el «a_la_vez» de diseño (con 0.90 caben 10 al tope de 8,192; con el modo extensible el motor imprime cuánto KV cache quedó), no la capacidad a ≥ 20 tokens/s (≈ 2 por L40S), que es por lo que son 3 copias. Con tope 2, las demás esperarían hasta ≈ 27 s. Por omisión, --max-num-seqs vale 256 en GPUs de menos de 70 GiB."
+      "nota": "Sin --gpu-memory-utilization: la 0.34.0 dimensiona el KV cache extensible con la memoria libre y recomienda quitar el flag. El 8 del --max-num-seqs es el «a_la_vez» de diseño (con 0.90 caben 10 al tope de 8,192; con el modo extensible el motor imprime cuánto KV cache quedó), no la capacidad a ≥ 20 tokens/s (≈ 2 por L40S), que es por lo que son 3 copias. Con tope 2, las demás esperarían hasta ≈ 27 s. Por omisión, --max-num-seqs vale 256 en GPUs de menos de 70 GiB. Para el primer agente (lección «Agentes, tools y guardrails») se suman --enable-auto-tool-choice --tool-call-parser hermes, propuesta que falta probar en el piloto con el AWQ; con la 0.34.0, sin --enable-auto-tool-choice, un tool_choice «auto», «required» o con nombre da HTTP 400 (solo pasan sin tools o con «none»). Los modelos de embeddings y del reranker son otros procesos de vLLM, no este."
     },
     {
       "id": "identidad",
@@ -327,8 +328,122 @@
     {
       "id": "modelos_gateway",
       "dato": "Modelos detrás del gateway",
-      "valor": "chat-grande (Qwen3 32B, 3 copias), chat-chico (un modelo chico local, por elegir) y embeddings (lo elige la lección de RAG)",
-      "nota": "El respaldo de chat-grande es chat-chico, siempre dentro de la red."
+      "valor": "chat-grande (Qwen3 32B, 3 copias), agente (Qwen3 32B, las mismas 3 copias, otra clave y otra cuota), chat-chico (un modelo chico local, por elegir) y embeddings (Qwen3-Embedding-0.6B, vLLM en el puerto 8001, elegido en la lección «RAG privado»)",
+      "nota": "El respaldo de chat-grande es chat-chico, siempre dentro de la red. El reranker no pasa por el gateway: se llama directo, a su proceso de vLLM (no verificado si LiteLLM 1.111.0 enruta /rerank)."
+    },
+    {
+      "id": "embeddings_modelo",
+      "dato": "Modelo de embeddings",
+      "valor": "Qwen3-Embedding-0.6B (Apache 2.0, 1,024 dimensiones, 32 K de contexto, 1.19 GB en bf16), con vLLM 0.34.0 y --runner pooling en el puerto 8001, con el nombre servido «embeddings»",
+      "nota": "Lección «RAG privado: embeddings y vector DB locales». Decisión para el piloto: comparar con Qwen3-Embedding-4B (+5 puntos en tareas legales, ≈ 8 veces el cómputo por token, 2.5 veces el índice) y subir solo si el examen lo pide. Cabe en el hueco de ≈ 4.7 GB que le sobra a una L40S (≈ 3.2 GB con ≈ 2 GB de programa, supuesto), pero cómo convive con el KV cache del LLM no está probado."
+    },
+    {
+      "id": "reranker_modelo",
+      "dato": "Reranker",
+      "valor": "Qwen3-Reranker-0.6B (Apache 2.0) sobre 20 candidatos de ≈ 1,000 tokens, como proceso de vLLM aparte, con el --hf_overrides de su documentación",
+      "nota": "2 × 440.5 M × 20 × 1,000 = 17.6 TFLOP → ≈ 97 ms (η_c 0.5) a ≈ 232 ms (η_c 0.21) en una L40S. Va en el hueco de otra L40S que el de embeddings (o en la cuarta ranura): los dos juntos (≈ 6.4 GB) no caben en el mismo. Se queda solo si el examen acepta 3 fragmentos en vez de 5."
+    },
+    {
+      "id": "vector_db",
+      "dato": "Base de vectores",
+      "valor": "Qdrant 1.20.2 (16-nov-2026, Apache 2.0) en un contenedor en el mismo servidor, sin cuantizar, con acl y cliente_id como campos de filtro, búsqueda BM25 + vectores + RRF en la misma consulta, llave de API y TLS",
+      "nota": "RRF con k = 2, el valor por omisión de Qdrant (el k = 60 de Sensei es otra convención; se compara en el piloto). Alternativa: pgvector 0.8.7 sobre PostgreSQL 19 con hnsw.iterative_scan, si el TI prefiere una sola base. Qdrant abierto no trae autenticación activada: puerto alcanzable solo desde el servicio de búsqueda."
+    },
+    {
+      "id": "chunks",
+      "dato": "Chunks",
+      "valor": "≈ 1.34 M (1,000 tokens, traslape de 100, caso pesado de 40,250 tokens por expediente); 1.21 M sin traslape",
+      "nota": "1,207.5 M de tokens ÷ (1,000 − 100). Con chunks de 400, de 3 a 4 millones. El traslape se cuenta en todos los cortes (cota alta). Los 1.61 tokens por palabra no están medidos con el tokenizador de Qwen3-Embedding."
+    },
+    {
+      "id": "indice",
+      "dato": "Índice de vectores",
+      "valor": "≈ 5.70 GB en RAM (5.50 de vectores en float32 + 0.21 del grafo con m = 16); disco ≈ 10–20 GB",
+      "nota": "1,341,667 × 1,024 × 4 bytes = 5.50 GB. Cabe 67 veces en los 384 GB de RAM del servidor: la memoria no es el problema."
+    },
+    {
+      "id": "ingesta_embeddings",
+      "dato": "Ingesta: embeber todo",
+      "valor": "≈ 1.8–4.3 h en 1 L40S (η_c 0.5 a 0.21), de noche (19:00 a 9:00, 14 h)",
+      "nota": "1,342 M de tokens ÷ (≈ 205 mil tokens/s o ≈ 86 mil). Con el 4B serían ≈ 15 h a η_c 0.5 y ≈ 36 h a 0.21. Lo diario (supuesto de 40 expedientes nuevos) son de 8 a 19 s de GPU."
+    },
+    {
+      "id": "ingesta_parsing",
+      "dato": "Ingesta: leer los archivos",
+      "valor": "de ≈ 7 h (Marker sin OCR, cifra del proveedor) a ≈ 14 noches (Docling a 2.1 pág/s); Tesseract ≈ 10 noches (≈ 144 h)",
+      "nota": "1.5 M de páginas ÷ velocidad ÷ 3,600 ÷ 14 h. Es el cuello de botella de la ingesta, no el embedding, y corre sobre todo en la CPU. Dato que falta: cuántas páginas son escaneos (si fueran el 20 %, supuesto, ≈ 29 h de OCR con Tesseract). Antes de elegir herramienta se miden 200 páginas reales."
+    },
+    {
+      "id": "busqueda",
+      "dato": "Búsqueda de una pregunta",
+      "valor": "embeber la pregunta ≈ 2 ms; búsqueda con filtro, por medir dentro de los ≈ 150 ms; reranker ≈ 97–232 ms",
+      "nota": "No hay cifra publicada de Qdrant con 1.3 M de vectores y filtro: se mide en el piloto. Con la identidad de quien pregunta, el filtro va dentro de la búsqueda (prefiltro) y se revisa otra vez antes de armar el prompt."
+    },
+    {
+      "id": "permisos_busqueda",
+      "dato": "Permisos en la búsqueda (muralla ética)",
+      "valor": "la ACL del expediente se copia en cada chunk, en grupos (por ejemplo «equipo-cliente-A, socios»); los grupos de cada persona se resuelven al preguntar con su identidad de Entra ID; sin ACL, no se indexa (cerrado por omisión)",
+      "nota": "Lección «RAG privado». Supuesto de la lección: el equipo de una asociada es el 3 % del despacho. Las 20 preguntas de permisos del examen verifican la regla de cero fugas."
+    },
+    {
+      "id": "agente",
+      "dato": "Primer agente",
+      "valor": "solo lectura, 3 tools (buscar_expedientes con la ACL de quien pregunta, leer_pagina, comparar_clausulas) en un servidor MCP propio, interno, por Streamable HTTP; sin internet, correo ni escritura (regla de dos); la tool recibe la identidad de Entra ID de quien pregunta, nunca del modelo; la tabla de resultados la revisa un abogado",
+      "nota": "Decisión de la lección «Agentes, tools y guardrails». Cada tool call se registra con quién, qué tool, qué expediente y cuánto devolvió, 90 días y sin el texto. comparar_clausulas es un diseño de la lección, no un producto."
+    },
+    {
+      "id": "agente_presupuesto",
+      "dato": "Presupuesto de un agente",
+      "valor": "por tarea: ≤ 6 llamadas, ≤ ≈ 15,000 tokens de entrada acumulada, ≤ 60 s, resultados de tools de ≈ 500 tokens o menos",
+      "nota": "Con resultados de 500 tokens, un agente de 6 pasos gasta 15,090 tokens (14,340 de entrada y 750 de salida); con resultados de 1,000, 22,590 (≈ 3.5 veces una pregunta de RAG de 6,500), con un prefill de ≈ 7.91 s sin caché y ≈ 2.35 s con caché en una L40S. El contexto por llamada sigue en 8,192: con resultados de 1,000 tokens caben 7 llamadas, con 500 caben 12, y con 5,000 (como el RAG), 2. Tareas grandes (12 contratos, supuesto: 25 llamadas, 193,000 tokens de entrada) van de noche con map-reduce (≈ 19,700 tokens)."
+    },
+    {
+      "id": "agente_cuota",
+      "dato": "Cuota del agente",
+      "valor": "clave y nombre de modelo propios en LiteLLM («agente», sobre las 3 copias de chat-grande): a lo más 3 agentes a la vez (uno por L40S), ≈ 30 por hora en horas de oficina, uno a la vez por persona; las llamadas de una misma tarea caen en la misma copia con session_affinity (el agente manda el mismo litellm_session_id en toda la tarea)",
+      "nota": "Sobra de la hora pico: 750 × (1 ÷ 0.868 − 1) ≈ 114 preguntas de RAG por hora, que son ≈ 31 agentes si el cuello es el prefill sin caché. La cuota del chat no sirve: 6 requests en ≈ 45 s son ≈ 8 por minuto contra 4, y 22,590 tokens contra una cubeta de 19,500. Qué versión de MCP usa LiteLLM 1.111.0 con el servidor del despacho no está verificado."
+    },
+    {
+      "id": "examen_estratos",
+      "dato": "Composición del examen",
+      "valor": "110 preguntas con respuesta en el expediente (≈ 15 en inglés), 30 sin respuesta, 20 de permisos, 20 de resumir y 20 de cláusulas parecidas; además ≈ 50 de desarrollo aparte; las 200 nunca van en el prompt, en few-shot ni en un ajuste fino",
+      "nota": "Supuesto del ejemplo (lección «Demostrar que el modelo abierto sirve»). Matiz del hecho «examen»: en las 30 sin respuesta lo correcto es decir que no está."
+    },
+    {
+      "id": "horas_examen",
+      "dato": "Horas de abogado del examen",
+      "valor": "≈ 167 h: 133 escribir (30 + 10 min por pregunta), 17 calibrar al juez (100 respuestas × 2 abogados × 5 min), 17 calificar a mano un sistema (200 × 5 min)",
+      "nota": "Supuestos; ≈ 33 h por abogado si son 5. La tarifa de US$100 por hora es un supuesto de la lección."
+    },
+    {
+      "id": "juez",
+      "dato": "Juez del examen",
+      "valor": "Qwen3 32B (el mismo chat-grande), con el razonamiento apagado, con la respuesta de referencia y una rúbrica de sí/no; corre de noche con una clave de servicio del gateway con cuota propia",
+      "nota": "≈ 6,300 tokens de entrada y 200 de salida por respuesta: 5.6 a 8.3 min del servidor para 200 (examen más juez ≈ 25 min). Se calibra en el piloto con 100 respuestas calificadas por 2 abogados (κ entre abogados y κ del juez contra ellos) y se compara con Mistral Small 3.2 24B, juez de otra familia, en la GPU rentada; si su κ queda más de ≈ 0.1 debajo del de los abogados entre sí (umbral de la lección, no publicado), se cambia. Al comparar Qwen contra otro candidato, el juez no es ninguno de los dos."
+    },
+    {
+      "id": "gate",
+      "dato": "Gate de calidad",
+      "valor": "en cada cambio (modelo, cuantización, vLLM, prompt, chunker, embeddings, top-k): 1) invariantes: 0 fugas en las 20 de permisos, 0 citas inventadas nuevas, formato de cita válido; 2) prueba pareada contra producción: se detiene si la cota de una cola del 95 % de Δ cae por debajo de −6 puntos o si el valor observado cae 3 puntos o más; 3) se leen todos los flips; 4) si pasa, su resultado es la nueva referencia",
+      "nota": "Con 200 preguntas y 10 % de discrepancia, el margen mínimo protegible es ≈ 5.6 puntos: por eso 6 y no 5 (con 5, un cambio que no pierde nada se detendría ≈ 28 % de las veces; con 6, ≈ 15 %). En el piloto se corre el examen dos veces sin cambios para medir el piso de ruido."
+    },
+    {
+      "id": "herramientas_evals",
+      "dato": "Herramientas de evals",
+      "valor": "telemetría apagada (RAGAS_DO_NOT_TRACK, DEEPEVAL_TELEMETRY_OPT_OUT, PROMPTFOO_DISABLE_TELEMETRY), el juez fijado explícitamente al gateway y la máquina del examen sin salida a internet",
+      "nota": "promptfoo elige el juez por las credenciales del entorno (OpenAI, Anthropic, Gemini, Mistral, Azure OpenAI, Codex) y DeepEval usa un modelo de OpenAI si no se configura: lo que protege es fijar al juez, además de la máquina sin internet."
+    },
+    {
+      "id": "plan_prueba_carga",
+      "dato": "Plan de la prueba de carga",
+      "valor": "en la L40S del piloto se mide una copia a 0.07/s (0.21 ÷ 3); la prueba de la promesa va en una máquina rentada de 4 L40S solo los días de la prueba (g6e.12xlarge de AWS, US$10.49 por hora en us-east-1, ≈ US$500 por 48 h), contra el gateway (LiteLLM, chat-grande) con una clave de pruebas de cuota propia y el generador en otra máquina; vLLM 0.34.0 con los flags de producción. Dataset: ≥ 1,000 prompts sintéticos de ≈ 6,000 tokens (± 30 %) con las mismas ≈ 400 tokens de instrucciones al inicio y 5 fragmentos distintos, tope de salida de 500. Pruebas: calentamiento de 20; abierta de Poisson a 0.21/s con 1,000 peticiones (≈ 79 min) × 3 repeticiones, sin tope en el cliente; rampa de 0.10 a 0.42/s (escalones 0.10, 0.21, 0.31, 0.42); cerrada de 8 conversaciones (≈ 0.30/s por Little), con 3 y con 4 copias; resistencia de una jornada (8–10 h); opcional, el reparto al azar contra el de menos peticiones abiertas",
+      "nota": "Lección «Pruebas de carga y benchmarks honestos». Con 1,000 peticiones el p95 verdadero cae entre el p93.6 y el p96.4 de lo medido. La Server Edition no tiene precio de renta en gpus.json (nube vacío): hay que cotizarlo para la comparación."
+    },
+    {
+      "id": "criterio_velocidad",
+      "dato": "Criterio de velocidad",
+      "valor": "pasa si TTFT p95 ≤ 2 s en la abierta a 0.21/s y TPOT p95 ≤ 50 ms con 8 a la vez, sin 5xx ni 429 y con la tasa pedida; cada percentil con su intervalo y sus peticiones",
+      "nota": "Con el dataset de ± 30 % y las instrucciones en el cache, el goodput esperado de 3 L40S a ttft:2000 tpot:50 es ≈ 0.06/s (≈ 29 % de las 0.21), no 0 (con largos fijos sí daría 0): la L40S no cumple, como dice la ficha."
     }
   ]
 }

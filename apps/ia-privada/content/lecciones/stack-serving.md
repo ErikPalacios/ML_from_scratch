@@ -334,7 +334,7 @@ Tres detalles que muerden:
 
 **El razonamiento.** La documentación de vLLM lo dice tal cual: en Qwen3 está prendido por omisión, y se apaga con `enable_thinking=False` en los `chat_template_kwargs`, por petición o, como arriba, para todo el servidor. `--reasoning-parser qwen3` **no lo apaga**: solo pone el texto del razonamiento en su propio campo. Y la ficha de Hugging Face de `Qwen3-32B-AWQ` todavía muestra un comando con `--enable-reasoning`: ese flag ya no existe en el código de la 0.34.0. Además, el campo cambió de nombre (antes `reasoning_content`, ahora `reasoning`), y un cliente viejo lo lee vacío sin avisar.
 
-**`--max-num-seqs`.** El tope por omisión, 256, es mucho más de lo que cabe. El despacho lo fija en **8**, las conversaciones a la vez con que dimensionó la memoria de cada L40S (con 0.90 caben 10 al tope, abajo). Ojo: 8 no es lo que una L40S atiende **a buena velocidad**. [De requisitos a hardware](/requisitos-hardware/) calcula ≈ 2 a ≥ 20 tokens por segundo con los prefills del despacho; por eso son 3 copias para las ≈ 5.6 a la vez de la hora pico, y en un día normal el tope ni se toca. Sirve para las ráfagas: si una copia junta 8, cada persona baja a ≈ 11–19 tokens por segundo (según cuántos prompts lea la GPU a la vez), pero nadie espera para empezar; con un tope de 2, las otras 6 esperarían en la fila hasta ≈ 27 s, lo que dura una respuesta. El número final lo da la prueba de carga del piloto.
+**`--max-num-seqs`.** El tope por omisión, 256, es mucho más de lo que cabe. El despacho lo fija en **8**, las conversaciones a la vez con que dimensionó la memoria de cada L40S (con 0.90 caben 10 al tope, abajo). Ojo: 8 no es lo que una L40S atiende **a buena velocidad**. [De requisitos a hardware](/requisitos-hardware/) calcula ≈ 2 a ≥ 20 tokens por segundo con los prefills del despacho; por eso son 3 copias para las ≈ 5.6 a la vez de la hora pico, y en un día normal el tope ni se toca. Sirve para las ráfagas: si una copia junta 8, cada persona baja a ≈ 11–19 tokens por segundo (según cuántos prompts lea la GPU a la vez), pero nadie espera para empezar; con un tope de 2, las otras 6 esperarían en la fila hasta ≈ 27 s, lo que dura una respuesta. El número final lo da la [[prueba-de-carga|prueba de carga]] del piloto.
 
 **La [[clave-de-api|clave]].** `--api-key` es **una** clave para todos: no sabe quién es quién, no pone cuotas y no deja registro. Sirve para que nadie de la red le hable directo al motor salvo el gateway. Lo de las personas va delante.
 
@@ -532,7 +532,7 @@ Cada proyecto publica números. Juntos en una tabla parecen una competencia; no 
 
 De fila a fila cambian la GPU, el modelo, el formato, los largos, el tipo de carga, la versión del rival (vLLM 0.5.2 es de 2024) y quién mide (cada proyecto afina mejor su propio motor). **Ninguna fila es en una L40S con Qwen3 32B en [[awq|AWQ]].** Lo más cercano en la GPU del despacho es la curva de NIM con Llama 3.1 8B que viste en [Concurrencia](/concurrencia/): otro modelo.
 
-Los benchmarks publicados sirven para saber que un motor está en la conversación, no para decidir entre dos. Eso se decide midiendo **tu** modelo en **tu** GPU, con **tus** prompts y **tu** concurrencia, con los mismos ajustes para los dos. Cómo se hace una prueba así sin engañarte es el tema de la lección «Pruebas de carga y benchmarks honestos».
+Los benchmarks publicados sirven para saber que un motor está en la conversación, no para decidir entre dos. Eso se decide midiendo **tu** modelo en **tu** GPU, con **tus** prompts y **tu** concurrencia, con los mismos ajustes para los dos. Cómo se hace una prueba así sin engañarte es el tema de la lección «[Pruebas de carga y benchmarks honestos](/pruebas-carga/)».
 
 ### Los demás que vas a oír
 
@@ -572,7 +572,7 @@ El árbol de decisión, de la primera pregunta a un motor. Recorre el camino del
 - **En el servidor: vLLM 0.34.0**, una copia por L40S (tres), en Linux, con el comando de arriba. Razones: atiende a muchos a la vez; sirve el AWQ del despacho con el kernel Marlin (según su código); trae la [[api-compatible-openai|API compatible con OpenAI]] que espera el [[gateway-de-llm|gateway]]; y es el de más documentación y comunidad para un equipo que empieza. Si el despacho cotiza la alternativa de **2 RTX PRO 6000 Blackwell Server Edition**, el motor y el comando son los mismos; cambian cuántas conversaciones caben en cada copia y el tope de `--max-num-seqs`.
 - **En la laptop y en las demos: Ollama** (o llama.cpp), con el contexto fijado a mano (`OLLAMA_CONTEXT_LENGTH=8192`) y `think: false`. Para probar ideas de prompt en minutos; no para medir velocidad ni aprobar la calidad, que se hace con el AWQ en vLLM.
 - **Delante de todo: el gateway**, que es el que autentica, reparte entre las 3 copias y registra ([la lección de gateway](/gateway/)).
-- **La versión se fija y se anota.** vLLM saca versión cada 2 a 4 semanas, y la 0.34.0 cambió valores por omisión importantes. El piloto se corre con una versión, y se actualiza a propósito, repitiendo la prueba de carga y el examen, no porque salió una nueva.
+- **La versión se fija y se anota.** vLLM saca versión cada 2 a 4 semanas, y la 0.34.0 cambió valores por omisión importantes. El piloto se corre con una versión, y se actualiza a propósito, repitiendo la [[prueba-de-carga|prueba de carga]] y el examen, no porque salió una nueva.
 - **El TI aprende Linux.** Los tres motores de servidor son de Linux: es parte del plan del piloto, no un detalle.
 
 :::profundo ¿Y SGLang para el despacho?
@@ -597,7 +597,7 @@ El despacho tiene justo el tipo de prefijo que SGLang aprovecha: instrucciones f
 
 **Una empresa que extrae datos de facturas en JSON.** Supuesto del ejemplo: una aseguradora manda miles de facturas al día a un modelo que debe devolver un JSON con 15 campos fijos, y un programa lo lee sin humanos. Un JSON roto es un reclamo atorado: la [[salida-estructurada|salida estructurada]] no es lujo, y el prompt (instrucciones y esquema) es el mismo en todas: prefijo compartido. SGLang, con su árbol de prefijos y su motor de gramáticas, es candidato natural; vLLM, con `structured_outputs`, también. Se prueban los dos con mil facturas reales y se elige por errores y por throughput.
 
-**Un equipo con H100 que exprime la latencia.** Supuesto del ejemplo: un producto de voz necesita el primer token en menos de 300 ms con un modelo grande en FP8, en un servidor con 8 H100. El equipo tiene ingenieros de GPU y solo usa NVIDIA. TensorRT-LLM es candidato serio: NVIDIA lo afina para cada GPU nueva y ya no hay engines que recompilar. Lo ponen a competir con vLLM en su propia prueba de carga.
+**Un equipo con H100 que exprime la latencia.** Supuesto del ejemplo: un producto de voz necesita el primer token en menos de 300 ms con un modelo grande en FP8, en un servidor con 8 H100. El equipo tiene ingenieros de GPU y solo usa NVIDIA. TensorRT-LLM es candidato serio: NVIDIA lo afina para cada GPU nueva y ya no hay engines que recompilar. Lo ponen a competir con vLLM en su propia [[prueba-de-carga|prueba de carga]].
 
 ## Ejercicios {Exercises}
 
@@ -629,7 +629,7 @@ Memoria: la documentación dice que el contexto se multiplica por las peticiones
 - **[Gateway, API compatible con OpenAI, autenticación y varios modelos](/gateway/)**, la siguiente, pone delante de las tres copias lo que el motor no hace: la cuenta de cada abogado, las cuotas en tokens, el reparto entre copias y modelos, y el registro de quién preguntó qué; y explica a fondo la API que aquí solo usaste.
 - **[Varias GPUs: tensor y pipeline parallel](/varias-gpus/)** explica por qué el despacho pone una copia por GPU y qué cambia en el comando de vLLM cuando el modelo no cabe en una.
 - **[De requisitos a hardware](/requisitos-hardware/)** dice cuántas conversaciones aguanta cada GPU a la velocidad que se pide, el número contra el que se compara `--max-num-seqs`.
-- **«Pruebas de carga y benchmarks honestos»** enseña a comparar dos motores en tu GPU sin engañarte; **«Observabilidad de GPUs e inferencia»**, a leer las métricas que vLLM publica en producción.
+- **«[Pruebas de carga y benchmarks honestos](/pruebas-carga/)»** enseña a comparar dos motores en tu GPU sin engañarte; **«Observabilidad de GPUs e inferencia»**, a leer las métricas que vLLM publica en producción.
 - Si te quedaron dudas de lo que esta lección dio por sabido: [Batching continuo y PagedAttention](/batching/) y [Formatos de cuantización en la práctica](/formatos-cuantizacion/) aquí; en Sensei, [APIs: REST, JSON, gRPC y streaming](https://sensei.trueml.app/apis/), [Balanceadores, proxies y gateways](https://sensei.trueml.app/balanceo/) y [Empaquetado con Docker](https://sensei.trueml.app/e07-empaquetado/).
 
 ## Palabras que vas a oír {Words you'll hear}

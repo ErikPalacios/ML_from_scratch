@@ -282,7 +282,7 @@ Arranca con el servidor de 4U a 127 V y 3 L40S (al precio de tienda de gpus.json
 
 ### La cuarta ranura
 
-Las fichas de los servidores de 2U y 4U aceptan 4 o más tarjetas, y el despacho pide 3. La ranura libre no es desperdicio: el mismo sizing dice que para que las 8 conversaciones de diseño vayan todas a 20 tokens por segundo hacen falta 4, y que con 3 se cubre el promedio. Comprar un servidor de 4 ranuras con 3 tarjetas deja la cuarta como **crecimiento**: si la prueba de carga del piloto pide la cuarta, se agrega sin cambiar de caja. Es la forma más barata de crecer, y si la cuarta se compra sirve también de [[redundancia]]: si una tarjeta falla, las otras tres siguen atendiendo.
+Las fichas de los servidores de 2U y 4U aceptan 4 o más tarjetas, y el despacho pide 3. La ranura libre no es desperdicio: el mismo sizing dice que para que las 8 conversaciones de diseño vayan todas a 20 tokens por segundo hacen falta 4, y que con 3 se cubre el promedio. Comprar un servidor de 4 ranuras con 3 tarjetas deja la cuarta como **crecimiento**: si la [[prueba-de-carga|prueba de carga]] del piloto pide la cuarta, se agrega sin cambiar de caja. Es la forma más barata de crecer, y si la cuarta se compra sirve también de [[redundancia]]: si una tarjeta falla, las otras tres siguen atendiendo.
 
 ## El software manda: CUDA, ROCm y MLX {Software rules: CUDA, ROCm and MLX}
 
@@ -447,7 +447,7 @@ Lo que falta para cerrar la compra ya no es de esta lección: si el cuarto de TI
 4. **Leer «3 años de garantía» como 3 años de piezas.** La estándar de Supermicro es 3 de mano de obra y 1 de piezas. **Cómo evitarlo:** pregunta por escrito años de piezas, quién cubre las GPUs y si mandan el reemplazo antes.
 5. **Comprar AMD o Apple por el precio por GB, sin probar el software.** Una GPU fuera de la matriz de ROCm, o un servidor de inferencia que no corre en Metal, deja el equipo parado. **Cómo evitarlo:** renta una hora o pide una demo, y corre **tu** modelo, en **tu** formato, con **tu** servidor de inferencia antes de comprar.
 6. **Poner GeForce en el rack de una empresa.** La licencia del driver de GeForce no cubre centros de datos. **Cómo evitarlo:** para un servicio de empresa, tarjetas profesionales (RTX PRO) o de centro de datos (L40S, H100).
-7. **Comprar justo lo del sizing, sin ranura de más.** Si la prueba de carga pide una tarjeta más, toca cambiar de caja. **Cómo evitarlo:** un servidor con una ranura libre cuesta lo mismo que uno lleno a la medida.
+7. **Comprar justo lo del sizing, sin ranura de más.** Si la [[prueba-de-carga|prueba de carga]] pide una tarjeta más, toca cambiar de caja. **Cómo evitarlo:** un servidor con una ranura libre cuesta lo mismo que uno lleno a la medida.
 
 ## En la vida real {In real life}
 

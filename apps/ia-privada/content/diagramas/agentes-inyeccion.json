@@ -53,7 +53,7 @@
       "y": 5,
       "w": 18,
       "h": 8,
-      "note": "La ingesta parte el contrato en fragmentos y lo guarda como cualquier otro. Nada en el índice dice «este texto es peligroso»: es un expediente más."
+      "note": "La [[ingesta|ingesta]] parte el contrato en [[chunk|fragmentos]] y lo guarda como cualquier otro. Nada en el índice dice «este texto es peligroso»: es un expediente más."
     },
     {
       "id": "buscar",
@@ -64,7 +64,7 @@
       "y": 5,
       "w": 18,
       "h": 8,
-      "note": "La búsqueda trae el fragmento con la nota porque se parece a la pregunta. Con la ACL correcta, sí: la abogada puede ver ese contrato. El problema no es el permiso, es lo que dice."
+      "note": "La búsqueda trae el [[chunk|fragmento]] con la nota porque se parece a la pregunta. Con la [[acl-por-chunk|ACL]] correcta, sí: la abogada puede ver ese contrato. El problema no es el permiso, es lo que dice."
     },
     {
       "id": "filtro",
@@ -262,7 +262,7 @@
           "edges": [
             "buscar>filtro"
           ],
-          "text": "**Quitar invisibles** borra la nota si estaba en caracteres de ancho cero o de etiqueta. Un guardián puede marcar el fragmento; también puede dejarlo pasar o marcar uno legítimo."
+          "text": "**Quitar invisibles** borra la nota si estaba en caracteres de ancho cero o de etiqueta. Un guardián puede marcar el [[chunk|fragmento]]; también puede dejarlo pasar o marcar uno legítimo."
         },
         {
           "nodes": [
@@ -286,7 +286,7 @@
           "edges": [
             "validar>acl"
           ],
-          "text": "**La ACL en la tool:** si la nota pide un expediente de otro cliente, la tool lo niega con el Id de la abogada."
+          "text": "**La [[acl-por-chunk|ACL]] en la tool:** si la nota pide un expediente de otro cliente, la tool lo niega con el Id de la abogada."
         },
         {
           "nodes": [

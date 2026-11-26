@@ -42,7 +42,7 @@ Todo en el diagrama habla el mismo idioma: Open WebUI (la página de chat que us
 | `POST /v1/chat/completions` | Mandar una conversación y recibir el siguiente mensaje | Cada pregunta a los expedientes |
 | `POST /v1/completions` | Mandar texto suelto y recibir su continuación (la forma vieja, sin roles) | Casi nunca |
 | `GET /v1/models` | Listar los modelos que hay | Open WebUI la llama para llenar su menú |
-| `POST /v1/embeddings` | Convertir textos en vectores | La búsqueda de fragmentos (la lección de RAG) |
+| `POST /v1/embeddings` | Convertir textos en vectores | La búsqueda de fragmentos (la lección de [[rag\|RAG]]) |
 
 Por qué todos la imitan: hay miles de programas, bibliotecas y SDKs que ya saben hablar con OpenAI. Si tu servidor habla igual, cualquiera de ellos le habla **cambiando una sola cosa**: la dirección base (`base_url`). A noviembre de 2026, vLLM 0.34.0, llama-server (el servidor de [[llama-cpp|llama.cpp]]) y [[ollama|Ollama]] sirven las cuatro rutas; cómo se elige entre esos motores lo ves en [Del laptop al servidor](/stack-serving/).
 
@@ -297,7 +297,7 @@ La salida que Microsoft recomienda son los **[[rol-de-aplicacion|roles de aplica
 
 
 :::ojo
-SSO no sustituye a la autorización dentro de la app. Que una persona pueda entrar al chat no quiere decir que pueda ver todos los expedientes: los permisos sobre los documentos los hace cumplir la búsqueda (la lección de RAG), no el login.
+SSO no sustituye a la autorización dentro de la app. Que una persona pueda entrar al chat no quiere decir que pueda ver todos los expedientes: los permisos sobre los documentos los hace cumplir la búsqueda (la lección de [[rag|RAG]]), no el login.
 :::
 
 ## Apps: una clave por app, y la identidad que viaja {Apps: one key per app, and the identity that travels}
@@ -537,7 +537,7 @@ El despacho no va a tener un solo modelo para siempre. Al poco tiempo tendrá tr
 
 - `chat-grande`: Qwen3 32B, para preguntar a los expedientes.
 - `chat-chico`: un modelo más chico y rápido, para clasificar correos o sugerir un título (y de respaldo, como verás).
-- `embeddings`: un modelo de embeddings para la búsqueda de fragmentos (la lección de RAG lo elige).
+- `embeddings`: un [[modelo-de-embeddings|modelo de embeddings]] para la búsqueda de fragmentos (la lección de [[rag|RAG]] lo eligió: Qwen3-Embedding-0.6B, servido por vLLM en el puerto 8001).
 
 Las apps piden `chat-grande`, no «Qwen/Qwen3-32B-AWQ en vllm-2:8000». Si el despacho cambia de modelo después de su examen de 200 preguntas, cambia una línea del gateway y ninguna app.
 
@@ -562,7 +562,7 @@ model_list:
   - model_name: chat-chico
     litellm_params: {model: hosted_vllm/<modelo-chico>, api_base: http://vllm-chico:8000/v1}
   - model_name: embeddings
-    litellm_params: {model: hosted_vllm/<modelo-de-embeddings>, api_base: http://vllm-emb:8001/v1}
+    litellm_params: {model: hosted_vllm/embeddings, api_base: http://vllm-emb:8001/v1}
 
 router_settings:
   routing_strategy: simple-shuffle          # la recomendada en producción
@@ -676,7 +676,7 @@ Carga del despacho contra lo que aguanta una instancia // 0.21 preguntas/s en la
 = El gateway agrega milisegundos a un camino que tarda segundos, y una sola instancia sobra por mucho.
 :::
 
-Son cifras del proveedor con un modelo simulado, no una medición del despacho. Lo que sí se puede afirmar es el orden de magnitud: milisegundos contra segundos. Si el gateway del despacho agrega cientos de milisegundos, algo está mal configurado (un *callback* lento, una base lejos) y se busca. La capacidad real se confirma con una prueba de carga, que tiene su propia lección («Pruebas de carga y benchmarks honestos»).
+Son cifras del proveedor con un modelo simulado, no una medición del despacho. Lo que sí se puede afirmar es el orden de magnitud: milisegundos contra segundos. Si el gateway del despacho agrega cientos de milisegundos, algo está mal configurado (un *callback* lento, una base lejos) y se busca. La capacidad real se confirma con una [[prueba-de-carga|prueba de carga]], que tiene su propia lección («[Pruebas de carga y benchmarks honestos](/pruebas-carga/)»).
 
 ## Errores comunes {Common mistakes}
 
@@ -690,7 +690,7 @@ Son cifras del proveedor con un modelo simulado, no una medición del despacho. 
 
 ## En la vida real {In real life} [extra]
 
-**El despacho.** Open WebUI para los 200 abogados, con SSO de Microsoft Entra ID por OIDC y dos roles de aplicación; LiteLLM como gateway, con una clave de servicio para Open WebUI (solo inferencia) que reenvía el Id de cada persona; tres copias de Qwen3 32B detrás del nombre `chat-grande`, un `chat-chico` local de respaldo y un modelo de embeddings. Cuotas por persona de ≈ 936 tokens por minuto con una cubeta de 3 a 5 preguntas, `rpm` de 4 y 2 requests a la vez, calculadas con los 7,200 tokens de salida por minuto que dan las 3 L40S (si el piloto decide por las 2 RTX PRO 6000, se recalculan con el mismo método). Una fila por pregunta sin texto, borrada a los 90 días; los chats de Open WebUI, con una decisión escrita sobre quién puede leerlos. El TI de 2 personas opera tres programas con una base Postgres, sin Kubernetes.
+**El despacho.** Open WebUI para los 200 abogados, con SSO de Microsoft Entra ID por OIDC y dos roles de aplicación; LiteLLM como gateway, con una clave de servicio para Open WebUI (solo inferencia) que reenvía el Id de cada persona; tres copias de Qwen3 32B detrás del nombre `chat-grande`, un `chat-chico` local de respaldo y un [[modelo-de-embeddings|modelo de embeddings]]. Cuotas por persona de ≈ 936 tokens por minuto con una cubeta de 3 a 5 preguntas, `rpm` de 4 y 2 requests a la vez, calculadas con los 7,200 tokens de salida por minuto que dan las 3 L40S (si el piloto decide por las 2 RTX PRO 6000, se recalculan con el mismo método). Una fila por pregunta sin texto, borrada a los 90 días; los chats de Open WebUI, con una decisión escrita sobre quién puede leerlos. El TI de 2 personas opera tres programas con una base Postgres, sin Kubernetes.
 
 **Una startup con varios clientes.** Supuesto del ejemplo: una empresa que ofrece su propio asistente a 4 clientes, todos sobre el mismo servidor. Aquí el gateway separa **inquilinos** (*multi-tenant*): cada cliente su equipo, sus claves, su cuota y su presupuesto, y ningún cliente ve el uso de otro. Si uno paga el doble, su cuota pesa el doble: con la misma capacidad de 7,200 tokens de salida por minuto y pesos 2, 1, 1 y 1, le tocan 2,880 y a cada uno de los otros, 1,440. El caso a fondo, con contratos y aislamiento, va en una lección posterior.
 
@@ -712,7 +712,7 @@ Activas: 200 × 0.25 = 50. \(q_{p}\) = 7,200 ÷ 50 = **144 tokens/min** de salid
 ? [medio] La cubeta de una abogada (recarga 936 tokens/min, tamaño 19,500) está llena a las 10:00. Hace 3 preguntas típicas seguidas a las 10:00. ¿A qué hora puede hacer la cuarta? ¿Y si la cubeta fuera de 32,500?
 Tras 3 preguntas: 19,500 − 3 × 6,500 = 0. \(w\) = (6,500 − 0) ÷ 936 ≈ 6.94 min: la cuarta pasa a las **≈ 10:07**. Con 32,500: ⌊32,500 ÷ 6,500⌋ = 5 preguntas seguidas pasan; la cuarta pasa **de inmediato** (quedan 6,500 tras la cuarta y 0 tras la quinta). La sexta esperaría ≈ 6.9 min. Lo sostenido no cambia: 8.64 por hora en los dos casos.
 ? [medio] La sobrecarga del gateway en la prueba de LiteLLM fue de 13 ms en el p99 con 4 instancias. Si el despacho pone nginx (supón 1 ms) y LiteLLM (13 ms) delante de [[vllm|vLLM]], ¿qué fracción del TTFT de 2.38 s agregan? ¿Vale la pena preocuparse?
-\(t_{gw}\) = 1 + 13 = 14 ms. \(f\) = 14 ÷ 2,380 ≈ **0.6 %**. No: el TTFT del despacho lo deciden el prefill (≈ 2.2–2.4 s) y la fila de la hora pico. Si de verdad midieran cientos de milisegundos, sería señal de una mala configuración, no del gateway en sí. Y las cifras de LiteLLM son con un modelo simulado: se confirman con una prueba de carga.
+\(t_{gw}\) = 1 + 13 = 14 ms. \(f\) = 14 ÷ 2,380 ≈ **0.6 %**. No: el TTFT del despacho lo deciden el prefill (≈ 2.2–2.4 s) y la fila de la hora pico. Si de verdad midieran cientos de milisegundos, sería señal de una mala configuración, no del gateway en sí. Y las cifras de LiteLLM son con un modelo simulado: se confirman con una [[prueba-de-carga|prueba de carga]].
 ? [reto] El despacho quiere conectar una app que clasifica correos: 30 correos por minuto de 1,500 tokens de entrada y 50 de salida, de 9:00 a 19:00. ¿Qué parte de la capacidad de salida usa? ¿Cabe junto con la hora pico de los abogados? ¿Qué límite le pondrías?
 Salida de la app: 30 × 50 = **1,500 tokens/min**, el 1,500 ÷ 7,200 ≈ **20.8 %** de la capacidad. En la hora pico los abogados ya piden 6,250: juntos, 7,750 > 7,200, el **107.6 %**. No cabe. Lo que sobra en el pico es 7,200 − 6,250 = **950 tokens/min** de salida: a la app le alcanzan 950 ÷ 50 = **19 correos/min** sin quitarle a nadie. Opciones: `tpm_limit` de la app con ese tope (en tokens totales, 19 × 1,550 = 29,450), o que procese su fila fuera de la hora pico o de noche, o que use `chat-chico`. Ojo también con la entrada: 30 × 1,500 = 45,000 tokens/min de prefill más, que suben el TTFT de los abogados.
 ? [reto] La startup del ejemplo tiene 4 clientes sobre un servidor con 7,200 tokens de salida por minuto. El cliente A paga el doble que los otros tres. Sus preguntas son de 2,000 tokens de entrada y 250 de salida; las de los demás, como las del despacho (6,000 y 500). ¿Qué `tpm_limit` en tokens totales le pones a cada cliente?
@@ -726,7 +726,7 @@ Que «por si acaso» no es una finalidad: la ley pide que el tratamiento sea el 
 - **[Del laptop al servidor: llama.cpp, Ollama, vLLM, SGLang y TensorRT-LLM](/stack-serving/)** explica los motores que este gateway tiene detrás: qué hace cada uno por dentro, cómo se arranca [[vllm|vLLM]] para el despacho y qué flags mueven lo que viste aquí (el tope de contexto, el razonamiento apagado).
 - **[Varias GPUs: tensor y pipeline parallel](/varias-gpus/)** explica por qué el despacho pone tres copias detrás de un nombre en vez de un modelo partido entre tres GPUs, y cuándo cambiaría.
 - **[De requisitos a hardware](/requisitos-hardware/)** es de donde sale la capacidad que se reparte en las cuotas, y por qué el TTFT del p95 con fila es mayor que el de una pregunta sola.
-- **«RAG privado: embeddings y vector DB locales»** usa el modelo `embeddings` de este gateway y resuelve lo que el SSO no resuelve: que la búsqueda respete qué expedientes puede ver cada persona.
+- **«[RAG privado: embeddings y vector DB locales](/rag-privado/)»** usa el modelo `embeddings` de este gateway y resuelve lo que el SSO no resuelve: que la búsqueda respete qué expedientes puede ver cada persona.
 - **«Seguridad: aislamiento, sin internet y actualizaciones»** cierra las puertas de red que aquí solo se mencionan, y **«Observabilidad de GPUs e inferencia»** usa la fila del registro y el `/metrics` de vLLM.
 - En Sensei: [Balanceadores, proxies y gateways](https://sensei.trueml.app/balanceo/) tiene el token bucket por dentro; [Autenticación y permisos](https://sensei.trueml.app/identidad/), OIDC y los JWT; [Datos personales y la ley](https://sensei.trueml.app/privacidad/), la ley que pesa sobre el registro; y [Timeouts, reintentos e idempotencia](https://sensei.trueml.app/fallas-red/), por qué un reintento mal puesto tumba un servidor.
 

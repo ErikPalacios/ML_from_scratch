@@ -19,12 +19,13 @@
    "termino": "Golden set",
    "en": "golden set",
    "corto": "El conjunto fijo de preguntas con su respuesta correcta que se guarda y se usa para medir cada versión del sistema, siempre igual.",
-   "largo": "Lo escriben personas que saben la tarea, con casos reales, y no se toca entre versiones: así dos resultados se pueden comparar. Para un LLM con RAG, cada caso trae la pregunta, quién la hace, la [[respuesta-de-referencia|respuesta de referencia]] y dónde está la respuesta (documento y página). Se mantiene fuera del prompt, de los ejemplos y de cualquier ajuste fino: si se cuela, mide memoria y no calidad (la [[contaminacion|contaminación]]).",
+   "largo": "Lo escriben personas que saben la tarea, con casos reales, y no se toca entre versiones: así dos resultados se pueden comparar. Para un LLM con [[rag|RAG]], cada caso trae la pregunta, quién la hace, la [[respuesta-de-referencia|respuesta de referencia]] y dónde está la respuesta (documento y página). Se mantiene fuera del prompt, de los ejemplos y de cualquier ajuste fino: si se cuela, mide memoria y no calidad (la [[contaminacion|contaminación]]).",
    "analogia": "El examen final que el profesor guarda bajo llave y aplica igual a cada generación. Dónde se rompe: los alumnos cambian cada año; aquí el que cambia es el sistema y el examen se queda, así que con el tiempo deja de parecerse a lo que la gente pregunta y hay que renovarlo con cuidado.",
    "ejemplo": "Las 200 preguntas del despacho, repartidas en 5 estratos: 110 con respuesta, 30 sin respuesta, 20 de permisos, 20 de resumir y 20 de cláusulas parecidas (propuesta del ejemplo).",
    "ver": [
     "estratificar",
-    "respuesta-de-referencia"
+    "respuesta-de-referencia",
+    "criterio-de-aceptacion"
    ],
    "leccion": "evals",
    "sensei": "aprendio"
@@ -60,7 +61,7 @@
    "termino": "Métrica de retrieval",
    "en": "retrieval metric",
    "corto": "Un número que dice si la búsqueda trajo los fragmentos correctos, antes de que el modelo escriba: por ejemplo, si la página correcta está entre los primeros k (recall@k).",
-   "largo": "Separa la capa de búsqueda de la del modelo. **Recall@k**: de las páginas que contestan la pregunta (las páginas de oro), qué fracción llegó entre los k fragmentos que recibió el modelo. **Precision@k**: de los k fragmentos, cuántos servían. Con una página de oro por pregunta, se calcula con código, sin juez. Si el retrieval falla, el modelo no puede citar la página correcta por bueno que sea.",
+   "largo": "Separa la capa de búsqueda de la del modelo. **Recall@k**: de las páginas que contestan la pregunta (las páginas de oro), qué fracción llegó entre los k [[chunk|fragmentos]] que recibió el modelo. **Precision@k**: de los k fragmentos, cuántos servían. Con una página de oro por pregunta, se calcula con código, sin juez. Si el retrieval falla, el modelo no puede citar la página correcta por bueno que sea.",
    "ejemplo": "Supuesto: en 200 preguntas con su página de oro, la página llega entre los 5 fragmentos en 184: recall@5 = 92 %. De las 16 que no llegaron, ninguna se puede contestar bien con cita.",
    "ver": [
     "fidelidad"
@@ -72,7 +73,7 @@
    "termino": "Fidelidad",
    "en": "faithfulness",
    "corto": "Que la respuesta diga solo lo que dicen los fragmentos que recibió el modelo, sin agregar nada de su memoria ni inventar.",
-   "largo": "Es distinto de la corrección: una respuesta puede ser fiel a un fragmento equivocado (y estar mal), o correcta por casualidad sin apoyo en los fragmentos (y no ser fiel). RAGAS la define, a noviembre de 2026, como las afirmaciones de la respuesta que se pueden inferir del contexto recuperado entre el total de afirmaciones de la respuesta; un [[llm-as-judge|juez]] extrae las afirmaciones y verifica cada una.",
+   "largo": "Es distinto de la corrección: una respuesta puede ser fiel a un [[chunk|fragmento]] equivocado (y estar mal), o correcta por casualidad sin apoyo en los fragmentos (y no ser fiel). RAGAS la define, a noviembre de 2026, como las afirmaciones de la respuesta que se pueden inferir del contexto recuperado entre el total de afirmaciones de la respuesta; un [[llm-as-judge|juez]] extrae las afirmaciones y verifica cada una.",
    "ejemplo": "La respuesta hace 4 afirmaciones y 3 están en los fragmentos: fidelidad 0.75. La cuarta («el plazo es de 30 días») no aparece en ningún fragmento, aunque sea cierta.",
    "ver": [
     "metrica-de-retrieval",
@@ -85,7 +86,7 @@
    "termino": "LLM como juez",
    "en": "LLM-as-a-judge",
    "corto": "Usar un LLM para calificar las respuestas de otro sistema siguiendo una rúbrica, en vez de que una persona las califique una por una.",
-   "largo": "Sirve para lo que el código no puede revisar: si una respuesta abierta dice lo mismo que la referencia, si es fiel a los fragmentos, si un resumen omite algo. Es barato y rápido, pero tiene [[sesgo-del-juez|sesgos]] medidos y no es determinista. Solo se le cree después de medir cuánto concuerda con expertos ([[acuerdo-entre-jueces|acuerdo entre jueces]]). En un sistema privado, el juez también tiene que correr dentro de la red: mandarle las respuestas a un juez de nube saca los expedientes.",
+   "largo": "Sirve para lo que el código no puede revisar: si una respuesta abierta dice lo mismo que la referencia, si es fiel a los [[chunk|fragmentos]], si un resumen omite algo. Es barato y rápido, pero tiene [[sesgo-del-juez|sesgos]] medidos y no es determinista. Solo se le cree después de medir cuánto concuerda con expertos ([[acuerdo-entre-jueces|acuerdo entre jueces]]). En un sistema privado, el juez también tiene que correr dentro de la red: mandarle las respuestas a un juez de nube saca los expedientes.",
    "analogia": "Un asistente que revisa exámenes con la hoja de respuestas del profesor. Dónde se rompe: un asistente humano no prefiere la respuesta que va primero ni la más larga, y no califica distinto la misma hoja si se la das dos veces; un LLM sí puede hacer las tres cosas.",
    "ejemplo": "En el despacho, el mismo Qwen3 32B califica las 200 respuestas contra la referencia y los fragmentos: ≈ 1.26 M tokens de entrada y 40,000 de salida, de 5.6 a 8.3 minutos del servidor completo.",
    "ver": [
@@ -101,7 +102,7 @@
    "en": "rubric",
    "corto": "La lista escrita de criterios con los que se califica una respuesta, cada uno con lo que cuenta como cumplido; se le da igual al juez y a las personas.",
    "largo": "Una buena rúbrica parte la calificación en criterios que se contestan sí o no («¿llega a la misma conclusión que la referencia?», «¿cita documento y página?», «¿afirma algo que no está en los fragmentos?»), en vez de pedir «califica del 1 al 10». Una revisión de 2026 sobre respuestas jurídicas abiertas encontró que una rúbrica escrita para la tarea es la palanca más fuerte del acuerdo entre juez y humanos.",
-   "ejemplo": "La rúbrica del despacho para «preguntar»: 1) misma conclusión que la referencia; 2) nada que no esté en los fragmentos; 3) si no está, lo dice. Pasa si cumple las tres.",
+   "ejemplo": "La rúbrica del despacho para «preguntar»: 1) misma conclusión que la referencia; 2) nada que no esté en los [[chunk|fragmentos]]; 3) si no está, lo dice. Pasa si cumple las tres.",
    "ver": [
     "llm-as-judge",
     "respuesta-de-referencia"
@@ -177,7 +178,7 @@
    "termino": "Regresión",
    "en": "regression",
    "corto": "Que algo que funcionaba deje de funcionar después de un cambio: en un LLM, preguntas que antes salían bien y ahora salen mal.",
-   "largo": "En un sistema con LLM casi todo puede causar una: el modelo, la cuantización, la versión del motor, el prompt, cómo se parten los documentos, el modelo de embeddings, cuántos fragmentos se pasan al modelo. Y a veces nada: [[vllm|vLLM]] no garantiza resultados idénticos entre corridas por omisión, así que hay un piso de ruido propio. Se detecta corriendo el examen completo con cada cambio y comparando pareado contra la versión en producción, además de leer los [[flips]].",
+   "largo": "En un sistema con LLM casi todo puede causar una: el modelo, la cuantización, la versión del motor, el prompt, cómo se parten los documentos, el [[modelo-de-embeddings|modelo de embeddings]], [[top-k|cuántos fragmentos se pasan]] al modelo. Y a veces nada: [[vllm|vLLM]] no garantiza resultados idénticos entre corridas por omisión, así que hay un piso de ruido propio. Se detecta corriendo el examen completo con cada cambio y comparando pareado contra la versión en producción, además de leer los [[flips]].",
    "ejemplo": "Una versión nueva del motor deja el total igual, pero 9 preguntas de contratos en inglés pasan de bien a mal y 9 de otros tipos de mal a bien: el total no la ve; leer los flips sí.",
    "ver": [
     "gate-de-calidad",

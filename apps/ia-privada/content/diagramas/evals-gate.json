@@ -10,7 +10,7 @@
     {
       "id": "cambio", "label": "Un cambio", "sub": "modelo, vLLM, prompt…", "badge": "1", "kind": "job",
       "x": 2, "y": 6, "w": 18, "h": 8,
-      "note": "Cualquier cosa que mueva las respuestas: el modelo, su cuantización, la versión de [[vllm|vLLM]], el prompt, cómo se parten los documentos (el chunker), el modelo de embeddings, cuántos fragmentos se pasan. Si cambia la salida, pasa por aquí."
+      "note": "Cualquier cosa que mueva las respuestas: el modelo, su cuantización, la versión de [[vllm|vLLM]], el prompt, cómo se parten los documentos (el chunker), el [[modelo-de-embeddings|modelo de embeddings]], [[top-k|cuántos fragmentos se pasan]]. Si cambia la salida, pasa por aquí."
     },
     {
       "id": "examen", "label": "Examen completo", "sub": "200 preguntas + juez", "badge": "2", "kind": "job",
@@ -81,7 +81,7 @@
       "id": "fuga",
       "label": "Un chunker nuevo con una fuga",
       "steps": [
-        { "nodes": ["cambio", "examen", "inv", "alto"], "edges": ["cambio>examen", "examen>inv", "inv>alto"], "text": "Un chunker nuevo (el programa que parte los documentos en fragmentos) gana 4 puntos, pero en una de las 20 preguntas de permisos llegó un fragmento de un expediente ajeno. **Se detiene** sin mirar el porcentaje: una fuga no se compensa con exactitud." }
+        { "nodes": ["cambio", "examen", "inv", "alto"], "edges": ["cambio>examen", "examen>inv", "inv>alto"], "text": "Un chunker nuevo (el programa que parte los documentos en [[chunk|fragmentos]]) gana 4 puntos, pero en una de las 20 preguntas de permisos llegó un fragmento de un expediente ajeno. **Se detiene** sin mirar el porcentaje: una fuga no se compensa con exactitud." }
       ]
     }
   ]

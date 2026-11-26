@@ -523,7 +523,7 @@ Con la fórmula del prefill (2 × 32.76 mil millones de parámetros × tokens ÷
 
 ### El examen empieza aquí
 
-Si la búsqueda no trae la página correcta, el mejor modelo del mundo no la puede citar. Por eso el primer número que se mide es de la búsqueda, no del LLM: el **recall@k**, de las preguntas del examen, en cuántas llegó el chunk con la página correcta entre los k que se le dan al modelo. Se mide por separado del LLM, y después de cada cambio (modelo de embeddings, tamaño de chunk, k de RRF, reranker). Cómo se construye y se califica, en [Demostrar que el modelo abierto sirve](/evals/).
+Si la búsqueda no trae la página correcta, el mejor modelo del mundo no la puede citar. Por eso el primer número que se mide es de la búsqueda, no del LLM: el **[[metrica-de-retrieval|recall@k]]**, de las preguntas del examen, en cuántas llegó el chunk con la página correcta entre los k que se le dan al modelo. Se mide por separado del LLM, y después de cada cambio (modelo de embeddings, tamaño de chunk, k de RRF, reranker). Cómo se construye y se califica, en [Demostrar que el modelo abierto sirve](/evals/).
 
 ## Reindexar sin apagar nada {Reindexing without switching anything off} [extra]
 
@@ -535,7 +535,7 @@ Lo que cuesta, en el despacho:
 - **No se repiten los chunks** si el tamaño y el tokenizador no cambian. Si cambian (otro modelo, otro límite), hay que volver a partir, y es barato: es texto.
 - **Se repiten los embeddings**: de 1.8 a 4.3 h con el 0.6B, de 15 a 36 h con el 4B en una L40S.
 
-Y se hace **al lado**, no encima (el cambio «azul-verde»): se construye una colección nueva (en Qdrant, una colección es lo que en SQL sería una tabla) junto a la vieja (con el doble de índice, ≈ 11 GB en RAM, nada para 384 GB), se corre el examen de 200 preguntas contra la nueva, y solo si pasa se cambia el nombre al que apunta el servicio de búsqueda. Si algo sale mal, se regresa al nombre viejo en un segundo. Cambiar el modelo de embeddings es un cambio como cualquier otro del sistema: no entra sin pasar el examen.
+Y se hace **al lado**, no encima (el cambio «azul-verde»): se construye una colección nueva (en Qdrant, una colección es lo que en SQL sería una tabla) junto a la vieja (con el doble de índice, ≈ 11 GB en RAM, nada para 384 GB), se corre el examen de 200 preguntas contra la nueva, y solo si pasa se cambia el nombre al que apunta el servicio de búsqueda. Si algo sale mal, se regresa al nombre viejo en un segundo. Cambiar el modelo de embeddings es un cambio como cualquier otro del sistema: [[gate-de-calidad|no entra sin pasar el examen]].
 
 :::ojo
 La huella del índice. Cada chunk guarda con qué modelo, qué versión, qué instrucción y qué dimensiones se calculó su vector. Así, un día que alguien actualice «solo la imagen de vLLM» y el modelo cambie por debajo, una consulta de prueba lo detecta antes de que las respuestas empeoren sin explicación.
@@ -556,7 +556,7 @@ En el despacho, **nada de esto hace falta**. El índice float32 pesa ≈ 5.7 GB;
 1. **Filtrar permisos después de buscar, o en el prompt.** Quien ve el 3 % recibe ≈ 1.2 chunks de 40 y respuestas sin cita; y un permiso escrito en el prompt no detiene nada. **Cómo evitarlo:** [[prefiltro]] dentro de la búsqueda (en pgvector, escaneo iterativo), segunda revisión antes de armar el prompt, y una prueba que pregunte como cada tipo de persona y compare con lo que debería ver.
 2. **Probar con la cuenta de TI.** Quien lo ve todo nunca nota el post-filtro ni la muralla rota. **Cómo evitarlo:** el examen incluye preguntas hechas como una asociada de un solo equipo, y preguntas cuya respuesta está en un expediente que esa persona **no** puede ver: la respuesta correcta es «no lo encontré».
 3. **Pedirle la página al LLM.** El modelo inventa números de página con toda seguridad. **Cómo evitarlo:** marcas de página dentro del chunk, la página como metadato, y una revisión con código de que la [[cita]] existe y contiene el texto.
-4. **Elegir el modelo de embeddings por el primer lugar del leaderboard.** El primero general puede ser el no comercial, el que entrenó con el benchmark o el que lee 512 tokens. **Cómo evitarlo:** licencia, contexto y recall@k con las preguntas del despacho, en ese orden.
+4. **Elegir el modelo de embeddings por el primer lugar del leaderboard.** El primero general puede ser el no comercial, el que entrenó con el benchmark o el que lee 512 tokens. **Cómo evitarlo:** licencia, contexto y [[metrica-de-retrieval|recall@k]] con las preguntas del despacho, en ese orden.
 5. **Mezclar vectores de dos modelos.** Actualizar el modelo y reindexar «poco a poco» deja la mitad del índice en otro espacio: la búsqueda empeora sin un solo error. **Cómo evitarlo:** [[reindexar]] completo en una colección nueva, huella del modelo en cada chunk y cambio azul-verde.
 6. **Dejar la base de vectores sin llave.** Qdrant abierto contesta a cualquiera en la red. **Cómo evitarlo:** llave de API, TLS y puerto cerrado salvo para el servicio de búsqueda y la ingesta.
 7. **Planear la ingesta por los embeddings.** «Se indexa en una noche» es verdad para los vectores y falso para el OCR. **Cómo evitarlo:** medir 200 páginas reales con la herramienta elegida y planear por prioridad, expedientes activos primero.
@@ -596,8 +596,8 @@ Condición: activar el escaneo iterativo (`hnsw.iterative_scan`) para que el fil
 
 ## Lo que sigue {What comes next} [extra]
 
-- **[Demostrar que el modelo abierto sirve](/evals/)** mide lo que aquí solo se nombra: el recall@k de la búsqueda, si la respuesta dice solo lo que dicen los fragmentos, y si la cita es correcta. Cada cambio de esta lección (modelo de embeddings, chunks, k de RRF, reranker) pasa por ese examen.
-- **[Agentes, tools y guardrails](/agentes/)** usa esta búsqueda como herramienta de un agente, con los permisos de quien pregunta, y explica por qué un fragmento recuperado es una entrada en la que no se puede confiar.
+- **[Demostrar que el modelo abierto sirve](/evals/)** mide lo que aquí solo se nombra: el [[metrica-de-retrieval|recall@k]] de la búsqueda, si la respuesta dice solo lo que dicen los fragmentos, y si la cita es correcta. Cada cambio de esta lección (modelo de embeddings, chunks, k de RRF, reranker) pasa por ese examen.
+- **[Agentes, tools y guardrails](/agentes/)** usa esta búsqueda como herramienta de un [[agente|agente]], con los permisos de quien pregunta, y explica por qué [[inyeccion-indirecta|un fragmento recuperado es una entrada en la que no se puede confiar]].
 - **[Pruebas de carga y benchmarks honestos](/pruebas-carga/)** mide el TTFT con la búsqueda y el reranker incluidos, que es lo que siente la abogada.
 - **[De requisitos a hardware](/requisitos-hardware/)** es de donde salen el presupuesto de 150 ms y la fila de la hora pico; **[Gateway](/gateway/)**, el nombre `embeddings` que esta lección llena.
 - **«Seguridad: aislamiento, sin internet y actualizaciones»** cierra las puertas de red de Qdrant y de los servidores de modelos, y **«Observabilidad de GPUs e inferencia»** vigila cuánto tarda cada pieza en producción.

@@ -162,7 +162,7 @@ La ficha del despacho dice 5.6, no 5.70, porque calcula la duración con los 2 s
 De 200 personas a 5.7 conversaciones a la vez: cada escalón usa un número de la ficha. Abajo, lo que le piden a la GPU en tokens por segundo.
 :::
 
-Lo más importante del perfil es la proporción entre entrada y salida. El despacho usa RAG (*retrieval-augmented generation*: buscar fragmentos de sus expedientes y pasárselos al modelo con la pregunta; tema de una lección posterior), y por eso lee **doce veces** lo que escribe. Leer es [[prefill|prefill]] y depende del cómputo; escribir es [[decode|decode]] y depende del ancho de banda: el problema va a estar en el prefill.
+Lo más importante del perfil es la proporción entre entrada y salida. El despacho usa [[rag|RAG]] (*retrieval-augmented generation*: buscar fragmentos de sus expedientes y pasárselos al modelo con la pregunta; tema de una lección posterior), y por eso lee **doce veces** lo que escribe. Leer es [[prefill|prefill]] y depende del cómputo; escribir es [[decode|decode]] y depende del ancho de banda: el problema va a estar en el prefill.
 
 :::calculadora requisitos-hardware-perfil
 Arranca con el despacho. Sube la fracción de resúmenes a 0.05: los tokens de entrada suben ≈ 29 % y el prefill medio ≈ 45 % (la atención crece con el cuadrado del prompt), con las mismas peticiones. Luego regresa a 0 y baja el pico a 1: el promedio del día pide menos de la mitad de conversaciones.
@@ -464,7 +464,7 @@ El objetivo es el p95 en la hora pico, y ahí las preguntas llegan al azar: a ve
 
 El promedio de la espera tiene fórmula (en el recuadro del final: ≈ 0.24 s con 3 L40S), pero la promesa es el p95, y el p95 se simula. Así está hecha la simulación:
 
-- **Las llegadas.** 0.208 preguntas por segundo, al azar: cualquier instante es igual de probable, así que a veces llegan dos casi juntas (las llegadas de Poisson de [concurrencia](/concurrencia/)).
+- **Las llegadas.** 0.208 preguntas por segundo, al azar: cualquier instante es igual de probable, así que a veces llegan dos casi juntas (las llegadas de Poisson, que explica [Probabilidad para sistemas que fallan](https://sensei.trueml.app/probabilidad/)).
 - **La GPU.** Cada una lee un prompt a la vez y tarda siempre lo mismo: 2.38 s la L40S, 1.724 s la Server Edition. Si llega otra pregunta mientras lee, espera su turno. Luego escribe la respuesta (25 s) sin frenar la lectura de prompts: lo único que hace fila es el prefill, y el motor acepta a todas (su tope de conversaciones no se alcanza).
 - **El TTFT.** La espera más el prefill, sin red ni búsqueda. De 200,000 preguntas simuladas, ordenadas, el p95 es la del lugar 190,000.
 - **Cuatro repartos.** **Al azar**: cada pregunta a una GPU cualquiera, sin mirar nada. **Menos abiertas**: a la GPU con menos peticiones abiertas, la idea de *least outstanding requests* de [Balanceadores, proxies y gateways](https://sensei.trueml.app/balanceo/). **Por turno** (*round-robin*): una a cada GPU, en orden. **Viendo la fila**: a la GPU con menos prompts por leer, es decir, con menos preguntas que todavía no reciben su primer token ([[menos-pendientes|reparto viendo la fila]]).
@@ -515,7 +515,7 @@ El TTFT de cada opción contra la promesa de 2 s: sin fila, el p95 repartiendo v
 :::
 
 :::ojo
-Es un modelo simple y deja fuera tres cosas. En [[vllm|vLLM]], con [[batching-continuo|batching continuo]] y [[chunked-prefill|chunked prefill]], el prefill se mezcla con el decode de las demás y tarda un poco más que con la GPU sola. No tiene ráfagas: si en la hora pico llegara el doble, el p95 de 3 L40S subiría a ≈ 5.3 s al azar y a ≈ 2.9 s viendo la fila (simulado). Y todos los prompts miden lo mismo: si varían ≈ 30 %, el p95 sube con cualquier reparto (≈ 3.7 s en 3 L40S viendo la fila). Nada de esto cambia la ficha: 3 L40S sigue siendo el resultado del sizing y la Server Edition, la alternativa por cotizar. El p95 de verdad lo mide la prueba de carga del piloto, tema de la lección «Pruebas de carga y benchmarks honestos».
+Es un modelo simple y deja fuera tres cosas. En [[vllm|vLLM]], con [[batching-continuo|batching continuo]] y [[chunked-prefill|chunked prefill]], el prefill se mezcla con el decode de las demás y tarda un poco más que con la GPU sola. No tiene ráfagas: si en la hora pico llegara el doble, el p95 de 3 L40S subiría a ≈ 5.3 s al azar y a ≈ 2.9 s viendo la fila (simulado). Y todos los prompts miden lo mismo: si varían ≈ 30 %, el p95 sube con cualquier reparto (≈ 3.7 s en 3 L40S viendo la fila). Nada de esto cambia la ficha: 3 L40S sigue siendo el resultado del sizing y la Server Edition, la alternativa por cotizar. El p95 de verdad lo mide la [[prueba-de-carga|prueba de carga]] del piloto, tema de la lección «[Pruebas de carga y benchmarks honestos](/pruebas-carga/)».
 :::
 
 ### Las palancas, de la más barata a la más cara
@@ -592,7 +592,7 @@ Al socio director no se le enseñan fórmulas, sino una página que aguante que 
 2. **El cuello de botella, con nombre.** «Con L40S, el tiempo de la GPU entre leer los pesos y leer los prompts. La memoria sobra.»
 3. **Las opciones, con lo que compra cada una.** 3 L40S: el mínimo, sin repuesto. 4 L40S: repuesto, o las 8 de diseño. 2 RTX PRO 6000 Server Edition: repuesto y las 8 de diseño, con prefill de 1.72 s. Cada una con su TTFT como **rango** (sin fila, al azar, viendo la fila).
 4. **La sensibilidad.** «Si preguntan 30 veces al día en vez de 15, son 6 L40S o 2 Server Edition»: el cliente ve cuánto arriesga con cada opción.
-5. **Lo que decide el piloto:** \(r\), \(k_{pico}\), las eficiencias reales y el p95 de punta a punta, con una prueba de carga con el perfil del despacho.
+5. **Lo que decide el piloto:** \(r\), \(k_{pico}\), las eficiencias reales y el p95 de punta a punta, con una [[prueba-de-carga|prueba de carga]] con el perfil del despacho.
 
 **Contrastar con lo publicado.** Al «¿y esto de dónde sale?» del experto de TI: el método no es invento de esta lección.
 
@@ -601,7 +601,7 @@ Al socio director no se le enseñan fórmulas, sino una página que aguante que 
 - **Red Hat** publicó en MLPerf Inference v4.1 un servidor con **4 L40S** sirviendo Llama 2 70B en FP8 con [[vllm|vLLM]] 0.5.1, como dos [[replica|réplicas]] de 2 L40S: 1,469 tokens por segundo a 4.97 peticiones por segundo con TTFT ≤ 2 s y 200 ms por token. La herramienta con ese modelo da el mismo orden de magnitud, pero la fuente no da el largo de los prompts, y sin él no se puede validar a ±20 %: no la contradice ni la confirma.
 - **Un blog de Hugging Face** (junio de 2026, de un tercero) midió Gemma-4 31B en FP8 con vLLM 0.20 en una RTX PRO 6000 de 96 GB (sin decir cuál variante): con 12 a 24 peticiones a la vez, TTFT de 0.73 s en el p50 y **2.82 s en el p95**. El p95 casi cuatro veces el p50: la misma lección de la cola, medida.
 
-Ninguno es el número del despacho (otro modelo, otra cuantización, otros prompts): sirven para decir «el método es el estándar y el orden de magnitud cuadra», no para sustituir la medición con el perfil propio (por ejemplo, con `vllm bench serve`), tema de la lección «Pruebas de carga y benchmarks honestos».
+Ninguno es el número del despacho (otro modelo, otra cuantización, otros prompts): sirven para decir «el método es el estándar y el orden de magnitud cuadra», no para sustituir la medición con el perfil propio (por ejemplo, con `vllm bench serve`), tema de la lección «[Pruebas de carga y benchmarks honestos](/pruebas-carga/)».
 
 ## Errores comunes {Common mistakes}
 
@@ -649,7 +649,7 @@ Con 5 fragmentos: la capacidad pide 3 L40S y N+1 pide 4; viendo la fila, el p95 
 - **[Varias GPUs: tensor y pipeline parallel](/varias-gpus/)** contesta lo que esta lección dejó abierto: si las 3 L40S del despacho llevan una copia del modelo cada una o reparten uno solo, y qué cuesta repartir un modelo grande como Llama 3.3 70B entre GPUs conectadas por PCIe.
 - **[Del laptop al servidor: llama.cpp, Ollama, vLLM, SGLang y TensorRT-LLM](/stack-serving/)** pone el número en un programa: qué motor corre en esas GPUs y qué perillas fijan cuántas conversaciones acepta.
 - **[Gateway, API compatible con OpenAI, autenticación y varios modelos](/gateway/)** es donde vive el reparto «viendo la fila» que más bajó el p95, junto con las [[cuota-de-tokens|cuotas por persona]] que salen de la capacidad de este sizing.
-- **«Pruebas de carga y benchmarks honestos»** mide lo que aquí se calculó: el p95 real, las eficiencias reales, la curva del despacho.
+- **«[Pruebas de carga y benchmarks honestos](/pruebas-carga/)»** mide lo que aquí se calculó: el p95 real, las eficiencias reales, la curva del despacho.
 - La [herramienta de sizing](/herramientas/sizing/) hace los pasos 2, 4, 5 y el mínimo del 6 para cualquier GPU del catálogo, y la de [TCO](/herramientas/tco/) les pone precio.
 - En Sensei: [Promedios, medianas y percentiles](https://sensei.trueml.app/percentiles/) para leer un p95 sin engañarte, y [Números grandes, unidades y estimaciones](https://sensei.trueml.app/unidades/) para las cuentas de servilleta de los pasos 1 y 2.
 

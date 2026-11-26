@@ -593,7 +593,7 @@ Los resúmenes intermedios de 400 tokens son un supuesto del ejemplo; el decode 
 
 Y lo que pierde: **la vista de conjunto**. Si la cláusula de la página 3 dice que la penalización de la página 40 no aplica, ningún trozo ve las dos. El resumen final solo ve lo que cada resumen intermedio decidió contar.
 
-Para **preguntar** algo del expediente (no resumirlo entero) hay una tercera vía, la que el despacho ya usa en sus preguntas diarias: buscar los fragmentos que importan y dárselos al modelo, como sus 5 fragmentos de ≈ 1,000 tokens. Eso es RAG, y lo ve la lección «RAG privado: embeddings y vector DB locales».
+Para **preguntar** algo del expediente (no resumirlo entero) hay una tercera vía, la que el despacho ya usa en sus preguntas diarias: buscar los fragmentos que importan y dárselos al modelo, como sus 5 fragmentos de ≈ 1,000 tokens. Eso es [[rag|RAG]], y lo ve la lección «[RAG privado: embeddings y vector DB locales](/rag-privado/)».
 
 ## Errores comunes {Common mistakes}
 
@@ -649,7 +649,7 @@ De bueno: la cuenta de techo es correcta. Con 8 conversaciones de 6,250 tokens, 
 - **«[De requisitos a hardware](/requisitos-hardware/)»** junta todo lo que pesa en el sizing: prefills largos, decode, KV cache y, ahora, las peticiones largas que conviene apartar.
 - **«[Varias GPUs: tensor y pipeline parallel](/varias-gpus/)»** explica cómo repartir un modelo entre GPUs, la salida cuando un contexto de 131 mil tokens no cabe en una sola.
 - **«[Del laptop al servidor: llama.cpp, Ollama, vLLM, SGLang y TensorRT-LLM](/stack-serving/)»** compara qué servidor soporta qué borrador, YaRN y chunked prefill.
-- **«RAG privado: embeddings y vector DB locales»** es la vía para preguntar sobre un expediente sin meterlo entero, y **«Demostrar que el modelo abierto sirve»** arma el examen que mide el contexto efectivo.
+- **«[RAG privado: embeddings y vector DB locales](/rag-privado/)»** es la vía para preguntar sobre un expediente sin meterlo entero, y **«[Demostrar que el modelo abierto sirve](/evals/)»** arma el examen que mide el contexto efectivo.
 - En Sensei: [Transformers y LLMs](https://sensei.trueml.app/llms/) tiene el prefill, el decode, la atención y RoPE desde cero, y [Latencia y throughput](https://sensei.trueml.app/latencia/) explica por qué una tarea larga en la misma fila hace esperar a todos.
 
 ## Palabras que vas a oír {Words you'll hear}

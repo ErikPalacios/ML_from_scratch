@@ -12,7 +12,7 @@ Una [[prueba-de-carga|prueba de carga]] es un experimento: se le manda al servid
 
 ## «3,000 tokens/s» y una promesa {“3,000 tokens/s” and a promise}
 
-Esta lección sigue a un ejemplo ficticio, **el despacho**: un despacho de abogados en la Ciudad de México que quiere preguntarle a sus expedientes con un LLM sin que un solo documento salga de su red. Lo usarían **200 personas**; en la hora pico llegan ≈ **0.21 preguntas por segundo** (750 en una hora). Cada pregunta lleva ≈ **6,000 tokens de entrada** (≈ 400 de instrucciones, iguales para todas, ≈ 100 de la pregunta y cinco fragmentos de expediente de ≈ 1,000) y la respuesta ≈ **500**. El modelo es Qwen3 32B en INT4 de [[awq|AWQ]], con el razonamiento apagado, servido con [[vllm|vLLM]] 0.34.0 en **3 L40S**, una copia en cada una, detrás de un [[gateway-de-llm|gateway]] (LiteLLM). La alternativa a cotizar son 2 RTX PRO 6000 Blackwell Server Edition. La prueba piloto dura 8 semanas, con 20 abogados y una GPU rentada de la semana 2 a la 7.
+Esta lección sigue a un ejemplo ficticio, **el despacho**: un despacho de abogados en la Ciudad de México que quiere preguntarle a sus expedientes con un LLM sin que un solo documento salga de su red. Lo usarían **200 personas**; en la hora pico llegan ≈ **0.21 preguntas por segundo** (750 en una hora). Cada pregunta lleva ≈ **6,000 tokens de entrada** (≈ 400 de instrucciones, iguales para todas, ≈ 100 de la pregunta y cinco [[chunk|fragmentos]] de expediente de ≈ 1,000) y la respuesta ≈ **500**. El modelo es Qwen3 32B en INT4 de [[awq|AWQ]], con el razonamiento apagado, servido con [[vllm|vLLM]] 0.34.0 en **3 L40S**, una copia en cada una, detrás de un [[gateway-de-llm|gateway]] (LiteLLM). La alternativa a cotizar son 2 RTX PRO 6000 Blackwell Server Edition. La prueba piloto dura 8 semanas, con 20 abogados y una GPU rentada de la semana 2 a la 7.
 
 El contrato del piloto tiene un [[criterio-de-aceptacion|criterio de aceptación]] de velocidad: **8 conversaciones a la vez, cada una a ≥ 20 tokens/s, y [[ttft|TTFT]] ≤ 2 s en el p95**. En la misma semana llegan dos papeles:
 
@@ -83,7 +83,7 @@ El dataset del despacho copia su [[perfil-de-carga|perfil de carga]]:
 - **Largo de entrada**: ≈ 6,000 tokens, **con variación**. ± 30 % (de ≈ 4,200 a ≈ 7,800) es un supuesto razonable hasta medir las reales; con todas iguales, la fila se ve más pareja de lo que será.
 - **Largo de salida**: tope de 500. Con un tope, el modelo puede terminar antes. Para forzar el largo, el cliente le pide al motor que ignore el token de fin (*end of sequence*, `--ignore-eos`); vLLM lo hace solo con su dataset sintético `random`. Con uno propio, se declara cuánto salió de verdad.
 - **Lo que se comparte y lo que no**: el punto fino, abajo.
-- **Sin datos de clientes**: fragmentos **sintéticos** con el estilo de un expediente. Para medir segundos no hacen falta secretos.
+- **Sin datos de clientes**: [[chunk|fragmentos]] **sintéticos** con el estilo de un expediente. Para medir segundos no hacen falta secretos.
 
 ### El prefix caching: lo que infla los números
 
@@ -532,7 +532,7 @@ Seis renglones que la gráfica no puede dar y la prueba sí. Y una cortesía: pe
 
 ### MLPerf Inference
 
-[[mlperf|MLPerf Inference]] es el benchmark de la industria para inferencia, organizado por MLCommons (un consorcio de empresas y universidades). A noviembre de 2026 la versión vigente es la **v6.1**, publicada el 16 de septiembre de 2026, con 30 organizaciones participantes según el comunicado de MLCommons y dos pruebas nuevas: un RAG de punta a punta (varios modelos encadenados para contestar preguntas) e inferencia de agentes en dispositivos (*edge*). Lo que lo hace distinto de una gráfica de proveedor son sus **reglas**: todos corren la misma carga, con la misma calidad mínima, con sus resultados revisados por los demás participantes.
+[[mlperf|MLPerf Inference]] es el benchmark de la industria para inferencia, organizado por MLCommons (un consorcio de empresas y universidades). A noviembre de 2026 la versión vigente es la **v6.1**, publicada el 16 de septiembre de 2026, con 30 organizaciones participantes según el comunicado de MLCommons y dos pruebas nuevas: un [[rag|RAG]] de punta a punta (varios modelos encadenados para contestar preguntas) e inferencia de agentes en dispositivos (*edge*). Lo que lo hace distinto de una gráfica de proveedor son sus **reglas**: todos corren la misma carga, con la misma calidad mínima, con sus resultados revisados por los demás participantes.
 
 Sus escenarios dicen **cómo** llegan las consultas:
 
@@ -649,8 +649,8 @@ Mínimo: ⌈log(0.025) ÷ log(0.99)⌉ = **368** (la misma cifra de GuideLLM). C
 
 ## Lo que sigue {What comes next} [extra]
 
-- **[Demostrar que el modelo abierto sirve](/evals/)** es la otra mitad del piloto: una prueba de carga dice si el servidor contesta **a tiempo**; el examen de 200 preguntas, si contesta **bien**. Las dos usan la misma idea de muestra, ruido e intervalo.
-- **[RAG privado: embeddings y vector DB locales](/rag-privado/)** y **[Agentes, tools y guardrails](/agentes/)** cambian el perfil de carga: la búsqueda agrega su tiempo antes del prefill, y un agente hace varias llamadas al modelo por pregunta. Cada cambio del perfil pide rehacer el dataset de carga.
+- **[Demostrar que el modelo abierto sirve](/evals/)** es la otra mitad del piloto: una prueba de carga dice si el servidor contesta **a tiempo**; el [[eval|examen]] de 200 preguntas, si contesta **bien**. Las dos usan la misma idea de muestra, ruido e intervalo.
+- **[RAG privado: embeddings y vector DB locales](/rag-privado/)** y **[Agentes, tools y guardrails](/agentes/)** cambian el perfil de carga: la búsqueda agrega su tiempo antes del prefill, y un [[agente|agente]] hace varias llamadas al modelo por pregunta. Cada cambio del perfil pide rehacer el dataset de carga.
 - **«Observabilidad de GPUs e inferencia»**, en la siguiente fase, convierte las métricas de esta prueba en tableros que corren todo el día: los mismos relojes, medidos en producción, y la temperatura y la memoria que la prueba de resistencia vigila.
 - **«TCO: API, nube o servidor propio»** y **«Cotizar, proponer y dar soporte»** usan el goodput medido y el costo por petición que cumple para decidir y escribir la propuesta.
 - De esta app: [Concurrencia](/concurrencia/) tiene la curva y el codo; [De requisitos a hardware](/requisitos-hardware/), la simulación del TTFT con cola que esta prueba reemplaza; [Gateway, API compatible con OpenAI, autenticación y varios modelos](/gateway/), la cuota y el reparto que la prueba atraviesa.
@@ -668,7 +668,7 @@ prueba-de-carga carga-abierta carga-cerrada omision-coordinada latencia-programa
 ? ¿Por qué la prueba del despacho va contra el gateway y no directo contra vLLM?
 Porque el cronómetro va donde está la persona: el abogado pasa por el gateway (autenticación, cuota, reparto entre las tres copias). Directo a vLLM se mide una GPU, no el servidor.
 ? ¿Qué parte de los prompts del dataset de carga se repite y cuál no, y por qué importa?
-Se repiten solo las ≈ 400 de instrucciones, como en producción; la pregunta y los fragmentos cambian. Con todo repetido, el prefix caching vuelve el prefill casi gratis y los números se inflan.
+Se repiten solo las ≈ 400 de instrucciones, como en producción; la pregunta y los [[chunk|fragmentos]] cambian. Con todo repetido, el prefix caching vuelve el prefill casi gratis y los números se inflan.
 ? ¿Qué es la omisión coordinada, en una frase?
 Medir solo las peticiones que el generador alcanzó a mandar cuando él mismo se frenó porque el servidor iba lento: deja de medir justo los peores momentos.
 ? ¿Cuál es la diferencia entre una carga abierta y una cerrada, y cuál usas para la promesa?
