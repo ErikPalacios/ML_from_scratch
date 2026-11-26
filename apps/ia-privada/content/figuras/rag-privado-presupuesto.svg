@@ -21,7 +21,7 @@
 <rect class="f-p" x="78.2" y="194" width="173.8" height="30"/>
 <text class="f-s" x="165" y="214" text-anchor="middle" style="font-size:12px;font-weight:700;fill:var(--ink)">prefill 1,448</text>
 <text class="f-t" x="30" y="248" style="font-size:14px">= 1,715 a 1,850 ms: cumple</text>
-<text class="f-s" x="30" y="266" style="font-size:11px">reranker de 97 a 232 ms (η_c de 0.5 a 0.21)</text>
+<text class="f-s" x="30" y="266" style="font-size:11px">reranker de 97 a 232 ms (eficiencia de 0.5 a 0.21)</text>
 <rect class="f-b" x="30" y="304" width="12" height="12" rx="2"/><text class="f-s" x="46" y="314" style="font-size:11px">búsqueda 150</text>
 <rect class="f-o" x="128" y="304" width="12" height="12" rx="2"/><text class="f-s" x="144" y="314" style="font-size:11px">reranker</text>
 <rect class="f-p" x="210" y="304" width="12" height="12" rx="2"/><text class="f-s" x="226" y="314" style="font-size:11px">prefill</text>
