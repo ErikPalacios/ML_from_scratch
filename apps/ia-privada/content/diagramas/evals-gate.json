@@ -10,7 +10,7 @@
     {
       "id": "cambio", "label": "Un cambio", "sub": "modelo, vLLM, prompt…", "badge": "1", "kind": "job",
       "x": 2, "y": 6, "w": 18, "h": 8,
-      "note": "Cualquier cosa que mueva las respuestas: el modelo, su cuantización, la versión de [[vllm|vLLM]], el prompt, el chunker, el modelo de embeddings, el top-k. Si cambia la salida, pasa por aquí."
+      "note": "Cualquier cosa que mueva las respuestas: el modelo, su cuantización, la versión de [[vllm|vLLM]], el prompt, cómo se parten los documentos (el chunker), el modelo de embeddings, cuántos fragmentos se pasan. Si cambia la salida, pasa por aquí."
     },
     {
       "id": "examen", "label": "Examen completo", "sub": "200 preguntas + juez", "badge": "2", "kind": "job",
@@ -30,7 +30,7 @@
     {
       "id": "pareada", "label": "Pareada", "sub": "no inferioridad", "badge": "4", "kind": "service",
       "x": 30, "y": 25, "w": 18, "h": 8,
-      "note": "La [[prueba-pareada|prueba pareada]] contra producción. Regla de [[no-inferioridad|no inferioridad]]: se detiene si el peor caso razonable (cota de una cola del 95 %) pierde más de 5 puntos, o si el valor observado cae 3 puntos o más."
+      "note": "La [[prueba-pareada|prueba pareada]] contra producción. Regla de [[no-inferioridad|no inferioridad]]: se detiene si el peor caso razonable (cota de una cola del 95 %) pierde más de 6 puntos, o si el valor observado cae 3 puntos o más."
     },
     {
       "id": "flips", "label": "Leer los flips", "sub": "un abogado y TI", "badge": "5", "kind": "human",
@@ -65,7 +65,7 @@
       "steps": [
         { "nodes": ["cambio", "examen", "prod"], "edges": ["cambio>examen", "prod>examen"], "text": "**1 · De noche.** Sale una versión nueva de vLLM. Se corren las 200 preguntas con ella y se juntan con el resultado vigente, pregunta por pregunta." },
         { "nodes": ["inv"], "edges": ["examen>inv"], "text": "**2 · Invariantes.** Cero fugas en las 20 de permisos; ninguna cita inventada nueva. Pasa." },
-        { "nodes": ["pareada"], "edges": ["inv>pareada"], "text": "**3 · Pareada.** 10 preguntas solo las acertaba la versión vieja y 12 solo la nueva: +1 punto, con cota de abajo de −2.9. Está dentro del margen de 5: pasa." },
+        { "nodes": ["pareada"], "edges": ["inv>pareada"], "text": "**3 · Pareada.** 10 preguntas solo las acertaba la versión vieja y 12 solo la nueva: +1 punto, con cota de abajo de −2.9. Está dentro del margen de 6: pasa." },
         { "nodes": ["flips", "sale"], "edges": ["pareada>flips", "flips>sale"], "text": "**4 · Leer.** Un abogado lee las 22 que cambiaron: no hay un patrón. Se despliega, y este resultado es el nuevo «producción»." }
       ]
     },
@@ -74,14 +74,14 @@
       "label": "Un prompt nuevo que pierde",
       "steps": [
         { "nodes": ["cambio", "examen", "inv", "pareada"], "edges": ["cambio>examen", "examen>inv", "inv>pareada"], "text": "Alguien acorta el prompt para ahorrar tokens. Pasa las invariantes, pero 14 preguntas solo las acertaba el viejo y 4 solo el nuevo: −5 puntos." },
-        { "nodes": ["alto"], "edges": ["pareada>alto"], "text": "La cota de abajo es −8.4, peor que el margen de −5, y además cayó más de 3: **se detiene**. Nadie tuvo que discutirlo, porque la regla se escribió antes." }
+        { "nodes": ["alto"], "edges": ["pareada>alto"], "text": "La cota de abajo es −8.4, peor que el margen de −6, y además cayó más de 3: **se detiene**. Nadie tuvo que discutirlo, porque la regla se escribió antes." }
       ]
     },
     {
       "id": "fuga",
       "label": "Un chunker nuevo con una fuga",
       "steps": [
-        { "nodes": ["cambio", "examen", "inv", "alto"], "edges": ["cambio>examen", "examen>inv", "inv>alto"], "text": "Un chunker nuevo gana 4 puntos, pero en una de las 20 preguntas de permisos llegó un fragmento de un expediente ajeno. **Se detiene** sin mirar el porcentaje: una fuga no se compensa con exactitud." }
+        { "nodes": ["cambio", "examen", "inv", "alto"], "edges": ["cambio>examen", "examen>inv", "inv>alto"], "text": "Un chunker nuevo (el programa que parte los documentos en fragmentos) gana 4 puntos, pero en una de las 20 preguntas de permisos llegó un fragmento de un expediente ajeno. **Se detiene** sin mirar el porcentaje: una fuga no se compensa con exactitud." }
       ]
     }
   ]

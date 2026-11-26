@@ -38,7 +38,7 @@ Lo que se califica en cada paso de una pregunta del examen. Toca cada caja para 
 
 El [[golden-set|golden set]] del despacho son 200 preguntas. La primera decisión es **de dónde salen**, y la respuesta es corta: de los abogados, no del modelo.
 
-Es tentador pedirle a un LLM que lea expedientes y escriba 1,000 preguntas con su respuesta. Sale barato, pero mide otra cosa: las preguntas que un modelo imagina, con respuestas que un modelo encuentra fácil. Los abogados preguntan con su jerga («¿hay litisconsorcio?»), con errores de dedo, por algo repartido en tres páginas. Un examen escrito por el modelo es un examen que el alumno se escribe a sí mismo.
+Pedirle a un LLM que escriba 1,000 preguntas sobre los expedientes sale barato, pero mide otra cosa: las preguntas que un modelo imagina, con respuestas que un modelo encuentra fácil. Los abogados preguntan con su jerga («¿hay litisconsorcio?»), con errores de dedo, por algo repartido en tres páginas. Un examen escrito por el modelo es un examen que el alumno se escribe a sí mismo.
 
 :::profundo ¿Y minar los registros del gateway?
 ¿Y minar las preguntas reales que ya hacen? Es lo que recomienda la guía de evaluación de OpenAI (registrar todo y sacar casos de los registros). En el despacho choca con una decisión que ya se tomó: el registro del gateway guarda **una fila por pregunta sin el texto**, durante 90 días. No hay textos que minar. Crecer el examen con preguntas reales exigiría una decisión de privacidad aparte: una muestra voluntaria, con el consentimiento del abogado y sin datos que el cliente no autorice.
@@ -51,7 +51,7 @@ Si se toman 200 preguntas al azar de lo que piden los abogados, casi todas será
 | Estrato | Preguntas | Qué se mide | Por qué |
 |---|---|---|---|
 | Preguntar, con la respuesta en el expediente | 110 | correcta y con cita (documento y página) | la tarea 1, la primera que llega; se reparte por tipo de documento (contrato, demanda, sentencia, correo), por dificultad (una página, varias páginas, varios documentos) y por idioma (≈ 15 en inglés) |
-| **Sin respuesta** | 30 | que diga «no lo encontré»; cualquier cita aquí es inventada | mide si inventa cuando no sabe |
+| **Sin respuesta** | 30 | que diga «no lo encontré»; si contesta con una cita, cuenta como inventada (regla del examen: respalda algo que el expediente no dice) | mide si inventa cuando no sabe |
 | **Permisos** | 20 | cero fugas | prueba que la búsqueda respete lo que cada persona puede ver |
 | Resumir un expediente | 20 | rúbrica, con juez y una muestra a mano | la tarea 2 |
 | Cláusulas parecidas | 20 | que traiga las páginas correctas | la tarea 3 |
@@ -62,7 +62,7 @@ Las 200 preguntas de la propuesta, una por cuadrito. Más de la mitad es la tare
 
 Tres estratos piden explicación:
 
-- **Las preguntas sin respuesta.** Un abogado pregunta por una cláusula que el contrato no tiene. La respuesta correcta es «no encontré eso en los expedientes que puedes ver». Un sistema que siempre contesta algo saca bien las 110 y mal estas 30. Sin ellas, el examen premiaría al que inventa con seguridad.
+- **Las preguntas sin respuesta.** Un abogado pregunta por una cláusula que el contrato no tiene. La respuesta correcta es «no encontré eso en los expedientes que puedes ver». Sin ellas, el examen premiaría al que siempre contesta algo, con seguridad.
 - **Las preguntas de permisos.** Cada pregunta del examen se hace **con la cuenta de alguien**. En estas 20, el documento que contesta existe, pero quien pregunta no lo puede ver (un pasante que pregunta por un expediente de otro equipo). Lo único que se revisa es que ningún fragmento de ese documento llegue al modelo. No es un porcentaje: es una regla que vale con una sola falla. La lección [RAG privado: embeddings y vector DB locales](/rag-privado/) explica cómo se pone esa muralla; aquí se prueba.
 - **Resumir y buscar cláusulas.** No tienen una sola respuesta correcta. Resumir se califica con una [[rubrica|rúbrica]] («¿menciona a las partes, el monto y el estado?»); buscar cláusulas, con la lista de páginas que un abogado marcó como correctas.
 
@@ -85,7 +85,7 @@ Es el mismo problema de [[contaminacion|contaminación]] que viste con los bench
 
 ## Lo que cuesta en horas de abogado {What it costs in lawyer hours} [extra]
 
-El examen no es gratis: lo escriben personas cuyo tiempo se cobra caro. ¿Cuánto? No hay una cifra publicada para «escribir una pregunta sobre un expediente con su respuesta y su cita». Hay una del extremo alto: en un benchmark de investigación jurídica de 2026 (Legal Research Bench, 413 preguntas abiertas), cada pregunta con su respuesta de oro, sus fuentes y su rúbrica, revisada por otro abogado, costó **≈ 4 horas** de abogado. La tarea del despacho es más simple (encontrar y citar algo en sus propios expedientes), así que la cuenta usa supuestos más bajos.
+El examen no es gratis: lo escriben personas cuyo tiempo se cobra caro. ¿Cuánto? No hay una cifra publicada para «escribir una pregunta sobre un expediente con su respuesta y su cita». Hay una del extremo alto: en un benchmark de investigación jurídica de 2026 (Legal Research Bench, 413 preguntas abiertas de derecho de Estados Unidos; un preprint, sin revisión de pares confirmada), cada pregunta con su respuesta de oro, sus fuentes y su rúbrica, revisada por otro abogado, costó **≈ 4 horas** de abogado. La tarea del despacho es más simple (encontrar y citar algo en sus propios expedientes), así que la cuenta usa supuestos más bajos.
 
 :::formula Horas de abogado del examen
 H = frac{N × (w + r)}{60}
@@ -107,7 +107,7 @@ Por abogado, si son 5 | 167 ÷ 5 | ≈ 33 h
 = ≈ 167 horas de abogado, ≈ 33 por cabeza entre 5. Con el ritmo del benchmark jurídico (≈ 4 h por pregunta) serían 800 h solo para escribir.
 :::
 
-El rango con otros supuestos: de ≈ 67 h (15 + 5 minutos por pregunta) a ≈ 267 h (60 + 20, preguntas que cruzan varios documentos). La tarifa por hora la pone el despacho, no esta lección: a US$100 por hora (supuesto), 167 horas son ≈ US$16,700. Es más que las seis semanas de GPU rentada del piloto. Vale la pena decirlo en la propuesta, porque es el costo que nadie presupuesta.
+El rango con otros supuestos: de ≈ 67 h (15 + 5 minutos por pregunta) a ≈ 267 h (60 + 20, preguntas que cruzan varios documentos). La tarifa por hora la pone el despacho, no esta lección: a US$100 por hora (supuesto), 167 horas son ≈ US$16,700. Es casi nueve veces las seis semanas de GPU rentada del piloto (≈ US$1,876 prendida todo el tiempo, según [El recorrido](/recorrido/)). Vale la pena decirlo en la propuesta, porque es el costo que nadie presupuesta.
 
 :::nota La tensión con «muchas preguntas baratas»
 La guía de evaluación de Anthropic recomienda lo contrario: **más preguntas** con calificación automática de algo menos de calidad, antes que pocas calificadas a mano. Para muchos productos es lo correcto. El despacho elige 200 caras porque lo que mide (si una cita jurídica es correcta en sus expedientes) no se genera barato, y compensa con **código** donde se puede: las citas y el retrieval se califican solos.
@@ -139,7 +139,7 @@ La [[fidelidad]] (*faithfulness*) pregunta si la respuesta se sostiene **en los 
 ¿Llega a la misma conclusión que el abogado que escribió la referencia? Aquí no hay código que ayude: «No sin consentimiento previo y por escrito» y «La cláusula 14 exige que la otra parte autorice por escrito antes de ceder» dicen lo mismo con otras palabras. Lo califica un juez con rúbrica, y una muestra la califican abogados para saber si al juez se le puede creer (dos secciones más abajo).
 
 :::profundo Una métrica que suena bien y engaña
-Hay una métrica que suena bien y engaña: la **relevancia de la respuesta** (si la respuesta «atiende» la pregunta). En un benchmark jurídico en español de 2026, con preguntas de derecho colombiano, la relevancia correlacionó **−0.46** con la corrección: las respuestas sonaban pertinentes y a menudo estaban mal. Sirve para diagnosticar, no para aprobar.
+Hay una métrica que suena bien y engaña: la **relevancia de la respuesta** (si la respuesta «atiende» la pregunta). En un benchmark jurídico de 2026 sobre derecho colombiano (un preprint), la relevancia correlacionó **−0.46** con la corrección (correlación de rangos): las respuestas sonaban pertinentes y a menudo estaban mal. Sirve para diagnosticar, no para aprobar.
 :::
 
 ### La cita: con código, no con juez
@@ -193,7 +193,7 @@ formato inválido                       <- ver el contrato de arrendamiento
 Para que esto funcione, el sistema cita **con un formato fijo** (el prompt lo pide; la [salida estructurada](/stack-serving/) lo puede forzar) y con texto literal. Si parafrasea, la última revisión ya no es un `in` y pasa al juez. Un detalle que decide el número: ¿«correcta» es que **la página** sea la de oro, o que la página citada **diga** lo que se afirma aunque sea otra? Una respuesta que cita la página 13 con un texto real y pertinente, cuando la de oro era la 12, no está inventada; puede estar bien. Se decide antes y se escribe.
 
 :::ojo
-Una respuesta puede traer varias citas. «2 % con cita inventada» del criterio cuenta **respuestas** (4 de 200), no citas. Si se contara por cita, con ≈ 3 citas por respuesta serían 4 de 600 (0.67 %) y sonaría mejor sin ser mejor. Se escribe cuál es el denominador.
+Una respuesta puede traer varias citas. «2 % con cita inventada» del criterio cuenta **respuestas** (4 de 200), no citas. Si se contara por cita, con ≈ 3 citas por respuesta (supuesto) serían 4 de 600 (0.67 %) y sonaría mejor sin ser mejor, y las citas de una misma respuesta no son independientes (si confundió el expediente, fallan todas). Se escribe cuál es el denominador.
 :::
 
 ## LLM como juez, con su rúbrica {LLM-as-a-judge, with its rubric}
@@ -214,7 +214,7 @@ VEREDICTO: BIEN solo si 1, 2 y 3 son SÍ (o 3 no aplica).
 Tres decisiones hay detrás de ese texto, y cada una sale de algo medido:
 
 - **Con referencia.** Zheng y otros (2023), el estudio que hizo popular el método, probaron a GPT-4 calificando problemas de matemáticas: daba por buena una respuesta incorrecta en 14 de 20 casos con el prompt simple, 6 de 20 pidiéndole razonar antes, y **3 de 20** cuando recibía la respuesta correcta como referencia. El despacho tiene la referencia: se la da.
-- **Criterios de sí o no, no «del 1 al 10».** Una revisión de 2026 sobre calificar respuestas jurídicas abiertas encontró que una [[rubrica|rúbrica]] escrita para la tarea es lo que más sube el acuerdo entre juez y humanos. Las guías de OpenAI y Anthropic piden lo mismo: criterios detallados, razonar antes del veredicto, pasa o no pasa.
+- **Criterios de sí o no, no «del 1 al 10».** Una revisión de 2026 sobre calificar respuestas jurídicas abiertas (un preprint) encontró que una [[rubrica|rúbrica]] escrita para la tarea es lo que más sube el acuerdo entre juez y humanos. Las guías de OpenAI y Anthropic piden lo mismo: criterios detallados, razonar antes del veredicto, pasa o no pasa.
 - **Una respuesta a la vez, contra la referencia**, en vez de poner dos respuestas lado a lado y preguntar cuál es mejor. La razón es el primer sesgo de la lista.
 
 ### Los sesgos medidos
@@ -228,10 +228,10 @@ El mismo par de respuestas, en los dos órdenes. Verde: el juez dio el mismo ver
 :::
 
 :::profundo Qué más se midió del sesgo de posición
-Un estudio de 2024 con 15 jueces y más de 150,000 evaluaciones confirmó que el sesgo de posición no es azar, cambia mucho de un juez y una tarea a otra, y crece cuando las dos respuestas se parecen en calidad. El remedio que proponen los autores de 2023: calificar en los dos órdenes y declarar ganador solo al que gana en los dos (si no, empate). Con un prompt de 3 ejemplos, GPT-4 subió de 65 % a 77.5 % de consistencia, pero la llamada costó 4 veces más.
+Un estudio de 2024 con 15 jueces y más de 150,000 evaluaciones confirmó que el sesgo de posición no es azar, cambia mucho de un juez y una tarea a otra, y crece cuando las dos respuestas se parecen en calidad. El remedio que proponen los autores de 2023: calificar en los dos órdenes y declarar ganador solo al que gana en los dos (si no, empate). Con un prompt de 3 ejemplos, GPT-4 subió de 65 % a 77.5 % de consistencia, pero el prompt más largo hizo cada llamada 4 veces más cara.
 :::
 
-**Verbosidad.** Se tomaron 23 respuestas con una lista numerada y se les antepuso la misma lista reformulada: más larga, sin información nueva. Claude-v1 y GPT-3.5 prefirieron la larga en **91.3 %** de los casos; GPT-4, en 8.7 %. Corregir el sesgo de largo en otro benchmark (AlpacaEval, 2024) subió su correlación con las preferencias humanas de 0.94 a 0.98.
+**Verbosidad.** Se tomaron 23 respuestas con una lista numerada y se les antepuso la misma lista reformulada: más larga, sin información nueva. Claude-v1 y GPT-3.5 prefirieron la larga en **91.3 %** de los casos; GPT-4, en 8.7 %. Corregir el sesgo de largo en otro benchmark (AlpacaEval, 2024) subió la correlación de su ranking con el de Chatbot Arena, que sale de votos de personas, de 0.94 a 0.98.
 
 **Auto-preferencia.** GPT-4 se dio un *win rate* (fracción de comparaciones ganadas) **10 %** mayor a sí mismo que el que le daban los humanos; Claude-v1, 25 % mayor. Los autores advierten que, con pocos datos y diferencias chicas, no pueden concluir que el sesgo exista. Un estudio de 2024 encontró que los jueces sí reconocen sus propios textos mejor que el azar, y que cuanto mejor se reconocen, más se favorecen. Para el despacho importa mucho: el candidato principal es Qwen3 32B, y el juez más cómodo también es Qwen3 32B.
 
@@ -312,7 +312,7 @@ de las que la abogada reprueba, el juez reprueba 72%
 
 ### Cómo leer la kappa sin engañarse
 
-**La escala es una convención.** Landis y Koch (1977) llamaron 0.0–0.20 «leve», 0.21–0.40 «regular», 0.41–0.60 «moderado», 0.61–0.80 «sustancial» y 0.81–1.0 «casi perfecto». Otros autores piden más: Krippendorff propuso descartar conclusiones con menos de 0.67, y una revisión de 2012 advierte que un κ «sustancial» puede dejar mucho desacuerdo.
+**La escala es una convención.** Landis y Koch (1977) llamaron 0.0–0.20 «leve», 0.21–0.40 «regular», 0.41–0.60 «moderado», 0.61–0.80 «sustancial» y 0.81–1.0 «casi perfecto». Otros piden más: Krippendorff (1980) propuso descartar conclusiones con menos de 0.67 (lo recuerda Hallgren, 2012), y McHugh (2012) advierte que un κ «sustancial» puede dejar mucho desacuerdo.
 
 **El techo no es 1: es el acuerdo entre abogados.** Dos abogados tampoco coinciden siempre. En Legal Research Bench (2026), tres abogados calificaron 341 criterios de rúbrica y concordaron con la mayoría con **κ = 0.644**; tres jueces de frontera (modelos de nube de 2026) sacaron de 0.708 a 0.726: igualaron o pasaron a los humanos. Esos jueces no son abiertos: que un Qwen3 32B local llegue ahí no está medido. Por eso el despacho mide **también** el acuerdo entre sus dos abogados: si ellos sacan 0.65 entre sí, pedirle 0.85 al juez no tiene sentido.
 
@@ -327,7 +327,7 @@ Arranca con la tabla del texto. Prueba «Casi todo bien»: 94 % de acuerdo y κ 
 :::
 
 :::profundo Usar al juez sin heredar su sesgo
-Si el juez aprueba de más, el porcentaje que reporta está inflado. Con la muestra calibrada se puede corregir. La versión más simple es la corrección de Rogan-Gladen, que viene de la epidemiología (pruebas médicas imperfectas): si el juez atrapa el \(S\) de las buenas y el \(E\) de las malas, la tasa verdadera es \(p = (p_{juez} + E − 1) ÷ (S + E − 1)\). Con la tabla de arriba, \(S\) = 140 ÷ 150 = 0.933 y \(E\) = 36 ÷ 50 = 0.72; con \(p_{juez}\) = 0.77: (0.77 + 0.72 − 1) ÷ (0.933 + 0.72 − 1) = 0.75, la tasa de la abogada. En la práctica \(S\) y \(E\) salen de la muestra calibrada y \(p_{juez}\) de las demás preguntas, y su error se suma. La versión rigurosa es la *prediction-powered inference* (Angelopoulos y otros, 2023): combina muchas calificaciones del juez con pocas de personas y da intervalos válidos sin suponer nada del juez.
+Si el juez aprueba de más, el porcentaje que reporta está inflado. Con la muestra calibrada se puede corregir. La versión más simple es la corrección de Rogan-Gladen, que viene de la epidemiología (pruebas médicas imperfectas): si el juez aprueba la fracción \(S\) de las respuestas buenas y reprueba la fracción \(E\) de las malas, la tasa verdadera es \(p = (p_{juez} + E − 1) ÷ (S + E − 1)\). Con la tabla de arriba, \(S\) = 140 ÷ 150 = 0.933 y \(E\) = 36 ÷ 50 = 0.72; con \(p_{juez}\) = 0.77: (0.77 + 0.72 − 1) ÷ (0.933 + 0.72 − 1) = 0.75, la tasa de la abogada. En la práctica \(S\) y \(E\) salen de la muestra calibrada y \(p_{juez}\) de las demás preguntas, y su error se suma. La versión rigurosa es la *prediction-powered inference* (Angelopoulos y otros, 2023): combina muchas calificaciones del juez con pocas de personas y da intervalos válidos sin suponer nada del juez.
 :::
 
 ## El dilema del juez privado {The private judge's dilemma}
@@ -337,12 +337,12 @@ El juez lee la pregunta, los fragmentos de expediente y la respuesta: **todo lo 
 | Juez | A favor | En contra |
 |---|---|---|
 | **El mismo Qwen3 32B**, en las mismas L40S | ya está cargado y servido; licencia Apache 2.0; cero piezas nuevas | se juzga a sí mismo: riesgo de auto-preferencia, no medido en Qwen |
-| **Otro modelo abierto de otra familia** (Mistral Small 3.2 24B, Apache 2.0; o Llama 3.3 70B) | evita la auto-preferencia | otro modelo en memoria: en una L40S ya van 38.5 de 43.2 GB útiles con Qwen3 32B y 8 conversaciones; correría de noche con el servidor cambiado de modelo, o en la cuarta ranura libre (ninguna probada) |
+| **Otro modelo abierto de otra familia** (Mistral Small 3.2 24B, Apache 2.0; o Llama 3.3 70B, con la licencia Llama 3.3) | evita la auto-preferencia | otro modelo en memoria: en una L40S ya van 38.5 de 43.2 GB útiles con Qwen3 32B y 8 conversaciones; correría de noche con el servidor cambiado de modelo, o en la cuarta ranura libre (ninguna probada) |
 | **Uno más grande rentado** en el piloto | más capacidad de juicio | la GPU rentada del piloto está en `us-east-1` (Virginia): los fragmentos salen de México. Solo con documentos que el despacho autorice; y al terminar el piloto ya no existe |
 
 Ojo con un camino por el que el juez sale de la red **sin que nadie lo decida**: varias herramientas de evals lo mandan a la nube por omisión. A noviembre de 2026, DeepEval usa un modelo de OpenAI si no se le configura otro, promptfoo elige al juez por las credenciales que encuentre en el entorno, y RAGAS, DeepEval y promptfoo traen telemetría prendida. En el despacho eso se configura antes de la primera corrida: el juez apunta al gateway local, la telemetría se apaga y la máquina del examen no tiene salida a internet. Los detalles, con los comandos, en la sección de herramientas.
 
-¿Y un juez abierto especializado en calificar? Existen (Prometheus, la sección extra del final), pero están estancados desde 2024. En 2026 lo práctico es un modelo instruct generalista con rúbrica y referencia.
+Los jueces abiertos especializados (Prometheus) están estancados desde 2024 (sección extra del final): lo práctico es un modelo instruct generalista con rúbrica y referencia.
 
 ### Lo que cuesta en el servidor
 
@@ -377,7 +377,7 @@ Dos decisiones del juez cambian mucho el costo. Con el razonamiento de Qwen3 **e
 :::
 
 :::nota La propuesta para el despacho
-Juez del día a día: **el mismo Qwen3 32B**, con el razonamiento apagado, con referencia y rúbrica por criterios, corriendo de noche con su propia clave. Antes de creerle: la muestra de 100 respuestas calificada por dos abogados en el piloto, con κ entre los abogados y κ del juez contra ellos. En la misma GPU rentada del piloto, y con los mismos documentos que el despacho ya autorizó para el piloto, se califica esa muestra también con **un juez de otra familia** (Mistral Small 3.2 24B): si Qwen como juez se aleja de los abogados más que Mistral, o si su κ queda debajo del de los abogados entre sí por más de ≈ 0.1, se cambia de juez. Y cuando se compare Qwen contra otro candidato, el juez **no** es ninguno de los dos.
+Juez del día a día: **el mismo Qwen3 32B**, con el razonamiento apagado, con referencia y rúbrica por criterios, corriendo de noche con su propia clave. Antes de creerle: la muestra de 100 respuestas calificada por dos abogados en el piloto, con κ entre los abogados y κ del juez contra ellos. En la misma GPU rentada del piloto, y con los mismos documentos que el despacho ya autorizó para el piloto, se califica esa muestra también con **un juez de otra familia** (Mistral Small 3.2 24B): si Qwen como juez se aleja de los abogados más que Mistral, o si su κ queda debajo del de los abogados entre sí por más de ≈ 0.1 (un umbral nuestro, no publicado), se cambia de juez. Y cuando se compare Qwen contra otro candidato, el juez **no** es ninguno de los dos.
 :::
 
 ## Las herramientas, y la nube que traen escondida {The tools, and the cloud they hide} [extra]
@@ -388,11 +388,11 @@ No hace falta escribir todo desde cero. Hay herramientas abiertas que corren un 
 |---|---|---|---|---|
 | RAGAS | 0.4.4, 14-nov-2026 | Apache 2.0 | métricas de RAG: fidelidad, precisión y recall del contexto, relevancia | sus ejemplos crean el juez con un cliente de OpenAI; **telemetría prendida** |
 | DeepEval | 4.3.6, 25-nov-2026 | Apache 2.0 | métricas de RAG y G-Eval, con modelo local documentado (su página de integración se llama «vLLM») | si no se configura juez, usa **un modelo GPT de OpenAI**; telemetría prendida (incluye la IP pública) |
-| promptfoo | 0.126.0, 18-nov-2026 | MIT | aserciones (`llm-rubric`, `context-faithfulness`…) y pruebas en CI | el juez **se elige por las credenciales que haya en el entorno**; telemetría prendida; desde 2026 su README dice que forma parte de OpenAI (sigue siendo MIT) |
+| promptfoo | 0.126.0, 18-nov-2026 | MIT | aserciones (`llm-rubric`, `context-faithfulness`…) y pruebas en integración continua (CI: correr las pruebas solas en cada cambio) | el juez **se elige por las credenciales que haya en el entorno**; telemetría prendida; desde 2026 su README dice que forma parte de OpenAI (sigue siendo MIT) |
 | lm-evaluation-harness | 0.4.13, 31-ago-2026 | MIT | benchmarks públicos (MMLU y otros), no RAG con citas | corre contra un servidor local con `local-completions` |
 | Inspect AI | 0.3.292, 23-nov-2026 | MIT | evals con calificadores por modelo (`model_graded_qa`), varios jueces que votan, `stderr()` | proveedores propios para vLLM, Ollama y SGLang |
 
-Fíjate en la última columna. Tres de las cinco **asumen nube** si no se configuran, y las tres traen [[telemetria|telemetría]] activa: datos de uso que el programa manda solo a sus autores. En el despacho eso es un riesgo doble. Primero, el juez: una sola corrida con una variable `OPENAI_API_KEY` olvidada en la máquina de alguien de TI manda 200 respuestas con fragmentos de expediente a un servidor en Estados Unidos, sin que nadie lo decida. Segundo, la telemetría: aunque no mande textos, es un canal de salida que nadie autorizó.
+Tres de las cinco **asumen nube** si no se configuran, y las tres traen [[telemetria|telemetría]] activa: datos de uso que el programa manda solo a sus autores. En el despacho eso es un riesgo doble. Primero, el juez: una sola corrida con una variable `OPENAI_API_KEY` olvidada en la máquina de alguien de TI manda 200 respuestas con fragmentos de expediente a un servidor en Estados Unidos, sin que nadie lo decida. Segundo, la telemetría: aunque no mande textos, es un canal de salida que nadie autorizó.
 
 El remedio tiene dos partes, y las dos van en la configuración, no en la buena voluntad:
 
@@ -402,14 +402,14 @@ export RAGAS_DO_NOT_TRACK=true
 export DEEPEVAL_TELEMETRY_OPT_OUT=1
 export PROMPTFOO_DISABLE_TELEMETRY=1
 export PROMPTFOO_DISABLE_UPDATE=1
-unset OPENAI_API_KEY ANTHROPIC_API_KEY GEMINI_API_KEY   # que no haya a dónde caer
+unset OPENAI_API_KEY ANTHROPIC_API_KEY GEMINI_API_KEY   # que no haya a dónde caer (no son todas: ver abajo)
 
 # DeepEval: el juez es el gateway del despacho
 deepeval set-local-model --model=chat-grande --base-url="http://gateway.despacho.local/v1/"
 ```
 
 :::profundo La trampa de promptfoo
-En promptfoo, que el sistema bajo prueba apunte al gateway **no** configura al juez: el juez de `llm-rubric` se fija aparte, en `defaultTest.options.provider` (o con `--grader`). Es la trampa más fina de la tabla:
+En promptfoo, que el sistema bajo prueba apunte al gateway **no** configura al juez: el juez de `llm-rubric` se fija aparte, en `defaultTest.options.provider` (o con `--grader`). Si no se fija, lo elige por las credenciales que encuentre (su documentación nombra OpenAI, Anthropic, Gemini, Mistral, Azure OpenAI y un inicio de sesión de Codex): borrar tres variables no basta; lo que protege es fijar al juez. Es la trampa más fina de la tabla:
 
 ```yaml
 # Ilustrativo (promptfoo 0.126.0): sistema bajo prueba y juez, los dos dentro de la red
@@ -434,7 +434,7 @@ Y la segunda parte, la que no depende de leer bien cada documentación: el servi
 Que DeepEval y promptfoo hablen con un modelo local está documentado; que RAGAS lo haga contra el gateway con un cliente de OpenAI apuntando a otra dirección lo permite su documentación, pero no lo vimos correr. Las tres usan prompts de juez en inglés: cómo califican español jurídico no está medido. Por eso la calibración contra abogados no es opcional, y una herramienta se adopta después de correrla en el piloto.
 :::
 
-Una más que no sirve para el despacho: **OpenAI Evals**, el repositorio de OpenAI, no tiene versiones publicadas, su README pide `OPENAI_API_KEY` y manda a correr las evaluaciones en el tablero de OpenAI. Es una herramienta de nube con código abierto.
+Una que no sirve para el despacho: **OpenAI Evals** no tiene versiones publicadas, pide `OPENAI_API_KEY` y manda a correr las evaluaciones en el tablero de OpenAI. Es nube con código abierto.
 
 ## Cuánto se le cree a 200 preguntas {How much 200 questions are worth}
 
@@ -442,7 +442,7 @@ El sistema saca 170 de 200. Pasa el criterio. ¿Demuestra que es de 85 %? No, y 
 
 ### Wilson en vez de «± 1.96 SE»
 
-El intervalo de la escuela, \(p ± 1.96 × SE\) (el de Wald), se porta mal cuando el porcentaje está cerca de 0 o de 100 %, o hay pocas fallas: una revisión clásica (Brown, Cai y DasGupta, 2001) lo llama «no confiable» y recomienda el de Wilson para muestras chicas. Para 85 % casi no cambia; para las citas inventadas, cambia todo.
+El intervalo de la escuela, \(p ± 1.96 × SE\) (el de Wald), se porta mal cuando el porcentaje está cerca de 0 o de 100 %, o hay pocas fallas: una revisión clásica (Brown, Cai y DasGupta, 2001) lo llama «no confiable» y recomienda el de Wilson (o el de Jeffreys) para muestras chicas. Para 85 % casi no cambia; para las citas inventadas, cambia todo.
 
 :::formula Intervalo de Wilson del 95 %
 c = frac{p + z^2 ÷ (2n)}{1 + z^2 ÷ n}
@@ -636,7 +636,7 @@ Propuesta para el despacho (supuesto del ejemplo):
 1. Invariantes, sin estadística
 Cero fugas en las 20 preguntas de permisos. Ninguna cita inventada **nueva** respecto de la versión en producción. El formato de la cita sigue siendo válido en las 200. Una sola falla detiene el cambio.
 2. Calidad pareada contra producción
-Se compara con la versión que hoy usan los abogados, en las mismas 200. Se detiene si la cota de abajo de \(Δ\) pierde más de **5 puntos**, o si el valor observado cae **3 puntos o más**. La segunda regla atrapa caídas que el ruido esconde a medias.
+Se compara con la versión que hoy usan los abogados, en las mismas 200. Se detiene si la cota de abajo de \(Δ\) pierde más de **6 puntos**, o si el valor observado cae **3 puntos o más**. Es 6 y no 5 porque 200 preguntas solo protegen ≈ 5.6: con 5, un cambio que no pierde nada se detendría ≈ 28 % de las veces (10 % de discrepancia); con 6, ≈ 15 %. La segunda regla importa cuando cambian pocas respuestas: con 8 flips (4 %), una caída observada de hasta ≈ 3.7 puntos pasaría la primera.
 3. Leer los flips, siempre
 Un abogado y alguien de TI leen todas las preguntas que cambiaron, en los dos sentidos. Con 10 % de discrepancia son ≈ 20: una hora. Si 9 de los flips a mal son contratos en inglés, el cambio se detiene aunque pase todo lo demás.
 4. El resultado nuevo es la nueva producción
@@ -644,12 +644,10 @@ Si pasa, se despliega y su resultado se guarda como la referencia del siguiente 
 :::
 
 :::diagrama evals-gate
-El recorrido de un cambio por el gate. Sigue los tres casos: una actualización de vLLM que pasa, un prompt más corto que pierde 5 puntos y un chunker que gana 4 puntos pero deja pasar una fuga.
+El recorrido de un cambio por el gate. Sigue los tres casos: una actualización de vLLM que pasa, un prompt más corto que pierde 5 puntos y un chunker nuevo (el programa que parte los documentos en fragmentos) que gana 4 puntos pero deja pasar una fuga.
 :::
 
 :::profundo Dos detalles de operación
-Dos detalles de operación que deciden si el gate funciona:
-
 - **Corre de noche, con su propia clave.** El examen y el juez son ≈ 25 minutos del servidor completo (la cuenta de arriba), que en la hora pico no caben. Una clave de servicio en el gateway, con cuota propia, solo para el gate.
 - **Primero se mide el piso de ruido.** En el piloto, el examen se corre dos veces con la misma configuración. Si las dos corridas discrepan en 3 % de las preguntas, eso es lo que «no cambió nada» parece, y cualquier cambio real se mide contra ese piso.
 :::
@@ -666,11 +664,11 @@ El socio preguntó si es «tan bueno como el chatbot que usaban a escondidas». 
 
 ## Jueces especializados y otros atajos {Specialized judges and other shortcuts} [extra]
 
-**Jueces abiertos entrenados para calificar.** Prometheus (2023) es un modelo abierto de 13B entrenado con 100,000 respuestas calificadas con rúbrica; en 45 rúbricas personalizadas, su correlación con humanos fue 0.897, contra 0.882 de GPT-4. Prometheus 2 (2024) salió en 7B y 8x7B, con licencia Apache 2.0. Suena ideal para un despacho privado. Pero a noviembre de 2026 su repositorio no recibe cambios desde abril de 2025, su última versión publicada es de septiembre de 2024 y sus jueces son en inglés; la versión multilingüe (M-Prometheus, 2025) publica sus pesos con una licencia marcada «other» que hay que leer antes de recomendarla. Un estudio de 2026 en inglés, español y vasco encontró que un juez chico afinado con datos del dominio iguala a los propietarios, pero **fuera** del dominio rinde más un modelo grande sin afinar. Para el despacho, sin datos de calificación propios todavía, eso apunta a lo mismo: un modelo generalista con rúbrica.
+**Jueces abiertos entrenados para calificar.** Prometheus (2023) es un modelo abierto de 13B entrenado con 100,000 respuestas calificadas con rúbrica; en 45 rúbricas personalizadas, su correlación (de Pearson) con humanos fue 0.897, contra 0.882 de GPT-4. Prometheus 2 (2024) salió en 7B y 8x7B, con licencia Apache 2.0. Suena ideal para un despacho privado. Pero a noviembre de 2026 su repositorio no recibe cambios desde abril de 2025, su última versión publicada es de septiembre de 2024 y sus jueces son en inglés; la versión multilingüe (M-Prometheus, 2025) publica sus pesos con una licencia marcada «other» que hay que leer antes de recomendarla. Un estudio de 2026 en inglés, español y vasco (un preprint) encontró que un juez chico afinado con datos del dominio iguala a los propietarios, pero **fuera** del dominio rinde más un modelo grande sin afinar. Para el despacho, sin datos de calificación propios, apunta a un generalista con rúbrica.
 
-**G-Eval** (2023) es una técnica, no un modelo: pedirle al juez que razone paso a paso con un formulario de calificación. Con GPT-4 su correlación con humanos en resúmenes fue 0.514 (Spearman), y sus autores advierten un sesgo a favor de textos generados por LLM. DeepEval y promptfoo la traen como métrica.
+**G-Eval** (2023) es una técnica, no un modelo: pedirle al juez que razone paso a paso con un formulario de calificación. Con GPT-4 su correlación con humanos en resúmenes fue 0.514 (de rangos, Spearman), y sus autores advierten un sesgo a favor de textos generados por LLM. DeepEval y promptfoo la traen como métrica.
 
-**Benchmarks públicos, para lo que sirven.** lm-evaluation-harness corre benchmarks como MMLU contra el servidor local. No mide «contestar con cita desde mis expedientes», pero sirve como alarma barata: si una actualización de vLLM o una cuantización nueva mueve un benchmark conocido, algo cambió. Para el derecho, LegalBench (2023, 162 tareas) es de derecho de Estados Unidos; un benchmark de 2026 de derecho colombiano en español, con 1,042 preguntas, encontró que en opción múltiple los modelos sacaban de 0.577 a 0.905, pero en respuesta libre la corrección **nunca pasó de 0.45**: el examen barato predice el orden de los modelos, pero sobreestima cuánto se les puede creer. No encontramos un benchmark público de derecho mexicano, lo que no quiere decir que no exista; es un argumento más para el examen propio.
+**Benchmarks públicos, para lo que sirven.** lm-evaluation-harness corre benchmarks como MMLU contra el servidor local. No mide «contestar con cita desde mis expedientes», pero sirve como alarma barata: si una actualización de vLLM o una cuantización nueva mueve un benchmark conocido, algo cambió. Para el derecho, LegalBench (2023, 162 tareas) es de derecho de Estados Unidos; un benchmark de 2026 de derecho colombiano, con 1,042 preguntas (el preprint de la capa de corrección), encontró que en opción múltiple los modelos sacaban de 0.577 a 0.905, pero en respuesta libre la corrección **nunca pasó de 0.45**: el examen barato predice el orden de los modelos, pero sobreestima cuánto se les puede creer. No encontramos un benchmark público de derecho mexicano, lo que no quiere decir que no exista; es un argumento más para el examen propio.
 
 ## Errores comunes {Common mistakes}
 
@@ -700,7 +698,7 @@ Pasa: 176 ≥ 170. No demuestra: con la cota exacta de una cola hay que observar
 ? [facil] Una respuesta cita «exp. 3310, p. 2: «los primeros diez días de cada mes»», y la página 2 dice «los primeros cinco días de cada mes». ¿Qué devuelve el revisor de citas de la lección, y por qué no hace falta un juez?
 Devuelve **«inventada: la página no dice eso»**: el expediente 3310 existe, la página 2 existe, pero el texto citado no está en ella. No hace falta juez porque la revisión es una búsqueda exacta: un programa la hace siempre igual, en milisegundos, sin sesgos ni costo de GPU.
 ? [facil] Una abogada y el juez coinciden en 180 de 200 respuestas. La abogada aprueba 160 y el juez 170. Calcula \(p_o\), \(p_e\) y κ.
-\(p_o\) = 180 ÷ 200 = **0.90**. \(a\) = 160 ÷ 200 = 0.80; \(j\) = 170 ÷ 200 = 0.85. \(p_e\) = 0.80 × 0.85 + 0.20 × 0.15 = 0.68 + 0.03 = **0.71**. κ = (0.90 − 0.71) ÷ (1 − 0.71) = 0.19 ÷ 0.29 = **0.655**: «sustancial», apenas. 90 % de acuerdo suena mejor que eso: casi tres cuartas partes del acuerdo las daría el azar.
+\(p_o\) = 180 ÷ 200 = **0.90**. \(a\) = 160 ÷ 200 = 0.80; \(j\) = 170 ÷ 200 = 0.85. \(p_e\) = 0.80 × 0.85 + 0.20 × 0.15 = 0.68 + 0.03 = **0.71**. κ = (0.90 − 0.71) ÷ (1 − 0.71) = 0.19 ÷ 0.29 = **0.655**: «sustancial», apenas. 90 % de acuerdo suena mejor que eso: de esos 90 puntos, 71 los daría el azar (casi cuatro de cada cinco).
 ? [facil] ¿Por qué el examen no corre en la hora pico? Usa los números de la ficha.
 En la hora pico los abogados piden 6,250 de los 7,200 tokens de salida por minuto (86.8 %): sobran 950. Solo el juez escribe 40,000 tokens: 40,000 ÷ 950 ≈ **42 minutos**, compitiendo con los abogados y subiéndoles el tiempo al primer token. De noche, el examen y el juez juntos tardan ≈ 25 minutos sin molestar a nadie.
 ? [medio] Qwen3 32B y Mistral Small 3.2 24B contestan las mismas 200 preguntas. Aciertan los dos 150; solo Qwen 14; solo Mistral 8; ninguno 28. ¿Cuál es mejor? Usa McNemar con corrección.
@@ -710,7 +708,7 @@ Pasa: 2 ≤ 4. No demuestra: la cota exacta de una cola con 2 de 200 es **3.11 %
 ? [medio] El despacho quiere proteger un margen de no inferioridad de 3 puntos con su gate. Con 200 preguntas y 10 % de discrepancias, ¿lo logra? ¿Qué margen sí, y qué haría falta para 3?
 Margen mínimo = (1.645 + 0.842) × \(SE_{Δ}\). Con \(d\) = 0.10 y \(N\) = 200, \(SE_{Δ}\) ≈ √(0.10 ÷ 200) = 0.0224 = 2.24 puntos; margen = 2.487 × 2.24 ≈ **5.6 puntos**. No logra 3. Para 3 puntos: \(N\) = (2.487 ÷ 3)² × 0.10 × 10,000 ≈ **687 preguntas**; o bajar la discrepancia (con 6 %, ≈ 412). Mientras tanto, la regla extra de «cae 3 puntos o más en el observado» y leer los flips cubren el hueco.
 ? [reto] Con la propuesta de estratos, el sistema saca: 100 de 110 en «preguntar», 24 de 30 «sin respuesta», 0 fugas en «permisos» (las 20 bien), 15 de 20 en «resumir» y 16 de 20 en «cláusulas». ¿Pasa el criterio si el denominador son las 200? ¿Y si fueran solo las 150 que se contestan (preguntar, resumir, cláusulas)? ¿Qué te dice el estrato «sin respuesta»?
-Con las 200: 100 + 24 + 20 + 15 + 16 = **175 de 200 (87.5 %)**: pasa. Con las 150 que se contestan: 100 + 15 + 16 = **131 de 150 (87.3 %)**: pasa con 85 % (127.5). «Sin respuesta»: 24 de 30 (80 %), pero 6 veces contestó algo cuando no había respuesta: esas 6 traen cita y **todas son inventadas** si citó. Si las 6 citaron, son 6 citas inventadas solo ahí: **no pasa** el «≤ 4» aunque pase el 85 %. El estrato chico no sostiene un porcentaje (Wilson de 24 de 30: ≈ 62.7 % a 90.5 %), pero cada error suyo se lee y cuenta en el criterio de citas.
+Con las 200: 100 + 24 + 20 + 15 + 16 = **175 de 200 (87.5 %)**: pasa. Con las 150 que se contestan: 100 + 15 + 16 = **131 de 150 (87.3 %)**: pasa con 85 % (127.5). «Sin respuesta»: 24 de 30 (80 %); en las otras 6 contestó algo cuando no había respuesta. Por la regla del estrato, cada una que traiga cita cuenta como cita inventada. Si las 6 citaron, son 6 solo ahí: **no pasa** el «≤ 4» aunque pase el 85 %. El porcentaje y el criterio de citas se revisan por separado, y aquí decide el segundo. El estrato chico no sostiene un porcentaje (Wilson de 24 de 30: ≈ 62.7 % a 90.5 %), pero cada error suyo se lee y cuenta en el criterio de citas.
 ? [reto] Un proveedor ofrece al despacho «un juez de frontera con κ = 0.72 contra abogados» por API, a cambio de mandarle las 200 respuestas con sus fragmentos. ¿Qué le contestas, con números de la lección?
 Que el κ de 0.72 es parecido al de Legal Research Bench (0.708–0.726), medido en derecho de Estados Unidos y en inglés, no en sus expedientes; y que en ese mismo estudio los abogados concordaron con κ = 0.644, así que el techo realista de cualquier juez está cerca del acuerdo entre abogados, no muy arriba. Pero el punto decisivo no es estadístico: mandar las respuestas con fragmentos saca los expedientes de la red, que es lo que el proyecto existe para evitar (el mismo riesgo del chatbot público). La contrapropuesta: juez local (Qwen3 32B), calibrado con 100 respuestas por dos abogados; si el κ local queda más de ≈ 0.1 abajo del de los abogados entre sí, probar un juez abierto de otra familia, también local. Si el despacho aun así quisiera el juez externo, solo con preguntas públicas o sintéticas y con la autorización escrita de su abogado.
 :::

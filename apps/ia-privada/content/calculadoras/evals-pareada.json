@@ -16,7 +16,7 @@
   { "id": "A", "label": "Aciertos del sistema A (el que está en producción)", "min": 0, "max": 100000, "paso": 1, "valor": 170, "tipo": "numero" },
   { "id": "b", "label": "Solo A acierta, \\(b\\)", "min": 0, "max": 100000, "paso": 1, "valor": 5, "tipo": "numero" },
   { "id": "c", "label": "Solo B acierta, \\(c\\)", "min": 0, "max": 100000, "paso": 1, "valor": 17, "tipo": "numero" },
-  { "id": "M", "label": "Margen de no inferioridad del gate, \\(m\\), en puntos", "min": 1, "max": 15, "paso": 0.5, "valor": 5 }
+  { "id": "M", "label": "Margen de no inferioridad del gate, \\(m\\), en puntos", "min": 1, "max": 15, "paso": 0.5, "valor": 6 }
  ],
  "calculos": [
   { "id": "NN", "formula": "max(N, 1)" },

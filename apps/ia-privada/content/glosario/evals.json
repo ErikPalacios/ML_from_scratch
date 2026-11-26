@@ -101,7 +101,7 @@
    "en": "rubric",
    "corto": "La lista escrita de criterios con los que se califica una respuesta, cada uno con lo que cuenta como cumplido; se le da igual al juez y a las personas.",
    "largo": "Una buena rúbrica parte la calificación en criterios que se contestan sí o no («¿llega a la misma conclusión que la referencia?», «¿cita documento y página?», «¿afirma algo que no está en los fragmentos?»), en vez de pedir «califica del 1 al 10». Una revisión de 2026 sobre respuestas jurídicas abiertas encontró que una rúbrica escrita para la tarea es la palanca más fuerte del acuerdo entre juez y humanos.",
-   "ejemplo": "La rúbrica del despacho para «preguntar»: 1) misma conclusión que la referencia; 2) nada que contradiga los fragmentos; 3) si no está, lo dice. Pasa si cumple las tres.",
+   "ejemplo": "La rúbrica del despacho para «preguntar»: 1) misma conclusión que la referencia; 2) nada que no esté en los fragmentos; 3) si no está, lo dice. Pasa si cumple las tres.",
    "ver": [
     "llm-as-judge",
     "respuesta-de-referencia"
@@ -125,7 +125,7 @@
    "termino": "Acuerdo entre jueces",
    "en": "inter-rater agreement",
    "corto": "Qué tanto coinciden dos calificadores (dos personas, o una persona y un LLM) sobre las mismas respuestas, descontando lo que coincidirían por azar.",
-   "largo": "Se mide con la [[kappa-de-cohen|kappa de Cohen]] cuando son dos calificadores y categorías como bien o mal. El techo realista no es 1: es lo que concuerdan dos expertos entre sí. En un benchmark jurídico de 2026, tres abogados concordaron con κ = 0.644 y los jueces LLM de frontera, con 0.708 a 0.726. Se reporta con el acuerdo crudo y con qué tanto atrapa el juez las respuestas malas.",
+   "largo": "Se mide con la [[kappa-de-cohen|kappa de Cohen]] cuando son dos calificadores y categorías como bien o mal. El techo realista no es 1: es lo que concuerdan dos expertos entre sí. En un benchmark jurídico de 2026 (un preprint), tres abogados concordaron con κ = 0.644 y los jueces LLM de frontera, con 0.708 a 0.726. Se reporta con el acuerdo crudo y con qué tanto atrapa el juez las respuestas malas.",
    "ejemplo": "Una abogada y el juez califican las mismas 200 respuestas: coinciden en 176 (88 %), κ = 0.671.",
    "ver": [
     "kappa-de-cohen",
@@ -165,7 +165,7 @@
    "en": "non-inferiority",
    "corto": "Una regla que no pide demostrar que lo nuevo es mejor, sino que no es peor que lo actual por más de un margen fijado de antemano.",
    "largo": "Sirve para cambios que se hacen por otra razón (ahorrar memoria, actualizar el motor, un prompt más corto): basta con que no se pierda calidad. Se calcula la cota de abajo de una cola (95 %) de la diferencia pareada y se compara con el margen. Con pocas preguntas, el margen que se puede proteger es grande: con 200 y 10 % de discrepancias, ≈ 5.6 puntos.",
-   "ejemplo": "Un cambio con Δ = +1 punto y \\(SE_Δ\\) = 2.34: cota de abajo 1 − 1.645 × 2.34 = −2.9, dentro de un margen de −5: pasa.",
+   "ejemplo": "Un cambio con Δ = +1 punto y \\(SE_Δ\\) = 2.34: cota de abajo 1 − 1.645 × 2.34 = −2.9, dentro de un margen de −6: pasa.",
    "ver": [
     "prueba-pareada",
     "gate-de-calidad"
@@ -177,7 +177,7 @@
    "termino": "Regresión",
    "en": "regression",
    "corto": "Que algo que funcionaba deje de funcionar después de un cambio: en un LLM, preguntas que antes salían bien y ahora salen mal.",
-   "largo": "En un sistema con LLM casi todo puede causar una: el modelo, la cuantización, la versión del motor, el prompt, el chunker, el modelo de embeddings, el top-k. Y a veces nada: [[vllm|vLLM]] no garantiza resultados idénticos entre corridas por omisión, así que hay un piso de ruido propio. Se detecta corriendo el examen completo con cada cambio y comparando pareado contra la versión en producción, además de leer los [[flips]].",
+   "largo": "En un sistema con LLM casi todo puede causar una: el modelo, la cuantización, la versión del motor, el prompt, cómo se parten los documentos, el modelo de embeddings, cuántos fragmentos se pasan al modelo. Y a veces nada: [[vllm|vLLM]] no garantiza resultados idénticos entre corridas por omisión, así que hay un piso de ruido propio. Se detecta corriendo el examen completo con cada cambio y comparando pareado contra la versión en producción, además de leer los [[flips]].",
    "ejemplo": "Una versión nueva del motor deja el total igual, pero 9 preguntas de contratos en inglés pasan de bien a mal y 9 de otros tipos de mal a bien: el total no la ve; leer los flips sí.",
    "ver": [
     "gate-de-calidad",
@@ -192,7 +192,7 @@
    "corto": "El candado automático por el que pasa cada cambio antes de llegar a los usuarios: corre el examen y lo detiene si rompe una regla escrita antes.",
    "largo": "Las reglas se escriben antes de ver resultados, para que no haya excusas para aprobar. Una propuesta en dos capas: **invariantes** sin estadística (cero fugas de permisos, ninguna [[cita-inventada|cita inventada]] nueva, formato válido) y **calidad pareada** contra producción con un margen de [[no-inferioridad|no inferioridad]]. Lo que la estadística no ve con pocas preguntas se cubre leyendo las que cambiaron.",
    "analogia": "La inspección de un avión después de cada reparación, con una lista que no se negocia en la pista. Dónde se rompe: la inspección revisa piezas que se pueden ver; el gate revisa una muestra de 200 preguntas, y lo que no está en la muestra no lo ve.",
-   "ejemplo": "En el despacho: el cambio se detiene si hay una fuga, una cita inventada nueva, si la cota de abajo de Δ pierde más de 5 puntos o si el valor observado cae 3 o más.",
+   "ejemplo": "En el despacho: el cambio se detiene si hay una fuga, una cita inventada nueva, si la cota de abajo de Δ pierde más de 6 puntos o si el valor observado cae 3 o más.",
    "ver": [
     "regresion",
     "no-inferioridad"
@@ -205,7 +205,7 @@
    "termino": "Cita inventada",
    "en": "fabricated citation",
    "corto": "Una cita de la respuesta que no se sostiene: el documento no existe, la página no existe o la página no dice lo que la respuesta le atribuye.",
-   "largo": "Es el error más grave de un asistente jurídico, porque parece verificable y no lo es. Se revisa con código, sin juez: buscar el expediente, buscar la página y confirmar que el texto citado esté ahí. En una pregunta sin respuesta en los expedientes, cualquier cita es inventada. El criterio del despacho permite 4 de 200; con tan pocos eventos, ese número es muy ruidoso.",
+   "largo": "Es el error más grave de un asistente jurídico, porque parece verificable y no lo es. Se revisa con código, sin juez: buscar el expediente, buscar la página y confirmar que el texto citado esté ahí. En una pregunta sin respuesta en los expedientes, el examen cuenta cualquier cita como inventada, porque respalda algo que el expediente no dice. El criterio del despacho permite 4 de 200; con tan pocos eventos, ese número es muy ruidoso.",
    "ejemplo": "«exp. 4127, p. 13: la pena convencional será del 20 %», cuando la página 13 dice 10 %: inventada.",
    "ver": [
     "fidelidad",

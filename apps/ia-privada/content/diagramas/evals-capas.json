@@ -80,14 +80,14 @@
       "label": "La búsqueda no trajo la página",
       "steps": [
         { "nodes": ["busqueda", "ret"], "edges": ["busqueda>ret", "golden>ret"], "text": "La página de oro no está en los 5 fragmentos. El retrieval sale **mal** antes de que el modelo escriba una palabra." },
-        { "nodes": ["llm", "cita", "tabla"], "edges": ["llm>cita", "ret>tabla"], "text": "Si el modelo dice «no lo encontré», es honesto aunque la pregunta cuente como mal. Si cita una página que suena bien, el programa la marca **inventada**. En los dos casos el renglón dice dónde arreglar: en la búsqueda, no en el modelo." }
+        { "nodes": ["llm", "cita", "tabla"], "edges": ["llm>cita", "ret>tabla"], "text": "Si el modelo dice «no lo encontré», es honesto aunque la pregunta cuente como mal. Si cita un texto que no está en la página que nombra, el programa la marca **inventada**. En los dos casos el renglón dice dónde arreglar: en la búsqueda, no en el modelo." }
       ]
     },
     {
       "id": "permisos",
       "label": "Una pregunta de permisos",
       "steps": [
-        { "nodes": ["pregunta", "busqueda", "ret"], "edges": ["pregunta>busqueda", "busqueda>ret"], "text": "Un pasante pregunta por un expediente de otro equipo. Lo único que se revisa: que **ningún** fragmento de ese expediente llegue a la búsqueda. Una sola fuga y el examen no pasa, sin importar el porcentaje." }
+        { "nodes": ["pregunta", "busqueda", "ret"], "edges": ["pregunta>busqueda", "busqueda>ret"], "text": "Un pasante pregunta por un expediente de otro equipo. Lo único que se revisa: que **ningún** fragmento de ese expediente salga de la búsqueda y llegue al modelo. Una sola fuga y el examen no pasa, sin importar el porcentaje." }
       ]
     }
   ]
