@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 440" role="img" aria-labelledby="f-pruebas-carga-prompt-t" class="f-svg" style="max-width:420px">
+<title id="f-pruebas-carga-prompt-t">Tres datasets de carga para el despacho, cada uno como una barra de un prompt de unos 6,000 tokens. Realista: las instrucciones de 400 tokens se repiten en todos y quedan en el cache; la pregunta de 100 y los cinco fragmentos de 1,000 cambian y se calculan: el servidor calcula alrededor del 93 por ciento del prefill. Tramposo: el mismo prompt mil veces; desde la segunda petición todo está en el cache y el prefill es casi cero, así que el TTFT sale de fantasía. Ingenuo: todo al azar, sin el prefijo compartido; el servidor calcula el 100 por ciento, un poco más que en producción.</title>
+<text class="f-l" x="14" y="24">UN PROMPT DEL DESPACHO, ≈ 6,000 TOKENS</text>
+<rect class="f-card" x="10" y="36" width="340" height="112" rx="16"/>
+<text class="f-t" x="26" y="62">Realista</text>
+<text class="f-s" x="110" y="62" style="font-size:12px">prefijo igual, lo demás distinto</text>
+<rect class="f-g" x="30" y="74" width="22" height="26" rx="3"/>
+<rect class="f-y" x="53" y="74" width="6" height="26" rx="2"/>
+<rect class="f-b" x="60" y="74" width="53" height="26" rx="3"/>
+<rect class="f-b" x="114" y="74" width="53" height="26" rx="3"/>
+<rect class="f-b" x="168" y="74" width="53" height="26" rx="3"/>
+<rect class="f-b" x="222" y="74" width="53" height="26" rx="3"/>
+<rect class="f-b" x="276" y="74" width="54" height="26" rx="3"/>
+<text class="f-s" x="30" y="120" style="font-size:12px">400 en caché · 100 + 5 × 1,000 se calculan</text>
+<text class="f-s" x="30" y="138" style="font-size:12px;font-weight:700">prefill calculado ≈ 93 %: como en producción</text>
+<rect class="f-card" x="10" y="160" width="340" height="112" rx="16"/>
+<text class="f-t" x="26" y="186">Tramposo</text>
+<text class="f-s" x="110" y="186" style="font-size:12px">el mismo prompt mil veces</text>
+<rect class="f-g" x="30" y="198" width="300" height="26" rx="3"/>
+<text class="f-s" x="180" y="216" text-anchor="middle" style="font-size:12px;font-weight:700;fill:var(--ink)">todo en caché desde la 2.ª</text>
+<text class="f-s" x="30" y="244" style="font-size:12px">prefill calculado ≈ 0 %</text>
+<text class="f-s" x="30" y="262" style="font-size:12px;font-weight:700">TTFT y tokens/s de fantasía</text>
+<rect class="f-card" x="10" y="284" width="340" height="112" rx="16"/>
+<text class="f-t" x="26" y="310">Ingenuo</text>
+<text class="f-s" x="110" y="310" style="font-size:12px">todo al azar, sin prefijo</text>
+<rect class="f-b" x="30" y="322" width="300" height="26" rx="3"/>
+<text class="f-s" x="180" y="340" text-anchor="middle" style="font-size:12px;font-weight:700;fill:var(--ink)">nada en caché</text>
+<text class="f-s" x="30" y="368" style="font-size:12px">prefill calculado 100 %</text>
+<text class="f-s" x="30" y="386" style="font-size:12px;font-weight:700">algo pesimista: ≈ 7 % de más</text>
+<rect class="f-g" x="30" y="414" width="14" height="14" rx="3"/>
+<text class="f-s" x="50" y="426" style="font-size:12px">en caché</text>
+<rect class="f-y" x="120" y="414" width="14" height="14" rx="3"/>
+<text class="f-s" x="140" y="426" style="font-size:12px">pregunta</text>
+<rect class="f-b" x="210" y="414" width="14" height="14" rx="3"/>
+<text class="f-s" x="230" y="426" style="font-size:12px">se calcula</text>
+</svg>

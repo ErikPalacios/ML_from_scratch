@@ -1,0 +1,74 @@
+{
+  "titulo": "Abierta contra cerrada: quién decide cuándo sale cada petición",
+  "width": 78,
+  "height": 44,
+  "lanes": [
+    { "id": "abierta", "label": "Abierta · manda el calendario", "kind": "online", "x": 0, "y": 0, "w": 78, "h": 21 },
+    { "id": "cerrada", "label": "Cerrada · manda la respuesta anterior", "kind": "neutral", "x": 0, "y": 23, "w": 78, "h": 21 }
+  ],
+  "nodes": [
+    {
+      "id": "cal", "label": "Calendario", "sub": "Poisson · 0.21/s", "badge": "A", "kind": "queue",
+      "x": 2, "y": 7, "w": 18, "h": 8,
+      "note": "Las horas de salida se sortean antes de empezar: huecos al azar con una media de 4.8 s. Nadie las cambia durante la prueba."
+    },
+    {
+      "id": "srvA", "label": "Servidor", "sub": "3 copias", "kind": "gpu",
+      "x": 30, "y": 7, "w": 18, "h": 8,
+      "note": "Recibe lo que el calendario manda. Si se pone lento, la fila crece y **la prueba lo ve**."
+    },
+    {
+      "id": "relA", "label": "Reloj", "sub": "desde la hora planeada", "kind": "monitor",
+      "x": 58, "y": 7, "w": 18, "h": 8,
+      "note": "Mide desde la hora del calendario, que es cuando la persona preguntó: la [[latencia-programada|latencia desde la hora programada]]. Sin tope en el cliente, coincide con la que se mide desde el envío."
+    },
+    {
+      "id": "usr", "label": "8 usuarios", "sub": "virtuales", "badge": "B", "kind": "client",
+      "x": 2, "y": 30, "w": 18, "h": 8,
+      "note": "Cada uno manda una petición y espera la respuesta completa antes de mandar la siguiente. La tasa no se fija: sale sola, \\(N ÷ W\\)."
+    },
+    {
+      "id": "srvB", "label": "Servidor", "sub": "3 copias", "kind": "gpu",
+      "x": 30, "y": 30, "w": 18, "h": 8,
+      "note": "Nunca tiene más de 8 adentro. Si se pone lento, **le llega menos**: la prueba se frena con él."
+    },
+    {
+      "id": "relB", "label": "Reloj", "sub": "desde el envío", "kind": "monitor",
+      "x": 58, "y": 30, "w": 18, "h": 8,
+      "note": "Mide desde que la petición salió. Lo que un usuario virtual esperó antes de poder mandar no existe en el reporte: la [[omision-coordinada|omisión coordinada]]."
+    }
+  ],
+  "edges": [
+    { "from": "cal", "to": "srvA", "kind": "online", "label": "a su hora", "fromSide": "r", "toSide": "l" },
+    { "from": "srvA", "to": "relA", "kind": "monitor", "label": "tiempos", "fromSide": "r", "toSide": "l" },
+    { "from": "usr", "to": "srvB", "kind": "online", "label": "una c/u", "fromSide": "r", "toSide": "l" },
+    { "from": "srvB", "to": "usr", "kind": "neutral", "label": "respuesta → siguiente", "fromSide": "b", "toSide": "b", "via": [[39, 42], [11, 42]], "dashed": true },
+    { "from": "srvB", "to": "relB", "kind": "monitor", "label": "tiempos", "fromSide": "r", "toSide": "l" }
+  ],
+  "flows": [
+    {
+      "id": "normal",
+      "label": "Un día normal",
+      "steps": [
+        { "nodes": ["cal", "srvA"], "edges": ["cal>srvA"], "text": "**Abierta.** Salen ≈ 0.21 por segundo, al azar. Las ráfagas forman una fila corta delante del prefill; en la simulación de la lección, el TTFT p95 sale ≈ 4.3 s con 3 L40S." },
+        { "nodes": ["usr", "srvB"], "edges": ["usr>srvB", "srvB>usr"], "text": "**Cerrada.** 8 usuarios con respuestas de 27 s generan 8 ÷ 27 ≈ 0.296 por segundo: ≈ 1.4 veces la hora pico." }
+      ]
+    },
+    {
+      "id": "lento",
+      "label": "El servidor se pone el doble de lento",
+      "steps": [
+        { "nodes": ["cal", "srvA", "relA"], "edges": ["cal>srvA", "srvA>relA"], "text": "**Abierta.** El calendario sigue mandando 0.21/s. La fila crece, el p95 sube y **el reporte lo muestra**: es lo que vivirían los abogados." },
+        { "nodes": ["usr", "srvB", "relB"], "edges": ["usr>srvB", "srvB>usr", "srvB>relB"], "text": "**Cerrada.** Cada respuesta tarda 54 s: los 8 usuarios mandan 8 ÷ 54 ≈ 0.148 por segundo, la mitad. El servidor «mejora» porque le llega menos, y el reporte se ve mejor de lo que es." }
+      ]
+    },
+    {
+      "id": "tope",
+      "label": "Abierta con tope en el cliente",
+      "steps": [
+        { "nodes": ["cal", "srvA"], "edges": ["cal>srvA"], "text": "Se pide 0.42/s con `--max-concurrency 8`. Con 8 lugares y ≈ 27 s por respuesta, solo caben ≈ 0.29 por segundo: el resto espera **en el cliente**." },
+        { "nodes": ["relA", "relB"], "edges": [], "text": "Medido desde el envío, el TTFT p95 se ve mejor que la hora pico (≈ 2.4 s). Medido desde la hora planeada, la espera pasa de 3,000 s. Una prueba «abierta» con tope se comporta como cerrada." }
+      ]
+    }
+  ]
+}

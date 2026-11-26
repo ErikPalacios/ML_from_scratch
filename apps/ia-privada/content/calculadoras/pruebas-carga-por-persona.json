@@ -1,0 +1,46 @@
+{
+  "titulo": "Tokens/s del servidor contra tokens/s por persona",
+  "intro": "Aplica \\(v_p = T ÷ C\\) (lo que recibe cada persona), \\(C_{max} = T ÷ v_{min}\\) (cuántas caben sin bajar de la promesa) y, con los largos de una pregunta, cuántas peticiones por segundo son \\(T\\) si son tokens de salida o totales. Arranca con la gráfica del proveedor: 3,000 tokens/s, leída con 64 a la vez y con preguntas del despacho.",
+  "preajustes": {
+    "label": "Ejemplo",
+    "inicial": 0,
+    "opciones": [
+      { "label": "«3,000 tokens/s» con 64 a la vez", "valores": { "T": 3000, "C": 64, "tot": 0 }, "nota": "La gráfica del proveedor del ejemplo, leída como tokens de salida." },
+      { "label": "«3,000 tokens/s» totales con 64 a la vez", "valores": { "T": 3000, "C": 64, "tot": 1 }, "nota": "La misma cifra si incluye los tokens de entrada: con preguntas de 6,000 + 500, la salida es el 7.7 %." },
+      { "label": "Curva de NVIDIA en L40S: 3,676 con 250 a la vez", "valores": { "T": 3676, "C": 250, "tot": 0 }, "nota": "La curva publicada de NIM con Llama 3.1 8B que usa la lección «Concurrencia»." },
+      { "label": "Lo que dan 3 L40S del despacho: 120 con 6", "valores": { "T": 120, "C": 6, "tot": 0 }, "nota": "3 L40S × 2 conversaciones × 20 tokens/s: la capacidad de salida de la ficha (7,200 por minuto)." }
+    ]
+  },
+  "entradas": [
+    { "id": "T", "label": "Tokens por segundo publicados, \\(T\\)", "min": 1, "max": 100000, "paso": 1, "valor": 3000, "tipo": "numero" },
+    { "id": "C", "label": "Conversaciones generando a la vez en esa prueba, \\(C\\)", "min": 1, "max": 2048, "paso": 1, "valor": 64, "tipo": "numero" },
+    { "id": "tot", "label": "¿Qué tokens cuenta \\(T\\)?", "tipo": "opcion", "valor": 0, "opciones": [ { "valor": 0, "label": "Solo de salida" }, { "valor": 1, "label": "Totales (entrada + salida)" } ] },
+    { "id": "vmin", "label": "Velocidad prometida por persona, \\(v_{min}\\)", "min": 1, "max": 100, "paso": 1, "valor": 20, "unidad": "tokens/s" },
+    { "id": "tin", "label": "Tokens de entrada por pregunta, \\(t_{in}\\)", "min": 0, "max": 32000, "paso": 100, "valor": 6000 },
+    { "id": "tout", "label": "Tokens de salida por respuesta, \\(t_{out}\\)", "min": 10, "max": 4000, "paso": 10, "valor": 500 }
+  ],
+  "calculos": [
+    { "id": "fs", "formula": "tout / (tin + tout)" },
+    { "id": "Ts", "formula": "T * (1 - tot + tot * fs)" },
+    { "id": "vp", "formula": "Ts / C" }
+  ],
+  "salidas": [
+    { "label": "Fracción de salida en cada pregunta", "formula": "fs", "formato": "pct", "decimales": 1,
+      "cuenta": "{{tout|int}} ÷ ({{tin|int}} + {{tout|int}}) = **{{fs * 100|num|1}} %**" },
+    { "label": "Tokens de salida por segundo del servidor", "formula": "Ts", "formato": "num", "decimales": 1,
+      "nota": "si \\(T\\) era total, solo su parte de salida",
+      "cuenta": "{{T|int}} × {{1 - tot + tot * fs|corto|3}} = **{{Ts|num|1}} tokens/s**" },
+    { "label": "Por persona, \\(v_p\\)", "formula": "vp", "formato": "num", "decimales": 1, "barra": true,
+      "nota": "tokens por segundo que ve cada una",
+      "cuenta": "{{Ts|num|1}} ÷ {{C|int}} = **{{vp|num|1}} tokens/s**" },
+    { "label": "¿Cumple la promesa por persona?", "formula": "vp - vmin",
+      "veredicto": { "si": "Sí, en velocidad (falta saber el TTFT)", "no": "No: cada persona recibe menos de lo prometido" },
+      "cuenta": "{{vp|num|1}} − {{vmin|int}} = {{vp - vmin|num|1}}" },
+    { "label": "Personas a la vez que caben sin bajar de \\(v_{min}\\), \\(C_{max}\\)", "formula": "floor(Ts / vmin)", "formato": "int",
+      "cuenta": "⌊{{Ts|num|1}} ÷ {{vmin|int}}⌋ = **{{floor(Ts / vmin)|int}}**" },
+    { "label": "Preguntas por segundo que representa", "formula": "Ts / tout", "formato": "num", "decimales": 2,
+      "nota": "contra 0.21/s de la hora pico del despacho",
+      "cuenta": "{{Ts|num|1}} ÷ {{tout|int}} = **{{Ts / tout|num|2}} /s** = {{Ts / tout / 0.21|num|1}}× la hora pico" }
+  ],
+  "nota": "Ninguna de estas salidas dice el TTFT: un servidor puede dar 46.9 tokens/s a cada una de 64 personas y hacerlas esperar un minuto el primer token. Prueba: cambia a «Totales» con el ejemplo del proveedor y mira cómo las preguntas por segundo caen de 6 a 0.46."
+}

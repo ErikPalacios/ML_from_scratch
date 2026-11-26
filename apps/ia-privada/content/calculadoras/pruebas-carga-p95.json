@@ -1,0 +1,46 @@
+{
+  "titulo": "¿Cuántas peticiones para un percentil estable?",
+  "intro": "Aplica \\(r = ⌈q × n⌉\\) (el lugar del percentil), \\(k = n × (1 − q)\\) (cuántas quedan arriba), la banda aproximada \\(q ± 1.96 × sqrt{q(1 − q) ÷ n}\\), el mínimo para que exista el intervalo exacto, \\(⌈log(0.025) ÷ log(q)⌉\\), y la duración \\(D = n ÷ λ\\). Arranca con el despacho: el p95 de 200 peticiones a 0.21 por segundo.",
+  "preajustes": {
+    "label": "Ejemplo",
+    "inicial": 0,
+    "opciones": [
+      { "label": "p95 de 200 peticiones, a 0.21/s", "valores": { "qq": 95, "n": 200, "lam": 0.21 }, "nota": "Una prueba de 16 minutos. Con el método exacto, la banda va del p92.0 al p98.5." },
+      { "label": "p95 de 1,000 peticiones, a 0.21/s (el plan del despacho)", "valores": { "qq": 95, "n": 1000, "lam": 0.21 }, "nota": "La prueba que decide en el plan del despacho: ≈ 79 minutos, y se repite tres veces." },
+      { "label": "p99 de 1,000 peticiones, a 0.21/s", "valores": { "qq": 99, "n": 1000, "lam": 0.21 }, "nota": "Con el método exacto, del p98.3 al p99.7. La campana se acerca, pero en el p99 con pocas arriba es menos precisa." },
+      { "label": "p95 de 50 peticiones (una prueba apurada)", "valores": { "qq": 95, "n": 50, "lam": 0.21 }, "nota": "Menos de 72: no existe intervalo de 95 % para el p95. El «p95» es la tercera más lenta." }
+    ]
+  },
+  "entradas": [
+    { "id": "qq", "label": "Percentil, \\(q\\) (95 = el p95)", "min": 50, "max": 99.9, "paso": 0.1, "valor": 95 },
+    { "id": "n", "label": "Peticiones medidas, sin el calentamiento, \\(n\\)", "min": 10, "max": 100000, "paso": 1, "valor": 200, "tipo": "numero" },
+    { "id": "lam", "label": "Tasa de la prueba, \\(λ\\)", "min": 0.01, "max": 100, "paso": 0.01, "valor": 0.21, "unidad": "peticiones/s", "tipo": "numero" }
+  ],
+  "calculos": [
+    { "id": "q", "formula": "min(qq / 100, 0.9999)" },
+    { "id": "m", "formula": "1.96 * sqrt(q * (1 - q) / n)" },
+    { "id": "nmin", "formula": "ceil(log(0.025) / log(q))" }
+  ],
+  "salidas": [
+    { "label": "Lugar del percentil en la lista, \\(r\\)", "formula": "ceil(q * n)", "formato": "int",
+      "cuenta": "⌈{{q|corto|4}} × {{n|int}}⌉ = **{{ceil(q * n)|int}}.ª** de menor a mayor" },
+    { "label": "Peticiones arriba de él, \\(k\\)", "formula": "n * (1 - q)", "formato": "num", "decimales": 1,
+      "nota": "las que deciden el percentil",
+      "cuenta": "{{n|int}} × {{1 - q|corto|4}} = **{{n * (1 - q)|num|1}}**" },
+    { "label": "Mínimo para que exista el intervalo exacto de 95 %", "formula": "nmin", "formato": "int",
+      "cuenta": "⌈log(0.025) ÷ log({{q|corto|4}})⌉ = **{{nmin|int}} peticiones**" },
+    { "label": "¿Alcanzan tus peticiones?", "formula": "n - nmin",
+      "veredicto": { "si": "Sí: hay intervalo", "no": "No: el percentil es casi la más lenta" },
+      "cuenta": "{{n|int}} − {{nmin|int}} = {{n - nmin|int}}" },
+    { "label": "Banda aproximada del percentil verdadero, ± en puntos", "formula": "100 * m", "formato": "num", "decimales": 2, "barra": true,
+      "nota": "con la campana; exacta en la lección",
+      "cuenta": "1.96 × √({{q|corto|4}} × {{1 - q|corto|4}} ÷ {{n|int}}) = ±{{100 * m|num|2}} puntos · de **p{{max(100 * (q - m), 0)|num|1}}** a **p{{min(100 * (q + m), 100)|num|1}}**" },
+    { "label": "Duración de la prueba, \\(D\\)", "formula": "n / lam / 60", "formato": "num", "decimales": 1,
+      "nota": "minutos, sin el calentamiento",
+      "cuenta": "{{n|int}} ÷ {{lam|corto}} /s = {{n / lam|int}} s = **{{n / lam / 60|num|1}} min** ({{n / lam / 3600|num|2}} h)" },
+    { "label": "Peticiones para una banda de ± 1 punto", "formula": "ceil(3.8416 * q * (1 - q) / 0.0001)", "formato": "int",
+      "nota": "\\(n = 1.96^2 × q(1 − q) ÷ 0.01^2\\)",
+      "cuenta": "1.96² × {{q|corto|4}} × {{1 - q|corto|4}} ÷ 0.01² = **{{ceil(3.8416 * q * (1 - q) / 0.0001)|int}}** · a esta tasa, {{ceil(3.8416 * q * (1 - q) / 0.0001) / lam / 3600|num|1}} h" }
+  ],
+  "nota": "La banda es de percentiles, no de segundos: cuántos segundos son depende de la cola. Y supone peticiones independientes; en una fila no lo son del todo, así que la prueba que decide se repite. Prueba: sube a 1,000 y mira la banda bajar de ±3 a ±1.35 puntos; luego cambia a 99 y mira cómo el mínimo salta de 72 a 368."
+}

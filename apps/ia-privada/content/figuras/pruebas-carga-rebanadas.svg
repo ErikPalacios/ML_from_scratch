@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 430" role="img" aria-labelledby="f-pruebas-carga-rebanadas-t" class="f-svg" style="max-width:420px">
+<title id="f-pruebas-carga-rebanadas-t">El mismo 3,000 tokens por segundo repartido entre más personas a la vez. Con 8 a la vez, 375 tokens por segundo para cada una; con 64, 46.9; con 150, 20, justo la promesa del despacho; con 200, 15, abajo de la promesa. Una línea marca los 20 tokens por segundo. Abajo, la misma cifra leída de dos formas con preguntas del despacho de 6,000 tokens de entrada y 500 de salida: si son tokens de salida, 6 preguntas por segundo; si son totales, 0.46: trece veces menos.</title>
+<text class="f-l" x="14" y="24">«3,000 TOKENS/S», REPARTIDOS</text>
+<rect class="f-card" x="10" y="36" width="340" height="230" rx="16"/>
+<text class="f-s" x="24" y="60" style="font-size:12px">a la vez</text>
+<text class="f-s" x="96" y="60" style="font-size:12px">tokens/s por persona</text>
+<line class="f-linea" x1="163" y1="68" x2="163" y2="232" style="stroke-dasharray:4 4"/>
+<text class="f-s" x="163" y="250" text-anchor="middle" style="font-size:12px;font-weight:700">20 = la promesa</text>
+<text class="f-t" x="24" y="94" style="font-size:14px">8</text>
+<rect class="f-g" x="96" y="80" width="200" height="20" rx="4"/>
+<text class="f-s" x="302" y="95" style="font-size:12px;font-weight:700">375 ▸</text>
+<text class="f-t" x="24" y="134" style="font-size:14px">64</text>
+<rect class="f-g" x="96" y="120" width="156" height="20" rx="4"/>
+<text class="f-s" x="258" y="135" style="font-size:12px;font-weight:700">46.9</text>
+<text class="f-t" x="24" y="174" style="font-size:14px">150</text>
+<rect class="f-y" x="96" y="160" width="67" height="20" rx="4"/>
+<text class="f-s" x="170" y="175" style="font-size:12px;font-weight:700">20.0 justo</text>
+<text class="f-t" x="24" y="214" style="font-size:14px">200</text>
+<rect class="f-o" x="96" y="200" width="50" height="20" rx="4"/>
+<text class="f-s" x="170" y="215" style="font-size:12px;font-weight:700">15.0 no llega</text>
+<text class="f-l" x="14" y="294">¿DE SALIDA O TOTALES?</text>
+<rect class="f-card" x="10" y="306" width="164" height="114" rx="16"/>
+<text class="f-s" x="24" y="330" style="font-size:12px;font-weight:700">3,000 de salida</text>
+<text class="f-s" x="24" y="350" style="font-size:12px">÷ 500 por respuesta</text>
+<text class="f-t" x="24" y="380">6 preguntas/s</text>
+<text class="f-s" x="24" y="404" style="font-size:12px">≈ 29× la hora pico</text>
+<rect class="f-card" x="186" y="306" width="164" height="114" rx="16"/>
+<text class="f-s" x="200" y="330" style="font-size:12px;font-weight:700">3,000 totales</text>
+<text class="f-s" x="200" y="350" style="font-size:12px">÷ 6,500 por pregunta</text>
+<text class="f-t" x="200" y="380">0.46 preguntas/s</text>
+<text class="f-s" x="200" y="404" style="font-size:12px">2.2× la hora pico</text>
+</svg>

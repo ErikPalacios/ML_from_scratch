@@ -1,0 +1,70 @@
+{
+  "titulo": "La prueba de carga del despacho: qué se mide y dónde",
+  "width": 78,
+  "height": 50,
+  "lanes": [
+    { "id": "cliente", "label": "La máquina de la prueba · otra VM", "kind": "monitor", "x": 0, "y": 0, "w": 78, "h": 15 },
+    { "id": "servidor", "label": "El servidor del despacho · la GPU rentada del piloto", "kind": "online", "x": 0, "y": 17, "w": 78, "h": 33 }
+  ],
+  "nodes": [
+    {
+      "id": "datos", "label": "Dataset de carga", "sub": "≥ 1,000 prompts", "badge": "1", "kind": "store",
+      "x": 2, "y": 5, "w": 18, "h": 8,
+      "note": "El [[dataset-de-carga|dataset de carga]]: prompts sintéticos de ≈ 6,000 tokens, todos con las mismas instrucciones de ≈ 400 al inicio y cinco fragmentos distintos. Ningún expediente real."
+    },
+    {
+      "id": "gen", "label": "Generador", "sub": "vllm bench serve", "badge": "2", "kind": "client",
+      "x": 30, "y": 5, "w": 18, "h": 8,
+      "note": "Sigue un calendario de Poisson a 0.21/s ([[carga-abierta|carga abierta]]) y anota de cada petición la hora planeada, la de envío, la del primer token, la de cada token y la del final. **Aquí se miden** TTFT, TPOT, ITL y la latencia total: donde estaría la persona."
+    },
+    {
+      "id": "res", "label": "Resultados", "sub": "JSON por petición", "badge": "6", "kind": "store",
+      "x": 58, "y": 5, "w": 18, "h": 8,
+      "note": "Cada petición con sus tiempos y sus errores, más las condiciones (GPU, motor, tasa, semilla) escritas adentro. Con eso se recalcula cualquier percentil y su [[intervalo-del-percentil|intervalo]], y se compara una corrida con otra."
+    },
+    {
+      "id": "gw", "label": "Gateway", "sub": "LiteLLM · clave de pruebas", "badge": "3", "kind": "edge",
+      "x": 30, "y": 21, "w": 18, "h": 8,
+      "note": "La misma puerta que usa Open WebUI: autentica la clave de pruebas (con su propia cuota, para no medir 429), reparte entre las tres copias y deja una fila por pregunta. Si el registro cuenta menos peticiones que el generador, algo se perdió en medio."
+    },
+    { "id": "r1", "label": "Copia 1", "sub": "vLLM · L40S 1", "kind": "gpu", "x": 4, "y": 37, "w": 16, "h": 8, "note": "[[vllm|vLLM]] 0.34.0 con Qwen3 32B AWQ y `--max-num-seqs 8`, igual que en producción." },
+    { "id": "r2", "label": "Copia 2", "sub": "vLLM · L40S 2", "kind": "gpu", "x": 31, "y": 37, "w": 16, "h": 8, "note": "La segunda copia. El reparto entre las tres lo decide el gateway: al azar, la menos ocupada o la de la conversación." },
+    { "id": "r3", "label": "Copia 3", "sub": "vLLM · L40S 3", "kind": "gpu", "x": 58, "y": 37, "w": 16, "h": 8, "note": "La tercera copia. Entre corrida y corrida se reinicia o se vacía su cache, para que la siguiente no herede prompts." },
+    {
+      "id": "met", "label": "/metrics", "sub": "aciertos del cache", "badge": "5", "kind": "monitor",
+      "x": 58, "y": 21, "w": 18, "h": 8,
+      "note": "Lo que solo ve el servidor: `vllm:prefix_cache_queries` y `vllm:prefix_cache_hits` (¿los aciertos se parecen al ≈ 6.7 % esperado?), y en una prueba larga, la memoria y la temperatura de cada GPU."
+    }
+  ],
+  "edges": [
+    { "from": "datos", "to": "gen", "kind": "offline", "label": "prompts", "fromSide": "r", "toSide": "l" },
+    { "from": "gen", "to": "gw", "kind": "online", "label": "0.21/s", "fromSide": "b", "toSide": "t" },
+    { "from": "gw", "to": "r1", "kind": "online", "fromSide": "b", "toSide": "t", "via": [[39, 33], [12, 33]] },
+    { "from": "gw", "to": "r2", "kind": "online", "fromSide": "b", "toSide": "t" },
+    { "from": "gw", "to": "r3", "kind": "online", "fromSide": "b", "toSide": "t", "via": [[39, 33], [66, 33]] },
+    { "from": "r3", "to": "met", "kind": "monitor", "label": "contadores", "fromSide": "t", "toSide": "b", "dashed": true },
+    { "from": "gen", "to": "res", "kind": "monitor", "label": "tiempos", "fromSide": "r", "toSide": "l" }
+  ],
+  "flows": [
+    {
+      "id": "peticion",
+      "label": "Una petición de la prueba",
+      "steps": [
+        { "nodes": ["datos", "gen"], "edges": ["datos>gen"], "text": "**1 · El calendario.** El generador toma el siguiente prompt del dataset. Según el calendario de Poisson, le toca salir a las 10:14:07.3, y sale a esa hora aunque la anterior no haya terminado." },
+        { "nodes": ["gen", "gw"], "edges": ["gen>gw"], "text": "**2 · La puerta.** Llega al gateway con la clave de pruebas, como llegaría la pregunta de una abogada desde Open WebUI. El gateway la reconoce y la reparte." },
+        { "nodes": ["gw", "r2"], "edges": ["gw>r2"], "text": "**3 · Una copia.** La copia 2 tiene otra pregunta leyendo su prompt; esta espera su turno y luego hace su prefill de ≈ 2.38 s. El primer token vuelve por el stream." },
+        { "nodes": ["gen", "res"], "edges": ["gen>res"], "text": "**4 · Los relojes.** El generador anota: TTFT (del envío al primer token), cada intervalo entre tokens, el final. Si salió tarde respecto del calendario, también lo anota: es la [[latencia-programada|latencia desde la hora programada]]." }
+      ]
+    },
+    {
+      "id": "verificar",
+      "label": "Comprobar que la prueba probó lo que creías",
+      "steps": [
+        { "nodes": ["gen"], "edges": [], "text": "**La tasa.** ¿Salieron ≈ 0.21 por segundo? Si salieron menos, el generador se atrasó o un tope lo frenó: [[omision-coordinada|omisión coordinada]]." },
+        { "nodes": ["gw"], "edges": [], "text": "**El conteo.** ¿El registro del gateway tiene las mismas 1,000 filas que el generador? ¿Hubo 429 por cuota o 5xx?" },
+        { "nodes": ["r3", "met"], "edges": ["r3>met"], "text": "**El cache.** ¿Los aciertos del prefix cache son ≈ 6.7 % (las instrucciones compartidas) o muchos más (el dataset se repite)?" },
+        { "nodes": ["res"], "edges": [], "text": "**Las peticiones detrás de cada percentil.** Con 1,000, el p95 verdadero cae entre el p93.6 y el p96.4 de lo medido." }
+      ]
+    }
+  ]
+}

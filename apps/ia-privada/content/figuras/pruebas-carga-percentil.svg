@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 330" role="img" aria-labelledby="f-pruebas-carga-percentil-t" class="f-svg" style="max-width:420px">
+<title id="f-pruebas-carga-percentil-t">Dónde puede estar el p95 verdadero según cuántas peticiones mediste, con un intervalo de confianza de 95 por ciento por estadísticos de orden. Con 100 peticiones, del p90 al p100. Con 200, del p92.0 al p98.5. Con 1,000, del p93.6 al p96.4. Con 5,000, del p94.4 al p95.6. Una línea vertical marca el p95. A la tasa del despacho de 0.21 por segundo, las pruebas duran 8 minutos, 16 minutos, 79 minutos y 6.6 horas.</title>
+<text class="f-l" x="14" y="24">EL P95 VERDADERO ESTÁ EN ALGÚN LUGAR DE LA BARRA</text>
+<rect class="f-card" x="10" y="36" width="340" height="284" rx="16"/>
+<line class="f-linea" x1="209" y1="56" x2="209" y2="262" style="stroke-dasharray:4 4"/>
+<text class="f-s" x="209" y="52" text-anchor="middle" style="font-size:12px;font-weight:700">p95</text>
+<text class="f-t" x="24" y="78" style="font-size:14px">100</text>
+<text class="f-s" x="250" y="78" style="font-size:12px">8 min</text>
+<rect class="f-o" x="88" y="86" width="242" height="16" rx="4"/>
+<text class="f-s" x="88" y="116" style="font-size:11px">p90</text>
+<text class="f-s" x="330" y="116" text-anchor="end" style="font-size:11px">p100</text>
+<text class="f-t" x="24" y="134" style="font-size:14px">200</text>
+<text class="f-s" x="250" y="134" style="font-size:12px">16 min</text>
+<rect class="f-y" x="137" y="142" width="157" height="16" rx="4"/>
+<text class="f-s" x="137" y="172" style="font-size:11px">p92.0</text>
+<text class="f-s" x="294" y="172" text-anchor="end" style="font-size:11px">p98.5</text>
+<text class="f-t" x="24" y="190" style="font-size:14px">1,000</text>
+<text class="f-s" x="250" y="190" style="font-size:12px">79 min</text>
+<rect class="f-g" x="175" y="198" width="68" height="16" rx="4"/>
+<text class="f-s" x="175" y="228" text-anchor="end" style="font-size:11px">p93.6</text>
+<text class="f-s" x="243" y="228" style="font-size:11px">p96.4</text>
+<text class="f-t" x="24" y="246" style="font-size:14px">5,000</text>
+<text class="f-s" x="250" y="246" style="font-size:12px">6.6 h</text>
+<rect class="f-b" x="195" y="254" width="29" height="16" rx="4"/>
+<text class="f-s" x="24" y="292" style="font-size:12px">peticiones medidas · duración a 0.21/s</text>
+<text class="f-s" x="24" y="310" style="font-size:12px">eje de p88 a p100</text>
+<line class="f-linea" x1="40" y1="278" x2="330" y2="278"/>
+<line class="f-linea" x1="40" y1="274" x2="40" y2="282"/>
+<line class="f-linea" x1="330" y1="274" x2="330" y2="282"/>
+</svg>

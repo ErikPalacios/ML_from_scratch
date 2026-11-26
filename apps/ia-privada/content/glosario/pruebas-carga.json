@@ -1,0 +1,144 @@
+{ "terminos": [
+  {
+    "id": "prueba-de-carga",
+    "termino": "Prueba de carga",
+    "en": "load test",
+    "corto": "Un experimento en el que un programa le manda a un servicio peticiones sintéticas a un ritmo controlado y anota cuánto tarda cada una, para saber cómo se comporta con el tráfico de verdad antes de que llegue.",
+    "largo": "El programa que manda las peticiones es el generador de carga. En un LLM anota de cada petición la hora de envío, la del primer token, la de cada token y la del final; con eso salen [[ttft|TTFT]], [[tpot|TPOT]], [[itl|ITL]] y la latencia total, en p50, p95 y p99, más los tokens por segundo y los errores. Para que diga la verdad necesita el [[dataset-de-carga|dataset]] del caso, la forma de llegada correcta ([[carga-abierta|abierta]] o [[carga-cerrada|cerrada]]), [[calentamiento]], suficientes peticiones para que el percentil sea estable y un generador que no sea el cuello. Hay varias: la [[rampa]], la [[prueba-de-resistencia|de resistencia]], la de picos y la de fallas.",
+    "analogia": "Un simulacro de evacuación: no esperas al incendio para saber cuánto tarda el edificio en vaciarse; lo ensayas con gente real y un cronómetro. Dónde se rompe: en el simulacro la gente sabe que es un ensayo y camina tranquila; el generador de carga no se cansa ni se distrae, y por eso su tráfico se tiene que diseñar para parecerse al de verdad.",
+    "ejemplo": "La prueba del despacho manda 1,000 preguntas sintéticas de ≈ 6,000 tokens al gateway, a 0.21 por segundo, y compara el TTFT p95 con la promesa de 2 s.",
+    "ver": ["carga-abierta", "dataset-de-carga", "omision-coordinada", "benchmark-honesto"],
+    "leccion": "pruebas-carga",
+    "sensei": "latencia"
+  },
+  {
+    "id": "carga-abierta",
+    "termino": "Carga abierta",
+    "en": "open-loop load",
+    "corto": "Una forma de generar tráfico en la que cada petición sale a su hora, según un calendario decidido antes, pase lo que pase con las respuestas anteriores. Lo que se fija es cuántas llegan por segundo.",
+    "largo": "Se parece a la gente de verdad: nadie espera a que termine la pregunta de otro para hacer la suya. El calendario suele ser un proceso de Poisson (huecos al azar con una media fija), que trae ráfagas. Es la carga para medir la latencia que se sentirá a una tasa dada. Su riesgo: si la tasa pasa de lo que el servidor aguanta, la fila crece sin tope y la prueba mide la fila. En `vllm bench serve` es `--request-rate`; ponerle `--max-concurrency` la vuelve en parte cerrada.",
+    "analogia": "Los clientes de una taquería un domingo: llegan cuando les da hambre, no cuando el taquero se desocupa. Dónde se rompe: los clientes de verdad se van si la fila es enorme; el calendario de una prueba abierta no se va nunca.",
+    "ejemplo": "El despacho prueba su hora pico con llegadas de Poisson a 0.21 por segundo: en promedio una cada 4.8 s, a veces dos casi juntas.",
+    "ver": ["carga-cerrada", "omision-coordinada", "rampa"],
+    "leccion": "pruebas-carga",
+    "sensei": "latencia"
+  },
+  {
+    "id": "carga-cerrada",
+    "termino": "Carga cerrada",
+    "en": "closed-loop load",
+    "corto": "Una forma de generar tráfico con N usuarios virtuales: cada uno manda su petición, espera la respuesta y entonces manda la siguiente. Lo que se fija es cuántas hay adentro; la tasa sale sola.",
+    "largo": "Por la [[ley-de-little|ley de Little]], la tasa que genera es N ÷ W (usuarios entre lo que tarda cada respuesta): si el servidor se frena, la prueba le manda menos. Por eso esconde los peores momentos y no sirve para medir la promesa a una tasa. Sí sirve para encontrar el techo y dibujar la curva de concurrencia, y nunca explota: con N adentro, la fila no pasa de N − 1. Las tablas de «100 a la vez» son cerradas.",
+    "analogia": "Una mesa de 8 en un restaurante que solo pide el siguiente platillo cuando termina el anterior: si la cocina se tarda, la mesa pide menos. Dónde se rompe: la mesa se impacienta y se queja; el usuario virtual espera para siempre sin quejarse.",
+    "ejemplo": "8 conversaciones a la vez con respuestas de 27 s generan 8 ÷ 27 ≈ 0.296 por segundo; si cada respuesta tarda 54 s, la misma prueba baja sola a 0.148.",
+    "ver": ["carga-abierta", "omision-coordinada", "ley-de-little"],
+    "leccion": "pruebas-carga",
+    "sensei": "latencia"
+  },
+  {
+    "id": "omision-coordinada",
+    "termino": "Omisión coordinada",
+    "en": "coordinated omission",
+    "corto": "El error de medir solo las peticiones que el generador alcanzó a mandar cuando el propio generador se frenó porque el servidor iba lento: deja de medir justo los peores momentos y los percentiles salen mejores que la realidad.",
+    "largo": "El nombre es de Gil Tene, autor de wrk2: el generador se «coordina» con el servidor para no medir durante la latencia alta. Pasa en toda [[carga-cerrada|carga cerrada]] y en una abierta con tope de peticiones en vuelo en el cliente. El remedio es medir la [[latencia-programada|latencia desde la hora programada]] y comparar la tasa pedida con la que de verdad salió. A noviembre de 2026, vLLM 0.34.0 la mide con `client_queue_time` y `e2el_including_client_queue`, y GuideLLM 0.8.1 con `request_dispatch_delay` y `request_scheduled_latency`.",
+    "analogia": "El repartidor que anota cuánto tarda desde que sale con la pizza hasta que la entrega: el día que la moto se descompone una hora, sus tiempos siguen perfectos y los clientes que esperaron no aparecen. Dónde se rompe: los clientes llaman a quejarse; las peticiones que no salieron no se quejan.",
+    "ejemplo": "Una prueba del despacho que pide 0.42 por segundo con un tope de 8 en el cliente manda en realidad 0.292 y reporta un TTFT p95 de 2.4 s; medida desde la hora programada, la latencia pasa de 3,000 s.",
+    "ver": ["latencia-programada", "carga-abierta", "carga-cerrada"],
+    "leccion": "pruebas-carga",
+    "sensei": "latencia"
+  },
+  {
+    "id": "latencia-programada",
+    "termino": "Latencia desde la hora programada",
+    "en": "schedule-relative latency",
+    "corto": "La latencia contada desde la hora en que la petición tenía que salir según el calendario de la prueba, no desde que de verdad salió. Incluye lo que esperó en el generador.",
+    "largo": "Es la medida que corrige la [[omision-coordinada|omisión coordinada]]: si el generador se atrasó (por un tope de concurrencia o porque se saturó), esa espera la siente quien pidió y aquí sí cuenta. wrk2 la usa desde el principio. A noviembre de 2026: en vLLM 0.34.0, `e2el_including_client_queue` (solo con `--max-concurrency` y tasa finita, y hay que pedirla en `--percentile-metrics`); en GuideLLM 0.8.1, `request_scheduled_latency`. El TTFT de vLLM sigue contándose desde el envío real.",
+    "ejemplo": "Con un tope de 8 y una tasa pedida de 0.42/s, la latencia total p95 medida desde el envío es de 27 s y desde la hora programada pasa de 3,000 s.",
+    "ver": ["omision-coordinada", "carga-abierta"],
+    "leccion": "pruebas-carga"
+  },
+  {
+    "id": "calentamiento",
+    "termino": "Calentamiento",
+    "en": "warm-up",
+    "corto": "Las primeras peticiones de una prueba de carga, que se mandan pero no se cuentan, porque un servidor recién arrancado es más lento por razones que no tienen que ver con la carga.",
+    "largo": "Al arrancar se abren conexiones por primera vez, los caches están vacíos y el motor hace trabajo de preparación. Si esas peticiones entran al reporte, el p99 refleja el arranque y no el servicio. En `vllm bench serve` se fija con `--num-warmups`; en GuideLLM, con `warmup=` en el perfil (y `cooldown=` descarta el final, cuando el servidor se vacía). Se repite después de cada reinicio.",
+    "ejemplo": "El despacho descarta las primeras 20 peticiones de cada corrida.",
+    "ver": ["prueba-de-carga"],
+    "leccion": "pruebas-carga"
+  },
+  {
+    "id": "dataset-de-carga",
+    "termino": "Dataset de carga",
+    "en": "load-test dataset",
+    "corto": "La lista de peticiones que manda el generador en una prueba de carga: cada una con su texto de entrada y su tope de salida. Tiene que parecerse al tráfico real en largos, variación y en lo que se repite.",
+    "largo": "Es lo que más cambia el resultado: en la misma GPU, preguntas de 200 tokens y de 5,000 dan tokens por segundo casi 5 veces distintos. Debe copiar el [[perfil-de-carga|perfil de carga]]: largo medio y variación de la entrada y la salida, y el prefijo que de verdad se comparte (el prompt de sistema) sin repetir lo que no se comparte, porque con [[prefix-caching|prefix caching]] un prompt repetido es casi gratis. Con datos sensibles, el dataset se escribe sintético. Formatos comunes: JSONL con un campo `prompt`, datasets públicos (ShareGPT) o trazas grabadas.",
+    "ejemplo": "El del despacho: ≥ 1,000 prompts de ≈ 6,000 tokens (± 30 %), las mismas instrucciones de ≈ 400 al inicio de todos y cinco fragmentos sintéticos distintos en cada uno; tope de 500 de salida.",
+    "ver": ["prueba-de-carga", "prefix-caching", "perfil-de-carga"],
+    "leccion": "pruebas-carga"
+  },
+  {
+    "id": "intervalo-del-percentil",
+    "termino": "Intervalo de confianza de un percentil",
+    "en": "percentile confidence interval",
+    "corto": "El rango de lugares de la lista ordenada entre los que cae el percentil verdadero con cierta probabilidad. Dice qué tan en serio tomar un p95 medido con pocas peticiones.",
+    "largo": "Se calcula con estadísticos de orden, sin suponer la forma de la distribución: cuántas de n peticiones quedan debajo del p95 verdadero sigue una binomial con probabilidad 0.95, y de ella salen dos lugares l y u. Con n grande se aproxima con q ± 1.96 × √(q(1 − q) ÷ n). Para el p95 hacen falta al menos 72 peticiones para que exista; para el p99, 368. Supone peticiones independientes, y en una fila no lo son del todo: por eso, además, se repite la prueba.",
+    "ejemplo": "Con 200 peticiones, el p95 verdadero está entre la 184.ª y la 197.ª (p92.0 a p98.5); con 1,000, entre la 936.ª y la 964.ª (p93.6 a p96.4).",
+    "ver": ["prueba-de-carga", "error-estandar"],
+    "leccion": "pruebas-carga",
+    "sensei": "percentiles"
+  },
+  {
+    "id": "rampa",
+    "termino": "Rampa",
+    "en": "ramp test",
+    "corto": "Una prueba de carga que sube la tasa poco a poco, por escalones o en línea recta, para ver dónde empieza a empeorar todo (el codo) y cuánto margen hay antes de él.",
+    "largo": "Por escalones, cada tasa es una corrida con su calentamiento y su p95; en línea recta, se encuentra el [[codo]] rápido pero con pocas peticiones por tramo. A noviembre de 2026, la rampa de `vllm bench serve` solo acepta tasas enteras de peticiones por segundo; GuideLLM (`rampup_duration`) y AIPerf (`--request-rate-ramp-duration` o una lista de tasas) aceptan fracciones.",
+    "ejemplo": "El despacho sube de 0.10 a 0.42 por segundo (el doble de la hora pico): en una rampa continua de 30 minutos son ≈ 468 peticiones.",
+    "ver": ["codo", "prueba-de-carga"],
+    "leccion": "pruebas-carga",
+    "sensei": "latencia"
+  },
+  {
+    "id": "prueba-de-resistencia",
+    "termino": "Prueba de resistencia",
+    "en": "soak test",
+    "corto": "Una prueba de carga que sostiene el tráfico de diseño durante horas, para encontrar lo que solo aparece con el tiempo: memoria que crece, GPUs que se calientan y se frenan, discos que se llenan.",
+    "largo": "No busca el codo: compara el p95 de la primera hora con el de la última a la misma tasa. Si empeora, algo se está gastando: una fuga de memoria, el reloj de una GPU que baja por calor (*thermal throttling*), un registro que crece. Tiene sentido repetirla con el equipo definitivo en su cuarto, porque el enfriamiento de una GPU rentada lo cuida otro.",
+    "ejemplo": "El despacho sostiene 0.21 preguntas por segundo durante una jornada de 8 a 10 h y anota el TTFT p95 de cada hora.",
+    "ver": ["prueba-de-carga", "rampa"],
+    "leccion": "pruebas-carga",
+    "sensei": "latencia"
+  },
+  {
+    "id": "benchmark-honesto",
+    "termino": "Benchmark honesto",
+    "en": "honest benchmark",
+    "corto": "Una medición publicada que declara todo lo necesario para repetirla: hardware, modelo, cuantización, motor y flags, largos, carga, métricas con percentil, prefix caching, qué tokens cuenta y quién midió.",
+    "largo": "No es uno que dé números chicos o grandes: es uno que dice sus [[condiciones-del-benchmark|condiciones]], para que sepas si se parece a tu caso. Reporta el throughput **a un SLO** ([[goodput]]), no el máximo pasado el [[codo]]; percentiles con cuántas peticiones detrás; y deja el comando, el dataset y la semilla. Un número sin condiciones no es falso, pero no es tu caso: se vuelve una pregunta para tu propia [[prueba-de-carga|prueba de carga]].",
+    "analogia": "La ficha técnica de un coche que dice el rendimiento de combustible junto con el ciclo de manejo con que se midió. Dónde se rompe: el ciclo de manejo es uno para todos los coches; en LLMs cada fabricante elige su propio ciclo.",
+    "ejemplo": "«3,000 tokens/s» no es honesto ni deshonesto: no dice a cuántos atendía, con qué TTFT, con qué largos ni si eran tokens de salida o totales.",
+    "ver": ["condiciones-del-benchmark", "benchmark", "mlperf", "goodput"],
+    "leccion": "pruebas-carga"
+  },
+  {
+    "id": "condiciones-del-benchmark",
+    "termino": "Condiciones del benchmark",
+    "en": "benchmark conditions",
+    "corto": "La lista de lo que un benchmark de inferencia tiene que declarar para que su número se pueda comparar: GPU y cuántas, modelo exacto, cuantización, motor y flags, largos de entrada y salida, carga, métricas y percentil, prefix caching, tokens de salida o totales, y quién midió.",
+    "largo": "Cada condición cambia el resultado por sí sola: preguntas cortas abaratan el prefill; FP8 contra FP16 es casi otra máquina; una concurrencia enorme da más tokens/s con TTFT imposibles; prompts repetidos con [[prefix-caching|prefix caching]] inflan todo; «tokens totales» con entradas largas puede ser 13 veces «tokens de salida». Cada condición que una gráfica no declara se vuelve un renglón que mide el piloto.",
+    "ejemplo": "De la gráfica del proveedor del despacho salen seis preguntas para el piloto: qué tokens cuenta, qué cuantización, qué largos, qué carga y con qué TTFT, si hubo prompts repetidos y quién midió.",
+    "ver": ["benchmark-honesto", "benchmark"],
+    "leccion": "pruebas-carga"
+  },
+  {
+    "id": "mlperf",
+    "termino": "MLPerf Inference",
+    "en": "MLPerf Inference",
+    "corto": "El benchmark de la industria para inferencia, de MLCommons: todos corren la misma carga con las mismas reglas de calidad y latencia, y los resultados los revisan los demás participantes.",
+    "largo": "A noviembre de 2026 la versión vigente es la v6.1 (16 de septiembre de 2026). Sus escenarios dicen cómo llegan las consultas: Single stream y Multistream (la siguiente al terminar), **Server** (llegadas de Poisson; reporta la mayor tasa a la que se cumple la latencia en el p99: un goodput) y **Offline** (todo junto al inicio; reporta throughput). «Interactive» es Server con límites más estrictos. Exige ≈ 99 % de la calidad de referencia. Sus cargas de LLM (Llama 3.1 8B, Llama 2 70B, Llama 3.1 405B, Mixtral 8x7B, DeepSeek-R1, GPT-OSS-120B) no son un 32B con 6,000 tokens de entrada: compara hardware con reglas parejas, no responde si se cumple tu promesa.",
+    "ejemplo": "En Llama 2 70B, el escenario Server exige TTFT ≤ 2 s y TPOT ≤ 200 ms en el p99: 5 tokens/s por persona, contra los 20 del despacho.",
+    "ver": ["benchmark-honesto", "carga-abierta", "goodput"],
+    "leccion": "pruebas-carga"
+  }
+]}
