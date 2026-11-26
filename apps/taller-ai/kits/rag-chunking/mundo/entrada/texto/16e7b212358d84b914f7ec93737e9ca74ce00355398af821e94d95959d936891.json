@@ -1,0 +1,7 @@
+{
+ "hash_crudo": "16e7b212358d84b914f7ec93737e9ca74ce00355398af821e94d95959d936891",
+ "necesita_ocr": false,
+ "parser": "v1",
+ "sha256_texto": "7ee9ea7c59309da77f4be68bb49371f5107b33c2c4ebb1dfb9bf4b79efd5edc4",
+ "texto": "# Comisiones por categoría\nLa comisión se cobra sobre el precio de venta sin IVA y se descuenta del pago a quien vende. El pago se hace los días que marca la tabla, contados desde la entrega.\n\n## Tabla vigente\nCategoría: Electrónica; Comisión: 8 %; Días para pagar a quien vende: 15\nCategoría: Moda; Comisión: 12 %; Días para pagar a quien vende: 10\nCategoría: Hogar; Comisión: 10 %; Días para pagar a quien vende: 10\nCategoría: Juguetes; Comisión: 11 %; Días para pagar a quien vende: 10\n\n## Excepciones\nDurante la temporada alta (noviembre y diciembre) la comisión de Moda baja a 10 % para vendedores con calificación mayor a 4.5."
+}

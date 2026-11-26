@@ -1,0 +1,7 @@
+{
+ "hash_crudo": "6b1b083a441cdc7da2405afa4fb677dd80bc7ef6fffb0582682bd31f444c3082",
+ "necesita_ocr": false,
+ "parser": "v1",
+ "sha256_texto": "c5b9aa212bdc0a9e0380e48f60799a37274ba4fc0d4422f3dd3888e1bbfc1e9d",
+ "texto": "# Reembolsos\nEl reembolso vuelve siempre al mismo método con el que se pagó. Lo que cambia es cuánto tarda en verse en la cuenta de quien compró.\n\n## Tiempos por método de pago\nMétodo de pago: Tarjeta de crédito; Días hábiles para el reembolso: 5 a 10\nMétodo de pago: Tarjeta de débito; Días hábiles para el reembolso: 3 a 7\nMétodo de pago: Saldo del marketplace; Días hábiles para el reembolso: 1\nMétodo de pago: Pago en tienda; Días hábiles para el reembolso: 10 (se devuelve como saldo)"
+}

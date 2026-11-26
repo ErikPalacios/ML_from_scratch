@@ -1,0 +1,7 @@
+{
+ "hash_crudo": "7a9305b8ce1d25312e3f8f6e5f449f7ef309cfec758b037d132768a4ebc48579",
+ "necesita_ocr": false,
+ "parser": "v1",
+ "sha256_texto": "b95d0da6ea28055f09498575d1c51f5bab5b96f19dbfd718ca7b4c84dcebf4e1",
+ "texto": "# Inventario de fin de mes\nEl último día hábil de cada mes se cuenta el inventario de los almacenes propios. El acta firmada se escanea y se guarda en la unidad compartida de operaciones."
+}

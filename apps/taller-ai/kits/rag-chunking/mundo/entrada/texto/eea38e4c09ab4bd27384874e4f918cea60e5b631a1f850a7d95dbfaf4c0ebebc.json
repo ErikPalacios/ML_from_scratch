@@ -1,0 +1,7 @@
+{
+ "hash_crudo": "eea38e4c09ab4bd27384874e4f918cea60e5b631a1f850a7d95dbfaf4c0ebebc",
+ "necesita_ocr": false,
+ "parser": "v1",
+ "sha256_texto": "1d4600756fa9fbb198b021c10c636c926cb851a03f539aa647dc568f3e4c47de",
+ "texto": "# Macros de respuesta\nLas macros son respuestas base. Siempre se personalizan con el nombre de la persona y el número de pedido antes de enviarlas."
+}

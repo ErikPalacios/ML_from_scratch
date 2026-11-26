@@ -1,0 +1,3 @@
+# Versiones fijadas: así el kit corre igual en tu Mac hoy y dentro de seis meses.
+pyyaml==6.0.3
+tokenizers==0.23.3

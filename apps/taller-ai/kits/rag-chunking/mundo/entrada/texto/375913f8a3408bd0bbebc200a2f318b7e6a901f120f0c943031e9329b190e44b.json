@@ -1,0 +1,7 @@
+{
+ "hash_crudo": "375913f8a3408bd0bbebc200a2f318b7e6a901f120f0c943031e9329b190e44b",
+ "necesita_ocr": false,
+ "parser": "v1",
+ "sha256_texto": "edf2d953b39d2cb513f7e79f851eb2e5b2229632092d9af035ac68886b6222d4",
+ "texto": "# Macro: cambio de dirección\nLa dirección solo se puede cambiar antes de que el pedido salga del almacén. Después, ofrece recoger en sucursal.\n\n## Antes de enviarla\nPersonaliza el saludo y confirma el número de pedido."
+}

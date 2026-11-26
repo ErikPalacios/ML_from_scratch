@@ -1,0 +1,9 @@
+# lo que crea el mundo y lo que produce tu chunking
+almacen/
+chunks/
+modelo/
+.taller/
+.respaldo/
+.venv/
+__pycache__/
+*.pyc
