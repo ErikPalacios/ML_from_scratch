@@ -1,0 +1,59 @@
+{
+ "acl": [
+  [
+   "group:operaciones@marketplace.test",
+   "group:soporte@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:1011#000",
+   "doc_id": "wiki:1011",
+   "orden": 0,
+   "ruta": [
+    "Macro: factura"
+   ],
+   "texto": "Macro: factura\n\n# Macro: factura\nLa factura se pide desde el detalle del pedido dentro del mismo mes de la compra. Fuera de ese mes, la emite quien vende.",
+   "titulo": "Macro: factura",
+   "tokens": 42,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/api/paginas/1011",
+   "version": "1"
+  },
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:1011#001",
+   "doc_id": "wiki:1011",
+   "orden": 1,
+   "ruta": [
+    "Macro: factura",
+    "Antes de enviarla"
+   ],
+   "texto": "Macro: factura › Antes de enviarla\n\n## Antes de enviarla\nPersonaliza el saludo y confirma el número de pedido.",
+   "titulo": "Macro: factura",
+   "tokens": 30,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/api/paginas/1011",
+   "version": "1"
+  }
+ ],
+ "doc_id": "wiki:1011",
+ "hash": "2718cc078c31d58aa1b9d4c0816ec80b43200404233dbb062d25af513ed943ff",
+ "huella": "0e80943c7995",
+ "sha256_texto": "8198c12588aab447790bd253acdd7a873f0c27df32a10b9d159227f7e38cccc4",
+ "titulo": "Macro: factura",
+ "url": "http://localhost:8120/wiki/api/paginas/1011",
+ "version": "1"
+}

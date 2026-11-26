@@ -1,0 +1,38 @@
+{
+ "acl": [
+  [
+   "group:operaciones@marketplace.test",
+   "user:jorge.paz@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "user:jorge.paz@marketplace.test"
+    ]
+   ],
+   "chunk_id": "drive:d09#000",
+   "doc_id": "drive:d09",
+   "orden": 0,
+   "ruta": [
+    "Plan de temporada alta"
+   ],
+   "texto": "Plan de temporada alta\n\nTemporada alta 2026\nDel 15 de noviembre al 6 de enero se contratan 40 agentes temporales.\nLos almacenes abren también los domingos.\nCorte de pedidos\nEl último pedido con entrega antes de Navidad se acepta el 19 de diciembre.",
+   "titulo": "Plan de temporada alta.pdf",
+   "tokens": 59,
+   "traslape": 0,
+   "url": "http://localhost:8120/drive/v3/files/d09",
+   "version": "1"
+  }
+ ],
+ "doc_id": "drive:d09",
+ "hash": "89909e2259cbdc44d25ddeec8ba2f807dc33ce38e88747532c00a01d7133d814",
+ "huella": "0e80943c7995",
+ "sha256_texto": "9f360426815567f0f97d1e1f8b92bed5b5a0d7f4429706722c8d01a7bbb384c6",
+ "titulo": "Plan de temporada alta.pdf",
+ "url": "http://localhost:8120/drive/v3/files/d09",
+ "version": "1"
+}

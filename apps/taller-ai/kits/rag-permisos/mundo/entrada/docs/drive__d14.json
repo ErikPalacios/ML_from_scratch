@@ -1,0 +1,81 @@
+{
+ "acl": [
+  [
+   "group:operaciones@marketplace.test",
+   "user:jorge.paz@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "user:jorge.paz@marketplace.test"
+    ]
+   ],
+   "chunk_id": "drive:d14#000",
+   "doc_id": "drive:d14",
+   "orden": 0,
+   "ruta": [
+    "Minuta semanal de operaciones · 2026-10-23",
+    "Tema principal"
+   ],
+   "texto": "Minuta semanal de operaciones · 2026-10-23 › Tema principal\n\n# Minuta semanal de operaciones · 2026-10-23\n## Tema principal\nSe revisó el cambio de paquetería en el Bajío.",
+   "titulo": "Minuta semanal de operaciones 2026-10-23",
+   "tokens": 48,
+   "traslape": 0,
+   "url": "http://localhost:8120/drive/v3/files/d14",
+   "version": "1"
+  },
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "user:jorge.paz@marketplace.test"
+    ]
+   ],
+   "chunk_id": "drive:d14#001",
+   "doc_id": "drive:d14",
+   "orden": 1,
+   "ruta": [
+    "Minuta semanal de operaciones · 2026-10-23",
+    "Acuerdos"
+   ],
+   "texto": "Minuta semanal de operaciones · 2026-10-23 › Acuerdos\n\n## Acuerdos\n- Jorge da seguimiento con los almacenes.\n- Sofía actualiza la página de la wiki que corresponda.",
+   "titulo": "Minuta semanal de operaciones 2026-10-23",
+   "tokens": 47,
+   "traslape": 0,
+   "url": "http://localhost:8120/drive/v3/files/d14",
+   "version": "1"
+  },
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "user:jorge.paz@marketplace.test"
+    ]
+   ],
+   "chunk_id": "drive:d14#002",
+   "doc_id": "drive:d14",
+   "orden": 2,
+   "ruta": [
+    "Minuta semanal de operaciones · 2026-10-23",
+    "Pendientes"
+   ],
+   "texto": "Minuta semanal de operaciones · 2026-10-23 › Pendientes\n\n## Pendientes\n- Revisar el tablero de entregas el próximo viernes.",
+   "titulo": "Minuta semanal de operaciones 2026-10-23",
+   "tokens": 34,
+   "traslape": 0,
+   "url": "http://localhost:8120/drive/v3/files/d14",
+   "version": "1"
+  }
+ ],
+ "doc_id": "drive:d14",
+ "hash": "9da721d9d84fd65243e44c4567c804aba438d64ee96d6ae0ff5277eeec4663e3",
+ "huella": "0e80943c7995",
+ "sha256_texto": "69c7b64f6a84df5a0ba658f2cbfc9c05e9eeba9d00a2425e58083144c364c467",
+ "titulo": "Minuta semanal de operaciones 2026-10-23",
+ "url": "http://localhost:8120/drive/v3/files/d14",
+ "version": "1"
+}

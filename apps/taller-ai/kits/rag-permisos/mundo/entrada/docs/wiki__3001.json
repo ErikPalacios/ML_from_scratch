@@ -1,0 +1,38 @@
+{
+ "acl": [
+  [
+   "group:legal@marketplace.test",
+   "group:soporte-lideres@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:legal@marketplace.test",
+     "group:soporte-lideres@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:3001#000",
+   "doc_id": "wiki:3001",
+   "orden": 0,
+   "ruta": [
+    "Legal"
+   ],
+   "texto": "Legal\n\n# Legal\nEspacio del equipo legal. Lo que está aquí no se comparte fuera del marketplace.",
+   "titulo": "Legal",
+   "tokens": 25,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/api/paginas/3001",
+   "version": "2"
+  }
+ ],
+ "doc_id": "wiki:3001",
+ "hash": "7419351d83b989123a7f0c9c8b32a585bc7c0cc9633af6768df56c4500a38851",
+ "huella": "0e80943c7995",
+ "sha256_texto": "eec758a9af1562d35e941355071fb86b08fec99ab85a6b9f794a120fd6a01004",
+ "titulo": "Legal",
+ "url": "http://localhost:8120/wiki/api/paginas/3001",
+ "version": "2"
+}

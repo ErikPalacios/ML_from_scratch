@@ -1,0 +1,76 @@
+{
+ "acl": [
+  [
+   "group:operaciones@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:2002#000",
+   "doc_id": "wiki:2002",
+   "orden": 0,
+   "ruta": [
+    "Comisiones por categoría"
+   ],
+   "texto": "Comisiones por categoría\n\n# Comisiones por categoría\nLa comisión se cobra sobre el precio de venta sin IVA y se descuenta del pago a quien vende. El pago se hace los días que marca la tabla, contados desde la entrega.",
+   "titulo": "Comisiones por categoría",
+   "tokens": 53,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/api/paginas/2002",
+   "version": "2"
+  },
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:2002#001",
+   "doc_id": "wiki:2002",
+   "orden": 1,
+   "ruta": [
+    "Comisiones por categoría",
+    "Tabla vigente"
+   ],
+   "texto": "Comisiones por categoría › Tabla vigente\n\n## Tabla vigente\nCategoría: Electrónica; Comisión: 8 %; Días para pagar a quien vende: 15\nCategoría: Moda; Comisión: 12 %; Días para pagar a quien vende: 10\nCategoría: Hogar; Comisión: 10 %; Días para pagar a quien vende: 10\nCategoría: Juguetes; Comisión: 11 %; Días para pagar a quien vende: 10",
+   "titulo": "Comisiones por categoría",
+   "tokens": 101,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/api/paginas/2002",
+   "version": "2"
+  },
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:2002#002",
+   "doc_id": "wiki:2002",
+   "orden": 2,
+   "ruta": [
+    "Comisiones por categoría",
+    "Excepciones"
+   ],
+   "texto": "Comisiones por categoría › Excepciones\n\n## Excepciones\nDurante la temporada alta (noviembre y diciembre) la comisión de Moda baja a 10 % para vendedores con calificación mayor a 4.5.",
+   "titulo": "Comisiones por categoría",
+   "tokens": 44,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/api/paginas/2002",
+   "version": "2"
+  }
+ ],
+ "doc_id": "wiki:2002",
+ "hash": "16e7b212358d84b914f7ec93737e9ca74ce00355398af821e94d95959d936891",
+ "huella": "0e80943c7995",
+ "sha256_texto": "7ee9ea7c59309da77f4be68bb49371f5107b33c2c4ebb1dfb9bf4b79efd5edc4",
+ "titulo": "Comisiones por categoría",
+ "url": "http://localhost:8120/wiki/api/paginas/2002",
+ "version": "2"
+}

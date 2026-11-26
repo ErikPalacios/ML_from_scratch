@@ -1,0 +1,36 @@
+{
+ "acl": [
+  [
+   "group:operaciones@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:2004#000",
+   "doc_id": "wiki:2004",
+   "orden": 0,
+   "ruta": [
+    "Inventario de fin de mes"
+   ],
+   "texto": "Inventario de fin de mes\n\n# Inventario de fin de mes\nEl último día hábil de cada mes se cuenta el inventario de los almacenes propios. El acta firmada se escanea y se guarda en la unidad compartida de operaciones.",
+   "titulo": "Inventario de fin de mes",
+   "tokens": 60,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/api/paginas/2004",
+   "version": "1"
+  }
+ ],
+ "doc_id": "wiki:2004",
+ "hash": "7a9305b8ce1d25312e3f8f6e5f449f7ef309cfec758b037d132768a4ebc48579",
+ "huella": "0e80943c7995",
+ "sha256_texto": "b95d0da6ea28055f09498575d1c51f5bab5b96f19dbfd718ca7b4c84dcebf4e1",
+ "titulo": "Inventario de fin de mes",
+ "url": "http://localhost:8120/wiki/api/paginas/2004",
+ "version": "1"
+}

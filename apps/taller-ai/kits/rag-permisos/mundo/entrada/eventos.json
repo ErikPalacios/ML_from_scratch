@@ -1,0 +1,80 @@
+[
+ {
+  "n": 1,
+  "ocurrio": "2026-11-21T15:07:20Z",
+  "fuente": "drive",
+  "tipo": "acl",
+  "doc_id": "drive:d21",
+  "acl": [
+   [
+    "group:operaciones-lideres@marketplace.test",
+    "user:jorge.paz@marketplace.test"
+   ]
+  ],
+  "que": "Jorge deja las «Tarifas de envío» solo para líderes de operaciones: traen las tarifas negociadas"
+ },
+ {
+  "n": 2,
+  "ocurrio": "2026-11-21T15:18:40Z",
+  "fuente": "directorio",
+  "tipo": "membresia",
+  "grupo": "group:fraude@marketplace.test",
+  "miembro": "user:tomas.rey@marketplace.test",
+  "accion": "quitar",
+  "que": "Tomás pasó de fraude a soporte: sale del grupo de fraude"
+ },
+ {
+  "n": 3,
+  "ocurrio": "2026-11-21T15:25:00Z",
+  "fuente": "directorio",
+  "tipo": "membresia",
+  "grupo": "group:soporte-nivel1@marketplace.test",
+  "miembro": "user:diego.luna@marketplace.test",
+  "accion": "agregar",
+  "que": "Diego entra a soporte nivel 1"
+ },
+ {
+  "n": 4,
+  "ocurrio": "2026-11-21T15:31:10Z",
+  "fuente": "jira",
+  "tipo": "acl",
+  "doc_id": "jira:SOP-14",
+  "acl": [
+   [
+    "group:operaciones@marketplace.test",
+    "group:soporte@marketplace.test",
+    "user:tomas.rey@marketplace.test"
+   ],
+   [
+    "group:soporte-lideres@marketplace.test"
+   ]
+  ],
+  "que": "El ticket SOP-14 pasa al nivel de seguridad «Solo líderes»: el cliente mandó una identificación"
+ },
+ {
+  "n": 5,
+  "ocurrio": "2026-11-21T15:44:30Z",
+  "fuente": "wiki",
+  "tipo": "acl",
+  "doc_id": "wiki:2002",
+  "acl": [
+   [
+    "group:operaciones@marketplace.test"
+   ],
+   [
+    "group:operaciones-lideres@marketplace.test"
+   ]
+  ],
+  "que": "La página «Comisiones por categoría» queda restringida a líderes de operaciones mientras se negocian las nuevas"
+ },
+ {
+  "n": 6,
+  "ocurrio": "2026-11-21T15:52:00Z",
+  "fuente": "directorio",
+  "tipo": "membresia",
+  "grupo": "group:soporte-nivel1@marketplace.test",
+  "miembro": "user:luis.campos@paqueteria-aliada.test",
+  "accion": "quitar",
+  "que": "Terminó el contrato de Luis, de la paquetería aliada: sale de soporte nivel 1"
+ }
+]

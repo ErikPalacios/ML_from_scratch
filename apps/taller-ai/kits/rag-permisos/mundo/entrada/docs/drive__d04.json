@@ -1,0 +1,36 @@
+{
+ "acl": [
+  [
+   "user:lucia.mora@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "user:lucia.mora@marketplace.test"
+    ]
+   ],
+   "chunk_id": "drive:d04#000",
+   "doc_id": "drive:d04",
+   "orden": 0,
+   "ruta": [
+    "Sueldos 2026"
+   ],
+   "texto": "Sueldos 2026\n\nTabulador de sueldos 2026\nAgente de soporte: de 14,000 a 18,000 pesos mensuales.\nLíder de soporte: de 26,000 a 32,000 pesos mensuales.\nBonos\nBono trimestral de hasta 10 % por calidad de atención.",
+   "titulo": "Sueldos 2026.pdf",
+   "tokens": 62,
+   "traslape": 0,
+   "url": "http://localhost:8120/drive/v3/files/d04",
+   "version": "1"
+  }
+ ],
+ "doc_id": "drive:d04",
+ "hash": "be825e836f2692aab8d1082d2446ec523080acdaf9e8c74f28c06d4f26deb812",
+ "huella": "0e80943c7995",
+ "sha256_texto": "31d0845fcafefa7c63e9b7f04d1663932a469233cc46208a6912848b4debf511",
+ "titulo": "Sueldos 2026.pdf",
+ "url": "http://localhost:8120/drive/v3/files/d04",
+ "version": "1"
+}

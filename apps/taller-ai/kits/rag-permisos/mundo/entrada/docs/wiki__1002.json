@@ -1,0 +1,101 @@
+{
+ "acl": [
+  [
+   "group:operaciones@marketplace.test",
+   "group:soporte@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:1002#000",
+   "doc_id": "wiki:1002",
+   "orden": 0,
+   "ruta": [
+    "Devoluciones"
+   ],
+   "texto": "Devoluciones\n\n# Devoluciones\nQuien compra puede devolver un producto dentro del plazo de su categoría, contado desde el día en que lo recibió. El plazo lo valida el sistema con la fecha de entrega de la paquetería, no con la fecha de compra.",
+   "titulo": "Devoluciones",
+   "tokens": 59,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/api/paginas/1002",
+   "version": "2"
+  },
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:1002#001",
+   "doc_id": "wiki:1002",
+   "orden": 1,
+   "ruta": [
+    "Devoluciones",
+    "Plazos por categoría"
+   ],
+   "texto": "Devoluciones › Plazos por categoría\n\n## Plazos por categoría\nCategoría: Electrónica; Plazo para devolver: 30 días; Quién paga el envío: El marketplace si llegó dañado; si no, quien compra\nCategoría: Moda; Plazo para devolver: 30 días; Quién paga el envío: El marketplace\nCategoría: Hogar; Plazo para devolver: 30 días; Quién paga el envío: Quien compra\nCategoría: Juguetes; Plazo para devolver: 30 días; Quién paga el envío: El marketplace",
+   "titulo": "Devoluciones",
+   "tokens": 125,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/api/paginas/1002",
+   "version": "2"
+  },
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:1002#002",
+   "doc_id": "wiki:1002",
+   "orden": 2,
+   "ruta": [
+    "Devoluciones",
+    "Qué no se puede devolver"
+   ],
+   "texto": "Devoluciones › Qué no se puede devolver\n\n## Qué no se puede devolver\n- Ropa interior y trajes de baño sin su etiqueta.\n- Software o tarjetas de regalo ya activadas.\n- Productos personalizados a pedido.",
+   "titulo": "Devoluciones",
+   "tokens": 55,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/api/paginas/1002",
+   "version": "2"
+  },
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:1002#003",
+   "doc_id": "wiki:1002",
+   "orden": 3,
+   "ruta": [
+    "Devoluciones",
+    "Cómo se abre una devolución"
+   ],
+   "texto": "Devoluciones › Cómo se abre una devolución\n\n## Cómo se abre una devolución\nDesde el detalle del pedido, en «Devolver». Si el sistema no lo permite y quien compra insiste en que está en plazo, revisa la fecha de entrega en la guía de la paquetería antes de escalar.\nCambio del 21 de noviembre: electrónica pasa a 30 días, igual que las demás categorías.",
+   "titulo": "Devoluciones",
+   "tokens": 87,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/api/paginas/1002",
+   "version": "2"
+  }
+ ],
+ "doc_id": "wiki:1002",
+ "hash": "7f1786b38aa3f83dad91f141a917dccc13a7d2d98a878896a559ae17cfdd7f8a",
+ "huella": "0e80943c7995",
+ "sha256_texto": "83589c2095e6f32987389b72044b1eeb2d7a266a6ed95dfd5ccfaf13d60f3d81",
+ "titulo": "Devoluciones",
+ "url": "http://localhost:8120/wiki/api/paginas/1002",
+ "version": "2"
+}

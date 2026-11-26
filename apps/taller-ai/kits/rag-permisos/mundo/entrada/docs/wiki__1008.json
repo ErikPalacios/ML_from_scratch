@@ -1,0 +1,59 @@
+{
+ "acl": [
+  [
+   "group:operaciones@marketplace.test",
+   "group:soporte@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:1008#000",
+   "doc_id": "wiki:1008",
+   "orden": 0,
+   "ruta": [
+    "Macro: llegó dañado"
+   ],
+   "texto": "Macro: llegó dañado\n\n# Macro: llegó dañado\nPide dos fotos del producto y una de la caja. Con eso se abre la devolución sin costo de envío para quien compra.",
+   "titulo": "Macro: llegó dañado",
+   "tokens": 44,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/api/paginas/1008",
+   "version": "1"
+  },
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:1008#001",
+   "doc_id": "wiki:1008",
+   "orden": 1,
+   "ruta": [
+    "Macro: llegó dañado",
+    "Antes de enviarla"
+   ],
+   "texto": "Macro: llegó dañado › Antes de enviarla\n\n## Antes de enviarla\nPersonaliza el saludo y confirma el número de pedido.",
+   "titulo": "Macro: llegó dañado",
+   "tokens": 32,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/api/paginas/1008",
+   "version": "1"
+  }
+ ],
+ "doc_id": "wiki:1008",
+ "hash": "4b7ac684fb378c3859dfafe612e46e21296dd8fce0237fcb0bf157a0c4c869cb",
+ "huella": "0e80943c7995",
+ "sha256_texto": "b7c76850a867676351e0ba7475cc65d880a35dcdac3528672b089ba6c86f64ff",
+ "titulo": "Macro: llegó dañado",
+ "url": "http://localhost:8120/wiki/api/paginas/1008",
+ "version": "1"
+}

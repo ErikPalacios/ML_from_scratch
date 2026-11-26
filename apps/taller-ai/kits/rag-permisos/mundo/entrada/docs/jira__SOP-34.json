@@ -1,0 +1,40 @@
+{
+ "acl": [
+  [
+   "group:operaciones@marketplace.test",
+   "group:soporte@marketplace.test",
+   "user:tomas.rey@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:tomas.rey@marketplace.test"
+    ]
+   ],
+   "chunk_id": "jira:SOP-34#000",
+   "doc_id": "jira:SOP-34",
+   "orden": 0,
+   "ruta": [
+    "SOP-34 · Cobro duplicado en tarjeta de crédito"
+   ],
+   "texto": "SOP-34 · Cobro duplicado en tarjeta de crédito\n\n# SOP-34 · Cobro duplicado en tarjeta de crédito\nLa clienta ve dos cargos del mismo pedido.\nResolución: Se reembolsó el cargo duplicado; tarda de 1 a 3 días hábiles.\nComentarios:\n- Le escribí a la persona.",
+   "titulo": "Cobro duplicado en tarjeta de crédito",
+   "tokens": 74,
+   "traslape": 0,
+   "url": "http://localhost:8120/jira/api/ticket/SOP-34",
+   "version": "2026-11-17T07:58:00.000-0600"
+  }
+ ],
+ "doc_id": "jira:SOP-34",
+ "hash": "8c6becee8550e91a80bc2abbce7373d26725ab3c9de3d1daf76804a958a9d924",
+ "huella": "0e80943c7995",
+ "sha256_texto": "813169e9bd11cdc98000a4c51a3bee06815ea1384fc739ad6ccbe6bad3b88969",
+ "titulo": "Cobro duplicado en tarjeta de crédito",
+ "url": "http://localhost:8120/jira/api/ticket/SOP-34",
+ "version": "2026-11-17T07:58:00.000-0600"
+}

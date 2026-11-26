@@ -1,0 +1,36 @@
+{
+ "acl": [
+  [
+   "group:fraude@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:fraude@marketplace.test"
+    ]
+   ],
+   "chunk_id": "jira:SEG-8#000",
+   "doc_id": "jira:SEG-8",
+   "orden": 0,
+   "ruta": [
+    "SEG-8 · Posible cuenta de vendedor duplicada #8"
+   ],
+   "texto": "SEG-8 · Posible cuenta de vendedor duplicada #8\n\n# SEG-8 · Posible cuenta de vendedor duplicada #8\nDos cuentas de vendedor comparten la misma cuenta bancaria (caso 8).",
+   "titulo": "Posible cuenta de vendedor duplicada #8",
+   "tokens": 44,
+   "traslape": 0,
+   "url": "http://localhost:8120/jira/api/ticket/SEG-8",
+   "version": "2026-11-10T12:30:00.000-0600"
+  }
+ ],
+ "doc_id": "jira:SEG-8",
+ "hash": "64924c3b03ce84b0565d99ed4629d863a15d7edfa5549c0fa385a244a7ea1574",
+ "huella": "0e80943c7995",
+ "sha256_texto": "237db04b867238819682241dc0ddeab95dc7f7e92bb1e243dfae714e83219dd9",
+ "titulo": "Posible cuenta de vendedor duplicada #8",
+ "url": "http://localhost:8120/jira/api/ticket/SEG-8",
+ "version": "2026-11-10T12:30:00.000-0600"
+}

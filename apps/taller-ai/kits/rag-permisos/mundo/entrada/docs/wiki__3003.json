@@ -1,0 +1,44 @@
+{
+ "acl": [
+  [
+   "group:legal@marketplace.test",
+   "group:soporte-lideres@marketplace.test"
+  ],
+  [
+   "group:legal-litigios@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:legal@marketplace.test",
+     "group:soporte-lideres@marketplace.test"
+    ],
+    [
+     "group:legal-litigios@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:3003#000",
+   "doc_id": "wiki:3003",
+   "orden": 0,
+   "ruta": [
+    "Litigios"
+   ],
+   "texto": "Litigios\n\n# Litigios\nCasos en litigio o con riesgo de demanda. La información de estas páginas es confidencial incluso dentro del equipo legal.",
+   "titulo": "Litigios",
+   "tokens": 37,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/api/paginas/3003",
+   "version": "1"
+  }
+ ],
+ "doc_id": "wiki:3003",
+ "hash": "644fb062e2089373071ec8375458b12b74562445d84d9d76296669ba516f2163",
+ "huella": "0e80943c7995",
+ "sha256_texto": "0574598269105a4775148a89706b82ed28ab11b0acddc4abff5c117ec92dd8ac",
+ "titulo": "Litigios",
+ "url": "http://localhost:8120/wiki/api/paginas/3003",
+ "version": "1"
+}

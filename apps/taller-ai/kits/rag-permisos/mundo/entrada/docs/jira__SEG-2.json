@@ -1,0 +1,36 @@
+{
+ "acl": [
+  [
+   "group:fraude@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:fraude@marketplace.test"
+    ]
+   ],
+   "chunk_id": "jira:SEG-2#000",
+   "doc_id": "jira:SEG-2",
+   "orden": 0,
+   "ruta": [
+    "SEG-2 · Posible cuenta de vendedor duplicada #2"
+   ],
+   "texto": "SEG-2 · Posible cuenta de vendedor duplicada #2\n\n# SEG-2 · Posible cuenta de vendedor duplicada #2\nDos cuentas de vendedor comparten la misma cuenta bancaria (caso 2).\nComentarios:\n- La persona confirmó que ya quedó resuelto.",
+   "titulo": "Posible cuenta de vendedor duplicada #2",
+   "tokens": 59,
+   "traslape": 0,
+   "url": "http://localhost:8120/jira/api/ticket/SEG-2",
+   "version": "2026-11-21T08:44:00.000-0600"
+  }
+ ],
+ "doc_id": "jira:SEG-2",
+ "hash": "d2f262e0b618d26025e7765f225581ccde2ad4cb5bc417d5b300ecd8fcf5766e",
+ "huella": "0e80943c7995",
+ "sha256_texto": "ae593498e90a4e47bf80b3bdc25a3edca40c9bcc5707e04c64c6436f86c0b855",
+ "titulo": "Posible cuenta de vendedor duplicada #2",
+ "url": "http://localhost:8120/jira/api/ticket/SEG-2",
+ "version": "2026-11-21T08:44:00.000-0600"
+}

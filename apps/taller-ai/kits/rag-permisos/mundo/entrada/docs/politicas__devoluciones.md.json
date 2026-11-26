@@ -1,0 +1,60 @@
+{
+ "acl": [
+  [
+   "group:operaciones@marketplace.test",
+   "group:soporte@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "chunk_id": "politicas:devoluciones.md#000",
+   "doc_id": "politicas:devoluciones.md",
+   "orden": 0,
+   "ruta": [
+    "Política de devoluciones",
+    "Plazo"
+   ],
+   "texto": "Política de devoluciones › Plazo\n\n# Política de devoluciones\n## Plazo\nTodas las categorías: 30 días desde la entrega.",
+   "titulo": "devoluciones.md",
+   "tokens": 31,
+   "traslape": 0,
+   "url": "http://localhost:8120/repo/politicas/crudo/devoluciones.md",
+   "version": "851c311acdf1f7732dec8099546a273a8eaf242e"
+  },
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "chunk_id": "politicas:devoluciones.md#001",
+   "doc_id": "politicas:devoluciones.md",
+   "orden": 1,
+   "ruta": [
+    "Política de devoluciones",
+    "Excepciones"
+   ],
+   "texto": "Política de devoluciones › Excepciones\n\n## Excepciones\nNo se aceptan productos personalizados ni software activado.",
+   "titulo": "devoluciones.md",
+   "tokens": 29,
+   "traslape": 0,
+   "url": "http://localhost:8120/repo/politicas/crudo/devoluciones.md",
+   "version": "851c311acdf1f7732dec8099546a273a8eaf242e"
+  }
+ ],
+ "doc_id": "politicas:devoluciones.md",
+ "hash": "d07b7d4f3be09997e080482bf6fde95d25e47f07148f29411d1aeefddfb74209",
+ "huella": "0e80943c7995",
+ "sha256_texto": "fbe2884f116a517b4449fb8b2769575ec61cacf1efc836f80be80c5746aa76c6",
+ "titulo": "devoluciones.md",
+ "url": "http://localhost:8120/repo/politicas/crudo/devoluciones.md",
+ "version": "851c311acdf1f7732dec8099546a273a8eaf242e"
+}

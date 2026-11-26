@@ -1,0 +1,38 @@
+{
+ "acl": [
+  [
+   "domain:marketplace.test",
+   "user:sofia.leal@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "domain:marketplace.test",
+     "user:sofia.leal@marketplace.test"
+    ]
+   ],
+   "chunk_id": "drive:d08#000",
+   "doc_id": "drive:d08",
+   "orden": 0,
+   "ruta": [
+    "Lineamientos de fotos de producto (vigente)"
+   ],
+   "texto": "Lineamientos de fotos de producto (vigente)\n\nFotos de producto\nMínimo 3 fotos por publicación, con fondo claro y sin marcas de agua.\nLa primera foto muestra el producto completo.\nLo que se rechaza\nFotos con precios, teléfonos o enlaces a otras tiendas.",
+   "titulo": "Lineamientos de fotos de producto (vigente).pdf",
+   "tokens": 59,
+   "traslape": 0,
+   "url": "http://localhost:8120/drive/v3/files/d08",
+   "version": "2"
+  }
+ ],
+ "doc_id": "drive:d08",
+ "hash": "af0fe1efdfcf0ff07d876ec125abaf1e92201891b5a8e32f90fff4ed5a762b07",
+ "huella": "0e80943c7995",
+ "sha256_texto": "5d460fcd1e03104a9063773d3b0ba8e79b9c7c1522dc8d5e707cd51b9cd7dcf3",
+ "titulo": "Lineamientos de fotos de producto (vigente).pdf",
+ "url": "http://localhost:8120/drive/v3/files/d08",
+ "version": "2"
+}

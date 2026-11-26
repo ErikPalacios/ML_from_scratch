@@ -1,0 +1,38 @@
+{
+ "acl": [
+  [
+   "group:operaciones@marketplace.test",
+   "group:soporte@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "chunk_id": "politicas:regalos.md#000",
+   "doc_id": "politicas:regalos.md",
+   "orden": 0,
+   "ruta": [
+    "Política de regalos"
+   ],
+   "texto": "Política de regalos\n\n# Política de regalos\nUn pedido marcado como regalo no muestra el precio en el empaque. La devolución la puede pedir quien lo recibe.",
+   "titulo": "regalos.md",
+   "tokens": 37,
+   "traslape": 0,
+   "url": "http://localhost:8120/repo/politicas/crudo/regalos.md",
+   "version": "c7dc2c7f87d771bab1bb92873946fa4d9c47ffb1"
+  }
+ ],
+ "doc_id": "politicas:regalos.md",
+ "hash": "89fa01ca96cf102c14b34bd5bb0e96197761aa7630aaeb7cbf082fea5feba5ab",
+ "huella": "0e80943c7995",
+ "sha256_texto": "0660e0ddedf5d640845ec9f7be1bc78018a1a2e0b91a092d3dd5fca82a17e39f",
+ "titulo": "regalos.md",
+ "url": "http://localhost:8120/repo/politicas/crudo/regalos.md",
+ "version": "c7dc2c7f87d771bab1bb92873946fa4d9c47ffb1"
+}

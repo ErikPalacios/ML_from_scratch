@@ -1,0 +1,38 @@
+{
+ "acl": [
+  [
+   "domain:marketplace.test",
+   "user:sofia.leal@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "domain:marketplace.test",
+     "user:sofia.leal@marketplace.test"
+    ]
+   ],
+   "chunk_id": "drive:d05#000",
+   "doc_id": "drive:d05",
+   "orden": 0,
+   "ruta": [
+    "Guía de tallas"
+   ],
+   "texto": "Guía de tallas\n\nGuía de tallas\nLas tallas de calzado se publican en centímetros y en número mexicano.\nTalla 25 mexicana equivale a 25 cm del talón a la punta.\nRopa\nSi quien vende usa tallas de otro país, la publicación debe traer la tabla de\nequivalencias.",
+   "titulo": "Guía de tallas.pdf",
+   "tokens": 70,
+   "traslape": 0,
+   "url": "http://localhost:8120/drive/v3/files/d05",
+   "version": "1"
+  }
+ ],
+ "doc_id": "drive:d05",
+ "hash": "3dad472d8f9a6df15e74a1c9301fa309a3cf21e5b932ab7143827302fbd9e468",
+ "huella": "0e80943c7995",
+ "sha256_texto": "663848149a49625350be9a325374fef04769d5262173b539fd14267a0edac88c",
+ "titulo": "Guía de tallas.pdf",
+ "url": "http://localhost:8120/drive/v3/files/d05",
+ "version": "1"
+}

@@ -1,0 +1,38 @@
+{
+ "acl": [
+  [
+   "group:legal@marketplace.test",
+   "user:irene.sol@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:legal@marketplace.test",
+     "user:irene.sol@marketplace.test"
+    ]
+   ],
+   "chunk_id": "drive:d03#000",
+   "doc_id": "drive:d03",
+   "orden": 0,
+   "ruta": [
+    "Contrato marco de logística"
+   ],
+   "texto": "Contrato marco de logística\n\nContrato marco de logística\nLas paqueterías responden por pérdida o daño hasta 15,000 pesos por paquete.\nArriba de ese monto, aplica el seguro contratado por el marketplace.\nPenalizaciones\nPor cada día de retraso sobre el tiempo comprometido, la paquetería descuenta 3 % del\ncosto del envío.",
+   "titulo": "Contrato marco de logística.pdf",
+   "tokens": 77,
+   "traslape": 0,
+   "url": "http://localhost:8120/drive/v3/files/d03",
+   "version": "1"
+  }
+ ],
+ "doc_id": "drive:d03",
+ "hash": "ae5baf065643b9e34fb38f712410efc1d9ec3de38f16547b760b4d5885864817",
+ "huella": "0e80943c7995",
+ "sha256_texto": "781a820c50ce46eacf8cf5ee8afaccde126a92dfd585e5e28bfcd879d3bffd7e",
+ "titulo": "Contrato marco de logística.pdf",
+ "url": "http://localhost:8120/drive/v3/files/d03",
+ "version": "1"
+}

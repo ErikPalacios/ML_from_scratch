@@ -1,0 +1,38 @@
+{
+ "acl": [
+  [
+   "group:legal@marketplace.test",
+   "group:soporte-lideres@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:legal@marketplace.test",
+     "group:soporte-lideres@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:3002#000",
+   "doc_id": "wiki:3002",
+   "orden": 0,
+   "ruta": [
+    "Aviso de privacidad interno"
+   ],
+   "texto": "Aviso de privacidad interno\n\n# Aviso de privacidad interno\nLos datos de quien compra se usan solo para entregar, cobrar y atender sus pedidos. Ningún agente puede copiarlos a hojas personales ni a herramientas no aprobadas.",
+   "titulo": "Aviso de privacidad interno",
+   "tokens": 52,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/api/paginas/3002",
+   "version": "3"
+  }
+ ],
+ "doc_id": "wiki:3002",
+ "hash": "1a5b2ac8b551641cb0aa02b46fa9e8cc2e5375d963815c31f3cd8a02053f657e",
+ "huella": "0e80943c7995",
+ "sha256_texto": "2e802f37b9325e423851aea7b71e773edb5cdd7b25056f5420dc6dbf5facf4ea",
+ "titulo": "Aviso de privacidad interno",
+ "url": "http://localhost:8120/wiki/api/paginas/3002",
+ "version": "3"
+}

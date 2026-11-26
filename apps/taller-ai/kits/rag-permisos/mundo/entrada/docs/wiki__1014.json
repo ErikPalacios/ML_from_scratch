@@ -1,0 +1,59 @@
+{
+ "acl": [
+  [
+   "group:operaciones@marketplace.test",
+   "group:soporte@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:1014#000",
+   "doc_id": "wiki:1014",
+   "orden": 0,
+   "ruta": [
+    "Macro: vendedor no responde"
+   ],
+   "texto": "Macro: vendedor no responde\n\n# Macro: vendedor no responde\nQuien vende tiene 48 horas para responder un mensaje. Si no lo hace, soporte toma el caso y decide.",
+   "titulo": "Macro: vendedor no responde",
+   "tokens": 40,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/api/paginas/1014",
+   "version": "1"
+  },
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:1014#001",
+   "doc_id": "wiki:1014",
+   "orden": 1,
+   "ruta": [
+    "Macro: vendedor no responde",
+    "Antes de enviarla"
+   ],
+   "texto": "Macro: vendedor no responde › Antes de enviarla\n\n## Antes de enviarla\nPersonaliza el saludo y confirma el número de pedido.",
+   "titulo": "Macro: vendedor no responde",
+   "tokens": 32,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/api/paginas/1014",
+   "version": "1"
+  }
+ ],
+ "doc_id": "wiki:1014",
+ "hash": "2006687d216ed15a9d3678ecb288b40d9ec6218eedc6f9bde215e5eb836f3529",
+ "huella": "0e80943c7995",
+ "sha256_texto": "e1d8fd55afca61f7a25d3f39d591a894ad3900a49f4d30b95983fafadc46622d",
+ "titulo": "Macro: vendedor no responde",
+ "url": "http://localhost:8120/wiki/api/paginas/1014",
+ "version": "1"
+}

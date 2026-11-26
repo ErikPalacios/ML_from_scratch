@@ -1,0 +1,59 @@
+{
+ "acl": [
+  [
+   "group:operaciones@marketplace.test",
+   "group:soporte@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:1001#000",
+   "doc_id": "wiki:1001",
+   "orden": 0,
+   "ruta": [
+    "Manual de soporte"
+   ],
+   "texto": "Manual de soporte\n\n# Manual de soporte\nEste manual reúne cómo atiende el equipo de soporte del marketplace a quienes compran y a quienes venden. Si una respuesta no está aquí, pregunta en el canal de líderes antes de improvisar.",
+   "titulo": "Manual de soporte",
+   "tokens": 52,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/api/paginas/1001",
+   "version": "3"
+  },
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:1001#001",
+   "doc_id": "wiki:1001",
+   "orden": 1,
+   "ruta": [
+    "Manual de soporte",
+    "Horario y canales"
+   ],
+   "texto": "Manual de soporte › Horario y canales\n\n## Horario y canales\n- Chat y correo: de 8:00 a 22:00, todos los días.\n- Teléfono: de 9:00 a 18:00, de lunes a viernes.\n- Casos de vendedores: por correo, con respuesta en 24 horas hábiles.",
+   "titulo": "Manual de soporte",
+   "tokens": 68,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/api/paginas/1001",
+   "version": "3"
+  }
+ ],
+ "doc_id": "wiki:1001",
+ "hash": "b900046cdc69f67eb60a8450f1853fe2e7a19ed00cd5cbea0621414ba12d4c5d",
+ "huella": "0e80943c7995",
+ "sha256_texto": "dd0988f62bbc406ee5c540f3b01fe4495135b21c89ff721c1934dc0a6712971a",
+ "titulo": "Manual de soporte",
+ "url": "http://localhost:8120/wiki/api/paginas/1001",
+ "version": "3"
+}

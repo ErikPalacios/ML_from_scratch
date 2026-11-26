@@ -1,0 +1,59 @@
+{
+ "acl": [
+  [
+   "group:operaciones@marketplace.test",
+   "group:soporte@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:1007#000",
+   "doc_id": "wiki:1007",
+   "orden": 0,
+   "ruta": [
+    "Macro: el pedido no llegó"
+   ],
+   "texto": "Macro: el pedido no llegó\n\n# Macro: el pedido no llegó\nRevisa la guía en la página de la paquetería. Si lleva más de 3 días sin movimiento, abre una investigación con la paquetería y ofrece reenvío o reembolso.",
+   "titulo": "Macro: el pedido no llegó",
+   "tokens": 61,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/api/paginas/1007",
+   "version": "3"
+  },
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:1007#001",
+   "doc_id": "wiki:1007",
+   "orden": 1,
+   "ruta": [
+    "Macro: el pedido no llegó",
+    "Antes de enviarla"
+   ],
+   "texto": "Macro: el pedido no llegó › Antes de enviarla\n\n## Antes de enviarla\nPersonaliza el saludo y confirma el número de pedido.",
+   "titulo": "Macro: el pedido no llegó",
+   "tokens": 33,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/api/paginas/1007",
+   "version": "3"
+  }
+ ],
+ "doc_id": "wiki:1007",
+ "hash": "eb9a6ad63b8335fa773ace0aaf9c6ff5a2e805a03d7e06e9f0cb33fcb8e27bc8",
+ "huella": "0e80943c7995",
+ "sha256_texto": "5a2d3a6e7c713da13fa7ee4aa89933e37ba5a3f6f6aab13dc4fe8da3908c2b77",
+ "titulo": "Macro: el pedido no llegó",
+ "url": "http://localhost:8120/wiki/api/paginas/1007",
+ "version": "3"
+}

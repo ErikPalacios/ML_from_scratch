@@ -1,0 +1,40 @@
+{
+ "acl": [
+  [
+   "group:operaciones@marketplace.test",
+   "group:soporte@marketplace.test",
+   "user:paula.vega@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:paula.vega@marketplace.test"
+    ]
+   ],
+   "chunk_id": "jira:SOP-42#000",
+   "doc_id": "jira:SOP-42",
+   "orden": 0,
+   "ruta": [
+    "SOP-42 · Paquete entregado en otra dirección"
+   ],
+   "texto": "SOP-42 · Paquete entregado en otra dirección\n\n# SOP-42 · Paquete entregado en otra dirección\nLa guía dice entregado y la persona no lo recibió.",
+   "titulo": "Paquete entregado en otra dirección",
+   "tokens": 41,
+   "traslape": 0,
+   "url": "http://localhost:8120/jira/api/ticket/SOP-42",
+   "version": "2026-11-21T08:51:00.000-0600"
+  }
+ ],
+ "doc_id": "jira:SOP-42",
+ "hash": "d5665502af3e9a5bc5add3809758ca241ac0a26a81fcd062002ae98b384cdb83",
+ "huella": "0e80943c7995",
+ "sha256_texto": "aab4acaa5df4e753598ecd9093d937ade94c9c0bc78895aac473c6e1b403b622",
+ "titulo": "Paquete entregado en otra dirección",
+ "url": "http://localhost:8120/jira/api/ticket/SOP-42",
+ "version": "2026-11-21T08:51:00.000-0600"
+}

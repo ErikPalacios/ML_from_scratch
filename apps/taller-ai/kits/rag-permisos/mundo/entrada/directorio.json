@@ -1,0 +1,153 @@
+{
+ "dominio": "marketplace.test",
+ "foto": "2026-11-21T15:00:00Z",
+ "grupos": {
+  "group:boletin-calidad@marketplace.test": {
+   "miembros": [
+    "group:comite-calidad@marketplace.test",
+    "user:carmen.nava@marketplace.test"
+   ],
+   "nombre": "Boletín de calidad"
+  },
+  "group:comite-calidad@marketplace.test": {
+   "miembros": [
+    "group:boletin-calidad@marketplace.test",
+    "group:operaciones-lideres@marketplace.test",
+    "group:soporte-lideres@marketplace.test"
+   ],
+   "nombre": "Comité de calidad"
+  },
+  "group:finanzas@marketplace.test": {
+   "miembros": [
+    "user:carmen.nava@marketplace.test"
+   ],
+   "nombre": "Finanzas"
+  },
+  "group:fraude-analistas@marketplace.test": {
+   "miembros": [
+    "user:raul.ortiz@marketplace.test"
+   ],
+   "nombre": "Analistas de fraude"
+  },
+  "group:fraude@marketplace.test": {
+   "miembros": [
+    "group:fraude-analistas@marketplace.test",
+    "user:tomas.rey@marketplace.test"
+   ],
+   "nombre": "Fraude"
+  },
+  "group:legal-litigios@marketplace.test": {
+   "miembros": [
+    "user:irene.sol@marketplace.test"
+   ],
+   "nombre": "Legal · litigios"
+  },
+  "group:legal@marketplace.test": {
+   "miembros": [
+    "group:legal-litigios@marketplace.test"
+   ],
+   "nombre": "Legal"
+  },
+  "group:operaciones-lideres@marketplace.test": {
+   "miembros": [
+    "user:sofia.leal@marketplace.test"
+   ],
+   "nombre": "Líderes de operaciones"
+  },
+  "group:operaciones@marketplace.test": {
+   "miembros": [
+    "group:operaciones-lideres@marketplace.test",
+    "user:hugo.salas@marketplace.test",
+    "user:jorge.paz@marketplace.test"
+   ],
+   "nombre": "Operaciones"
+  },
+  "group:rh@marketplace.test": {
+   "miembros": [
+    "user:lucia.mora@marketplace.test"
+   ],
+   "nombre": "Recursos humanos"
+  },
+  "group:soporte-lideres@marketplace.test": {
+   "miembros": [
+    "user:paula.vega@marketplace.test"
+   ],
+   "nombre": "Líderes de soporte"
+  },
+  "group:soporte-nivel1@marketplace.test": {
+   "miembros": [
+    "user:ana.ruiz@marketplace.test",
+    "user:elena.cruz@marketplace.test",
+    "user:luis.campos@paqueteria-aliada.test",
+    "user:marco.diaz@marketplace.test",
+    "user:tomas.rey@marketplace.test"
+   ],
+   "nombre": "Soporte nivel 1"
+  },
+  "group:soporte@marketplace.test": {
+   "miembros": [
+    "group:soporte-lideres@marketplace.test",
+    "group:soporte-nivel1@marketplace.test"
+   ],
+   "nombre": "Soporte (todo el equipo)"
+  }
+ },
+ "personas": {
+  "ana.ruiz@marketplace.test": {
+   "area": "Soporte",
+   "nombre": "Ana Ruiz"
+  },
+  "carmen.nava@marketplace.test": {
+   "area": "Finanzas",
+   "nombre": "Carmen Nava"
+  },
+  "diego.luna@marketplace.test": {
+   "area": "Recién contratado, todavía sin equipo",
+   "nombre": "Diego Luna"
+  },
+  "elena.cruz@marketplace.test": {
+   "area": "Soporte",
+   "nombre": "Elena Cruz"
+  },
+  "hugo.salas@marketplace.test": {
+   "area": "Operaciones",
+   "nombre": "Hugo Salas"
+  },
+  "irene.sol@marketplace.test": {
+   "area": "Legal, litigios",
+   "nombre": "Irene Sol"
+  },
+  "jorge.paz@marketplace.test": {
+   "area": "Operaciones",
+   "nombre": "Jorge Paz"
+  },
+  "lucia.mora@marketplace.test": {
+   "area": "Recursos humanos",
+   "nombre": "Lucía Mora"
+  },
+  "luis.campos@paqueteria-aliada.test": {
+   "area": "Soporte, externo de la paquetería aliada",
+   "nombre": "Luis Campos"
+  },
+  "marco.diaz@marketplace.test": {
+   "area": "Soporte",
+   "nombre": "Marco Díaz"
+  },
+  "paula.vega@marketplace.test": {
+   "area": "Líder de soporte",
+   "nombre": "Paula Vega"
+  },
+  "raul.ortiz@marketplace.test": {
+   "area": "Fraude",
+   "nombre": "Raúl Ortiz"
+  },
+  "sofia.leal@marketplace.test": {
+   "area": "Líder de operaciones",
+   "nombre": "Sofía Leal"
+  },
+  "tomas.rey@marketplace.test": {
+   "area": "Soporte (antes Fraude)",
+   "nombre": "Tomás Rey"
+  }
+ }
+}

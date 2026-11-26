@@ -1,0 +1,68 @@
+{
+ "acl": [
+  [
+   "group:operaciones@marketplace.test",
+   "group:soporte@marketplace.test"
+  ],
+  [
+   "group:soporte-lideres@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ],
+    [
+     "group:soporte-lideres@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:1006#000",
+   "doc_id": "wiki:1006",
+   "orden": 0,
+   "ruta": [
+    "Clientes VIP y compensaciones"
+   ],
+   "texto": "Clientes VIP y compensaciones\n\n# Clientes VIP y compensaciones\nUn líder puede ofrecer una compensación de hasta 500 pesos en saldo sin aprobación de finanzas. Arriba de eso, se pide aprobación en el ticket.",
+   "titulo": "Clientes VIP y compensaciones",
+   "tokens": 49,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/api/paginas/1006",
+   "version": "2"
+  },
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ],
+    [
+     "group:soporte-lideres@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:1006#001",
+   "doc_id": "wiki:1006",
+   "orden": 1,
+   "ruta": [
+    "Clientes VIP y compensaciones",
+    "Topes por nivel de cliente"
+   ],
+   "texto": "Clientes VIP y compensaciones › Topes por nivel de cliente\n\n## Topes por nivel de cliente\nNivel: Oro; Compensación máxima sin aprobación: 500 pesos\nNivel: Plata; Compensación máxima sin aprobación: 300 pesos\nNivel: Sin nivel; Compensación máxima sin aprobación: 150 pesos",
+   "titulo": "Clientes VIP y compensaciones",
+   "tokens": 65,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/api/paginas/1006",
+   "version": "2"
+  }
+ ],
+ "doc_id": "wiki:1006",
+ "hash": "0bfdd1723265585431bfb74b344f033b04ad427a5fed5c75d498e5d3d6084bcd",
+ "huella": "0e80943c7995",
+ "sha256_texto": "6969daa698d98cbf2f7187ca50a17e46ea044d22ecfdcbcf7d016c695d1ea6a4",
+ "titulo": "Clientes VIP y compensaciones",
+ "url": "http://localhost:8120/wiki/api/paginas/1006",
+ "version": "2"
+}

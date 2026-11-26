@@ -1,0 +1,46 @@
+{
+ "acl": [
+  [
+   "group:operaciones@marketplace.test",
+   "group:soporte@marketplace.test",
+   "user:elena.cruz@marketplace.test"
+  ],
+  [
+   "group:soporte-lideres@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:elena.cruz@marketplace.test"
+    ],
+    [
+     "group:soporte-lideres@marketplace.test"
+    ]
+   ],
+   "chunk_id": "jira:SOP-5#000",
+   "doc_id": "jira:SOP-5",
+   "orden": 0,
+   "ruta": [
+    "SOP-5 · Cupón de bienvenida no se aplicó"
+   ],
+   "texto": "SOP-5 · Cupón de bienvenida no se aplicó\n\n# SOP-5 · Cupón de bienvenida no se aplicó\nEl cupón pedía un mínimo de 500 pesos y el carrito era de 480.\nResolución: Se explicó la condición; no aplicaba compensación.\nComentarios:\n- Le escribí a la persona.",
+   "titulo": "Cupón de bienvenida no se aplicó",
+   "tokens": 73,
+   "traslape": 0,
+   "url": "http://localhost:8120/jira/api/ticket/SOP-5",
+   "version": "2026-11-03T08:35:00.000-0600"
+  }
+ ],
+ "doc_id": "jira:SOP-5",
+ "hash": "404b098245845634e755d7dcd00e3f7e183bfbb91ca044109070d38b2eab82d6",
+ "huella": "0e80943c7995",
+ "sha256_texto": "9a60e1c0c475ed0d9c9784c3f395f647a7f1c868d195e98a9b9cc5d4a3e4a5ed",
+ "titulo": "Cupón de bienvenida no se aplicó",
+ "url": "http://localhost:8120/jira/api/ticket/SOP-5",
+ "version": "2026-11-03T08:35:00.000-0600"
+}

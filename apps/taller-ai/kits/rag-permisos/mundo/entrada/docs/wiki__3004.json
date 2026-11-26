@@ -1,0 +1,44 @@
+{
+ "acl": [
+  [
+   "group:legal@marketplace.test",
+   "group:soporte-lideres@marketplace.test"
+  ],
+  [
+   "group:legal-litigios@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:legal@marketplace.test",
+     "group:soporte-lideres@marketplace.test"
+    ],
+    [
+     "group:legal-litigios@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:3004#000",
+   "doc_id": "wiki:3004",
+   "orden": 0,
+   "ruta": [
+    "Caso Transportes del Norte"
+   ],
+   "texto": "Caso Transportes del Norte\n\n# Caso Transportes del Norte\nReclamación por 38 paquetes perdidos en el almacén de Monterrey en septiembre. Se negocia un pago de 420,000 pesos antes de ir a juicio.",
+   "titulo": "Caso Transportes del Norte",
+   "tokens": 50,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/api/paginas/3004",
+   "version": "2"
+  }
+ ],
+ "doc_id": "wiki:3004",
+ "hash": "6a2d5c96d823b571bef6629d5eea7acde520f63dce76e5812fe15a4047857086",
+ "huella": "0e80943c7995",
+ "sha256_texto": "b91ca9555932a7e1d56243e347f224e7ced01cb78fd2ddf4d312db001ff6a3bd",
+ "titulo": "Caso Transportes del Norte",
+ "url": "http://localhost:8120/wiki/api/paginas/3004",
+ "version": "2"
+}

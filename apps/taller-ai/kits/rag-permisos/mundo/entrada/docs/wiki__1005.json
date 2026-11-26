@@ -1,0 +1,68 @@
+{
+ "acl": [
+  [
+   "group:operaciones@marketplace.test",
+   "group:soporte@marketplace.test"
+  ],
+  [
+   "group:soporte-lideres@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ],
+    [
+     "group:soporte-lideres@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:1005#000",
+   "doc_id": "wiki:1005",
+   "orden": 0,
+   "ruta": [
+    "Escalamiento a líderes"
+   ],
+   "texto": "Escalamiento a líderes\n\n# Escalamiento a líderes\nLo que se escala a líderes de soporte: amenazas de demanda, pérdidas mayores a 20,000 pesos y cualquier caso con prensa o redes sociales.",
+   "titulo": "Escalamiento a líderes",
+   "tokens": 45,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/api/paginas/1005",
+   "version": "1"
+  },
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ],
+    [
+     "group:soporte-lideres@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:1005#001",
+   "doc_id": "wiki:1005",
+   "orden": 1,
+   "ruta": [
+    "Escalamiento a líderes",
+    "Cómo escalar"
+   ],
+   "texto": "Escalamiento a líderes › Cómo escalar\n\n## Cómo escalar\n- Etiqueta el ticket con «escalado».\n- Resume el caso en tres líneas: qué pasó, qué pide la persona y qué se le ofreció.\n- Avisa en el canal de líderes con el número de ticket.",
+   "titulo": "Escalamiento a líderes",
+   "tokens": 71,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/api/paginas/1005",
+   "version": "1"
+  }
+ ],
+ "doc_id": "wiki:1005",
+ "hash": "87ae50855aa68c83ff5f0928d7009a9266aadb47bfaafcfc75e400538623d3b3",
+ "huella": "0e80943c7995",
+ "sha256_texto": "646141f8bf552fc889f23d58f433c4cfe4a0fe35a5796ac90c4c97a09d487e5d",
+ "titulo": "Escalamiento a líderes",
+ "url": "http://localhost:8120/wiki/api/paginas/1005",
+ "version": "1"
+}

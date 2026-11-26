@@ -1,0 +1,38 @@
+{
+ "acl": [
+  [
+   "group:operaciones@marketplace.test",
+   "group:soporte@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "chunk_id": "politicas:cupones.md#000",
+   "doc_id": "politicas:cupones.md",
+   "orden": 0,
+   "ruta": [
+    "Política de cupones"
+   ],
+   "texto": "Política de cupones\n\n# Política de cupones\nUn cupón por pedido. No se combinan con promociones de quien vende.",
+   "titulo": "cupones.md",
+   "tokens": 30,
+   "traslape": 0,
+   "url": "http://localhost:8120/repo/politicas/crudo/cupones.md",
+   "version": "5ac6f61c2599756ff068ed29bad1e4b778d359cd"
+  }
+ ],
+ "doc_id": "politicas:cupones.md",
+ "hash": "e334c27565a659aab3810dae270fe0887e14c94832cbb714d26fe8030e05a190",
+ "huella": "0e80943c7995",
+ "sha256_texto": "2b1353ee1d8b2f69fadefc4d74292244a75d6624d20b0c558537f00854c96cb0",
+ "titulo": "cupones.md",
+ "url": "http://localhost:8120/repo/politicas/crudo/cupones.md",
+ "version": "5ac6f61c2599756ff068ed29bad1e4b778d359cd"
+}

@@ -1,0 +1,40 @@
+{
+ "acl": [
+  [
+   "group:operaciones@marketplace.test",
+   "group:soporte@marketplace.test",
+   "user:paula.vega@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:paula.vega@marketplace.test"
+    ]
+   ],
+   "chunk_id": "jira:SOP-41#000",
+   "doc_id": "jira:SOP-41",
+   "orden": 0,
+   "ruta": [
+    "SOP-41 · Reembolso no aparece en la tarjeta"
+   ],
+   "texto": "SOP-41 · Reembolso no aparece en la tarjeta\n\n# SOP-41 · Reembolso no aparece en la tarjeta\nPasaron 12 días hábiles y no ve el reembolso.",
+   "titulo": "Reembolso no aparece en la tarjeta",
+   "tokens": 49,
+   "traslape": 0,
+   "url": "http://localhost:8120/jira/api/ticket/SOP-41",
+   "version": "2026-11-21T08:50:00.000-0600"
+  }
+ ],
+ "doc_id": "jira:SOP-41",
+ "hash": "75885b15eaa75863a5698f91253f51e02348272e4301cc2dbc3bb96b74325602",
+ "huella": "0e80943c7995",
+ "sha256_texto": "fd2f3f203541b7bfe654c8b6301e449d4d3d1030f744531dc31645d4b316b80e",
+ "titulo": "Reembolso no aparece en la tarjeta",
+ "url": "http://localhost:8120/jira/api/ticket/SOP-41",
+ "version": "2026-11-21T08:50:00.000-0600"
+}
