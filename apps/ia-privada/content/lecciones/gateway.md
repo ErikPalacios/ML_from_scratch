@@ -35,7 +35,7 @@ El camino de una pregunta del despacho. Toca cada caja para ver por qué está a
 
 ## La API compatible con OpenAI, de verdad {The OpenAI-compatible API, for real}
 
-Todo en el diagrama habla el mismo idioma: Open WebUI le habla al gateway como si el gateway fuera OpenAI, y el gateway le habla a cada vLLM igual. Ese idioma es la [[api-compatible-openai|API compatible con OpenAI]]: un conjunto de rutas HTTP con un JSON conocido. Las que importan son cuatro:
+Todo en el diagrama habla el mismo idioma: Open WebUI (la página de chat que usan los abogados, la ves a fondo más abajo) le habla al gateway como si el gateway fuera OpenAI, y el gateway le habla a cada vLLM igual. Ese idioma es la [[api-compatible-openai|API compatible con OpenAI]]: un conjunto de rutas HTTP con un JSON conocido. Las que importan son cuatro:
 
 | Ruta | Para qué | En el despacho |
 |---|---|---|
@@ -94,7 +94,7 @@ curl http://gateway.despacho.local/v1/chat/completions \
 - **`usage`** dice cuántos tokens leyó (`prompt_tokens`) y cuántos escribió (`completion_tokens`). Es **la factura** de la pregunta: con esto se cobra la cuota y se escribe el registro.
 - **`finish_reason`** dice por qué paró: `stop` si terminó solo, `length` si se topó con `max_tokens`. Un `length` frecuente avisa que el tope está bajo o que el modelo se enreda.
 
-`/v1/models` devuelve una lista con un `id` por modelo, y `/v1/embeddings` recibe `input` (un texto o una lista) y devuelve un vector por texto, también con su `usage`. Con esas formas basta para entender todo lo que sigue.
+`/v1/models` (una lista con un `id` por modelo) y `/v1/embeddings` (un vector por texto, también con su `usage`) siguen la misma idea.
 
 ## Streaming con SSE: la respuesta por pedazos {Streaming with SSE: the answer in pieces}
 
@@ -104,11 +104,10 @@ Una respuesta del despacho tarda ≈ 27 s: ≈ 2 s hasta el primer token (el [[t
 Lo que viaja por el cable en una respuesta en streaming: ≈ 2.4 s de nada mientras el servidor lee la entrada, después un evento por pedazo, el pedazo con `usage` si se pidió, y `data: [DONE]`. Abajo, lo que pasa si algo en medio junta los pedazos.
 :::
 
-Cada pedazo es un objeto `chat.completion.chunk`. Todos traen el mismo `id`; en vez de `message` traen `delta`, con solo el texto nuevo. El último con texto trae el `finish_reason`. Y un detalle que importa para cobrar: **`usage` no viene en el stream a menos que se pida** con `"stream_options": {"include_usage": true}`; entonces llega un pedazo extra al final, con `choices` vacío y los tokens. vLLM 0.34.0 cierra el stream con la línea `data: [DONE]` (está en su código); es el formato que copian los motores.
+Cada pedazo es un objeto `chat.completion.chunk`. Todos traen el mismo `id`; en vez de `message` traen `delta`, con solo el texto nuevo. El último con texto trae el `finish_reason`. Y un detalle que importa para cobrar: **`usage` no viene en el stream a menos que se pida** con `"stream_options": {"include_usage": true}`; entonces llega un pedazo extra al final, con `choices` vacío y los tokens. Al final va la línea `data: [DONE]`: la referencia de OpenAI dice que el pedazo de `usage` llega «antes del mensaje `data: [DONE]`», y vLLM 0.34.0 la manda igual.
 
-### Un stream, leído por un programa
-
-Esto es lo que hace un gateway con cada pedazo: reenviarlo y, al final, quedarse con la factura.
+:::profundo Un stream, leído por un programa
+Esto es lo que hace un gateway con cada pedazo: reenviarlo y, al final, quedarse con la factura. (Sensei enseña a leer SSE en general; aquí importa dónde llega la factura.)
 
 ```python
 import json
@@ -154,6 +153,7 @@ texto: La cláusula 14 prohíbe ceder el contrato.
 finish_reason: stop
 tokens que cobra el gateway: 6021 (entrada 6012, salida 9)
 ```
+:::
 
 Fíjate en el orden: el texto se puede mostrar desde el primer pedazo, pero los tokens se saben **hasta el final**. Si el cliente no pidió `include_usage`, el gateway tiene que pedirlo él por su cuenta o contar los tokens él mismo. Los gateways serios lo hacen; vale la pena comprobarlo con la versión que instales.
 
@@ -168,7 +168,7 @@ Entre la abogada y la GPU puede haber varios programas: Open WebUI, el gateway, 
 ```nginx
 # Ilustrativo: nginx delante del gateway, solo para SSE
 location /v1/ {
-    proxy_pass http://litellm:4000;
+    proxy_pass http://litellm:4000;   # el gateway (LiteLLM, más abajo)
     proxy_buffering off;          # cada pedazo sale en cuanto llega
     proxy_read_timeout 300s;      # silencio máximo entre lecturas
 }
@@ -182,7 +182,7 @@ Prueba el stream **de punta a punta**, desde el navegador de una abogada, no des
 
 Que todos hablen la «misma» API no quiere decir que hagan lo mismo. Lo que cambia entre motores, a noviembre de 2026, y que el gateway tiene que conocer:
 
-- **Parámetros extra.** vLLM acepta parámetros que OpenAI no tiene, como `top_k`; con el SDK de OpenAI van dentro de `extra_body`. El del despacho es `chat_template_kwargs`: está en el esquema del request de vLLM y se pasa a la plantilla del modelo. Ahí viaja el `enable_thinking: false` que apaga el razonamiento de Qwen3 (la lección [Elegir un modelo](/elegir-modelo/) explica por qué el despacho lo apaga). Si el gateway o Open WebUI no lo reenvían, el modelo piensa por omisión y gasta tokens y segundos antes de cada respuesta.
+- **Parámetros extra.** vLLM acepta parámetros que OpenAI no tiene, como `top_k`; con el SDK de OpenAI van dentro de `extra_body`. El del despacho es `chat_template_kwargs`: está en el esquema del request de vLLM y se pasa a la plantilla del modelo. Ahí viaja el `enable_thinking: false` que apaga el razonamiento de Qwen3; la documentación de vLLM 0.34.0 lo dice así para la serie Qwen3 (la lección [Elegir un modelo](/elegir-modelo/) explica por qué el despacho lo apaga). Si el gateway o Open WebUI no lo reenvían, el modelo piensa por omisión y gasta tokens y segundos antes de cada respuesta. Más seguro: arrancar vLLM con `--default-chat-template-kwargs '{"enable_thinking": false}'`, que lo apaga para todas las requests que no digan otra cosa.
 - **Valores por omisión distintos.** vLLM aplica por omisión el `generation_config.json` que publica quien hizo el modelo (temperatura y otros), y se apaga con `--generation-config vllm`. Dos servidores «iguales» pueden contestar distinto a la misma pregunta.
 - **Campos ignorados.** vLLM ignora el campo `user` del chat y no soporta `suffix` en `/v1/completions`. Quien quiera saber qué persona pidió no puede confiar en `user`: lo resuelve el gateway.
 - **Una API nueva.** OpenAI dice, en su guía de migración consultada el 26 de noviembre de 2026, que Chat Completions «sigue soportada» pero recomienda su **Responses API** para proyectos nuevos; su stream usa eventos con nombre (`response.output_text.delta`, `response.completed`) en vez de `[DONE]`. vLLM, llama-server y Ollama ya sirven una ruta `/v1/responses`. Para el despacho, Chat Completions es el denominador común: todo lo que usa la entiende.
@@ -221,7 +221,7 @@ Lo que recomienda vLLM es exactamente un gateway: ponerlo detrás de un proxy in
 - **El gateway solo expone las rutas `/v1` que se usan.** Ni `/metrics` ni `/health` del motor quedan al alcance de una laptop cualquiera; el monitoreo los lee por su lado.
 - **Una pieza que sepa de personas, tokens y modelos.** nginx solo no basta: pone el candado HTTPS, filtra rutas y limita requests por dirección IP, pero no cuenta tokens ni conoce personas. Hace falta un gateway de LLMs.
 
-Una opción que no pide Kubernetes es **LiteLLM proxy** (a noviembre de 2026, versión 1.111.0, del 25 de noviembre): un programa en Python, de Berri AI, que guarda claves, presupuestos y registro en una base Postgres. Es el que usa el despacho en esta lección. Sus alternativas y licencias están en la sección «Las piezas, con su licencia».
+Una opción que no pide Kubernetes (el sistema que reparte contenedores en un grupo de máquinas) es **LiteLLM proxy** (a noviembre de 2026, versión 1.111.0, del 25 de noviembre): un programa en Python, de Berri AI, que escucha por omisión en el puerto `4000` y guarda claves, presupuestos y registro en una base de datos PostgreSQL. Es el que usa el despacho en esta lección. Sus alternativas y licencias están en la sección «Las piezas, con su licencia».
 
 ## Personas: SSO con Microsoft Entra ID y OIDC {People: SSO with Microsoft Entra ID and OIDC}
 
@@ -233,21 +233,23 @@ Los 200 abogados no deberían tener otra contraseña. Ya tienen una cuenta de Mi
 - **Open WebUI** es la interfaz de chat que usan los abogados (versión 0.13.5, del 25 de noviembre de 2026). Es la que recibe el ID token. Se conecta a cualquier servidor con la API compatible con OpenAI: en el despacho, a LiteLLM.
 - **LiteLLM** no ve a los abogados directamente: ve a Open WebUI, que entra con su propia clave y le dice qué persona pide (lo ves en la siguiente sección).
 
-Un detalle que confunde: LiteLLM también ofrece SSO, pero el suyo es para entrar a **su panel de administración**, no para los usuarios del chat. A noviembre de 2026 es gratis hasta 5 personas; las 2 de TI caben de sobra.
+:::profundo El SSO de LiteLLM es otro
+LiteLLM también ofrece SSO, pero el suyo es para entrar a **su panel de administración**, no para los usuarios del chat. Desde su versión 1.76.0 es gratis hasta 5 personas (y lo sigue siendo a noviembre de 2026); las 2 de TI caben de sobra.
+:::
 
 ### Registrar la app en Entra
 
-TI registra Open WebUI en el tenant del despacho y obtiene tres cosas: el Id de la app (*client id*), un secreto y el Id del tenant. Además registra la dirección a la que Entra regresa a la persona después de entrar: `<dirección de Open WebUI>/oauth/microsoft/callback`. Todo lo demás que una app necesita saber de Entra (dónde mandar a la persona, dónde canjear el código, dónde están las claves para verificar la firma) está en un documento público, el de descubrimiento:
+TI registra Open WebUI en el tenant del despacho y obtiene tres cosas: el Id de la app (*client id*), un secreto y el Id del tenant. Además registra la dirección a la que Entra regresa a la persona después de entrar: `<dirección de Open WebUI>/oauth/microsoft/callback`. Usar el Id del tenant, y no los valores genéricos `common` u `organizations` (que aceptan cuentas de cualquier organización), es lo que hace que **solo** las cuentas del despacho puedan entrar. En Open WebUI, todo eso se pone en variables de entorno, con dos trampas en los valores por omisión que se ven abajo.
+
+:::profundo El documento de descubrimiento y las variables de Open WebUI
+Todo lo demás que una app necesita saber de Entra (dónde mandar a la persona, dónde canjear el código, dónde están las claves para verificar la firma) está en un documento público, el de descubrimiento:
 
 ```
 https://login.microsoftonline.com/{tenant}/v2.0/.well-known/openid-configuration
 ```
 
-con el Id del tenant del despacho en `{tenant}`. Usar el Id del tenant, y no `common` u `organizations`, es lo que hace que **solo** las cuentas del despacho puedan entrar. Con el proveedor de Microsoft, Open WebUI no te pide esa dirección (la arma con el tenant); con un proveedor OIDC genérico sí, en `OPENID_PROVIDER_URL`.
+con el Id del tenant del despacho en `{tenant}`. Con el proveedor de Microsoft, Open WebUI no te pide esa dirección (la arma con el tenant); con un proveedor OIDC genérico sí, en `OPENID_PROVIDER_URL`.
 
-En Open WebUI, todo eso se pone en variables de entorno, con dos trampas en los valores por omisión que se ven abajo.
-
-:::profundo Las variables de Open WebUI para el despacho
 Ilustrativo, con los nombres de su documentación a noviembre de 2026:
 
 ```bash
@@ -264,7 +266,7 @@ OPENAI_API_BASE_URL=http://litellm:4000/v1
 OPENAI_API_KEY=...                 # la clave de servicio de Open WebUI ante LiteLLM
 ```
 
-Dos trampas de los valores por omisión: sin `ENABLE_OAUTH_SIGNUP`, nadie puede crear su cuenta con SSO; y una cuenta nueva queda como `pending` (`DEFAULT_USER_ROLE`) hasta que un administrador la apruebe, salvo que los roles vengan del token. Open WebUI tiene además una limitación documentada: con Microsoft, un solo tenant, y no se pueden tener Microsoft y Google a la vez como proveedores.
+Dos trampas de los valores por omisión: sin `ENABLE_OAUTH_SIGNUP`, nadie puede crear su cuenta con SSO; y una cuenta nueva queda como `pending` (`DEFAULT_USER_ROLE`) hasta que un administrador la apruebe, salvo que los roles vengan del token. Open WebUI tiene además una limitación documentada: con Microsoft, un solo tenant, que es justo el caso del despacho.
 :::
 
 ### Qué usar del token para saber quién es
@@ -287,8 +289,8 @@ Para los permisos, usa **[[rol-de-aplicacion|roles de aplicación]]** (`user`, `
 Lo natural sería decir «el grupo *Litigio* puede usar el modelo grande». Entra puede mandar los grupos de la persona en el token (`groups`), pero con tres problemas:
 
 1. **Llegan como identificadores largos**, no como nombres: la app tiene que saber que `3f9c…` es *Litigio*.
-2. **Hay un límite.** Si la persona está en más de **200 grupos** (en un JWT), el token ya no trae `groups`: trae una marca de «excedido» y la app tiene que preguntarle a Microsoft Graph. Microsoft lo dice claro: la app no debe confiar en el valor de esa marca, solo en que está. Una socia con muchos grupos podría quedarse sin acceso un lunes sin que nadie entienda por qué; y la documentación de Open WebUI no dice que haga esa consulta.
-3. **Asignar grupos a una app exige licencia.** «Group-based assignment» requiere Entra ID P1 o P2; un tenant gratis solo puede asignar personas una por una. Microsoft 365 Business Premium incluye P1: TI debe confirmar qué licencia tiene el despacho.
+2. **Hay un límite.** Si la persona está en más de **200 grupos** (en un JWT, el formato del ID token), el token ya no trae `groups`: trae una marca de «excedido» y la app tiene que preguntarle a Microsoft Graph (la API de Microsoft para leer el directorio). Microsoft lo dice claro: la app no debe confiar en el valor de esa marca, solo en que está. Una socia con muchos grupos podría quedarse sin acceso un lunes sin que nadie entienda por qué; y la documentación de Open WebUI no dice que haga esa consulta.
+3. **Asignar grupos a una app exige licencia.** El SSO en sí viene en Entra ID Free, la edición incluida con Microsoft 365 (su página de precios, consultada el 26 de noviembre de 2026, le pone «SSO ilimitado»). Lo que no viene es asignar grupos: «Group-based assignment» requiere Entra ID P1 o P2, y un tenant gratis solo puede asignar personas una por una. Microsoft 365 Business Premium incluye P1: TI debe confirmar qué licencia tiene el despacho.
 
 La salida que Microsoft recomienda son los **[[rol-de-aplicacion|roles de aplicación]]**: en el registro de la app se definen `user` y `admin`, se asignan a las personas (o, con P1, a grupos enteros), y el token trae `roles: ["user"]`. Sin límite de 200 y sin traducir identificadores. Open WebUI los lee con las variables de arriba.
 :::
@@ -320,13 +322,17 @@ Para el despacho, tres claves al empezar: una para Open WebUI (solo inferencia, 
 
 ### Saber qué persona pidió, cuando quien llama es Open WebUI
 
-Open WebUI puede reenviar quién es la persona en encabezados: con `ENABLE_FORWARD_USER_INFO_HEADERS=true` agrega `X-OpenWebUI-User-Id`, `-Email`, `-Name` y `-Role` a cada request. Y LiteLLM puede tomar uno de esos encabezados como el usuario de la request (`user_header_mappings` en su configuración); así las cuotas y el registro son **por abogada**, aunque la clave sea la de Open WebUI. Confirma en la versión que instales si esa opción está en la parte gratis.
+Open WebUI puede reenviar quién es la persona en encabezados: con `ENABLE_FORWARD_USER_INFO_HEADERS=true` agrega `X-OpenWebUI-User-Id`, `-Email`, `-Name` y `-Role` a cada request. Y LiteLLM puede tomar uno de esos encabezados como el usuario de la request (`user_header_mappings` en su configuración); así el registro y el gasto son **por abogada**, aunque la clave sea la de Open WebUI. A noviembre de 2026 (versión 1.111.0) esa opción está en la parte MIT: no aparece en su lista de funciones de pago y su código no pide licencia.
 
 Tres reglas para que eso sea seguro:
 
 - **Mapea el Id, no el nombre ni el correo.** La propia guía de LiteLLM para Open WebUI avisa que en Open WebUI las personas pueden cambiar su nombre de usuario. El Id no cambia.
 - **Quien tenga la clave de Open WebUI puede inventar esos encabezados.** El gateway le cree a Open WebUI porque tiene su clave. Si esa clave se usa desde otro lado, cualquiera puede decir «soy la socia directora». Por eso esa clave vive solo en el servidor de Open WebUI y solo sirve para inferencia.
 - **Nunca la clave maestra en una app.** La documentación de permisos de Open WebUI lo dice así: usa credenciales limitadas a inferencia y evita poner claves de administración para el tráfico de usuarios.
+
+:::profundo Que la cuota también sea por abogada
+Para que también la **cuota** sea por abogada, LiteLLM documenta límites por cliente final (*customer*): un presupuesto con `tpm_limit` y `rpm_limit` que se aplica al usuario de la request, y uno por omisión para todos los que no tengan el suyo (`max_end_user_budget_id`). En la configuración, eso es mapear el Id de Open WebUI con el rol `customer`. Cómo se combinan exactamente el encabezado y los límites no lo detalla su documentación: pruébalo en el piloto con dos cuentas de prueba antes de confiar en él.
+:::
 
 ## Límites en tokens, no en requests {Limits in tokens, not in requests}
 
@@ -351,13 +357,16 @@ Al tope: el contexto lleno, \(k\) // el tope del despacho: 8,192 tokens por conv
 Prefill de la corta, \(t_{pre}\) | 2 × 32.762 × 10⁹ × 300 ÷ (0.5 × 362.05 × 10¹²) | ≈ 0.11 s
 Prefill de la típica, \(t_{pre}\) | 2 × 32.762 × 10⁹ × 6,000 ÷ (0.5 × 362.05 × 10¹²) | ≈ 2.17 s
 Prefill de la del tope, \(t_{pre}\) | 2 × 32.762 × 10⁹ × 7,692 ÷ (0.5 × 362.05 × 10¹²) | ≈ 2.78 s
-La del tope contra la corta | 8,192 ÷ 500 | ≈ 16.4 veces
-= Con un límite de «4 requests por minuto», las tres pesan lo mismo. En tokens, la del tope cuesta 16 veces la corta y ocupa la GPU 25 veces más tiempo antes de su primer token.
+La del tope contra la corta, en tokens | 8,192 ÷ 500 | ≈ 16.4 veces
+La del tope contra la corta, en prefill // el prefill crece con \(t_{in}\) | 7,692 ÷ 300 | ≈ 25.6 veces
+= Con un límite de «4 requests por minuto», las tres pesan lo mismo. En tokens, la del tope cuesta 16 veces la corta y ocupa la GPU ≈ 26 veces más tiempo antes de su primer token.
 :::
 
 (La herramienta de sizing, que cuenta más cosas, da 2.38 s para la típica en vez de 2.17; la proporción es la misma.)
 
-Hay una segunda razón para contar tokens: **los requests mienten sobre la carga**. Un script que manda 4 requests por minuto al tope pide 4 × 8,192 = 32,768 tokens por minuto. Una abogada que pregunta normal en la hora pico pide ≈ 406. Los dos «respetan» el mismo límite de 4 requests por minuto; uno pide 80 veces más.
+:::profundo Los requests mienten sobre la carga
+Una segunda razón para contar tokens. Un script que manda 4 requests por minuto al tope pide 4 × 8,192 = 32,768 tokens por minuto. Una abogada que pregunta normal en la hora pico pide ≈ 406. Los dos «respetan» el mismo límite de 4 requests por minuto; uno pide 80 veces más.
+:::
 
 ### Qué da el servidor, y cuánto pide la hora pico
 
@@ -385,10 +394,12 @@ Uso en la hora pico, \(u\) | 6,250 ÷ 7,200 | ≈ 86.8 %
 = En la hora pico, el despacho usa casi 87 % de lo que dan las 3 L40S. No hay sobra para que nadie abuse: por eso la cuota no es opcional.
 :::
 
-Esa cuenta es la misma que da la [ley de Little](/concurrencia/) por otro camino: 0.21 preguntas por segundo × 25 s escribiendo ≈ 5.2 conversaciones a la vez, contra las 6 que sostienen las tres GPUs. Y explica el matiz de la ficha: 3 L40S cubren el promedio de la hora pico, pero las 8 conversaciones de diseño a 20 tokens por segundo pedirían 4. La alternativa que el despacho cotiza, 2 RTX PRO 6000 Blackwell Server Edition, cambia \(n\) y \(c\) pero no el método ([Comprar hardware](/comprar-hardware/)).
+Las 3 L40S cubren el promedio de la hora pico, pero las 8 conversaciones de diseño a 20 tokens por segundo pedirían 4. La alternativa que el despacho cotiza, 2 RTX PRO 6000 Blackwell Server Edition, cambia \(n\) y \(c\) pero no el método ([Comprar hardware](/comprar-hardware/)).
 
-:::profundo ¿Por qué repartir los tokens de salida y no los de entrada?
-¿Por qué repartir los tokens de **salida** y no los de entrada? Porque el decode es lo que se agota primero aquí: la entrada de la hora pico usa ≈ 16 % de lo que el prefill de las 3 GPUs podría leer en un minuto. El cuello del despacho son las conversaciones que se escriben a 20 tokens por segundo. LiteLLM cuenta por omisión tokens **totales** (entrada + salida); se puede cambiar con `token_rate_limit_type` a `output`. Si dejas el total, convierte la cuota de salida a total con la proporción de tus preguntas, como en la siguiente sección.
+:::profundo Dos comprobaciones: Little, y por qué la salida
+La cuenta coincide con la [ley de Little](/concurrencia/) por otro camino: 0.21 preguntas por segundo × 25 s escribiendo ≈ 5.2 conversaciones a la vez, contra las 6 que sostienen las tres GPUs (la ficha cuenta los 27 s con el primer token y da 5.6: igual caben).
+
+¿Por qué repartir los tokens de **salida** y no los de entrada? Porque el decode es lo que se agota primero aquí: la entrada de la hora pico (75,000 tokens por minuto) usa ≈ 15 % de lo que el prefill de las 3 GPUs podría leer en un minuto (3 × 60 s ÷ 2.17 s × 6,000 ≈ 497,000 tokens, con la cuenta de arriba). El cuello del despacho son las conversaciones que se escriben a 20 tokens por segundo. LiteLLM cuenta por omisión tokens **totales** (entrada + salida); se puede cambiar con `token_rate_limit_type` a `output`. Si dejas el total, convierte la cuota de salida a total con la proporción de tus preguntas, como en la siguiente sección.
 :::
 
 ## La cuota por persona y el token bucket en tokens {Per-person quota and the token bucket in tokens}
@@ -418,7 +429,11 @@ Cuota contra uso típico | 8.64 ÷ 3.75 | ≈ 2.3 veces
 = Cada abogada puede hacer ≈ 8.6 preguntas por hora en el pico: más del doble de lo que hace alguien que trabaja normal, y muy poco para un script en un ciclo.
 :::
 
-Mira los extremos. Si las 200 pidieran a la vez (\(a\) = 1), la cuota bajaría a 36 tokens de salida por minuto: 4.3 preguntas por hora, apenas arriba del uso típico. Si solo 50 (\(a\) = 0.25), subiría a 17.3. El supuesto pesa: por eso se escribe, se mide en el piloto y se corrige.
+El supuesto de la mitad activa pesa: por eso se escribe, se mide en el piloto y se corrige.
+
+:::profundo Los extremos del supuesto
+Si las 200 pidieran a la vez (\(a\) = 1), la cuota bajaría a 36 tokens de salida por minuto: 4.3 preguntas por hora, apenas arriba del uso típico. Si solo 50 (\(a\) = 0.25), subiría a 17.3 preguntas por hora.
+:::
 
 :::calculadora gateway-cuota
 Empieza con el despacho. Baja la fracción activa a 100 % (el peor caso) y luego súbela a 25 %. Después cambia las GPUs a 4, el número que pediría que las 8 conversaciones de diseño vayan todas a 20 tokens por segundo, y mira cuánto sube cada cuota.
@@ -502,7 +517,7 @@ Sube la cubeta a 32,500 (5 preguntas) y mira que solo cambia la ráfaga. Baja el
 :::
 
 :::profundo Cómo se ve en LiteLLM, y lo que no es exacto
-En LiteLLM los límites por persona se escriben así (por usuario interno o por clave): `tpm_limit: 936`, `rpm_limit: 4` (corta los ciclos de un script antes de que el `tpm` lo note) y `max_parallel_requests: 2`. Este último importa con un servidor chico: las 3 L40S sostienen ≈ 6 conversaciones a 20 tokens por segundo, así que con 2 a la vez por persona, **3 personas** las llenan todas; con 1, hacen falta 6.
+En LiteLLM los límites se escriben así (en la clave de una app, o en el presupuesto de cliente final que se aplica a cada abogada): `tpm_limit: 936`, `rpm_limit: 4` (corta los ciclos de un script antes de que el `tpm` lo note) y `max_parallel_requests: 2` (documentado para claves y equipos; por cliente final, compruébalo). Este último importa con un servidor chico: las 3 L40S sostienen ≈ 6 conversaciones a 20 tokens por segundo, así que con 2 a la vez por persona, **3 personas** las llenan todas; con 1, hacen falta 6.
 
 Dos diferencias con la cubeta de la cuenta, que conviene saber:
 
@@ -582,7 +597,7 @@ Cada request va a una de las tres; cómo se elige importa más de lo que parece,
 Lo que decide el gateway con cada request, en orden: la clave, la cuota, la copia y, si algo falla, el reintento, la pausa y el respaldo. Sigue los tres recorridos: una request normal, una sin cuota y una copia que falla.
 :::
 
-- **Reintentos.** Si una copia no contesta, se reintenta en otra (`num_retries`). Ojo: la documentación de LiteLLM avisa que, para algunos tipos de error, el valor por omisión del router es **cero** reintentos: hay que ponerlo. Y los reintentos tienen su costo: la lección [Timeouts, reintentos e idempotencia](https://sensei.trueml.app/fallas-red/) de Sensei explica cómo una tormenta de reintentos tumba a un servidor que apenas se estaba levantando.
+- **Reintentos.** Si una copia no contesta, se reintenta en otra (`num_retries`). Ojo: a noviembre de 2026 la documentación de LiteLLM no es consistente sobre el valor por omisión (su tabla de configuración dice 2; su página de respaldos dice que, para la mayoría de los errores, el router no reintenta): escríbelo siempre en la configuración. Y los reintentos tienen su costo: la lección [Timeouts, reintentos e idempotencia](https://sensei.trueml.app/fallas-red/) de Sensei explica cómo una tormenta de reintentos tumba a un servidor que apenas se estaba levantando.
 - **Pausa (*cooldown*).** Una copia que falla 3 veces (`allowed_fails`) sale de la rotación 30 s (`cooldown_time`). Así una L40S que se reinicia no se come las preguntas de todos.
 - **[[fallback|Respaldo]].** Si `chat-grande` falla tras sus reintentos, la pregunta va a `chat-chico`. **Siempre dentro del despacho.** Un respaldo hacia una API pública, por cómodo que sea, manda expedientes fuera de la red justo el día que algo falló: es romper la razón del proyecto sin que nadie lo decida. Si no hay respaldo sano, un 503 con un mensaje claro.
 
@@ -604,7 +619,7 @@ Quién (el `oid` de Entra o el Id de Open WebUI, no el correo), cuándo, qué mo
 
 ### Qué no se guarda, y por qué
 
-El texto de la pregunta, los fragmentos de expediente y la respuesta. Dos razones. La primera es el **secreto profesional**: el despacho hizo este proyecto para que los expedientes no salieran de su red; una tabla con un año de preguntas es la copia más completa de lo que sus clientes le confiaron, en un solo lugar. La segunda es la ley. La Ley Federal de Protección de Datos Personales en Posesión de los Particulares vigente (publicada en el DOF el 20 de marzo de 2025; Sensei la cuenta en [Datos personales y la ley](https://sensei.trueml.app/privacidad/)) pide que el tratamiento sea el **necesario, adecuado y relevante** para la finalidad avisada (art. 12), que no se use para otra finalidad sin nuevo consentimiento (art. 11), que los datos se supriman cuando ya no sirvan (art. 10) y que haya medidas de seguridad contra el acceso no autorizado (art. 18). Un registro hecho «para repartir cuotas» que guarda las preguntas es más de lo necesario; y usarlo después «para evaluar a los abogados» sería otra finalidad.
+El texto de la pregunta, los fragmentos de expediente y la respuesta. Dos razones. La primera es el **secreto profesional**: el despacho hizo este proyecto para que los expedientes no salieran de su red; una tabla con un año de preguntas es la copia más completa de lo que sus clientes le confiaron, en un solo lugar. La segunda es la ley. La Ley Federal de Protección de Datos Personales en Posesión de los Particulares vigente (publicada en el DOF el 20 de marzo de 2025, con su última reforma en el DOF del 14 de noviembre de 2025, según el texto vigente consultado el 26 de noviembre de 2026; Sensei la cuenta en [Datos personales y la ley](https://sensei.trueml.app/privacidad/)) pide que el tratamiento sea el **necesario, adecuado y relevante** para la finalidad avisada (art. 12), que no se use para otra finalidad sin nuevo consentimiento (art. 11), que los datos se supriman cuando ya no sirvan (art. 10) y que haya medidas de seguridad contra el acceso no autorizado (art. 18). Un registro hecho «para repartir cuotas» que guarda las preguntas es más de lo necesario; y usarlo después «para evaluar a los abogados» sería otra finalidad.
 
 ### Dónde se cuela el texto sin pedirlo
 
@@ -613,14 +628,14 @@ La parte difícil no es la fila: es todo lo demás.
 1. **Los *callbacks* de logging del gateway.** LiteLLM puede mandar cada request a herramientas de observabilidad. `turn_off_message_logging: true` evita que los mensajes y las respuestas lleguen a esos destinos; los metadatos (como el gasto) se siguen registrando.
 2. **La tabla de gasto.** Los *spend logs* de LiteLLM (en Postgres) son la fila por request. Con `store_prompts_in_spend_logs: true` también guardan prompts y respuestas; por omisión está en `false`. Déjalo así.
 3. **Los logs de errores.** Una excepción puede imprimir el request completo. LiteLLM tiene `disable_error_logs` para no guardarlos en su base; también hay que mirar lo que escriben los contenedores.
-4. **Los chats de Open WebUI.** Open WebUI guarda las conversaciones completas en su propia base (SQLite por omisión), y con `ENABLE_ADMIN_CHAT_ACCESS`, que viene en `true`, los administradores pueden abrir los chats de cualquiera. Es un segundo registro del texto, y los abogados pueden suponer que sus chats son privados. Se decide a propósito: apagarlo, o decirlo en el aviso de privacidad.
+4. **Los chats de Open WebUI.** Open WebUI guarda las conversaciones completas en su propia base (por omisión SQLite, una base de datos en un solo archivo), y con `ENABLE_ADMIN_CHAT_ACCESS`, que viene en `true`, los administradores pueden abrir los chats de cualquiera. Es un segundo registro del texto, y los abogados pueden suponer que sus chats son privados. Apagarlo esconde esos chats en la interfaz, pero su documentación avisa que un administrador todavía llega a ellos por la base de datos o el servidor (y la exportación de datos, `ENABLE_ADMIN_EXPORT`, también los incluye). Se decide a propósito: quién administra esa base, cuánto viven los chats y qué dice el aviso de privacidad.
 5. **Los respaldos.** Si las bases se respaldan, lo que está en ellas vive también en cada respaldo, con su propio plazo.
 
 La guía de producción de LiteLLM lo resume bien: para cargas sensibles, deja apagado el logging de mensajes y el guardado de prompts, manda los metadatos solo a destinos aprobados, revisa por separado los logs de excepciones, los callbacks, las cachés y los respaldos, **fija la retención de cada almacén** y prueba las exportaciones con marcadores sintéticos. Ese último consejo vale oro: manda una pregunta con una palabra inventada («ZORRO-7731») y búscala en cada lugar. Donde aparezca, ahí hay texto.
 
 ### Retención: cuánto vive cada fila
 
-La [[retencion-de-registros|retención]] es cuánto se guarda antes de borrar. La ley no da un número de días para bitácoras técnicas: pide suprimir cuando el dato ya no sirve a su finalidad, y el plazo lo decide y lo escribe el despacho. En LiteLLM, el valor por omisión de `maximum_spend_logs_retention_period` está vacío: **la limpieza viene apagada** y la tabla crece para siempre. El despacho elige 90 días (una decisión suya, no un plazo legal): con ≈ 3,000 preguntas al día son ≈ 270,000 filas vivas.
+La [[retencion-de-registros|retención]] es cuánto se guarda antes de borrar. La ley no da un número de días para bitácoras técnicas: pide suprimir cuando el dato ya no sirve a su finalidad, y el plazo lo decide y lo escribe el despacho. En LiteLLM, el valor por omisión de `maximum_spend_logs_retention_period` está vacío: **la limpieza viene apagada** y la tabla crece para siempre. El despacho elige 90 días (una decisión suya, no un plazo legal): con ≈ 3,000 preguntas al día son, a lo más, 90 × 3,000 = 270,000 filas vivas.
 
 :::profundo «Audit logs» no es la fila por request
 Las palabras engañan. En LiteLLM, lo que se llama *audit logs* es una función de pago que registra **cambios de administración** (quién creó o borró una clave, un equipo, un modelo). La fila por request son los *spend logs*, que vienen en la parte gratis. Quien promete «auditoría completa» con la versión gratis tiene que decir de cuál habla. Y el extremo contrario: `disable_spend_logs: true` apaga la fila por request, y con ella el registro de quién usó qué y los presupuestos exactos. Privacidad no es no registrar nada: es registrar lo justo.
@@ -632,18 +647,18 @@ Para un proyecto de IA privada, la licencia de cada pieza importa tanto como la 
 
 | Pieza | Versión | Licencia | Lo que hay que saber |
 |---|---|---|---|
-| LiteLLM proxy | 1.111.0 (25-nov-2026) | MIT, **menos** la carpeta `litellm/enterprise/`, que es propietaria | Gratis: claves virtuales, presupuestos y límites, panel, balanceo, spend logs. De pago: SSO del panel para más de 5 personas, audit logs, roles por equipo, gestores de secretos, apagar logging por equipo. Saca varias versiones por semana: fija la versión |
+| LiteLLM proxy | 1.111.0 (25-nov-2026) | MIT, **menos** la carpeta `litellm/enterprise/`, que es propietaria | Gratis: claves virtuales, presupuestos y límites, panel, balanceo, spend logs. De pago: SSO del panel para más de 5 personas, audit logs, administradores por organización y por equipo, gestores de secretos, apagar logging por equipo. Saca varias versiones por semana: fija la versión |
 | Open WebUI | 0.13.5 (25-nov-2026) | BSD de 3 cláusulas **más** una cláusula de marca | Gratis de usar y desplegar; con más de 50 usuarios finales en 30 días no se puede quitar ni cambiar la marca «Open WebUI» sin permiso o licencia de pago. El despacho (200) la conserva |
-| nginx | — | — | Candado HTTPS, filtro de rutas, límite por IP. No cuenta tokens ni conoce personas |
+| nginx | 1.30.8, la estable (23-nov-2026) | BSD de 2 cláusulas | Candado HTTPS, filtro de rutas, límite por IP. No cuenta tokens ni conoce personas |
 | Envoy AI Gateway, hoy **Agent Router** | 1.3.0 (18-nov-2026) | Apache 2.0 | Sobre Kubernetes, con sus propios recursos; pesado para un TI de 2 sin Kubernetes |
-| Kong Gateway | 3.9.5 (19-nov-2026) | Apache 2.0 | Su repositorio abierto trae plugins de IA (`ai-proxy` y otros) con vLLM como proveedor; cuáles son de pago, por confirmar |
-| Portkey AI Gateway | 1.15.2 | MIT | Ligero; avisa que su versión 2.0 junta lo «enterprise» en lo abierto |
+| Kong Gateway | 3.9.5 (19-nov-2026) | Apache 2.0 | Su repositorio abierto trae `ai-proxy`, con vLLM como proveedor; el límite en tokens (*AI Rate Limiting Advanced*) es de su oferta de pago, «AI Gateway Enterprise» |
+| Portkey AI Gateway | 1.15.2 (12-ene-2026) | MIT | Ligero; avisa que su versión 2.0 junta lo «enterprise» en lo abierto |
 
 Sobre Open WebUI, un matiz: con esa cláusula de marca, su licencia no es «open source» en el sentido estricto de la Open Source Initiative, aunque se pueda usar gratis; es una lectura, no un dictamen de la OSI.
 
 ### Cuánto agrega el gateway a la latencia
 
-Cada pieza en el camino suma tiempo. ¿Cuánto? LiteLLM publica sus propias pruebas (página de benchmarks, actualizada el 25 de noviembre de 2026), con una advertencia que hay que leer primero: usan un **modelo simulado** que contesta en 200 ms, no un vLLM real. Con 4 instancias, su sobrecarga fue de **2 ms** en la mediana, **8 ms** en el p95 y 13 ms en el p99; por instancia de 4 workers recomiendan planear ≈ 100 requests por segundo, donde el p99 de sobrecarga fue de 47 ms.
+Cada pieza en el camino suma tiempo. ¿Cuánto? LiteLLM publica sus propias pruebas (página de benchmarks, actualizada el 25 de noviembre de 2026), con una advertencia que hay que leer primero: usan un **modelo simulado** que contesta sin pensar, no un vLLM real. Con 4 instancias, su sobrecarga fue de **2 ms** en la mediana, **8 ms** en el p95 y 13 ms en el p99. En otra prueba, con un modelo simulado que tarda 200 ms, recomiendan planear ≈ 100 requests por segundo por instancia de 4 *workers* (4 procesos que atienden en paralelo), y ahí el p99 de sobrecarga fue de 47 ms.
 
 :::formula Lo que pesa el gateway
 f = frac{t_{gw}}{TTFT}
@@ -666,7 +681,7 @@ Son cifras del proveedor con un modelo simulado, no una medición del despacho. 
 ## Errores comunes {Common mistakes}
 
 1. **Dar a cada app la dirección de vLLM con `--api-key`.** Una llave para todos, sin personas, sin cuotas, y con rutas que no protege (`/invocations`, `/metrics`, `/tokenize`). **Cómo evitarlo:** los puertos de vLLM solo los alcanza el gateway; el gateway expone solo las rutas `/v1` que se usan y da una [[clave-de-api|clave]] por app.
-2. **Limitar requests y no tokens.** Con «4 requests por minuto», una pregunta al tope (8,192 tokens) y una corta (500) pesan lo mismo, y la primera ocupa la GPU 25 veces más antes de su primer token. **Cómo evitarlo:** pon `tpm_limit` calculado con la capacidad (\(q_{p} = C ÷ (N × a)\)) y usa el `rpm` solo como freno de ciclos.
+2. **Limitar requests y no tokens.** Con «4 requests por minuto», una pregunta al tope (8,192 tokens) y una corta (500) pesan lo mismo, y la primera ocupa la GPU ≈ 26 veces más antes de su primer token. **Cómo evitarlo:** pon `tpm_limit` calculado con la capacidad (\(q_{p} = C ÷ (N × a)\)) y usa el `rpm` solo como freno de ciclos.
 3. **Un proxy que junta el stream o lo corta.** `proxy_buffering` prendido entrega todo al final; un timeout de 30 o 60 s antes del primer token mata respuestas en la hora pico. **Cómo evitarlo:** apaga el buffering para `/v1/`, separa el timeout total del del primer pedazo y prueba desde el navegador de una abogada.
 4. **Usar el correo como identidad.** Microsoft dice que el claim `email` puede cambiar y no debe usarse para autorizar; Open WebUI llama inseguro juntar cuentas por correo. **Cómo evitarlo:** identifica por `oid` (con `tid`); en el gateway, mapea el Id que manda Open WebUI, no el nombre.
 5. **Autorizar por grupos de Entra sin mirar los límites.** Más de 200 grupos y el token ya no los trae; asignar grupos a la app exige P1. **Cómo evitarlo:** [[rol-de-aplicacion|roles de aplicación]] (`user`, `admin`) y confirmar la licencia del tenant.
@@ -687,7 +702,7 @@ Son cifras del proveedor con un modelo simulado, no una medición del despacho. 
 
 :::ejercicios
 ? [facil] Una abogada del despacho repregunta: el request lleva los 6,500 tokens de la primera pregunta y su respuesta, más 150 de la pregunta nueva, y la respuesta trae 500. ¿Cuántos tokens cobra el gateway? ¿Cabe en el contexto de 8,192?
-\(k = t_{in} + t_{out}\): entrada = 6,500 + 150 = 6,650; salida = 500. \(k\) = 6,650 + 500 = **7,150 tokens**. Cabe: 7,150 ≤ 8,192, pero quedan solo 8,192 − 7,150 = 1,042 tokens para la conversación. Una tercera repregunta igual (7,150 + 150 de entrada + 500 de salida = 7,800) todavía cabe; la cuarta (8,450) ya no. Por eso el tope de contexto es parte del diseño, y por eso la cuota cobra la historia completa en cada repregunta.
+\(k = t_{in} + t_{out}\): entrada = 6,500 + 150 = 6,650; salida = 500. \(k\) = 6,650 + 500 = **7,150 tokens**. Cabe: 7,150 ≤ 8,192, pero quedan solo 8,192 − 7,150 = 1,042 tokens para la conversación. La siguiente repregunta igual (7,150 + 150 de entrada + 500 de salida = 7,800) todavía cabe; la que sigue (7,800 + 150 + 500 = 8,450) ya no. Por eso el tope de contexto es parte del diseño, y por eso la cuota cobra la historia completa en cada repregunta.
 ? [facil] Un cliente pide `stream: true` y el gateway quiere cobrar los tokens reales. ¿Qué tiene que llevar el request y en qué pedazo llegan los tokens?
 Tiene que llevar `"stream_options": {"include_usage": true}`. Los tokens llegan en un pedazo **extra al final**, después del que trae el `finish_reason` y antes de `data: [DONE]`, con `choices` vacío y `usage` con `prompt_tokens`, `completion_tokens` y `total_tokens`. Si el cliente no lo pide, el gateway debe pedirlo por su cuenta o contar él mismo.
 ? [facil] El ID token de Entra de una abogada trae `oid`, `sub`, `email`, `preferred_username` y `roles`. ¿Con cuál se identifica en el registro y con cuál se decide si es administradora?

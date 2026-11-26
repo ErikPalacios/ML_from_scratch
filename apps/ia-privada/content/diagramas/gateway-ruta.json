@@ -71,7 +71,7 @@
       "id": "sin-cuota",
       "label": "Se acabó la cuota",
       "steps": [
-        { "nodes": ["req", "clave", "cuota"], "edges": ["req>clave", "clave>cuota"], "text": "Un script mal hecho repite la misma pregunta en un ciclo. Tras tres preguntas su cubeta está casi vacía: el gateway contesta **429** con `Retry-After: 417` (≈ 7 minutos, lo que tarda en reponerse una pregunta). Las tres L40S siguen atendiendo a los demás." }
+        { "nodes": ["req", "clave", "cuota"], "edges": ["req>clave", "clave>cuota"], "text": "Un script mal hecho repite la misma pregunta en un ciclo. Tras tres preguntas su cubeta está vacía: el gateway contesta **429** con `Retry-After: 417` (≈ 7 minutos, lo que tarda en reponerse una pregunta). Las tres L40S siguen atendiendo a los demás." }
       ]
     },
     {
