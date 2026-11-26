@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 380" role="img" aria-labelledby="f-stack-serving-offload-t" class="f-svg" style="max-width:420px">
+<title id="f-stack-serving-offload-t">Llama 3.3 70B en Q4_K_M, unos 43.1 GB en 80 capas, repartido con llama.cpp: 40 capas, 21.6 GB, en la VRAM de una RTX 4090, y 40 capas, 21.6 GB, en la RAM de la computadora. Abajo, el tiempo de un token: el pedazo de la GPU tarda unos 31 milisegundos y el de la RAM unos 344, en total unos 374 milisegundos, 2.7 tokens por segundo. Si todo cupiera en una GPU con ese ancho de banda serían unos 61 milisegundos, 16 tokens por segundo. La mitad de los pesos en la RAM se lleva el 92 por ciento del tiempo.</title>
+<rect class="f-card" x="10" y="10" width="340" height="360" rx="16"/>
+<text class="f-l" x="28" y="36">LAS 80 CAPAS DE LLAMA 3.3 70B</text>
+<rect class="f-b" x="28.0" y="50" width="6" height="22" rx="1.5"/>
+<rect class="f-b" x="35.6" y="50" width="6" height="22" rx="1.5"/>
+<rect class="f-b" x="43.2" y="50" width="6" height="22" rx="1.5"/>
+<rect class="f-b" x="50.8" y="50" width="6" height="22" rx="1.5"/>
+<rect class="f-b" x="58.4" y="50" width="6" height="22" rx="1.5"/>
+<rect class="f-b" x="66.0" y="50" width="6" height="22" rx="1.5"/>
+<rect class="f-b" x="73.6" y="50" width="6" height="22" rx="1.5"/>
+<rect class="f-b" x="81.2" y="50" width="6" height="22" rx="1.5"/>
+<rect class="f-b" x="88.8" y="50" width="6" height="22" rx="1.5"/>
+<rect class="f-b" x="96.4" y="50" width="6" height="22" rx="1.5"/>
+<rect class="f-b" x="104.0" y="50" width="6" height="22" rx="1.5"/>
+<rect class="f-b" x="111.6" y="50" width="6" height="22" rx="1.5"/>
+<rect class="f-b" x="119.2" y="50" width="6" height="22" rx="1.5"/>
+<rect class="f-b" x="126.8" y="50" width="6" height="22" rx="1.5"/>
+<rect class="f-b" x="134.4" y="50" width="6" height="22" rx="1.5"/>
+<rect class="f-b" x="142.0" y="50" width="6" height="22" rx="1.5"/>
+<rect class="f-b" x="149.6" y="50" width="6" height="22" rx="1.5"/>
+<rect class="f-b" x="157.2" y="50" width="6" height="22" rx="1.5"/>
+<rect class="f-b" x="164.8" y="50" width="6" height="22" rx="1.5"/>
+<rect class="f-b" x="172.4" y="50" width="6" height="22" rx="1.5"/>
+<rect class="f-b" x="180.0" y="50" width="6" height="22" rx="1.5"/>
+<rect class="f-b" x="187.6" y="50" width="6" height="22" rx="1.5"/>
+<rect class="f-b" x="195.2" y="50" width="6" height="22" rx="1.5"/>
+<rect class="f-b" x="202.8" y="50" width="6" height="22" rx="1.5"/>
+<rect class="f-b" x="210.4" y="50" width="6" height="22" rx="1.5"/>
+<rect class="f-b" x="218.0" y="50" width="6" height="22" rx="1.5"/>
+<rect class="f-b" x="225.6" y="50" width="6" height="22" rx="1.5"/>
+<rect class="f-b" x="233.2" y="50" width="6" height="22" rx="1.5"/>
+<rect class="f-b" x="240.8" y="50" width="6" height="22" rx="1.5"/>
+<rect class="f-b" x="248.4" y="50" width="6" height="22" rx="1.5"/>
+<rect class="f-b" x="256.0" y="50" width="6" height="22" rx="1.5"/>
+<rect class="f-b" x="263.6" y="50" width="6" height="22" rx="1.5"/>
+<rect class="f-b" x="271.2" y="50" width="6" height="22" rx="1.5"/>
+<rect class="f-b" x="278.8" y="50" width="6" height="22" rx="1.5"/>
+<rect class="f-b" x="286.4" y="50" width="6" height="22" rx="1.5"/>
+<rect class="f-b" x="294.0" y="50" width="6" height="22" rx="1.5"/>
+<rect class="f-b" x="301.6" y="50" width="6" height="22" rx="1.5"/>
+<rect class="f-b" x="309.2" y="50" width="6" height="22" rx="1.5"/>
+<rect class="f-b" x="316.8" y="50" width="6" height="22" rx="1.5"/>
+<rect class="f-b" x="324.4" y="50" width="6" height="22" rx="1.5"/>
+<rect class="f-o" x="28.0" y="80" width="6" height="22" rx="1.5"/>
+<rect class="f-o" x="35.6" y="80" width="6" height="22" rx="1.5"/>
+<rect class="f-o" x="43.2" y="80" width="6" height="22" rx="1.5"/>
+<rect class="f-o" x="50.8" y="80" width="6" height="22" rx="1.5"/>
+<rect class="f-o" x="58.4" y="80" width="6" height="22" rx="1.5"/>
+<rect class="f-o" x="66.0" y="80" width="6" height="22" rx="1.5"/>
+<rect class="f-o" x="73.6" y="80" width="6" height="22" rx="1.5"/>
+<rect class="f-o" x="81.2" y="80" width="6" height="22" rx="1.5"/>
+<rect class="f-o" x="88.8" y="80" width="6" height="22" rx="1.5"/>
+<rect class="f-o" x="96.4" y="80" width="6" height="22" rx="1.5"/>
+<rect class="f-o" x="104.0" y="80" width="6" height="22" rx="1.5"/>
+<rect class="f-o" x="111.6" y="80" width="6" height="22" rx="1.5"/>
+<rect class="f-o" x="119.2" y="80" width="6" height="22" rx="1.5"/>
+<rect class="f-o" x="126.8" y="80" width="6" height="22" rx="1.5"/>
+<rect class="f-o" x="134.4" y="80" width="6" height="22" rx="1.5"/>
+<rect class="f-o" x="142.0" y="80" width="6" height="22" rx="1.5"/>
+<rect class="f-o" x="149.6" y="80" width="6" height="22" rx="1.5"/>
+<rect class="f-o" x="157.2" y="80" width="6" height="22" rx="1.5"/>
+<rect class="f-o" x="164.8" y="80" width="6" height="22" rx="1.5"/>
+<rect class="f-o" x="172.4" y="80" width="6" height="22" rx="1.5"/>
+<rect class="f-o" x="180.0" y="80" width="6" height="22" rx="1.5"/>
+<rect class="f-o" x="187.6" y="80" width="6" height="22" rx="1.5"/>
+<rect class="f-o" x="195.2" y="80" width="6" height="22" rx="1.5"/>
+<rect class="f-o" x="202.8" y="80" width="6" height="22" rx="1.5"/>
+<rect class="f-o" x="210.4" y="80" width="6" height="22" rx="1.5"/>
+<rect class="f-o" x="218.0" y="80" width="6" height="22" rx="1.5"/>
+<rect class="f-o" x="225.6" y="80" width="6" height="22" rx="1.5"/>
+<rect class="f-o" x="233.2" y="80" width="6" height="22" rx="1.5"/>
+<rect class="f-o" x="240.8" y="80" width="6" height="22" rx="1.5"/>
+<rect class="f-o" x="248.4" y="80" width="6" height="22" rx="1.5"/>
+<rect class="f-o" x="256.0" y="80" width="6" height="22" rx="1.5"/>
+<rect class="f-o" x="263.6" y="80" width="6" height="22" rx="1.5"/>
+<rect class="f-o" x="271.2" y="80" width="6" height="22" rx="1.5"/>
+<rect class="f-o" x="278.8" y="80" width="6" height="22" rx="1.5"/>
+<rect class="f-o" x="286.4" y="80" width="6" height="22" rx="1.5"/>
+<rect class="f-o" x="294.0" y="80" width="6" height="22" rx="1.5"/>
+<rect class="f-o" x="301.6" y="80" width="6" height="22" rx="1.5"/>
+<rect class="f-o" x="309.2" y="80" width="6" height="22" rx="1.5"/>
+<rect class="f-o" x="316.8" y="80" width="6" height="22" rx="1.5"/>
+<rect class="f-o" x="324.4" y="80" width="6" height="22" rx="1.5"/>
+<text class="f-s" x="28" y="122">Fila 1: 40 capas en la VRAM (21.6 GB)</text>
+<text class="f-s" x="28" y="140">Fila 2: 40 capas en la RAM (21.6 GB)</text>
+<line class="f-linea" x1="28" y1="160" x2="332" y2="160"/>
+<text class="f-l" x="28" y="186">TIEMPO DE UN TOKEN</text>
+<rect class="f-b" x="28" y="200" width="24.9" height="30" rx="4"/>
+<rect class="f-o" x="52.9" y="200" width="275.9" height="30" rx="4"/>
+<text class="f-s" x="28" y="250">GPU ≈ 31 ms</text>
+<text class="f-s" x="332" y="250" text-anchor="end">RAM ≈ 344 ms</text>
+<text class="f-t" x="28" y="276">≈ 374 ms → ≈ 2.7 tokens/s</text>
+<text class="f-l" x="28" y="306">SI TODO CUPIERA EN LA GPU</text>
+<rect class="f-b" x="28" y="316" width="48.9" height="22" rx="4"/>
+<text class="f-s" x="86.9" y="332">≈ 61 ms → ≈ 16 tokens/s</text>
+<text class="f-s" x="28" y="358">Supuestos: RAM de 89.6 GB/s y η = 0.7</text>
+</svg>

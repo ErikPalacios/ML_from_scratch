@@ -1,0 +1,190 @@
+{
+ "terminos": [
+  {
+   "id": "motor-de-inferencia",
+   "termino": "Motor de inferencia",
+   "en": "inference engine, inference server",
+   "corto": "El programa que carga un modelo en la GPU y lo usa para contestar: recibe peticiones, arma los batches, guarda el KV cache, corre los kernels y devuelve los tokens.",
+   "largo": "Inferencia es usar un modelo ya entrenado. El motor hace todo lo que pasa entre que llega un JSON y sale cada token: aplica la [[plantilla-de-chat|plantilla de chat]], tokeniza, el [[scheduler]] decide qué conversaciones van juntas ([[batching-continuo|batching continuo]]), el gestor del [[kv-cache|KV cache]] reparte la memoria ([[pagedattention|PagedAttention]]), la GPU corre los kernels y el *sampler* elige el token. Casi siempre trae su propio servidor compatible con OpenAI. Los cinco más conocidos: [[llama-cpp|llama.cpp]], [[ollama|Ollama]], [[vllm|vLLM]], [[sglang|SGLang]] y [[tensorrt-llm|TensorRT-LLM]].",
+   "analogia": "La cocina completa de un restaurante, no solo la estufa: recibe las órdenes, decide cuáles se cocinan juntas, guarda lo que ya se preparó y saca los platos.",
+   "ejemplo": "El despacho corre una copia de vLLM 0.34.0 en cada una de sus 3 L40S; cada copia carga los ≈ 19.32 GB de Qwen3 32B en AWQ y reparte el resto de la memoria en bloques de KV cache.",
+   "ver": [
+    "vllm",
+    "llama-cpp"
+   ],
+   "leccion": "stack-serving"
+  },
+  {
+   "id": "plantilla-de-chat",
+   "termino": "Plantilla de chat",
+   "en": "chat template",
+   "corto": "El pequeño programa que viene con un modelo y convierte la lista de mensajes (sistema, usuario, asistente) en el texto con marcas especiales que el modelo sabe leer.",
+   "largo": "El modelo no sabe de mensajes: lee una sola fila de tokens. La plantilla, normalmente escrita en Jinja y guardada junto al tokenizador, pega los mensajes con las marcas que el modelo vio en su entrenamiento. En Qwen3 también decide si el modelo piensa antes de contestar (`enable_thinking`). Una plantilla equivocada da respuestas raras aunque los pesos estén bien.",
+   "ejemplo": "En vLLM 0.34.0, `--default-chat-template-kwargs '{\"enable_thinking\": false}'` le pasa ese valor a la plantilla en todas las peticiones: así el despacho apaga el razonamiento de Qwen3.",
+   "ver": [
+    "motor-de-inferencia",
+    "modelo-razonamiento"
+   ],
+   "leccion": "stack-serving"
+  },
+  {
+   "id": "cuda-graph",
+   "termino": "CUDA graph",
+   "en": "CUDA graph",
+   "corto": "Una grabación de toda la secuencia de kernels de un paso del modelo, para que la CPU le pida a la GPU «repite esto» con una sola orden en vez de lanzar cientos.",
+   "largo": "La CPU lanza cada kernel de la GPU, uno por uno, y cada lanzamiento cuesta un poco de tiempo. En el [[decode|decode]] los kernels son cortos y la GPU puede quedarse esperando órdenes. Un CUDA graph se graba una vez y se repite. Como la grabación es fija, los motores graban varias (para distintos tamaños de batch) y eso ocupa memoria. vLLM los usa por omisión; `--enforce-eager` los apaga: arranque más rápido, decode más lento.",
+   "analogia": "Darle al cocinero la tarjeta con la receta en vez de dictársela paso por paso. Se rompe en que la tarjeta es fija: si cambia el tamaño de la tanda, hace falta otra.",
+   "ejemplo": "Parte del overhead que vLLM descuenta antes de repartir el KV cache es la memoria de sus CUDA graphs; en la cuenta del despacho va dentro de los ≈ 2 GB de programa.",
+   "ver": [
+    "motor-de-inferencia",
+    "overhead"
+   ],
+   "leccion": "stack-serving"
+  },
+  {
+   "id": "llama-cpp",
+   "termino": "llama.cpp",
+   "en": "llama.cpp",
+   "corto": "Un motor de inferencia en C/C++, con licencia MIT, que corre LLMs en casi cualquier máquina (CPU, Mac, GPUs de NVIDIA y AMD) con archivos GGUF. Su servidor es llama-server.",
+   "largo": "Lo empezó Georgi Gerganov en 2023 y hoy lo mantiene ggml-org. Su fuerte es correr donde sea: cuantización agresiva en GGUF, [[offload-a-cpu|offload]] de capas a la RAM, Metal en Mac. `llama-server` hace [[batching-continuo|batching continuo]] y trae API compatible con OpenAI. En noviembre de 2026 empezó versiones semánticas (v1.0.0 el día 13, v1.1.0 el 26), que conviven con builds por hora (`bNNNNN`). Su `llama-server` escucha por omisión en `127.0.0.1:9931`. No lee AWQ ni GPTQ.",
+   "ejemplo": "`llama-server -m ./Qwen3-32B-Q4_K_M.gguf -c 8192 --reasoning off` sirve el GGUF de Qwen3 32B con contexto de 8,192 y sin razonamiento.",
+   "ver": [
+    "ollama",
+    "offload-a-cpu",
+    "motor-de-inferencia"
+   ],
+   "leccion": "stack-serving"
+  },
+  {
+   "id": "offload-a-cpu",
+   "termino": "Offload a CPU",
+   "en": "CPU offload, layer offloading",
+   "corto": "Dejar parte de las capas de un modelo en la RAM de la computadora (y calcularlas con la CPU) porque no caben en la VRAM. Funciona, pero la parte en RAM se vuelve el cuello de botella.",
+   "largo": "En llama.cpp se controla con `-ngl` (capas en la GPU). Cada token lee todos los pesos, y la RAM tiene mucho menos [[ancho-de-banda|ancho de banda]] que la VRAM, así que el tiempo por token es la suma \\(W_{GPU} ÷ (η_m × B_{GPU}) + W_{CPU} ÷ (η_m × B_{RAM})\\) y el término de la RAM manda. Para [[moe|MoE]], `--n-cpu-moe` deja en la CPU solo los expertos. En una Mac no aplica: la [[memoria-unificada|memoria unificada]] es una sola.",
+   "ejemplo": "Llama 3.3 70B en Q4_K_M (≈ 43.1 GB) en una RTX 4090 con la mitad de las capas en una RAM de 89.6 GB/s (supuesto): ≈ 374 ms por token, ≈ 2.7 tokens/s, y el 92 % del tiempo es la RAM.",
+   "ver": [
+    "llama-cpp",
+    "ancho-de-banda"
+   ],
+   "leccion": "stack-serving"
+  },
+  {
+   "id": "ollama",
+   "termino": "Ollama",
+   "en": "Ollama",
+   "corto": "Un programa de escritorio y servidor (MIT, en Go) para bajar y correr modelos locales con un comando. Por dentro usa llama.cpp, y MLX en las Mac.",
+   "largo": "Envuelve a [[llama-cpp|llama.cpp]] (sirve cada GGUF con un subproceso de `llama-server`) con descarga de modelos, nombres cortos (`qwen3:32b`), carga y descarga automáticas y una API, también compatible con OpenAI en `/v1/`. Escucha en `127.0.0.1:11434`. Sus valores por omisión están pensados para una persona: una petición a la vez por modelo en NVIDIA y AMD (`OLLAMA_NUM_PARALLEL`), contexto según la VRAM (4k, 32k o 256k), [[keep-alive|keep-alive]] de 5 minutos y sin autenticación. En 2025 tuvo un motor propio; desde la v0.30.0 (mayo de 2026) volvió a llama.cpp.",
+   "ejemplo": "Con una petición a la vez, una L40S atendería ≈ 179 preguntas por hora del despacho contra 750 que llegan en la hora pico: la utilización sale ≈ 4.2.",
+   "ver": [
+    "llama-cpp",
+    "modelfile",
+    "keep-alive"
+   ],
+   "leccion": "stack-serving"
+  },
+  {
+   "id": "modelfile",
+   "termino": "Modelfile",
+   "en": "Modelfile",
+   "corto": "La receta de texto de Ollama para crear una variante de un modelo: de qué modelo parte (FROM), qué parámetros fija (PARAMETER) y qué instrucciones trae.",
+   "largo": "Se escribe en un archivo y se convierte en un modelo con `ollama create NOMBRE -f Modelfile`. Sirve para fijar el contexto (`num_ctx`), la temperatura o un mensaje de sistema sin repetirlos en cada petición. No cuantiza ni convierte formatos: un GGUF se prepara antes con las herramientas de llama.cpp.",
+   "ejemplo": "`FROM qwen3:32b` y `PARAMETER num_ctx 8192`, y después `ollama create despacho-qwen -f Modelfile`.",
+   "ver": [
+    "ollama"
+   ],
+   "leccion": "stack-serving"
+  },
+  {
+   "id": "keep-alive",
+   "termino": "Keep-alive (de un modelo)",
+   "en": "keep-alive",
+   "corto": "Cuánto tiempo se queda un modelo cargado en la memoria después de la última petición. En Ollama son 5 minutos por omisión; después lo descarga y la siguiente pregunta paga la carga.",
+   "largo": "Liberar la VRAM tiene sentido en una laptop donde corren otras cosas; en un servidor dedicado, no. En Ollama se cambia con la variable `OLLAMA_KEEP_ALIVE` o con `keep_alive` en la petición: `-1` lo deja siempre, `0` lo descarga en cuanto termina. Los motores de servidor como vLLM cargan el modelo al arrancar y no lo sueltan.",
+   "ejemplo": "Si nadie pregunta entre las 14:00 y las 14:06, la pregunta de las 14:06 espera a que vuelvan a la VRAM ≈ 20 GB de pesos antes de su primer token.",
+   "ver": [
+    "ollama"
+   ],
+   "leccion": "stack-serving"
+  },
+  {
+   "id": "vllm",
+   "termino": "vLLM",
+   "en": "vLLM",
+   "corto": "El motor de inferencia de servidor más usado para LLMs abiertos: PagedAttention, batching continuo, muchos formatos de cuantización y API compatible con OpenAI. Apache 2.0, para Linux.",
+   "largo": "Nació en Berkeley con el paper de [[pagedattention|PagedAttention]] (SOSP 2023). Trae [[batching-continuo|batching continuo]], [[prefix-caching|prefix caching]] y [[chunked-prefill|chunked prefill]] prendidos por omisión, [[cuda-graph|CUDA graphs]], kernels para AWQ, GPTQ, FP8 y FP4, [[salida-estructurada|salida estructurada]] y varias GPUs. Corre en NVIDIA desde la capability 7.5, AMD, Intel, CPU y TPU; no en Windows nativo. Saca versión cada 2 a 4 semanas; en la v0.34.0 (16 de noviembre de 2026) `--gpu-memory-utilization` pasó a 1.0 con el KV cache extensible.",
+   "ejemplo": "`vllm serve Qwen/Qwen3-32B-AWQ --max-model-len 8192 --max-num-seqs 8 --api-key \"$VLLM_CLAVE\"` es la base del comando del despacho.",
+   "ver": [
+    "motor-de-inferencia",
+    "sglang",
+    "pagedattention"
+   ],
+   "leccion": "stack-serving"
+  },
+  {
+   "id": "sglang",
+   "termino": "SGLang",
+   "en": "SGLang",
+   "corto": "Un motor de inferencia de servidor (Apache 2.0) nacido en LMSYS, conocido por RadixAttention (KV cache en árbol de prefijos) y por su salida estructurada rápida.",
+   "largo": "Su paper (Zheng y otros, 2023) propuso [[radixattention|RadixAttention]] y una máquina de estados comprimida para la [[salida-estructurada|salida estructurada]]. Brilla en cargas con mucho prefijo compartido: agentes, evaluaciones, chats largos. Se arranca con `python -m sglang.launch_server` o `sglang serve` (puerto 30000). La v0.5.23 (noviembre de 2026) pide CUDA 13.",
+   "ejemplo": "Una aseguradora que extrae 15 campos fijos de miles de facturas, con el mismo prompt y el mismo esquema JSON en todas, es un candidato natural para probar SGLang.",
+   "ver": [
+    "radixattention",
+    "salida-estructurada",
+    "vllm"
+   ],
+   "leccion": "stack-serving"
+  },
+  {
+   "id": "radixattention",
+   "termino": "RadixAttention",
+   "en": "RadixAttention",
+   "corto": "La forma de SGLang de reutilizar el KV cache: guarda el de prompts y respuestas en un árbol de prefijos, y cualquier petición que empiece igual que otra reutiliza ese tramo.",
+   "largo": "Un árbol radix junta las secuencias que comparten principio en las mismas ramas y las separa donde dejan de coincidir. Cuando falta memoria, tira primero las hojas usadas hace más tiempo. Es la misma meta que el [[prefix-caching|prefix caching]] de vLLM (bloques con un hash encadenado), con otra estructura; gana más cuando el prefijo común es largo y ramificado. En SGLang viene prendido (`--disable-radix-cache` lo apaga).",
+   "ejemplo": "En el despacho, las ≈ 400 tokens de instrucciones son el tronco que comparten todas las preguntas, y la repregunta reutiliza su primera pregunta completa (≈ 6,000 tokens).",
+   "ver": [
+    "sglang",
+    "prefix-caching"
+   ],
+   "leccion": "stack-serving"
+  },
+  {
+   "id": "salida-estructurada",
+   "termino": "Salida estructurada",
+   "en": "structured output, constrained decoding",
+   "corto": "Obligar a que la respuesta del modelo siga un formato (un esquema JSON, una gramática): antes de cada token, el motor tacha los tokens que romperían el formato.",
+   "largo": "El esquema se convierte en una gramática; en cada paso, solo los tokens que la respetan pueden salir del *sampler*. Si en un punto solo hay una opción válida, algunos motores escriben varios tokens de una vez. vLLM lo hace con `xgrammar` o `guidance`; SGLang con `xgrammar`, `outlines` o `llguidance`. Garantiza la forma, no que el contenido sea correcto.",
+   "ejemplo": "Pedir «devuelve un JSON con cliente, fecha y monto» en el prompt funciona casi siempre; con salida estructurada, el JSON siempre es válido y siempre trae esos tres campos.",
+   "ver": [
+    "sglang",
+    "vllm"
+   ],
+   "leccion": "stack-serving"
+  },
+  {
+   "id": "tensorrt-llm",
+   "termino": "TensorRT-LLM",
+   "en": "TensorRT-LLM",
+   "corto": "La biblioteca abierta de NVIDIA (Apache 2.0) para servir LLMs en sus GPUs, hoy construida sobre PyTorch y con su servidor trtllm-serve. Solo NVIDIA y Linux.",
+   "largo": "Antes servía [[engine-compilado|engines compilados]] con `trtllm-build`; la v1.3.0 (noviembre de 2026) ya quitó ese backend y carga el modelo de Hugging Face directo. Su fuerte son las GPUs grandes de NVIDIA con FP8 y FP4. En Ada (L40S) soporta FP8 y AWQ de 4 bits, no FP4. Su `free_gpu_memory_fraction` (0.9) es fracción de la memoria libre, no del total como en vLLM.",
+   "ejemplo": "`trtllm-serve \"nvidia/Qwen3-8B-FP8\"` baja ese modelo y lo sirve con API compatible con OpenAI, sin paso de compilación.",
+   "ver": [
+    "engine-compilado",
+    "vllm"
+   ],
+   "leccion": "stack-serving"
+  },
+  {
+   "id": "engine-compilado",
+   "termino": "Engine compilado",
+   "en": "compiled engine (TensorRT engine)",
+   "corto": "Un modelo convertido y compilado a un programa a la medida de una GPU, una versión de software y una configuración fija (batch y largos máximos). Era el flujo histórico de TensorRT-LLM.",
+   "largo": "El flujo era convertir el checkpoint, compilarlo con `trtllm-build` y servir el engine. Era muy rápido y frágil: cambiar de GPU, de versión o de contexto máximo obligaba a recompilar. La documentación de TensorRT-LLM 1.3.0 dice que el backend de TensorRT se quitó; hoy se sirve sobre PyTorch sin ese paso.",
+   "analogia": "Un traje a la medida: perfecto hoy y para ti. Se rompe en que un traje se ajusta un poco; un engine no aceptaba ni un token más del contexto con que se compiló.",
+   "ejemplo": "Un engine compilado en 2024 para una H100 con contexto de 4,096 no servía en una L40S ni con contexto de 8,192: había que volver a compilar.",
+   "ver": [
+    "tensorrt-llm"
+   ],
+   "leccion": "stack-serving"
+  }
+ ]
+}

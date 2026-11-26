@@ -1,0 +1,83 @@
+{
+  "titulo": "¿Cuánto KV cache te deja --gpu-memory-utilization?",
+  "intro": "Aplica la cuenta de vLLM: \\(M_{pedida} = f × V\\), \\(M_{KV} = M_{pedida} − W − O\\), \\(T = M_{KV} ÷ m_{token}\\) en bloques de 64 tokens y \\(c = T ÷ N\\). Arranca con el despacho: Qwen3 32B en INT4 de AWQ en una L40S, con 0.90 y 2 GB de overhead. Es una cota: el número de verdad lo imprime vLLM al arrancar.",
+  "preajustes": [
+    {
+      "label": "GPU (datos de gpus.json)",
+      "datos": "gpus",
+      "inicial": "l40s",
+      "campos": { "V": "vram_gb" }
+    }
+  ],
+  "entradas": [
+    { "id": "V", "label": "VRAM de la GPU, \\(V\\), en GB", "min": 8, "max": 512, "paso": 1, "valor": 48, "tipo": "numero" },
+    { "id": "f", "label": "`--gpu-memory-utilization`, \\(f\\) (fracción de la memoria **total**)", "min": 0.5, "max": 1, "paso": 0.01, "valor": 0.9 },
+    { "id": "W", "label": "Pesos del modelo, \\(W\\), en GB (Qwen3 32B en INT4 de AWQ: 19.32)", "min": 0.5, "max": 400, "paso": 0.01, "valor": 19.32, "tipo": "numero" },
+    { "id": "O", "label": "Overhead, \\(O\\), en GB: activaciones, CUDA graphs y lo que reserva CUDA", "min": 0, "max": 10, "paso": 0.5, "valor": 2, "unidad": "GB" },
+    { "id": "mk", "label": "KV cache por token, \\(m_{token}\\), en KiB (Qwen3 32B en BF16: 256)", "min": 8, "max": 2048, "paso": 1, "valor": 256, "tipo": "numero" },
+    { "id": "N", "label": "Contexto máximo, \\(N\\) (`--max-model-len`)", "min": 512, "max": 262144, "paso": 1, "valor": 8192, "tipo": "numero" },
+    { "id": "Nt", "label": "Largo típico de una conversación, en tokens", "min": 100, "max": 262144, "paso": 1, "valor": 6500, "tipo": "numero" },
+    { "id": "u", "label": "Conversaciones de diseño por GPU", "min": 1, "max": 256, "paso": 1, "valor": 8 }
+  ],
+  "calculos": [
+    { "id": "ped", "formula": "ceil(f * V * 1e9)" },
+    { "id": "kv", "formula": "ped - W * 1e9 - O * 1e9" },
+    { "id": "T", "formula": "max(0, floor(kv / (mk * 1024) / 64) * 64)" },
+    { "id": "c", "formula": "floor(T / N)" },
+    { "id": "libre", "formula": "max(0, V - W - O) * 1e9" },
+    { "id": "trt", "formula": "f * libre" }
+  ],
+  "salidas": [
+    {
+      "label": "1 · Memoria que puede usar esta copia, \\(M_{pedida}\\)",
+      "formula": "ped",
+      "formato": "bytes",
+      "barra": true,
+      "cuenta": "{{f|corto}} × {{V|corto}} GB = **{{ped|bytes|2}}**"
+    },
+    {
+      "label": "2 · Lo que queda para el KV cache, \\(M_{KV}\\)",
+      "formula": "kv",
+      "formato": "bytes",
+      "barra": true,
+      "nota": "si sale negativo, el modelo no arranca con esa fracción",
+      "cuenta": "{{ped|bytes|2}} − {{W|corto}} GB − {{O|corto}} GB = **{{kv|bytes|2}}** (≈ {{kv / 1073741824|num|2}} GiB, la unidad del log de vLLM)"
+    },
+    {
+      "label": "3 · Tokens de KV cache que caben, \\(T\\)",
+      "formula": "T",
+      "formato": "int",
+      "nota": "redondeado hacia abajo a bloques de 64 tokens",
+      "cuenta": "{{kv|bytes|2}} ÷ ({{mk|int}} × 1,024 bytes) → {{T / 64|int}} bloques × 64 = **{{T|int}} tokens**"
+    },
+    {
+      "label": "4 · Conversaciones al tope, \\(c\\)",
+      "formula": "c",
+      "formato": "int",
+      "barra": true,
+      "nota": "el «Maximum concurrency» del log, redondeado",
+      "cuenta": "{{T|int}} ÷ {{N|int}} = {{T / N|num|2}} → **{{c|int}}**"
+    },
+    {
+      "label": "Conversaciones de largo típico",
+      "formula": "floor(T / Nt)",
+      "formato": "int",
+      "nota": "con bloques, las conversaciones cortas ocupan menos",
+      "cuenta": "{{T|int}} ÷ {{Nt|int}} = **{{floor(T / Nt)|int}}**"
+    },
+    {
+      "label": "¿Caben las de diseño al tope?",
+      "formula": "c - u",
+      "veredicto": { "si": "Sí caben", "no": "No caben" },
+      "cuenta": "{{c|int}} al tope contra {{u|int}} de diseño"
+    },
+    {
+      "label": "La misma fracción como la cuenta TensorRT-LLM (de la memoria **libre**)",
+      "formula": "trt",
+      "formato": "bytes",
+      "nota": "`free_gpu_memory_fraction`: \\(f × (V − W − O)\\), suponiendo el mismo overhead",
+      "cuenta": "{{f|corto}} × ({{V|corto}} − {{W|corto}} − {{O|corto}}) GB = **{{trt|bytes|2}}**, ≈ {{floor(trt / (mk * 1024 * N))|int}} conversaciones al tope"
+    }
+  ],
+  "nota": "Prueba: baja \\(f\\) de 0.90 a 0.80 y pierdes 3 conversaciones al tope (de 10 a 7). Sube el overhead a 6.5 GB con 0.90: todavía caben las 8 de diseño; a 7, ya no. Pon \\(f\\) en 1.0: es el valor por omisión de vLLM 0.34.0 con el KV cache extensible, que en realidad mide la memoria libre al arrancar (la cuenta da 12 al tope, una cota optimista)."
+}

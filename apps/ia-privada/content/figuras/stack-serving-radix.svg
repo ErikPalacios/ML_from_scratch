@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 430" role="img" aria-labelledby="f-stack-serving-radix-t" class="f-svg" style="max-width:420px">
+<title id="f-stack-serving-radix-t">Un árbol de prefijos como el de RadixAttention, con preguntas del despacho. Arriba, la raíz. Debajo, el tronco: las instrucciones de unos 400 tokens, que comparten todas las preguntas. Del tronco salen dos ramas: la pregunta 1 con sus cinco fragmentos, unos 5,600 tokens, y la pregunta 2 con otros fragmentos. Debajo de la pregunta 1 salen otras dos ramas: la respuesta 1 tal como se escribió, unos 500 tokens, y la repregunta, que reutiliza todo lo anterior hasta el final de la pregunta 1, unos 6,000 tokens, y se separa porque la plantilla reescribe la respuesta anterior en el historial. Cuando falta memoria, se tiran primero las hojas usadas hace más tiempo.</title>
+<rect class="f-card" x="10" y="10" width="340" height="410" rx="16"/>
+<text class="f-l" x="28" y="36">EL KV CACHE COMO ÁRBOL DE PREFIJOS</text>
+<rect class="f-chip" x="140" y="50" width="80" height="30" rx="15"/>
+<text class="f-s" x="180" y="70" text-anchor="middle">raíz</text>
+<line class="f-flecha" x1="180" y1="80" x2="180" y2="100"/>
+<rect class="f-b" x="70" y="100" width="220" height="46" rx="10"/>
+<text class="f-t" x="180" y="120" text-anchor="middle" style="font-size:14px">Instrucciones</text>
+<text class="f-s" x="180" y="138" text-anchor="middle">≈ 400 tokens · todas las preguntas</text>
+<line class="f-flecha" x1="130" y1="146" x2="95" y2="176"/>
+<line class="f-flecha" x1="230" y1="146" x2="265" y2="176"/>
+<rect class="f-o" x="24" y="176" width="150" height="58" rx="10"/>
+<text class="f-t" x="99" y="198" text-anchor="middle" style="font-size:14px">Pregunta 1</text>
+<text class="f-s" x="99" y="214" text-anchor="middle">+ sus 5 fragmentos</text>
+<text class="f-s" x="99" y="228" text-anchor="middle">≈ 5,600 tokens</text>
+<rect class="f-chip" x="186" y="176" width="150" height="58" rx="10"/>
+<text class="f-t" x="261" y="198" text-anchor="middle" style="font-size:14px">Pregunta 2</text>
+<text class="f-s" x="261" y="214" text-anchor="middle">+ otros fragmentos</text>
+<text class="f-s" x="261" y="228" text-anchor="middle">≈ 5,600 tokens</text>
+<line class="f-flecha" x1="70" y1="234" x2="58" y2="266"/>
+<line class="f-flecha" x1="128" y1="234" x2="160" y2="266"/>
+<rect class="f-chip" x="20" y="266" width="110" height="58" rx="10"/>
+<text class="f-t" x="75" y="288" text-anchor="middle" style="font-size:14px">Respuesta 1</text>
+<text class="f-s" x="75" y="304" text-anchor="middle">tal como salió</text>
+<text class="f-s" x="75" y="318" text-anchor="middle">≈ 500 tokens</text>
+<rect class="f-o" x="142" y="266" width="194" height="58" rx="10"/>
+<text class="f-t" x="239" y="288" text-anchor="middle" style="font-size:14px">Repregunta</text>
+<text class="f-s" x="239" y="304" text-anchor="middle">respuesta 1 reescrita por la</text>
+<text class="f-s" x="239" y="318" text-anchor="middle">plantilla + la pregunta nueva</text>
+<text class="f-s" x="28" y="352">Naranja: el camino de una conversación;</text>
+<text class="f-s" x="28" y="368">la repregunta reutiliza ≈ 6,000 tokens.</text>
+<text class="f-s" x="28" y="392">Si falta memoria, se tiran primero las</text>
+<text class="f-s" x="28" y="408">hojas que llevan más tiempo sin usarse.</text>
+</svg>

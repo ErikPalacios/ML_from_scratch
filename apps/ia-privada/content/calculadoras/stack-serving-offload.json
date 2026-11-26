@@ -1,0 +1,99 @@
+{
+  "titulo": "Offload en llama.cpp: capas en la GPU contra velocidad",
+  "intro": "Aplica \\(t_{token} = W_{GPU} ÷ (η_m × B_{GPU}) + W_{CPU} ÷ (η_m × B_{RAM})\\) y \\(v = 1 ÷ t_{token}\\), con una sola conversación y sin contar el KV cache. Arranca con Llama 3.3 70B en Q4_K_M en una RTX 4090, con la mitad de las capas en una RAM DDR5 de dos canales (89.6 GB/s, un supuesto: escribe el de tu máquina).",
+  "preajustes": [
+    {
+      "label": "Modelo en GGUF Q4_K_M (≈ 4.89 bits por peso)",
+      "inicial": 0,
+      "opciones": [
+        { "label": "Llama 3.3 70B · Q4_K_M", "valores": { "Wm": 43.13, "L": 80 }, "nota": "70.554 mil millones de parámetros × 4.89 bits ÷ 8 ≈ 43.13 GB; 80 capas." },
+        { "label": "Qwen3 32B · Q4_K_M", "valores": { "Wm": 20.03, "L": 64 }, "nota": "32.762 mil millones × 4.89 ÷ 8 ≈ 20.03 GB; 64 capas. Ollama dice 20 GB para qwen3:32b." },
+        { "label": "Llama 3.1 8B · Q4_K_M", "valores": { "Wm": 4.91, "L": 32 }, "nota": "8.03 mil millones × 4.89 ÷ 8 ≈ 4.91 GB; 32 capas. Cabe en casi cualquier GPU." }
+      ]
+    },
+    {
+      "label": "GPU (datos de gpus.json)",
+      "datos": "gpus",
+      "inicial": "rtx-4090",
+      "campos": { "M": "vram_gb", "B": "ancho_banda_gbs" }
+    }
+  ],
+  "entradas": [
+    { "id": "Wm", "label": "Pesos del modelo, en GB", "min": 0.5, "max": 500, "paso": 0.01, "valor": 43.13, "tipo": "numero" },
+    { "id": "L", "label": "Capas del modelo", "min": 1, "max": 128, "paso": 1, "valor": 80, "tipo": "numero" },
+    { "id": "ng", "label": "Capas en la GPU (`-ngl`)", "min": 0, "max": 128, "paso": 1, "valor": 40 },
+    { "id": "M", "label": "VRAM de la GPU, en GB", "min": 1, "max": 512, "paso": 1, "valor": 24, "tipo": "numero" },
+    { "id": "B", "label": "Ancho de banda de la VRAM, \\(B_{GPU}\\), en GB/s", "min": 50, "max": 10000, "paso": 1, "valor": 1008, "tipo": "numero" },
+    { "id": "Br", "label": "Ancho de banda de la RAM, \\(B_{RAM}\\), en GB/s (supuesto: DDR5-5600 en 2 canales = 89.6)", "min": 5, "max": 1000, "paso": 0.1, "valor": 89.6, "tipo": "numero" },
+    { "id": "em", "label": "Eficiencia de la memoria, \\(η_m\\) (el despacho supone 0.7)", "min": 0.1, "max": 1, "paso": 0.05, "valor": 0.7 }
+  ],
+  "calculos": [
+    { "id": "n", "formula": "min(ng, L)" },
+    { "id": "per", "formula": "Wm / L" },
+    { "id": "wg", "formula": "n * per" },
+    { "id": "wc", "formula": "(L - n) * per" },
+    { "id": "tg", "formula": "wg / (em * B) * 1000" },
+    { "id": "tc", "formula": "wc / (em * Br) * 1000" },
+    { "id": "t", "formula": "max(tg + tc, 1e-9)" }
+  ],
+  "salidas": [
+    {
+      "label": "Pesos en la VRAM, \\(W_{GPU}\\)",
+      "formula": "wg * 1e9",
+      "formato": "bytes",
+      "barra": true,
+      "cuenta": "{{n|int}} capas × {{per|num|3}} GB = **{{wg|num|2}} GB**"
+    },
+    {
+      "label": "Pesos en la RAM, \\(W_{CPU}\\)",
+      "formula": "wc * 1e9",
+      "formato": "bytes",
+      "barra": true,
+      "cuenta": "{{L - n|int}} capas × {{per|num|3}} GB = **{{wc|num|2}} GB**"
+    },
+    {
+      "label": "Pedazo de la GPU",
+      "formula": "tg",
+      "formato": "ms",
+      "decimales": 1,
+      "cuenta": "{{wg|num|2}} GB ÷ ({{em|corto}} × {{B|int}} GB/s) = **{{tg|num|1}} ms**"
+    },
+    {
+      "label": "Pedazo de la RAM",
+      "formula": "tc",
+      "formato": "ms",
+      "decimales": 1,
+      "cuenta": "{{wc|num|2}} GB ÷ ({{em|corto}} × {{Br|corto}} GB/s) = **{{tc|num|1}} ms**"
+    },
+    {
+      "label": "Tokens por segundo, \\(v\\)",
+      "formula": "1000 / t",
+      "formato": "num",
+      "decimales": 1,
+      "barra": true,
+      "cuenta": "1 ÷ ({{tg|num|1}} + {{tc|num|1}}) ms = **{{1000 / t|num|1}} tokens/s**"
+    },
+    {
+      "label": "Parte del tiempo que se va en la RAM",
+      "formula": "tc / t",
+      "formato": "pct",
+      "barra": true
+    },
+    {
+      "label": "Si todo cupiera en la GPU",
+      "formula": "1000 / (Wm / (em * B) * 1000)",
+      "formato": "num",
+      "decimales": 1,
+      "nota": "tokens/s con las \\(L\\) capas en la VRAM",
+      "cuenta": "1 ÷ ({{Wm|corto}} GB ÷ ({{em|corto}} × {{B|int}} GB/s)) = **{{em * B / Wm|num|1}} tokens/s**"
+    },
+    {
+      "label": "¿Caben esas capas en la VRAM?",
+      "formula": "M - wg - 2",
+      "veredicto": { "si": "Sí caben", "no": "No caben" },
+      "nota": "dejando 2 GB para el KV cache y el programa (supuesto)",
+      "cuenta": "{{M|corto}} GB − {{wg|num|2}} GB − 2 GB = {{M - wg - 2|num|2}} GB"
+    }
+  ],
+  "nota": "Prueba: con Llama 3.3 70B, sube las capas en la GPU de 40 a 41 y casi nada cambia; la RAM sigue mandando. Elige Qwen3 32B: con 56 capas en la GPU son ≈ 15 tokens/s, con las 64 ≈ 35. Elige una Mac de memoria unificada en la lista de GPUs y pon todas las capas en la «GPU»: ahí no hay offload, todo vive en la misma memoria."
+}

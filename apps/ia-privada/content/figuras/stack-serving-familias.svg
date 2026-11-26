@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 340" role="img" aria-labelledby="f-stack-serving-familias-t" class="f-svg" style="max-width:420px">
+<title id="f-stack-serving-familias-t">Los cinco motores en dos ejes. El eje horizontal es cuántas personas a la vez atienden bien, de una a cientos. El eje vertical es qué tan exigentes son con el hardware, de cualquier máquina a una GPU de servidor con Linux. Abajo a la izquierda, en la zona de los locales, están llama.cpp y Ollama: una persona o unas pocas, en cualquier máquina. Arriba a la derecha, en la zona de los de servidor, están vLLM, SGLang y, más arriba, TensorRT-LLM, que solo corre en NVIDIA: cientos a la vez, con Linux y GPU de centro de datos.</title>
+<rect class="f-card" x="10" y="10" width="340" height="320" rx="16"/>
+<text class="f-l" x="28" y="36">QUÉ PIDE DEL HARDWARE ↑</text>
+<line class="f-linea" x1="40" y1="48" x2="40" y2="262"/>
+<line class="f-linea" x1="40" y1="262" x2="336" y2="262"/>
+<rect class="f-b2" x="50" y="176" width="140" height="78" rx="12"/>
+<text class="f-l" x="60" y="196">LOS LOCALES</text>
+<rect class="f-chip" x="180" y="52" width="152" height="122" rx="12"/>
+<text class="f-l" x="190" y="72">LOS DE SERVIDOR</text>
+<circle class="f-acc" cx="80" cy="228" r="7"/>
+<text class="f-s" x="92" y="226">llama.cpp</text>
+<circle class="f-acc" cx="128" cy="244" r="7"/>
+<text class="f-s" x="140" y="248">Ollama</text>
+<circle class="f-acc" cx="230" cy="148" r="7"/>
+<text class="f-s" x="242" y="152">vLLM</text>
+<circle class="f-acc" cx="276" cy="124" r="7"/>
+<text class="f-s" x="226" y="118" text-anchor="end">SGLang</text>
+<circle class="f-acc" cx="300" cy="92" r="7"/>
+<text class="f-s" x="288" y="96" text-anchor="end">TensorRT-LLM</text>
+<text class="f-s" x="196" y="200">GPU de servidor y Linux;</text>
+<text class="f-s" x="196" y="216">TensorRT-LLM, solo NVIDIA</text>
+<text class="f-s" x="56" y="166">CPU, Mac, Windows</text>
+<text class="f-s" x="56" y="150">Cualquier máquina:</text>
+<text class="f-l" x="44" y="282">1</text>
+<text class="f-l" x="110" y="282">UNAS POCAS</text>
+<text class="f-l" x="210" y="282">DECENAS</text>
+<text class="f-l" x="290" y="282">CIENTOS</text>
+<text class="f-t" x="180" y="310" text-anchor="middle">Personas a la vez, bien atendidas →</text>
+</svg>
