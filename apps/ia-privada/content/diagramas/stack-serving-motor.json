@@ -1,41 +1,41 @@
 {
   "titulo": "Una pregunta por dentro del motor de inferencia",
   "width": 78,
-  "height": 62,
+  "height": 63,
   "lanes": [
-    { "id": "red", "label": "Por la red", "kind": "online", "x": 0, "y": 0, "w": 78, "h": 14 },
-    { "id": "cpu", "label": "En la CPU: preparar y planear", "kind": "neutral", "x": 0, "y": 14, "w": 78, "h": 17 },
-    { "id": "gpu", "label": "En la GPU: calcular", "kind": "neutral", "x": 0, "y": 31, "w": 78, "h": 31 }
+    { "id": "red", "label": "Por la red", "kind": "online", "x": 0, "y": 0, "w": 78, "h": 11 },
+    { "id": "cpu", "label": "En la CPU: preparar y planear", "kind": "neutral", "x": 0, "y": 11, "w": 78, "h": 23 },
+    { "id": "gpu", "label": "En la GPU: calcular", "kind": "neutral", "x": 0, "y": 34, "w": 78, "h": 29 }
   ],
   "nodes": [
-    { "id": "cliente", "label": "Cliente", "sub": "chat o gateway", "kind": "client", "x": 4, "y": 3, "w": 18, "h": 8,
+    { "id": "cliente", "label": "Cliente", "sub": "chat o gateway", "kind": "client", "x": 4, "y": 3, "w": 18, "h": 6.5,
       "note": "La interfaz de chat del despacho, o el gateway que va delante. Manda la pregunta como JSON y recibe la respuesta en pedazos. Qué más hace el gateway es tema de su propia lección." },
-    { "id": "http", "label": "Servidor HTTP", "sub": "compatible con OpenAI", "kind": "edge", "x": 4, "y": 18, "w": 18, "h": 8,
+    { "id": "http", "label": "Servidor HTTP", "sub": "compatible con OpenAI", "kind": "edge", "x": 4, "y": 20, "w": 18, "h": 8,
       "note": "El servidor compatible con OpenAI: escucha en un puerto (8000 en vLLM), revisa la clave si se la pusiste y convierte el JSON en una petición interna. De regreso, manda cada token en cuanto existe (streaming)." },
-    { "id": "plantilla", "label": "Plantilla y tokenizador", "sub": "mensajes → tokens", "kind": "service", "x": 30, "y": 18, "w": 18, "h": 8,
+    { "id": "plantilla", "label": "Plantilla y tokenizador", "sub": "mensajes → tokens", "kind": "service", "x": 30, "y": 20, "w": 18, "h": 8,
       "note": "La [[plantilla-de-chat|plantilla de chat]] pega los mensajes en un solo texto con marcas especiales (y en Qwen3 decide si el modelo piensa); el tokenizador lo vuelve ≈ 6,000 ids de tokens." },
-    { "id": "scheduler", "label": "Scheduler", "sub": "arma el batch de cada paso", "kind": "service", "x": 56, "y": 18, "w": 18, "h": 8,
+    { "id": "scheduler", "label": "Scheduler", "sub": "arma el batch de cada paso", "kind": "service", "x": 56, "y": 20, "w": 18, "h": 8,
       "note": "El [[scheduler]] decide antes de **cada** paso qué conversaciones van juntas ([[batching-continuo|batching continuo]]) y si la nueva tiene memoria. Si no, espera en la fila." },
-    { "id": "kv", "label": "KV cache en bloques", "sub": "en la VRAM", "kind": "store", "x": 56, "y": 35, "w": 18, "h": 8,
+    { "id": "kv", "label": "KV cache en bloques", "sub": "en la VRAM", "kind": "store", "x": 56, "y": 37, "w": 18, "h": 8,
       "note": "Lo que recuerda cada conversación, partido en [[bloque-kv|bloques]] ([[pagedattention|PagedAttention]]). Si el principio de la pregunta ya se calculó, sus bloques se reutilizan ([[prefix-caching|prefix caching]])." },
-    { "id": "paso", "label": "Paso del modelo", "sub": "kernels + CUDA graph", "kind": "gpu", "x": 30, "y": 35, "w": 18, "h": 8,
+    { "id": "paso", "label": "Paso del modelo", "sub": "kernels + CUDA graph", "kind": "gpu", "x": 30, "y": 37, "w": 18, "h": 8,
       "note": "La GPU corre cientos de kernels: el [[prefill|prefill]] de las nuevas (o un trozo) y un token de [[decode|decode]] de cada una. En el decode, un [[cuda-graph|CUDA graph]] le ahorra a la CPU lanzar los kernels uno por uno." },
-    { "id": "pesos", "label": "Pesos", "sub": "≈ 19.32 GB en AWQ", "kind": "store", "x": 30, "y": 51, "w": 18, "h": 8,
+    { "id": "pesos", "label": "Pesos", "sub": "≈ 19.32 GB en AWQ", "kind": "store", "x": 30, "y": 53, "w": 18, "h": 8,
       "note": "Los [[pesos]] de Qwen3 32B en INT4 de AWQ, cargados una vez al arrancar. Cada paso los lee todos: por eso el decode espera a la memoria." },
-    { "id": "sampler", "label": "Sampler", "sub": "elige el token", "kind": "service", "x": 4, "y": 35, "w": 18, "h": 8,
+    { "id": "sampler", "label": "Sampler", "sub": "elige el token", "kind": "service", "x": 4, "y": 37, "w": 18, "h": 8,
       "note": "De las puntuaciones de la última capa elige un token según la temperatura de la petición, lo vuelve texto y lo entrega al servidor. Se repite hasta el token de fin o el tope." }
   ],
   "edges": [
     { "from": "cliente", "to": "http", "kind": "online", "label": "JSON", "fromSide": "b", "toSide": "t" },
     { "from": "http", "to": "plantilla", "kind": "online", "label": "mensajes", "fromSide": "r", "toSide": "l" },
     { "from": "plantilla", "to": "scheduler", "kind": "online", "label": "tokens", "fromSide": "r", "toSide": "l" },
-    { "from": "scheduler", "to": "kv", "kind": "neutral", "label": "¿bloques?", "fromSide": "r", "toSide": "r", "via": [[77, 22], [77, 39]] },
+    { "from": "scheduler", "to": "kv", "kind": "neutral", "label": "¿bloques?", "fromSide": "r", "toSide": "r", "via": [[77, 24], [77, 41]] },
     { "from": "scheduler", "to": "paso", "kind": "online", "label": "batch", "fromSide": "b", "toSide": "t", "via": [[65, 30], [39, 30]] },
     { "from": "kv", "to": "paso", "kind": "neutral", "label": "lee y escribe", "fromSide": "l", "toSide": "r" },
     { "from": "pesos", "to": "paso", "kind": "neutral", "label": "cada paso", "fromSide": "t", "toSide": "b" },
     { "from": "paso", "to": "sampler", "kind": "online", "label": "logits", "fromSide": "l", "toSide": "r" },
     { "from": "sampler", "to": "http", "kind": "online", "label": "token", "fromSide": "t", "toSide": "b" },
-    { "from": "http", "to": "cliente", "kind": "online", "label": "streaming", "fromSide": "l", "toSide": "l", "via": [[1, 22], [1, 7]], "dashed": true }
+    { "from": "http", "to": "cliente", "kind": "online", "label": "streaming", "fromSide": "l", "toSide": "l", "via": [[1, 24], [1, 6.25]], "dashed": true }
   ],
   "flows": [
     { "id": "pregunta", "label": "Una pregunta del despacho, de punta a punta",

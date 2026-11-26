@@ -32,7 +32,7 @@
    "termino": "CUDA graph",
    "en": "CUDA graph",
    "corto": "Una grabación de toda la secuencia de kernels de un paso del modelo, para que la CPU le pida a la GPU «repite esto» con una sola orden en vez de lanzar cientos.",
-   "largo": "La CPU lanza cada kernel de la GPU, uno por uno, y cada lanzamiento cuesta un poco de tiempo. En el [[decode|decode]] los kernels son cortos y la GPU puede quedarse esperando órdenes. Un CUDA graph se graba una vez y se repite. Como la grabación es fija, los motores graban varias (para distintos tamaños de batch) y eso ocupa memoria. vLLM los usa por omisión; `--enforce-eager` los apaga: arranque más rápido, decode más lento.",
+   "largo": "La CPU lanza cada kernel de la GPU, uno por uno, y cada lanzamiento cuesta un poco de tiempo. En el [[decode|decode]] los kernels son cortos y la GPU puede quedarse esperando órdenes. Un CUDA graph se graba una vez y se repite. Como la grabación es fija, los motores graban varias (en vLLM, para distintos tamaños de batch hasta `--max-num-seqs`) y eso ocupa memoria. vLLM los usa por omisión; `--enforce-eager` los apaga: arranque más rápido, decode más lento.",
    "analogia": "Darle al cocinero la tarjeta con la receta en vez de dictársela paso por paso. Se rompe en que la tarjeta es fija: si cambia el tamaño de la tanda, hace falta otra.",
    "ejemplo": "Parte del overhead que vLLM descuenta antes de repartir el KV cache es la memoria de sus CUDA graphs; en la cuenta del despacho va dentro de los ≈ 2 GB de programa.",
    "ver": [
@@ -73,7 +73,7 @@
    "termino": "Ollama",
    "en": "Ollama",
    "corto": "Un programa de escritorio y servidor (MIT, en Go) para bajar y correr modelos locales con un comando. Por dentro usa llama.cpp, y MLX en las Mac.",
-   "largo": "Envuelve a [[llama-cpp|llama.cpp]] (sirve cada GGUF con un subproceso de `llama-server`) con descarga de modelos, nombres cortos (`qwen3:32b`), carga y descarga automáticas y una API, también compatible con OpenAI en `/v1/`. Escucha en `127.0.0.1:11434`. Sus valores por omisión están pensados para una persona: una petición a la vez por modelo en NVIDIA y AMD (`OLLAMA_NUM_PARALLEL`), contexto según la VRAM (4k, 32k o 256k), [[keep-alive|keep-alive]] de 5 minutos y sin autenticación. En 2025 tuvo un motor propio; desde la v0.30.0 (mayo de 2026) volvió a llama.cpp.",
+   "largo": "Envuelve a [[llama-cpp|llama.cpp]] (sirve cada GGUF con un subproceso de `llama-server`) con descarga de modelos, nombres cortos (`qwen3:32b`), carga y descarga automáticas y una API, también compatible con OpenAI en `/v1/`. Escucha en `127.0.0.1:11434`. Sus valores por omisión están pensados para una persona: una petición a la vez por modelo en NVIDIA y AMD (`OLLAMA_NUM_PARALLEL`), contexto según la VRAM (4k, 32k o 256k), [[keep-alive|keep-alive]] de 5 minutos y sin autenticación. En 2025 corría varios modelos en un motor propio; desde la v0.30.0 (mayo de 2026) corre con llama.cpp, y ese motor ya no está en su código. Con varias GPUs suma su VRAM para elegir el contexto.",
    "ejemplo": "Con una petición a la vez, una L40S atendería ≈ 179 preguntas por hora del despacho contra 750 que llegan en la hora pico: la utilización sale ≈ 4.2.",
    "ver": [
     "llama-cpp",
@@ -110,8 +110,8 @@
    "id": "vllm",
    "termino": "vLLM",
    "en": "vLLM",
-   "corto": "El motor de inferencia de servidor más usado para LLMs abiertos: PagedAttention, batching continuo, muchos formatos de cuantización y API compatible con OpenAI. Apache 2.0, para Linux.",
-   "largo": "Nació en Berkeley con el paper de [[pagedattention|PagedAttention]] (SOSP 2023). Trae [[batching-continuo|batching continuo]], [[prefix-caching|prefix caching]] y [[chunked-prefill|chunked prefill]] prendidos por omisión, [[cuda-graph|CUDA graphs]], kernels para AWQ, GPTQ, FP8 y FP4, [[salida-estructurada|salida estructurada]] y varias GPUs. Corre en NVIDIA desde la capability 7.5, AMD, Intel, CPU y TPU; no en Windows nativo. Saca versión cada 2 a 4 semanas; en la v0.34.0 (16 de noviembre de 2026) `--gpu-memory-utilization` pasó a 1.0 con el KV cache extensible.",
+   "corto": "El motor de inferencia de servidor abierto más popular: PagedAttention, batching continuo, muchos formatos de cuantización y API compatible con OpenAI. Apache 2.0, para Linux.",
+   "largo": "Nació en Berkeley con el paper de [[pagedattention|PagedAttention]] (SOSP 2023). Trae [[batching-continuo|batching continuo]], [[prefix-caching|prefix caching]] y [[chunked-prefill|chunked prefill]] prendidos por omisión, [[cuda-graph|CUDA graphs]], kernels para AWQ, GPTQ, FP8 y FP4, [[salida-estructurada|salida estructurada]] y varias GPUs. Corre en NVIDIA desde la capability 7.5, AMD, Intel, CPU y TPU; no en Windows nativo. Saca versión cada 2 a 4 semanas; en la v0.34.0 (16 de noviembre de 2026) `--gpu-memory-utilization` pasó a 1.0 con el KV cache extensible (antes 0.9, y 0.92 desde abril de 2026).",
    "ejemplo": "`vllm serve Qwen/Qwen3-32B-AWQ --max-model-len 8192 --max-num-seqs 8 --api-key \"$VLLM_CLAVE\"` es la base del comando del despacho.",
    "ver": [
     "motor-de-inferencia",
@@ -124,7 +124,7 @@
    "id": "sglang",
    "termino": "SGLang",
    "en": "SGLang",
-   "corto": "Un motor de inferencia de servidor (Apache 2.0) nacido en LMSYS, conocido por RadixAttention (KV cache en árbol de prefijos) y por su salida estructurada rápida.",
+   "corto": "Un motor de inferencia de servidor (Apache 2.0) que hospeda LMSYS, conocido por RadixAttention (KV cache en árbol de prefijos) y por su salida estructurada rápida.",
    "largo": "Su paper (Zheng y otros, 2023) propuso [[radixattention|RadixAttention]] y una máquina de estados comprimida para la [[salida-estructurada|salida estructurada]]. Brilla en cargas con mucho prefijo compartido: agentes, evaluaciones, chats largos. Se arranca con `python -m sglang.launch_server` o `sglang serve` (puerto 30000). La v0.5.23 (noviembre de 2026) pide CUDA 13.",
    "ejemplo": "Una aseguradora que extrae 15 campos fijos de miles de facturas, con el mismo prompt y el mismo esquema JSON en todas, es un candidato natural para probar SGLang.",
    "ver": [
@@ -152,7 +152,7 @@
    "termino": "Salida estructurada",
    "en": "structured output, constrained decoding",
    "corto": "Obligar a que la respuesta del modelo siga un formato (un esquema JSON, una gramática): antes de cada token, el motor tacha los tokens que romperían el formato.",
-   "largo": "El esquema se convierte en una gramática; en cada paso, solo los tokens que la respetan pueden salir del *sampler*. Si en un punto solo hay una opción válida, algunos motores escriben varios tokens de una vez. vLLM lo hace con `xgrammar` o `guidance`; SGLang con `xgrammar`, `outlines` o `llguidance`. Garantiza la forma, no que el contenido sea correcto.",
+   "largo": "El esquema se convierte en una gramática; en cada paso, solo los tokens que la respetan pueden salir del *sampler*. Si en un tramo solo hay una opción válida, SGLang mete el tramo completo en una sola pasada del modelo. vLLM lo hace con `xgrammar` o `guidance`; SGLang con `xgrammar`, `outlines` o `llguidance`. Garantiza la forma, no que el contenido sea correcto.",
    "ejemplo": "Pedir «devuelve un JSON con cliente, fecha y monto» en el prompt funciona casi siempre; con salida estructurada, el JSON siempre es válido y siempre trae esos tres campos.",
    "ver": [
     "sglang",
