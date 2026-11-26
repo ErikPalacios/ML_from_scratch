@@ -19,7 +19,7 @@ El contrato del piloto tiene un [[criterio-de-aceptacion|criterio de aceptación
 - El proveedor de hardware manda una gráfica: «hasta **3,000 tokens/s** con Qwen3 32B».
 - Un abogado reenvía un blog: «la RTX PRO 6000 es **2×** la L40S».
 
-Las dos cifras pueden ser verdad y ninguna responde la pregunta del contrato. Las cuentas tampoco la cierran: el prefill de 6,000 tokens en una L40S tarda ≈ 2.38 s **sin fila**, y la simulación de [De requisitos a hardware](/requisitos-hardware/) dio un p95 de ≈ 4.2 s en la hora pico. Son cuentas con supuestos; el número que se firma sale de **medir**.
+Las dos cifras pueden ser verdad y ninguna responde la pregunta del contrato. Las cuentas tampoco la cierran: el prefill de 6,000 tokens en una L40S tarda ≈ 2.38 s **sin fila**, y la simulación de [De requisitos a hardware](/requisitos-hardware/) dio un p95 de ≈ 4.2 s en la hora pico, repartiendo las preguntas al azar entre las tres. Son cuentas con supuestos; el número que se firma sale de **medir**.
 
 Tres cosas que Sensei explica a fondo y aquí solo se recuerdan:
 
@@ -27,7 +27,7 @@ Tres cosas que Sensei explica a fondo y aquí solo se recuerdan:
 - Una prueba de carga sube la carga por escalones y busca el codo; la carga **cerrada** (N usuarios que esperan su respuesta) y la **abierta** (una tasa que no espera a nadie) no miden lo mismo, y la cerrada esconde los peores momentos. Lo ves en [Qué tan rápido y cuánto: latencia y throughput](https://sensei.trueml.app/latencia/).
 - Una medición tiene ruido: dos corridas iguales no dan el mismo número, y hace falta un tamaño de muestra para distinguir. Lo ves en [Ruido, muestras y pruebas A/B](https://sensei.trueml.app/ruido/).
 
-Y de esta app, [Concurrencia](/concurrencia/) definió los relojes de una respuesta ([[ttft|TTFT]], [[tpot|TPOT]], [[itl|ITL]]), el [[codo]], el [[slo|SLO]] y el [[goodput]]. Aquí se construye encima: **cómo se mide de verdad**, con qué herramienta, con cuántas peticiones, y qué condiciones exigirle a un número publicado.
+Y de esta app, [Concurrencia](/concurrencia/) definió los relojes de una respuesta ([[ttft|TTFT]], [[tpot|TPOT]], [[itl|ITL]]), el [[codo]], el [[slo|SLO]] y el [[goodput]]. Aquí se construye encima: **cómo se mide de verdad**, y qué exigirle a un número publicado.
 
 ## Qué se mide, y dónde {What gets measured, and where}
 
@@ -51,7 +51,7 @@ Además, de la corrida entera salen:
 - **Peticiones por segundo** que de verdad se mandaron y terminaron. Si pediste 0.21 y salieron 0.18, la prueba no probó lo que creías.
 - **Tokens por segundo del servidor**: de salida y totales (entrada + salida), dos números distintos.
 - **Tokens por segundo por persona**: lo que ve cada abogada; el anterior entre los que están adentro al mismo tiempo.
-- **Errores**: 429, 5xx, streams cortados, respuestas vacías. Las que fallan rápido bajan el p95: con errores, los percentiles mienten.
+- **Errores**: 429 (el gateway dice «te pasaste de tu cuota»), 5xx (falló el servidor), streams cortados, respuestas vacías. Las que fallan rápido bajan el p95: con errores, los percentiles mienten.
 - **[[goodput|Goodput]]**: las peticiones por segundo que cumplieron **todas** las promesas.
 
 ### En qué percentil
@@ -70,18 +70,18 @@ El cronómetro va donde está la persona. El abogado habla con Open WebUI, que h
 La prueba de carga del despacho. El generador, en otra máquina, le manda al gateway las preguntas del dataset de carga; el gateway las reparte entre las tres copias. Toca cada caja para ver qué se mide ahí, o sigue el recorrido de una petición.
 :::
 
-Dos detalles de esa clave. **Su cuota**: la de una abogada es de ≈ 936 tokens por minuto; con ella, a la cuarta pregunta seguida la prueba recibe un 429 y mide la cuota, no el servidor. La clave de pruebas lleva una cuota a la medida de la prueba. **El registro**: el gateway anota una fila por pregunta; si el generador dice 1,000 y el registro 940, algo se perdió en medio.
+Esa clave lleva **su propia cuota**. Con la de una abogada (≈ 936 tokens por minuto y una cubeta de tres preguntas, de [Gateway](/gateway/)), la cuarta pregunta seguida recibe un 429 y la prueba mide la cuota, no el servidor. Y el **registro** del gateway, una fila por pregunta, debe contar tantas como mandó el generador: si dice 940 de 1,000, algo se perdió en medio.
 
 ## El dataset de carga: tu tráfico, no el de otro {The load dataset: your traffic, not someone else's}
 
-El [[dataset-de-carga|dataset de carga]] es la lista de peticiones que el generador manda: cada una con su texto de entrada y su tope de salida. Es la decisión que más cambia el resultado. En una misma L40S con el mismo modelo, NVIDIA mide ≈ 4,251 tokens/s con peticiones de 200 tokens de entrada y 200 de salida, y 889 con 5,000 de entrada y 500 de salida (las cifras de [Concurrencia](/concurrencia/)): casi 5 veces menos, por el largo de la pregunta. Un benchmark con preguntas cortas no dice nada de un despacho que manda 6,000 tokens.
+El [[dataset-de-carga|dataset de carga]] es la lista de peticiones que el generador manda: cada una con su texto de entrada y su tope de salida. Es la decisión que más cambia el resultado. En una misma L40S con el mismo modelo (Llama 3.1 8B, con 100 a la vez), NVIDIA mide ≈ 4,251 tokens/s con peticiones de 200 tokens de entrada y 200 de salida, y 889 con 5,000 de entrada y 500 de salida (las cifras de [Concurrencia](/concurrencia/)): casi 5 veces menos, por el largo de la pregunta. Un benchmark con preguntas cortas no dice nada de un despacho que manda 6,000 tokens.
 
 ### Qué tiene que parecerse
 
 El dataset del despacho copia su [[perfil-de-carga|perfil de carga]]:
 
 - **Largo de entrada**: ≈ 6,000 tokens, **con variación**. ± 30 % (de ≈ 4,200 a ≈ 7,800) es un supuesto razonable hasta medir las reales; con todas iguales, la fila se ve más pareja de lo que será.
-- **Largo de salida**: tope de 500. Con un tope, el modelo puede terminar antes; vLLM fuerza el largo (`--ignore-eos`) solo con su dataset sintético `random`. Con uno propio, se declara cuánto salió de verdad.
+- **Largo de salida**: tope de 500. Con un tope, el modelo puede terminar antes. Para forzar el largo, el cliente le pide al motor que ignore el token de fin (*end of sequence*, `--ignore-eos`); vLLM lo hace solo con su dataset sintético `random`. Con uno propio, se declara cuánto salió de verdad.
 - **Lo que se comparte y lo que no**: el punto fino, abajo.
 - **Sin datos de clientes**: fragmentos **sintéticos** con el estilo de un expediente. Para medir segundos no hacen falta secretos.
 
@@ -106,7 +106,7 @@ La receta: cada prompt del dataset empieza con **el mismo texto de instrucciones
 Entre corrida y corrida, **reinicia el servidor o vacía su cache**. Si no, la segunda corrida encuentra en el cache los prompts de la primera y sale mejor sin que nada haya cambiado. La documentación de vLLM recomienda cambiar la semilla, reiniciar, o usar `vllm bench sweep serve`, que vacía los caches del servidor entre corridas.
 :::
 
-El dataset manda preguntas sueltas, sin repreguntas: una simplificación honesta, porque casi todo el tráfico es la primera pregunta. Una repregunta lleva la conversación entera y, con la afinidad por conversación del gateway, cae en la copia que ya tiene ese inicio en su cache: otro acierto real. Si el piloto muestra muchas, se agregan conversaciones de dos turnos al dataset.
+El dataset manda preguntas sueltas, sin repreguntas: una simplificación honesta. Una repregunta lleva la conversación entera y cae en la copia que ya la tiene en su cache (la afinidad del gateway): otro acierto real. Si el piloto muestra muchas, se agregan conversaciones de dos turnos.
 
 ## Abierta contra cerrada, con tokens {Open versus closed load, with tokens}
 
@@ -118,7 +118,7 @@ Hay dos formas de decidir **cuándo** sale cada petición del generador, y miden
 
 ### El calendario: llegadas de Poisson
 
-Para la hora pico del despacho, el calendario es un **proceso de Poisson** a 0.21 por segundo: en promedio una pregunta cada 1 ÷ 0.21 ≈ 4.8 s, pero al azar, de modo que a veces llegan dos casi juntas y a veces pasan 15 s sin nada (las llegadas de Poisson se explican en [Concurrencia](/concurrencia/)). Se genera sorteando el hueco entre una y otra con una distribución exponencial de media 4.8 s. `vllm bench serve` hace exactamente eso con `--request-rate 0.21` (y `--burstiness 1`, que es Poisson; un valor menor que 1 hace llegadas más a ráfagas, mayor que 1 más parejas). Las ráfagas importan: son las que forman la fila del prefill y empujan el p95.
+Para la hora pico del despacho, el calendario es un **proceso de Poisson** a 0.21 por segundo: en promedio una pregunta cada 1 ÷ 0.21 ≈ 4.8 s, pero al azar, de modo que a veces llegan dos casi juntas y a veces pasan 15 s sin nada (las llegadas al azar ya las simulaste en [Concurrencia](/concurrencia/); el modelo de Poisson lo explica [Probabilidad para sistemas que fallan](https://sensei.trueml.app/probabilidad/)). Se genera sorteando el hueco entre una y otra con una distribución exponencial de media 4.8 s. `vllm bench serve` hace exactamente eso con `--request-rate 0.21` (y `--burstiness 1`, que es Poisson; un valor menor que 1 hace llegadas más a ráfagas, mayor que 1 más parejas). Las ráfagas importan: son las que forman la fila del prefill y empujan el p95.
 
 :::diagrama pruebas-carga-abierta-cerrada
 La misma tasa pedida, dos maneras de generarla. Arriba, la abierta: un calendario fijo, el servidor no lo puede frenar. Abajo, la cerrada: cada usuario virtual manda la siguiente cuando le llega la anterior. Sigue el recorrido del día en que el servidor se pone lento.
@@ -147,7 +147,7 @@ Si el servidor se pone el doble de lento, \(W\) // cada respuesta tarda 54 s | 8
 Esa es la trampa de la cerrada, y la razón de la regla de Sensei: **para medir la latencia que sentirá la gente a su tasa real, abierta; para encontrar el techo, cerrada**. Las dos tienen su lugar en el plan del despacho.
 
 :::profundo Por qué hay quien prefiere la cerrada
-La guía de benchmarking de NVIDIA recomienda medir con **concurrencia** (cerrada), y GuideLLM busca el goodput variando concurrencia. No es un error: es otra pregunta. Si la tasa abierta pasa de lo que el servidor aguanta, las pendientes **crecen sin tope** y la prueba mide la fila. Simulando una sola GPU con prefill fijo de 2.38 s al 105 % de su capacidad, el p50 llega a **1,886 s** tras 20,000 peticiones, y sigue creciendo. Con N = 8 adentro, la cerrada nunca pasa de 7 en fila. Por arriba de la capacidad, «¿cuál es el p95?» ya no tiene respuesta: ya encontraste el techo.
+La guía de benchmarking de NVIDIA recomienda medir con **concurrencia** (cerrada), y GuideLLM busca el goodput variando concurrencia. No es un error: es otra pregunta. Si la tasa abierta pasa de lo que el servidor aguanta, las pendientes **crecen sin tope** y la prueba mide la fila. Una sola GPU con prefill fijo de 2.38 s, al 105 % de su capacidad: cada pregunta encuentra en promedio ≈ 0.11 s más de fila que la anterior (2.38 × (1 − 1 ÷ 1.05)). Simulando 20,000 peticiones, el p50 queda en ≈ 1,100 s (≈ 18 min; entre 700 y 1,550 s según la semilla) y la última espera ≈ 37 min, y sigue creciendo mientras dure la prueba. Con N = 8 adentro, la cerrada nunca pasa de 7 en fila. Por arriba de la capacidad, «¿cuál es el p95?» ya no tiene respuesta: ya encontraste el techo.
 :::
 
 ## La omisión coordinada: cuando la prueba deja de mirar {Coordinated omission: when the test stops looking}
@@ -162,7 +162,7 @@ Dónde se rompe: en la pizzería los clientes llaman para quejarse; en una prueb
 
 ### Cómo le pasa a una prueba de LLM
 
-Casi nadie hace una prueba cerrada por error. Le pasa a quien cree que hizo una abierta. El caso típico: se pide una tasa (`--request-rate 0.42`, el doble del pico) y, para «no tumbar el servidor», se pone un **tope de peticiones en vuelo en el cliente** (`--max-concurrency 8`). La documentación de vLLM lo avisa: con una tasa finita y un tope, si el servidor no alcanza, la tasa real baja. Con el tope lleno, las peticiones esperan **en el cliente**, antes de salir, y su espera no entra al TTFT ni a la latencia total: esas se miden desde el envío.
+A quien hace una prueba cerrada a sabiendas, la omisión coordinada casi no lo engaña: sabe que mide otra cosa. Le pasa a quien cree que hizo una abierta. El caso típico: se pide una tasa (`--request-rate 0.42`, el doble del pico) y, para «no tumbar el servidor», se pone un **tope de peticiones en vuelo en el cliente** (`--max-concurrency 8`). La documentación de vLLM lo avisa: con una tasa finita y un tope, si el servidor no alcanza, la tasa real baja. Con el tope lleno, las peticiones esperan **en el cliente**, antes de salir, y su espera no entra al TTFT ni a la latencia total: esas se miden desde el envío.
 
 El remedio es medir **desde la hora del calendario**, no desde el envío: la [[latencia-programada|latencia desde la hora programada]]. Esa espera en el cliente sí la siente quien pidió. Este programa simula las tres copias del despacho (una fila de prefill de 2.38 s por GPU, reparto al azar, 25 s escribiendo sin frenar a nadie) y tres pruebas: abierta a la hora pico, abierta al doble, y la «abierta» con tope de 8.
 
@@ -230,7 +230,7 @@ El [[calentamiento]] (*warm-up*) son las primeras peticiones de una prueba, que 
 
 El p95 de una prueba es **una** petición: la del lugar \(⌈0.95 n⌉\), con las \(0.05 n\) más lentas arriba. Con 100 peticiones es la 95.ª, y la deciden las 5 más raras de la corrida. Con 20, el «p95» es la segunda más lenta, y el p99 es la más lenta de todas. Si la prueba se repite, esas pocas cambian, y el p95 con ellas.
 
-Lo que importa es saber **entre qué valores está el p95 verdadero** (el que darías con infinitas peticiones) dada tu muestra. Hay un método que no supone ninguna forma de la distribución: el [[intervalo-del-percentil|intervalo de confianza de un percentil]] por estadísticos de orden. La idea, en palabras: cada petición, por separado, tiene 95 % de probabilidad de quedar debajo del p95 verdadero. Entonces **cuántas** quedan debajo, de \(n\), es como contar caras en \(n\) volados cargados al 95 %: una binomial. Con esa binomial se buscan dos lugares de la lista ordenada, \(l\) y \(u\), tales que el p95 verdadero cae entre la petición \(l\) y la \(u\) con al menos 95 % de probabilidad.
+Lo que importa es saber **entre qué valores está el p95 verdadero** (el que darías con infinitas peticiones) dada tu muestra. Hay un método que no supone ninguna forma de la distribución: el [[intervalo-del-percentil|intervalo de confianza de un percentil]] por estadísticos de orden (*order statistics*: los valores de la lista ordenada, llamados por su lugar, la 1.ª, la 2.ª…). La idea, en palabras: cada petición, por separado, tiene 95 % de probabilidad de quedar debajo del p95 verdadero. Entonces **cuántas** quedan debajo, de \(n\), es como contar caras en \(n\) volados cargados al 95 %: una binomial. Con esa binomial se buscan dos lugares de la lista ordenada, \(l\) y \(u\), tales que el p95 verdadero cae entre la petición \(l\) y la \(u\) con al menos 95 % de probabilidad.
 
 :::formula El p95 de una muestra y su intervalo
 r = ⌈q × n⌉
@@ -258,7 +258,7 @@ Lugar del p95 con 1,000, \(r\) | ⌈0.95 × 1,000⌉ | 950.ª
 Intervalo exacto con 1,000 | — | 936.ª a 964.ª = p93.6 a p96.4
 Aproximado con la campana // \(q ± 1.96 × \sqrt{q(1 − q) ÷ n}\) | 0.95 ± 1.96 × √(0.0475 ÷ 1,000) | p93.6 a p96.4
 Duración con 1,000, \(D\) | 1,000 ÷ 0.21 | 4,762 s ≈ 79 min
-= Con 200 peticiones, lo que reportas como «p95» puede ser, en verdad, cualquier cosa entre el p92 y el p98.5: una banda de seis puntos y medio. Con 1,000, de menos de tres puntos, pero la prueba dura 1 h 19 min a la tasa del despacho.
+= Con 200 peticiones, tu «p95» puede ser, en verdad, cualquier cosa entre el p92 y el p98.5. Con 1,000, la banda baja a menos de tres puntos, pero la prueba dura 1 h 19 min.
 :::
 
 :::profundo El intervalo exacto, en Python
@@ -324,7 +324,7 @@ El intervalo binomial supone que las peticiones son independientes. En una fila 
 
 ### La rampa: dónde se dobla la curva
 
-Una [[rampa]] sube la tasa poco a poco y mira cuándo empeora todo. En el despacho, de 0.1/s (media hora pico) a **0.42/s** (el doble del pico). Sirve para ver dónde está el [[codo]] y **cuánto margen** hay antes de él: si el TTFT p95 ya rompe a 0.25/s, cualquier mañana algo más cargada que la hora pico de diseño lo rompe.
+Una [[rampa]] sube la tasa poco a poco y mira cuándo empeora todo. En el despacho, de 0.1/s (la mitad de la hora pico) a **0.42/s** (el doble del pico). Sirve para ver dónde está el [[codo]] y **cuánto margen** hay antes de él: si el TTFT p95 ya rompe a 0.25/s, cualquier mañana algo más cargada que la hora pico de diseño lo rompe.
 
 Se sube **por escalones** (corridas abiertas a 0.10, 0.21, 0.31 y 0.42, cada una con su calentamiento y su p95: lo más limpio, pero son horas) o **en línea recta** (de 0.1 a 0.42/s en 30 minutos son ≈ 468 peticiones: la tasa promedio, 0.26/s, por 1,800 s). La recta encuentra el codo rápido, pero cada tramo tiene muy pocas peticiones para firmar un p95.
 
@@ -335,7 +335,7 @@ A noviembre de 2026, la rampa de `vllm bench serve` (`--ramp-up-strategy`, `--ra
 Una [[prueba-de-resistencia|prueba de resistencia]] (*soak test*) sostiene la carga de diseño durante **horas** (para el despacho, la tasa pico durante una jornada de 8 a 10 h). No busca el codo; busca lo que una prueba de una hora no ve:
 
 - **Memoria que crece**: un proceso que no suelta memoria se reinicia tarde o temprano, a media mañana.
-- **Calor**: una GPU caliente baja su reloj para protegerse (*thermal throttling*). Una tarjeta pasiva como la L40S depende de que el servidor y el cuarto la enfríen; en la nube eso lo cuida el proveedor, en el cuarto del despacho no. Por eso se repite con el servidor comprado, en su cuarto.
+- **Calor**: una GPU caliente baja su reloj para protegerse (*thermal throttling*). Una [[tarjeta-pasiva|tarjeta pasiva]] (sin ventilador propio) como la L40S depende de que el servidor y el cuarto la enfríen; en la nube eso lo cuida el proveedor, en el cuarto del despacho no. Por eso se repite con el servidor comprado, en su cuarto.
 - **Registros que se llenan**: el del gateway, los chats de Open WebUI.
 
 Basta con anotar el p95 por hora: si la hora 7 sale peor que la 1 con la misma tasa, algo se está gastando. Cómo vigilar temperatura y memoria es tema de «Observabilidad de GPUs e inferencia».
@@ -357,16 +357,14 @@ A noviembre de 2026 estas son las que vas a encontrar. Las versiones y licencias
 | `vllm bench serve` | parte de vLLM 0.34.0 (16 nov 2026) | Apache-2.0 | Abierta (Poisson o gamma con `--request-rate`), con tope opcional | La que ya viene con el motor del despacho; habla con cualquier API compatible con OpenAI |
 | GuideLLM | 0.8.1 (8 oct 2026) | Apache-2.0 | Una a la vez, cerrada, constante, Poisson, barrido, codo, goodput, trazas | Barridos automáticos, intervalos de los percentiles, latencia desde la hora programada |
 | NVIDIA AIPerf | 0.14.0 (20 nov 2026) | Apache-2.0 | Cerrada (`--concurrency`) o abierta (`--request-rate`, Poisson por omisión) | Sucesor de GenAI-Perf; prompt de sistema compartido, rampas, gráficas |
-| LLMPerf (Ray) | v2.0 (dic 2023), repositorio **archivado** | Apache-2.0 | Cerrada | Aparece en blogs viejos; ya no se mantiene |
+| LLMPerf (Ray) | v2.0 (dic 2023), repositorio **archivado** (último cambio: dic 2024) | Apache-2.0 | Cerrada | Aparece en blogs viejos; ya no se mantiene |
 | k6 (Grafana) | 2.4.0 (12 nov 2026) | **AGPL-3.0** | Cerrada (`constant-vus`) o abierta de espaciado fijo (`constant-arrival-rate`) | HTTP en general: el gateway, el SSO, Open WebUI |
 | Locust | 2.47.0 (21 oct 2026) | MIT | Usuarios que esperan (cerrada), con pausas que pueden ser de Poisson | HTTP en general, con escenarios escritos en Python |
 
-Lo que hay que saber de cada una:
+Dos avisos:
 
-- **`vllm bench serve`** ya está donde está vLLM, entiende datasets propios en JSONL y calcula goodput. Sus valores por omisión engañan: el percentil por omisión es **solo el p99**, la latencia total no se imprime si no se pide, y la salida de un dataset propio se corta en **256** tokens si no le dices otro.
-- **GuideLLM** está dentro del proyecto vLLM, cuya documentación la recomienda para probar a fondo una configuración. Su línea de comandos **cambió** en la 0.7/0.8 (ahora `guidellm run --profile kind=...`): un tutorial de 2025 ya no sirve.
-- **AIPerf** se presenta como sucesora y reemplazo directo de GenAI-Perf, que no tiene versiones nuevas desde agosto de 2025.
-- **k6 y Locust** no cuentan tokens ni miden TTFT por sí solos: sirven para lo que está **alrededor** (que el SSO aguante a 200 personas entrando a las 9:00). El modo abierto de k6 espacia las llegadas **parejo**, no al azar; Locust, aunque tiene pausas de Poisson, sigue siendo cerrado. La AGPL-3.0 de k6 es distinta de MIT o Apache; para probar un servidor propio basta con saberlo (las licencias se ven en [Open weight, open source y licencias](/licencias/)).
+- **`vllm bench serve`** ya viene con el motor del despacho, lee datasets propios en JSONL (un archivo de texto con un JSON por línea, una petición en cada una) y calcula goodput. Pero sus valores por omisión engañan: **solo el p99**, sin latencia total y con la salida de un dataset propio cortada en **256** tokens.
+- **k6 y Locust** no cuentan tokens ni miden TTFT por sí solos: sirven para lo que está **alrededor** (que el [[sso|SSO]] aguante a 200 personas entrando a las 9:00). El modo abierto de k6 espacia las llegadas **parejo**, no al azar; Locust, aunque tiene pausas de Poisson, sigue siendo cerrado. La AGPL-3.0 de k6 es distinta de MIT o Apache; para probar un servidor propio basta con saberlo (las licencias se ven en [Open weight, open source y licencias](/licencias/)).
 
 ### El comando del despacho, flag por flag
 
@@ -402,28 +400,31 @@ vllm bench serve \
 
 ### Lo que vas a leer al final
 
-`vllm bench serve` imprime un resumen con, entre otras, estas líneas (los nombres son los de vLLM 0.34.0): peticiones exitosas y fallidas, la tasa configurada, la duración, tokens de entrada y generados, `Request throughput (req/s)`, `Request goodput (req/s)`, `Output token throughput (tok/s)`, `Total token throughput (tok/s)` y, por cada reloj pedido, media, mediana y los percentiles. Lo que **esperarías** ver con 3 L40S, según la simulación de esta lección (ilustrativo: no es una corrida real, y el acomodo es simplificado):
+Al final, `vllm bench serve` imprime un resumen: peticiones exitosas y fallidas, tasa configurada, `Request goodput (req/s)`, `Output token throughput (tok/s)`, `Total token throughput (tok/s)` y, por cada reloj pedido, media, mediana y percentiles (nombres de vLLM 0.34.0). Lo que **esperarías** ver con 3 L40S, según una simulación como la de la omisión coordinada pero con el dataset de esta lección (largos de 6,000 ± 30 %, las 400 de instrucciones en el cache, prefill proporcional a lo que se calcula). Es ilustrativo, no una corrida real, y el acomodo es simplificado:
 
 ```text
 Successful requests:                1000
 Failed requests:                    0
 Request rate configured (RPS):      0.21
-Request goodput (req/s):            0.00
-Median TTFT (ms):                   ≈ 2,380
-P95 TTFT (ms):                      ≈ 4,300
+Request goodput (req/s):            ≈ 0.06
+Median TTFT (ms):                   ≈ 2,330
+P95 TTFT (ms):                      ≈ 4,000
 ```
 
-La línea que importa es la del **goodput: cero**. Con la L40S, el prefill de 6,000 tokens tarda ≈ 2.38 s sin fila, más que los 2 s de la promesa: **ninguna** petición puede cumplir el TTFT, aunque el servidor no esté saturado. Es lo que la ficha del despacho ya avisaba con cuentas; la prueba lo vuelve un hecho con fecha.
+La línea que importa es la del **goodput: ≈ 0.06 de las 0.21 pedidas**. Menos de un tercio de las preguntas cumple la promesa del TTFT, aunque el servidor no esté saturado. Las que cumplen son las más cortas (menos de ≈ 5,440 tokens de entrada) que encontraron su GPU libre. Una pregunta típica de 6,000 tokens, aun con las instrucciones en el cache, tarda ≈ 2.22 s de prefill sin fila: más que los 2 s. Es lo que la ficha del despacho ya avisaba con cuentas; la prueba lo vuelve un hecho con fecha.
 
-## Las otras herramientas por dentro {The other tools, up close} [extra]
-
+:::profundo GuideLLM y AIPerf por dentro
 Si el despacho prefiere GuideLLM o AIPerf, la misma prueba se escribe distinto. A noviembre de 2026:
+
+- **GuideLLM** está dentro del proyecto vLLM, cuya documentación la recomienda para probar a fondo una configuración. Su línea de comandos **cambió** en la 0.7/0.8 (ahora `guidellm run --profile kind=...`): un tutorial de 2025 ya no sirve.
+- **AIPerf** se presenta como sucesora y reemplazo directo de GenAI-Perf, que no tiene versiones nuevas desde agosto de 2025.
 
 **GuideLLM 0.8.1.** Sus perfiles (`--profile kind=`): `synchronous` (una a la vez), `concurrent` (cerrada), `throughput` (saturar), `constant` y `poisson` (abiertas), `sweep` (de una a la vez a saturado, con tasas intermedias), `knee` (el codo), `goodput` (la mayor concurrencia que cumple el SLO) y `replay` (trazas grabadas). Reporta del p0.1 al p99.9 con el intervalo de cada percentil. La prueba del despacho usa `--profile kind=poisson,rate=0.21` y el SLO `{"ttft_ms": 2000, "tpot_ms": 50}` en `--metrics`; cómo mapear el JSONL propio está en su guía de datasets. Ojo: su `tpot_ms` se compara contra **su** ITL, que la documentación llama «el más cercano al TPOT de vLLM, aunque no idéntico».
 
 **AIPerf 0.14.0.** `aiperf profile` con `--concurrency N` (cerrada) o `--request-rate R` (abierta, acepta 0.21), `--arrival-pattern` (`poisson` por omisión), `--shared-system-prompt-length 400` (el mismo prompt de sistema en todas, como el del despacho), `--cache-bust` (impide aciertos de cache que no pasarían en producción) y `--goodput`. Su ITL también es el promedio sin el primer token. La salida de ejemplo de su README es de una corrida en CPU con un modelo de 350 millones de parámetros, y lo dice: no es una cifra para citar.
 
-**Por qué no LLMPerf.** Archivado desde 2024, solo cerrado y, según la guía de NVIDIA, mete el TTFT en su ITL. Los números de LLMPerf de un blog son de otra definición.
+**Por qué no LLMPerf.** Archivado (su último cambio es de diciembre de 2024), solo cerrado y, según la guía de NVIDIA, mete el TTFT en su ITL. Los números de LLMPerf de un blog son de otra definición.
+:::
 
 ## Tokens/s del servidor contra tokens/s por persona {Server tokens/s versus tokens/s per person}
 
@@ -491,7 +492,7 @@ Un [[benchmark]] publicado es la medición de alguien más. Un [[benchmark-hones
 
 :::pasos
 1. El hardware
-Qué GPU, cuántas, conectadas cómo (PCIe o NVLink) y a qué potencia. Una RTX PRO 6000 puede venir en variantes de menos potencia, y comparar 350 W contra 600 W ya es comparar 1.71× de energía.
+Qué GPU, cuántas, conectadas cómo (PCIe o NVLink) y a qué potencia. La misma RTX PRO 6000 viene en variantes de menos potencia: según el [catálogo](/herramientas/catalogo/), la Workstation Max-Q es de 300 W y la Server Edition se configura de 400 a 600 W. A menos watts, menos velocidad: un «RTX PRO 6000» sin su potencia no es un número.
 2. El modelo exacto
 Nombre, tamaño y revisión. Un 8B no es un 32B; un MoE con 3 mil millones activos no es un denso de 32.
 3. La cuantización
@@ -499,7 +500,7 @@ De los pesos (FP16, FP8, INT4 de AWQ…) y del KV cache ([[cuantizar-kv-cache|cu
 4. El motor, su versión y sus flags
 vLLM 0.34.0 no es vLLM de hace un año; `--max-num-seqs`, el tamaño de los trozos de prefill y el tope de contexto cambian la curva.
 5. Los largos de entrada y de salida
-Media y variación. «1,024/1,024» no es «6,000/500».
+Media y variación. «1,024/1,024» no es «6,000/500». Y si la salida se forzó a ese largo: si cada respuesta termina cuando quiere, dos corridas no escriben lo mismo (la guía de NVIDIA recomienda forzarlo para comparar).
 6. La carga
 Tasa de llegada (abierta) o concurrencia (cerrada), cuánta y de dónde sale. Si es cerrada, cuántas a la vez.
 7. Las métricas, con su percentil y su definición
@@ -511,14 +512,6 @@ De salida o totales.
 10. Quién midió, quién pagó y cómo repetirlo
 El fabricante, un integrador, un blog, un benchmark auditado. Con repositorio, semilla y comando, o sin nada.
 :::
-
-### Las trampas que se ven seguido
-
-- **Throughput con un TTFT imposible**: el número grande está pasado el codo (en la curva de NVIDIA de [Concurrencia](/concurrencia/), 1,619 tokens/s con TTFT de 64 s). Pide el throughput **a tu SLO**: el goodput.
-- **Entradas cortas o prompts repetidos**: los dos vuelven el prefill casi gratis.
-- **Salidas que no se forzaron**: la guía de NVIDIA recomienda forzar el largo de salida para comparar.
-- **Comparar sin igualar**: FP8 contra FP16, 8B contra 32B, TTFT promedio contra p95, potencias distintas.
-- **Pocas peticiones**: GuideLLM lo dice: con menos de 100, el p99 reportado es la petición más lenta de la corrida.
 
 ### De gráfica a pregunta
 
@@ -533,24 +526,24 @@ Lo útil de la lista es que convierte cada hueco en una pregunta concreta para e
 | (nada sobre el cache) | ¿Prompts repetidos? | Prefijo de 400 compartido, lo demás distinto; aciertos medidos en `/metrics` |
 | «Hasta» | ¿Medido por quién? | Por el despacho, con el comando guardado y la semilla |
 
-Seis renglones, seis números que la gráfica no puede dar y la prueba sí. Y una regla de cortesía con el proveedor: pedirle el comando y el dataset de su gráfica. Si los manda, se puede repetir en la GPU rentada; si no, la gráfica se queda como publicidad.
+Seis renglones que la gráfica no puede dar y la prueba sí. Y una cortesía: pedirle al proveedor el comando y el dataset de su gráfica. Si los manda, se repite en la máquina rentada para la prueba; si no, la gráfica se queda como publicidad.
 
 ## MLPerf e InferenceX: los benchmarks públicos {MLPerf and InferenceX: the public benchmarks} [extra]
 
 ### MLPerf Inference
 
-[[mlperf|MLPerf Inference]] es el benchmark de la industria para inferencia, organizado por MLCommons (un consorcio de empresas y universidades). A noviembre de 2026 la versión vigente es la **v6.1**, publicada el 16 de septiembre de 2026, con 30 organizaciones participantes según el anuncio y dos pruebas nuevas: un RAG de punta a punta en centro de datos e inferencia de agentes en dispositivos (*edge*). Lo que lo hace distinto de una gráfica de proveedor son sus **reglas**: todos corren la misma carga, con la misma calidad mínima, con sus resultados revisados por los demás participantes.
+[[mlperf|MLPerf Inference]] es el benchmark de la industria para inferencia, organizado por MLCommons (un consorcio de empresas y universidades). A noviembre de 2026 la versión vigente es la **v6.1**, publicada el 16 de septiembre de 2026, con 30 organizaciones participantes según el comunicado de MLCommons y dos pruebas nuevas: un RAG de punta a punta (varios modelos encadenados para contestar preguntas) e inferencia de agentes en dispositivos (*edge*). Lo que lo hace distinto de una gráfica de proveedor son sus **reglas**: todos corren la misma carga, con la misma calidad mínima, con sus resultados revisados por los demás participantes.
 
 Sus escenarios dicen **cómo** llegan las consultas:
 
 | Escenario | Cómo llegan | Lo que reporta |
 |---|---|---|
 | Single stream | Una, y la siguiente al terminar | Latencia p90 |
-| Multistream | Un grupo, y el siguiente al terminar | Latencia p99 |
+| Multistream | Grupos de 8 muestras, y el siguiente al terminar | Latencia p99 |
 | **Server** | Llegadas de **Poisson** | La mayor tasa de Poisson a la que se cumple la restricción de latencia en el **p99** |
 | **Offline** | Todas juntas al inicio (≥ 24,576 muestras) | Throughput, sin restricción de latencia |
 
-«Interactive» es Server con límites más estrictos. Server es una carga **abierta** y su métrica es, de hecho, un goodput: el máximo **cumpliendo**. Y exige calidad (por ejemplo, el 99 % de la exactitud de referencia): no se vale ganar velocidad cuantizando hasta que conteste mal.
+«Interactive» es Server con límites más estrictos. Server es una carga **abierta** y su métrica es, de hecho, un goodput: el máximo **cumpliendo**. Y exige calidad: en casi todas las cargas de LLM, el 99 % de la exactitud del modelo de referencia, y en algunas el 99.9 % (Llama 2 70B solo tiene la de 99.9 %). No se vale ganar velocidad cuantizando hasta que conteste mal.
 
 Las cargas de LLM vigentes y su restricción en Server, de las reglas consultadas en noviembre de 2026:
 
@@ -579,9 +572,9 @@ Mide con barridos de **concurrencia** (cerrada) y entradas y salidas de 1,024/1,
 
 Todo junto, el plan de la prueba de carga del piloto. Es una propuesta: los números salen de la ficha del despacho y de esta lección.
 
-**Dónde.** En la GPU rentada del piloto (semanas 2 a 7), con la misma versión del motor que se va a instalar (vLLM 0.34.0), el mismo modelo (Qwen3 32B AWQ) y los mismos flags (`--max-num-seqs 8`, contexto de 8,192, razonamiento apagado). **Contra el gateway** (LiteLLM), con una clave de pruebas de cuota propia. El generador en **otra máquina** de la misma nube, con el tokenizador local.
+**Dónde.** El piloto corre en **una** L40S rentada (semanas 2 a 7), que basta para sus 20 abogados ([El recorrido de un proyecto de IA privada](/recorrido/)). Esa GPU ya sirve para medir **una** copia a su parte de la hora pico (0.21 ÷ 3 = 0.07/s). La promesa, en cambio, pide el servidor completo: 3 copias detrás del gateway. Para eso se renta, solo los días de la prueba, una máquina de 4 L40S: a noviembre de 2026, la g6e.12xlarge de AWS cuesta US$10.49 la hora en `us-east-1` ([catálogo](/herramientas/catalogo/)); dos días son 48 × 10.49 ≈ **US$500**. La cuarta GPU deja probar las 8 de diseño con 4 copias. Ahí va la misma versión del motor que se va a instalar (vLLM 0.34.0), el mismo modelo (Qwen3 32B AWQ) y los mismos flags (`--max-num-seqs 8`, contexto de 8,192, razonamiento apagado). **Contra el gateway** (LiteLLM), con una clave de pruebas de cuota propia. El generador en **otra máquina** de la misma nube, con el tokenizador local.
 
-**Con qué.** Un dataset de **≥ 1,000 prompts sintéticos** de ≈ 6,000 tokens (± 30 %): las mismas instrucciones de ≈ 400 tokens al inicio de todos, una pregunta de ≈ 100 y cinco fragmentos distintos de ≈ 1,000 escritos para la prueba, nunca de expedientes reales; tope de salida de 500. Se revisa en `/metrics` que los aciertos del prefix cache se parezcan al ≈ 6.7 % esperado.
+**Con qué.** El dataset de la sección del dataset de carga: **≥ 1,000 prompts sintéticos** de ≈ 6,000 tokens (± 30 %), con las mismas ≈ 400 de instrucciones al inicio y lo demás distinto, nunca de expedientes reales; tope de salida de 500. En `/metrics`, los aciertos del cache deben rondar el ≈ 6.7 %.
 
 :::pasos
 1. Calentamiento
@@ -598,9 +591,9 @@ La tasa pico durante una jornada (8 a 10 h); el p95 por hora no debe empeorar. S
 La misma abierta a 0.21/s con el reparto al azar y con el de menos peticiones abiertas, para medir lo que la simulación predijo.
 :::
 
-**El criterio, con sus números.** Pasa si: en la prueba 2, **TTFT p95 ≤ 2 s**; en la prueba 4, con 8 a la vez, **TPOT p95 ≤ 50 ms** (≥ 20 tokens/s por persona); en las dos, **errores ≈ 0** (ningún 5xx ni 429) y la tasa que salió es la pedida. Ojo con la 4: la ficha calcula ≈ 2 conversaciones por L40S a ≥ 20 tokens/s, así que 3 L40S dan 6 lugares y las 8 de diseño piden 4; la prueba dirá si la cuenta era pesimista u optimista. Cada percentil se reporta con su intervalo y sus peticiones detrás. La calidad (el examen de 200 preguntas) es aparte: una prueba de carga mide segundos, no si la cita es correcta.
+**El criterio, con sus números.** Pasa si: en la prueba 2, **TTFT p95 ≤ 2 s**; en la prueba 4, con 8 a la vez, **TPOT p95 ≤ 50 ms** (≥ 20 tokens/s por persona); en las dos, **errores ≈ 0** (ningún 5xx ni 429) y la tasa que salió es la pedida. Ojo con la 4: la ficha calcula ≈ 2 conversaciones por L40S a ≥ 20 tokens/s, así que 3 L40S dan 6 lugares y las 8 de diseño piden 4. Por eso la prueba 4 se corre con 3 copias y con 4 (la máquina rentada tiene la cuarta): dirá si la cuenta era pesimista u optimista. Cada percentil se reporta con su intervalo y sus peticiones detrás. La calidad (el examen de 200 preguntas) es aparte: una prueba de carga mide segundos, no si la cita es correcta.
 
-**Qué número cambia en la ficha.** Hoy la ficha tiene un TTFT p95 con cola **simulado**: ≈ 4.2 s en 3 L40S repartiendo al azar (≈ 3.3 s con menos peticiones abiertas; 2.38 s el prefill solo) y ≈ 3.1 / 2.7 / 1.77 s en 2 Server Edition. La prueba 2 lo reemplaza por el p95 **medido**, con su banda y su fecha. Si pasa de 2 s, como predicen las cuentas para la L40S, las palancas ya están escritas en la ficha: una cuarta L40S, tensor parallel en pares, o la Server Edition.
+**Qué número cambia en la ficha.** Hoy la ficha tiene un TTFT p95 con cola **simulado**: ≈ 4.2 s en 3 L40S repartiendo al azar, ≈ 3.3 s a la de menos peticiones abiertas y 2.38 s (el prefill solo) viendo la fila; con los mismos tres repartos, ≈ 3.1 / 2.7 / 1.77 s en 2 Server Edition. La prueba 2 lo reemplaza por el p95 **medido**, con su banda y su fecha. Si pasa de 2 s, como predicen las cuentas para la L40S, las palancas ya están escritas en la ficha: una cuarta L40S, tensor parallel en pares, o la Server Edition.
 
 ### L40S contra Server Edition, en las mismas condiciones
 
@@ -614,18 +607,18 @@ La comparación que decide la compra se hace con **las mismas condiciones** en l
 ## Errores comunes {Common mistakes}
 
 1. **Probar directo contra una copia de vLLM.** Mide una GPU sin el gateway, sin la cuota y sin el reparto entre copias. **Cómo evitarlo:** el generador le pega al gateway, con una clave de pruebas de cuota propia, como le pegaría Open WebUI.
-2. **Un dataset con el mismo prompt repetido, o con prompts cortos.** El [[prefix-caching|prefix caching]] vuelve casi gratis el prefill y el TTFT sale de fantasía; con 200 tokens de entrada, el prefill ni existe. **Cómo evitarlo:** prompts del largo real, con variación; solo el prefijo que de verdad se comparte (las instrucciones), y los aciertos revisados en `/metrics`. Reinicia o vacía el cache entre corridas.
+2. **Un dataset con el mismo prompt repetido, o con prompts cortos.** El [[prefix-caching|prefix caching]] o los 200 tokens de entrada vuelven casi gratis el prefill, y el TTFT sale de fantasía. **Cómo evitarlo:** prompts del largo real, con variación; solo el prefijo que de verdad se comparte, los aciertos revisados en `/metrics` y el cache vacío entre corridas.
 3. **Creer que una prueba con tope de concurrencia es abierta.** Con `--max-concurrency` y una tasa que el servidor no alcanza, la tasa real baja y la espera queda en el cliente, fuera del reporte: [[omision-coordinada|omisión coordinada]]. **Cómo evitarlo:** la prueba de la promesa va sin tope; en cualquier corrida, compara la tasa pedida con la que salió y pide `client_queue_time` o el retraso de envío.
-4. **Firmar un p95 de 100 peticiones.** Su banda va del p90 al máximo, y otra corrida puede dar 1.5 s distinto. **Cómo evitarlo:** ≥ 1,000 peticiones por punto, tres repeticiones del punto que decide y el [[intervalo-del-percentil|intervalo]] junto a cada percentil.
+4. **Firmar un p95 de 100 peticiones.** Su banda va del p90 al máximo, y otra corrida en la misma máquina puede dar ≈ 1.7 s distinto. **Cómo evitarlo:** ≥ 1,000 peticiones por punto, tres repeticiones del punto que decide y el [[intervalo-del-percentil|intervalo]] junto a cada percentil.
 5. **Quedarse con lo que la herramienta imprime por omisión.** `vllm bench serve` solo da el p99, no imprime la latencia total y corta un dataset propio a 256 tokens de salida. **Cómo evitarlo:** `--metric-percentiles 50,95,99`, `--percentile-metrics ttft,tpot,itl,e2el` y `--custom-output-len` con el largo real; y lee cómo llama cada herramienta a TPOT e ITL.
 6. **Leer tokens/s del servidor como velocidad de cada persona, o totales como de salida.** «3,000» con 200 a la vez son 15 por persona; como tokens totales con preguntas del despacho, 0.46 preguntas/s. **Cómo evitarlo:** divide entre los que están adentro, pregunta qué tokens cuenta y pide el goodput a tu SLO.
-7. **El generador en el mismo servidor, o una prueba de una hora para todo.** El generador le roba CPU al gateway; una hora no muestra memoria que crece ni GPUs que se calientan. **Cómo evitarlo:** generador en otra máquina, retraso de envío ≈ 0 y una [[prueba-de-resistencia|prueba de resistencia]] de una jornada.
+7. **El generador en el mismo servidor, o una prueba de una hora para todo.** El generador le roba CPU al gateway; una hora no muestra fugas ni calor. **Cómo evitarlo:** generador en otra máquina, retraso de envío ≈ 0 y una [[prueba-de-resistencia|prueba de resistencia]] de una jornada.
 
 ## En la vida real {In real life} [extra]
 
-**El despacho.** En la GPU rentada del piloto, contra el gateway, con un dataset sintético de ≥ 1,000 prompts de ≈ 6,000 tokens que comparten solo las instrucciones de ≈ 400: calentamiento de 20, abierta de Poisson a 0.21/s (1,000 peticiones, ≈ 79 min, tres veces), rampa hasta 0.42/s, una cerrada de 8 conversaciones para el techo y una jornada de resistencia. Pasa con TTFT p95 ≤ 2 s, TPOT p95 ≤ 50 ms y errores ≈ 0. Las cuentas dicen que la L40S no pasa el TTFT (prefill de 2.38 s sin fila); la prueba lo confirma o lo desmiente con fecha, y compara la Server Edition en las mismas condiciones, por goodput y costo por petición que cumple.
+**El despacho.** En una máquina rentada de 4 L40S, solo los días de la prueba (≈ US$500), contra el gateway, con un dataset sintético de ≥ 1,000 prompts de ≈ 6,000 tokens que comparten solo las instrucciones de ≈ 400: calentamiento de 20, abierta de Poisson a 0.21/s (1,000 peticiones, ≈ 79 min, tres veces), rampa hasta 0.42/s, una cerrada de 8 conversaciones para el techo y una jornada de resistencia. Pasa con TTFT p95 ≤ 2 s, TPOT p95 ≤ 50 ms y errores ≈ 0. Las cuentas dicen que la L40S no pasa el TTFT (prefill de 2.38 s sin fila); la prueba lo confirma o lo desmiente con fecha, y compara la Server Edition en las mismas condiciones, por goodput y costo por petición que cumple.
 
-**Una startup que elige motor.** Supuesto del ejemplo: una empresa con un asistente propio duda entre vLLM y SGLang en su mismo servidor. Un blog dice que uno es 30 % más rápido, con otro modelo y entradas de 1,024. Lo honesto es medir con **su** tráfico: graba un día de peticiones reales (sin el texto de sus clientes, solo los largos y las horas de llegada) y lo reproduce en los dos motores (vLLM trae un dataset de trazas con horario y GuideLLM un perfil `replay`), con la misma tasa abierta, el mismo hardware, versiones fijas y el motor reiniciado entre corridas. Compara goodput y p95, no el máximo. InferenceX no le sirve para esto: su meta, por diseño, es comparar aceleradores, no motores.
+**Una startup que elige motor.** Supuesto del ejemplo: una empresa con un asistente propio duda entre vLLM y SGLang en su mismo servidor. Un blog dice que uno es 30 % más rápido, con otro modelo y entradas de 1,024. Lo honesto es medir con **su** tráfico: graba un día de peticiones reales (sin el texto de sus clientes, solo los largos y las horas de llegada) y lo reproduce en los dos motores (vLLM trae el dataset `timed_trace`, que repite cada petición a su hora grabada, y GuideLLM un perfil `replay`), con la misma tasa abierta, el mismo hardware, versiones fijas y el motor reiniciado entre corridas. Compara goodput y p95, no el máximo. InferenceX no le sirve para esto: su meta, por diseño, es comparar aceleradores, no motores.
 
 **Una financiera con un lote nocturno.** Supuesto del ejemplo: cada noche clasifica 40,000 documentos de ≈ 3,000 tokens de entrada y ≈ 300 de salida. Nadie espera el primer token: lo que importa es que el lote termine antes de las 7:00. Es el escenario **Offline** de MLPerf: todo junto al inicio, sin restricción de latencia, y la métrica es el throughput. En `vllm bench serve` se parece a la tasa infinita (el valor por omisión) con un tope de concurrencia; aquí el tope no engaña a nadie, porque no hay calendario que respetar. Si la prueba mide 1,800 tokens/s de salida, el lote tarda 40,000 × 300 ÷ 1,800 ≈ 6,667 s ≈ 1.9 h.
 
@@ -639,7 +632,7 @@ La comparación que decide la compra se hace con **las mismas condiciones** en l
 ? [facil] Una prueba cerrada usa 6 usuarios virtuales y cada respuesta tarda 27 s. ¿Qué tasa genera y cómo se compara con la hora pico del despacho?
 \(λ = N ÷ W\) = 6 ÷ 27 ≈ **0.222 /s**. Contra 0.208 /s de la hora pico, ≈ **1.07×**: apenas arriba. Si el servidor se frena a 40 s por respuesta, baja sola a 6 ÷ 40 = 0.15 /s.
 ? [facil] Un proveedor publica «2,400 tokens/s de salida con 96 conversaciones a la vez». ¿Cuánto recibe cada persona? ¿Pasa los 20 tokens/s? ¿Qué le falta a la cifra para saber si sirve al despacho?
-\(v_p = T ÷ C\) = 2,400 ÷ 96 = **25 tokens/s**: pasa los 20. Le falta: el TTFT (y en qué percentil), los largos de entrada y salida, la cuantización y el motor con su versión, si hubo prompts repetidos y cuántas peticiones hay detrás. Con entradas cortas, los 25 por persona no dicen nada de 6,000 tokens.
+\(v_p = T ÷ C\) = 2,400 ÷ 96 = **25 tokens/s**: pasa los 20. Le falta: el TTFT y su percentil, los largos, la cuantización, el motor con su versión, si hubo prompts repetidos y cuántas peticiones hay detrás.
 ? [medio] Alguien corre la rampa con `--request-rate 0.42 --max-concurrency 8` y cada respuesta tarda ≈ 27 s. ¿Qué tasa sale de verdad? ¿Por qué el TTFT del reporte se ve mejor que el de la hora pico, y cómo lo detectas?
 Little: 8 ÷ 27 ≈ **0.296 /s**, no 0.42; el resto espera en el cliente. El TTFT se mide desde el envío, y con solo 8 adentro casi no hay fila de prefill: sale ≈ el prefill solo (2.4 s en la simulación, contra 4.3 s abierta a 0.21). Se detecta comparando la tasa pedida con la que salió y pidiendo `client_queue_time` y `e2el_including_client_queue`.
 ? [medio] Un blog publica «3,000 tokens/s totales» con 64 a la vez y preguntas de 2,000 tokens de entrada y 250 de salida. ¿Cuántas peticiones por segundo son, cuántos tokens de salida por segundo, y cuánto recibe cada persona?
@@ -651,7 +644,7 @@ Exacto: de la 465.ª a la 485.ª, **p93.0 a p97.0** (con la campana, ± 1.9 punt
 ? [reto] El despacho quiere reportar también el p99 del TTFT. ¿Cuántas peticiones mínimas hacen falta para tener intervalo? ¿Qué banda da con 1,000? ¿Cuántas harían falta para ± 0.25 puntos al 95 % y cuánto duraría a 0.21/s?
 Mínimo: ⌈log(0.025) ÷ log(0.99)⌉ = **368** (la misma cifra de GuideLLM). Con 1,000, el método exacto da de la 983.ª a la 997.ª: **p98.3 a p99.7**. Para ± 0.25 puntos con la campana: \(n = 1.96^2 × 0.99 × 0.01 ÷ 0.0025^2\) ≈ **6,085** peticiones, que a 0.21/s son 6,085 ÷ 0.21 ≈ 28,976 s ≈ **8 h**: una jornada entera. Por eso el despacho promete en el p95 y vigila el p99 como alarma.
 ? [reto] Diseña la comparación L40S contra Server Edition: qué igualas, qué no y qué reportas. Con los p95 simulados de la ficha (L40S: 4.2 s al azar y 2.38 s viendo la fila; Server Edition: 3.1 s y 1.77 s), ¿qué más tendría que probar el piloto?
-**Iguales**: dataset y semilla, tasa, modelo y cuantización, vLLM 0.34.0, gateway, generador aparte, servidor reiniciado entre corridas. **No a ciegas**: los flags que dependen de la memoria (`--max-num-seqs`, los trozos de prefill). **Reportar**: TTFT y TPOT p95 con intervalo, goodput, potencia y costo por petición que cumple. Con las simulaciones, ninguna pasa repartiendo al azar; solo la Server Edition viendo la fila baja de 2 s. Así que el piloto también prueba **el reparto del gateway**: una buena GPU con mal reparto puede reprobar.
+**Iguales**: dataset y semilla, tasa, modelo, vLLM 0.34.0, gateway, servidor reiniciado entre corridas. **No a ciegas**: `--max-num-seqs` y los trozos de prefill. **Reportar**: p95 con intervalo, goodput, potencia y costo por petición que cumple. Con las simulaciones, ninguna pasa repartiendo al azar; solo la Server Edition viendo la fila baja de 2 s. Así que el piloto también prueba **el reparto del gateway**: una buena GPU con mal reparto puede reprobar.
 :::
 
 ## Lo que sigue {What comes next} [extra]
@@ -683,7 +676,7 @@ La abierta sigue un calendario (una tasa) pase lo que pase; la cerrada mantiene 
 ? ¿Entre qué percentiles cae el p95 verdadero con 200 peticiones, y con 1,000?
 Con 200, del p92.0 al p98.5; con 1,000, del p93.6 al p96.4 (intervalo de 95 % por estadísticos de orden).
 ? «3,000 tokens/s»: nombra tres cosas que la cifra no dice.
-A cuántos atendía a la vez, con qué TTFT, si son tokens de salida o totales, con qué largos de entrada y salida, con qué cuantización y motor, y si hubo prompts repetidos (cualesquiera tres).
+Cualesquiera tres de: a cuántos atendía, con qué TTFT, qué tokens cuenta, con qué largos, con qué cuantización y motor, si hubo prompts repetidos.
 ? ¿Qué mide el escenario Server de MLPerf, y por qué no basta para el despacho?
-La mayor tasa de llegadas de Poisson a la que se cumplen el TTFT y el TPOT en el p99. No basta porque sus cargas son otros modelos y otros largos, y sus límites (por ejemplo 200 ms entre tokens en Llama 2 70B) son mucho más laxos que los 20 tokens/s del despacho.
+La mayor tasa de llegadas de Poisson a la que se cumplen el TTFT y el TPOT en el p99. No basta: sus cargas son otros modelos y otros largos, y sus límites (200 ms entre tokens en Llama 2 70B) son más laxos que los 20 tokens/s del despacho.
 :::

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 330" role="img" aria-labelledby="f-pruebas-carga-percentil-t" class="f-svg" style="max-width:420px">
 <title id="f-pruebas-carga-percentil-t">Dónde puede estar el p95 verdadero según cuántas peticiones mediste, con un intervalo de confianza de 95 por ciento por estadísticos de orden. Con 100 peticiones, del p90 al p100. Con 200, del p92.0 al p98.5. Con 1,000, del p93.6 al p96.4. Con 5,000, del p94.4 al p95.6. Una línea vertical marca el p95. A la tasa del despacho de 0.21 por segundo, las pruebas duran 8 minutos, 16 minutos, 79 minutos y 6.6 horas.</title>
-<text class="f-l" x="14" y="24">EL P95 VERDADERO ESTÁ EN ALGÚN LUGAR DE LA BARRA</text>
+<text class="f-l" x="14" y="24">EL P95 VERDADERO CAE EN LA BARRA</text>
 <rect class="f-card" x="10" y="36" width="340" height="284" rx="16"/>
 <line class="f-linea" x1="209" y1="56" x2="209" y2="262" style="stroke-dasharray:4 4"/>
 <text class="f-s" x="209" y="52" text-anchor="middle" style="font-size:12px;font-weight:700">p95</text>

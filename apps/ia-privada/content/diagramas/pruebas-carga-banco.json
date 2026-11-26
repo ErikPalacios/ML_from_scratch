@@ -4,7 +4,7 @@
   "height": 50,
   "lanes": [
     { "id": "cliente", "label": "La máquina de la prueba · otra VM", "kind": "monitor", "x": 0, "y": 0, "w": 78, "h": 15 },
-    { "id": "servidor", "label": "El servidor del despacho · la GPU rentada del piloto", "kind": "online", "x": 0, "y": 17, "w": 78, "h": 33 }
+    { "id": "servidor", "label": "El servidor de la prueba · 4 L40S rentadas, 3 copias", "kind": "online", "x": 0, "y": 17, "w": 78, "h": 33 }
   ],
   "nodes": [
     {
