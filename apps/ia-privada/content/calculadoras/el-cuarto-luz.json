@@ -1,13 +1,14 @@
 {
   "titulo": "Lo que cuesta la luz al mes",
-  "intro": "La energía del mes \\(E = (P_{uso} × h_{uso} + P_{rep} × h_{rep}) × PUE\\) y su costo \\(C = E × p + P_{uso} × PUE × d\\), con las tarifas de CFE para la división Valle de México Centro a partir del 1 de octubre de 2026, en pesos y **antes de IVA**, sin el cargo fijo. Arranca con el despacho: 4 L40S, 220 horas de uso al mes, PUE 2.0 y tarifa GDMTO (supuesto del ejemplo).",
+  "intro": "La energía del mes \\(E = (P_{uso} × h_{uso} + P_{rep} × h_{rep}) × PUE\\) y su costo \\(C = E × p + P_{uso} × PUE × d\\), con las tarifas de CFE para la división Valle de México Centro a partir del 1 de octubre de 2026, en pesos y **antes de IVA**, sin el cargo fijo. Arranca con el despacho: 4 L40S, 220 horas de uso al mes, PUE 2.0 y tarifa GDBT (supuesto del ejemplo).",
   "preajustes": [
     {
       "label": "Tarifa de CFE (Valle de México Centro, oct-2026)",
       "inicial": 1,
       "opciones": [
         { "label": "PDBT · baja tensión, hasta ≈ 25 kW", "valores": { "p": 3.565, "d": 0 }, "nota": "Suma de transmisión, distribución, CENACE, suministro y generación: ≈ $3.565 por kWh; cargo fijo de $54.05 al mes aparte. DOF, tarifas a partir del 1 de octubre de 2026." },
-        { "label": "GDMTO · media tensión", "valores": { "p": 1.542, "d": 395.29 }, "nota": "≈ $1.542 por kWh de energía más ≈ $395.29 por kW de demanda al mes (distribución 60.82 + capacidad 334.47); cargo fijo de $540.49 aparte. Qué kW factura CFE lo dice el contrato: aquí se aproxima con lo que el servidor y su aire jalan en horas de uso." }
+        { "label": "GDBT · baja tensión, más de ≈ 25 kW", "valores": { "p": 1.9416, "d": 542.7 }, "nota": "≈ $1.942 por kWh de energía más ≈ $542.70 por kW de demanda al mes (distribución 243.16 + capacidad 299.54); cargo fijo de $540.49 aparte. CFE factura la menor de dos cifras, la demanda máxima medida en 15 minutos y una calculada con los kWh del mes: aquí se aproxima con lo que el servidor y su aire jalan en horas de uso." },
+        { "label": "GDMTO · media tensión, con subestación propia", "valores": { "p": 1.5416, "d": 395.29 }, "nota": "≈ $1.542 por kWh de energía más ≈ $395.29 por kW de demanda al mes (distribución 60.82 + capacidad 334.47); cargo fijo de $540.49 aparte. Solo para quien recibe la luz en media tensión." }
       ]
     },
     {
@@ -18,8 +19,8 @@
     }
   ],
   "entradas": [
-    { "id": "p", "label": "Precio de la energía, \\(p\\), en pesos por kWh", "min": 0, "max": 10, "paso": 0.001, "valor": 1.542, "tipo": "numero" },
-    { "id": "d", "label": "Precio de la demanda, \\(d\\), en pesos por kW al mes (0 en PDBT)", "min": 0, "max": 1000, "paso": 0.01, "valor": 395.29, "tipo": "numero" },
+    { "id": "p", "label": "Precio de la energía, \\(p\\), en pesos por kWh", "min": 0, "max": 10, "paso": 0.001, "valor": 1.9416, "tipo": "numero" },
+    { "id": "d", "label": "Precio de la demanda, \\(d\\), en pesos por kW al mes (0 en PDBT)", "min": 0, "max": 1000, "paso": 0.01, "valor": 542.7, "tipo": "numero" },
     { "id": "T", "label": "TDP de cada GPU, \\(T_{GPU}\\)", "unidad": "W", "min": 0, "max": 2000, "paso": 1, "valor": 350, "tipo": "numero" },
     { "id": "n", "label": "GPUs en el servidor, \\(n\\)", "min": 1, "max": 10, "paso": 1, "valor": 4 },
     { "id": "gu", "label": "GPUs en horas de uso, como parte de su TDP (supuesto)", "min": 0.1, "max": 1, "paso": 0.05, "valor": 0.6 },
@@ -57,5 +58,5 @@
     { "label": "Por pregunta, en centavos", "formula": "(Ce + Cd) / q * 100", "formato": "num", "decimales": 1,
       "cuenta": "${{Ce + Cd|int}} ÷ {{q|int}} preguntas × 100 = **{{(Ce + Cd) / q * 100|num|1}} centavos**" }
   ],
-  "nota": "Con PDBT, el despacho pagaría ≈ $5,591; con GDMTO, ≈ $3,715. Baja la PUE a 1.56 y mira cuánto se va en el aire de un cuarto de oficina. Sube las horas de uso a 730: la energía crece, pero la demanda no, porque cobra lo más que jalaste, no cuánto rato."
+  "nota": "Con PDBT, el despacho pagaría ≈ $5,591; con GDBT, ≈ $4,825. Baja la PUE a 1.56 y mira cuánto se va en el aire de un cuarto de oficina. Sube las horas de uso a 730: la energía crece y, con la aproximación de esta calculadora, la demanda no; en el recibo real puede subir si la demanda cobrada sale de los kWh del mes."
 }

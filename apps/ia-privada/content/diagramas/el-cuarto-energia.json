@@ -8,7 +8,7 @@
   ],
   "nodes": [
     { "id": "cfe", "label": "CFE", "sub": "220Y/127 V, 60 Hz", "kind": "external", "x": 1, "y": 4, "w": 17, "h": 8,
-      "note": "El edificio recibe servicio trifásico de 220Y/127 V: 127 V entre una fase y el neutro, 220 V entre dos fases (NOM-001-SEDE-2012, art. 110-4)." },
+      "note": "El edificio recibe servicio trifásico de 220Y/127 V: 127 V entre una fase y el neutro, 220 V entre dos fases (NOM-001-SEDE-2012, art. 110-4). La **acometida** es el cable que trae esa luz de la red de CFE al edificio." },
     { "id": "tablero", "label": "Tablero del piso", "sub": "interruptores nuevos", "kind": "service", "x": 30, "y": 4, "w": 18, "h": 8,
       "note": "De aquí salen los [[circuito-dedicado|circuitos dedicados]]: dos de **20 A a 220 V** para el servidor (A y B), y los de los minisplits aparte. Cada uno con su propio interruptor." },
     { "id": "aire", "label": "Minisplits", "sub": "2 × 2 t, sin UPS", "kind": "service", "x": 58, "y": 4, "w": 19, "h": 8,

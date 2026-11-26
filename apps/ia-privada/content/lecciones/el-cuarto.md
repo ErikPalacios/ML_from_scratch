@@ -24,7 +24,7 @@ El despacho tiene un cuarto de TI. Para esta lección se suponen estos datos del
 - El aire central del edificio se apaga de noche y en fines de semana. El cuarto tiene un **minisplit de confort de 1 tonelada**, el mismo tipo de aparato que se pone en una recámara.
 - El edificio tiene planta de emergencia solo para elevadores y áreas comunes.
 
-Con eso, la lección responde cuatro preguntas en orden. Cuánta luz entra y por qué cable. Qué pasa cuando se va la luz. Cuánto calor sale y cómo se saca. Y qué red hace falta. Al final, la quinta: si todo eso no conviene, dónde más.
+La lección va en orden: la luz que entra, la que se va, el calor que sale, la red y, al final, dónde más.
 
 ### Volts, amperes y watts
 
@@ -46,7 +46,7 @@ P = V × I × f_p
 - f_p: el [[factor-de-potencia|factor de potencia]], entre 0 y 1: qué parte de lo que viaja por el cable se vuelve trabajo. Las fuentes de servidor modernas andan en 0.9 o más
 :::
 
-El **[[factor-de-potencia|factor de potencia]]** existe porque algunos aparatos jalan corriente a destiempo del voltaje. El cable carga esa corriente aunque no haga trabajo. Lo que viaja por el cable se mide en **volt-amperes** (VA, \( V × I \)); lo que se consume de verdad, en watts. Una fuente vieja de PC andaba en ≈ 0.6–0.75; las de servidor con corrección de factor de potencia (PFC), en 0.9 o más. Esta lección usa **0.95**, la cifra que NVIDIA da para sus DGX, como supuesto para el servidor del despacho.
+El **[[factor-de-potencia|factor de potencia]]** existe porque algunos aparatos jalan corriente a destiempo del voltaje. El cable carga esa corriente aunque no haga trabajo. Lo que viaja por el cable se mide en **volt-amperes** (VA, \( V × I \)); lo que se consume de verdad, en watts. Una fuente vieja de PC andaba en ≈ 0.6–0.75; las de servidor con corrección de factor de potencia (PFC), en 0.9 o más. Esta lección usa **0.95**, la cifra que NVIDIA da para sus DGX (sus propios servidores de 8 GPUs), como supuesto para el servidor del despacho.
 
 ## Cuánta potencia jala el servidor {How much power the server draws}
 
@@ -75,7 +75,11 @@ Con 3 GPUs | 1,050 + 400 + 700 | 2,150 W
 = El cuarto se diseña para 2.5 kW: el servidor con sus 4 GPUs. Si arranca con 3, sobran ≈ 350 W de margen, y meter la cuarta no obliga a rehacer el circuito.
 :::
 
+Ojo con lo que es ese número: **2,500 W es una estimación derivada**, la suma de las hojas de las piezas más un resto supuesto. Exxact no publica la potencia máxima de este servidor, y nadie la ha medido aquí. Sirve para dimensionar porque se equivoca hacia arriba; el número de verdad sale de medir (abajo).
+
 ¿Por qué diseñar para 4 si la ficha dice 3? Porque la cuarta es la que pide la prueba de carga para que las 8 conversaciones de diseño vayan a 20 tokens por segundo, y porque cambiar un circuito o un UPS después cuesta más que hacerlo una vez.
+
+La lección «Comprar hardware: de la workstation al rack» pide cotizar también **2 RTX PRO 6000 Server Edition** (TDP configurable de 400 a 600 W) en vez de las L40S. Al tope y con el mismo resto: 2 × 600 + 400 + 700 = 2,300 W, abajo de 2,500 W, así que el circuito, el UPS y el aire de esta lección le quedan con algo más de margen. Si ese servidor trae otras CPUs o fuentes, se rehace la cuenta con sus hojas.
 
 ### Lo que jala de verdad: menos que el pico, casi nunca el pico
 
@@ -91,11 +95,11 @@ De ahí sale la regla de la lección: **el circuito, el UPS y el aire se dimensi
 Las **fuentes de poder** del servidor no dicen lo que consume. El Exxact trae 4 fuentes de 3,000 W, y eso no significa que jale 12,000 W. Es la capacidad que el fabricante pone para la configuración más cargada que admite el chasis, con fuentes de sobra por si una falla. El consumo lo deciden las piezas que lleva adentro.
 :::
 
-La forma honesta de saber cuánto jala es **medirlo**. Cada GPU reporta su potencia en `nvidia-smi` (lo ves en [CPU y GPU](https://sensei.trueml.app/cpu-gpu/)), el controlador de gestión del servidor reporta la del equipo entero, y una regleta con medidor (PDU con medición) da la del enchufe. Una semana de mediciones con tráfico real vale más que cualquier hoja de datos.
+La forma honesta de saber cuánto jala es **medirlo**. Cada GPU reporta su potencia en `nvidia-smi` (lo ves en [CPU y GPU](https://sensei.trueml.app/cpu-gpu/)), el controlador de gestión del servidor (el BMC de la sección de red) da la del equipo entero, y una regleta con medidor (PDU con medición), la del enchufe. Una semana de mediciones con tráfico real vale más que cualquier hoja de datos.
 
 ## De watts a amperes: el circuito {From watts to amps: the circuit}
 
-En México, la norma de instalaciones eléctricas es la **NOM-001-SEDE-2012**, que a la fecha sigue siendo la vigente según el registro oficial (su actualización de 2018 nunca entró en vigor). Su artículo 110-4 lista las tensiones de corriente alterna que se usan, entre ellas 127, 220Y/127 y 120/240 V, a 60 Hz. En una oficina eso se traduce así: **127 V** entre una fase y el neutro, que es lo que da un contacto de pared, y **220 V** entre dos fases, lo que usan un minisplit grande o una estufa eléctrica. Un servicio trifásico de 220Y/127 da los dos.
+En México, la norma de instalaciones eléctricas es la **NOM-001-SEDE-2012**, que a la fecha sigue siendo la vigente según el registro oficial (su actualización de 2018 nunca entró en vigor). Su artículo 110-4 lista las tensiones que se usan, entre ellas 127 y 220Y/127 V, a 60 Hz. En una oficina: **127 V** entre una fase y el neutro, lo que da un contacto de pared, y **220 V** entre dos fases, lo que usa un minisplit grande. Un servicio trifásico de 220Y/127 da los dos.
 
 Con la fórmula de la potencia despejada se sacan los amperes:
 
@@ -123,16 +127,18 @@ Corriente a 127 V, \(I\) // \(P\) = 2,500 W, \(f_p\) = 0.95 | 2,500 ÷ (127 × 0
 Interruptor a 127 V, \(1.25 × I\) | 1.25 × 20.7 | ≈ 25.9 A
 Corriente a 220 V, \(I\) | 2,500 ÷ (220 × 0.95) | ≈ 11.96 A
 Interruptor a 220 V, \(1.25 × I\) | 1.25 × 11.96 | ≈ 14.95 A
-= A 127 V no cabe ni en un circuito de 20 A. A 220 V cabe en uno de 15 A por 0.05 A, sin ningún margen: el circuito del despacho es de **20 A a 220 V**.
+= A 127 V no cabe ni en un circuito de 20 A. A 220 V, en papel, cabe en uno de 15 A por 0.05 A; en la práctica eso es no caber. El circuito del despacho es de **20 A a 220 V**.
 :::
+
+¿Qué tan ridículo es ese margen? 0.05 A en el interruptor son 0.05 ÷ 1.25 = 0.04 A de carga; a 220 V con \(f_p\) = 0.95, ≈ 8 W: menos que un foco LED. El pico es una estimación y el factor de potencia un supuesto, y cualquiera de los dos se mueve más que 8 W.
 
 Un circuito de 15 A a 127 V, como el de los contactos del cuarto, aguanta como carga continua ≈ 1.45 kW con el factor de potencia de 0.95. El servidor pide 2.5 kW. **No se enchufa a la pared.**
 
 ### Un circuito dedicado
 
-Un **[[circuito-dedicado|circuito dedicado]]** (*dedicated circuit*) es uno que sale del tablero con su propio interruptor y alimenta un solo equipo. Nada más va colgado de él. Parece un lujo y no lo es. Si el servidor comparte circuito con los contactos del cuarto, basta con que alguien conecte una cafetera o una aspiradora para que el interruptor se bote y el servidor se apague a media respuesta. Con circuito propio, la cuenta de arriba es toda la cuenta.
+Un **[[circuito-dedicado|circuito dedicado]]** (*dedicated circuit*) es uno que sale del tablero con su propio interruptor y alimenta un solo equipo. Nada más va colgado de él. Parece un lujo y no lo es. Si el servidor comparte circuito con los contactos, basta que alguien conecte una aspiradora para que el interruptor se bote y el servidor se apague a media respuesta.
 
-El enchufe también cambia. Los servidores traen una entrada estándar IEC: **C14** en los chicos y medianos, **C20** en los grandes. El cable se escoge por el otro extremo. El más común, C13 a un enchufe NEMA 5-15 de 15 A, es para un contacto de pared de 127 V. A 220 V se usan cables C19 a enchufes de bloqueo como el L6-20, que no entran en un contacto normal. Esa incompatibilidad es a propósito: nadie conecta por error un equipo de 220 V a 127 V.
+El enchufe también cambia. Los servidores traen una entrada estándar IEC 60320: la chica, la misma de una PC, en los equipos chicos y medianos, y la **C20** en los grandes. El cable se escoge por el otro extremo. El más común va a un enchufe NEMA 5-15 de 15 A, el de un contacto de pared de 127 V. A 220 V se usan cables C19 a enchufes de bloqueo como el L6-20, que no entran en un contacto normal. Esa incompatibilidad es a propósito: nadie conecta por error un equipo de 220 V a 127 V.
 
 ### Fuentes redundantes y dos circuitos
 
@@ -165,7 +171,7 @@ Cuando se va la luz, un servidor se apaga de golpe. En el mejor caso se pierden 
 Hay dos diseños que importan aquí:
 
 - **Interactivo** (*line-interactive*). Normalmente pasa la luz de la red al equipo y corrige el voltaje cuando sube o baja (AVR). Cuando la red falla, cambia a la batería en unos milisegundos.
-- **En línea de doble conversión** (*online double-conversion*). Siempre convierte la luz de la red a corriente directa y otra vez a alterna. El equipo siempre se alimenta del inversor: cuando la red falla no hay cambio que notar, y lo que llega al servidor siempre es limpio.
+- **En línea de doble conversión** (*online double-conversion*). Siempre convierte la luz de la red a corriente directa y otra vez a alterna. El equipo siempre se alimenta del **inversor**, el circuito que hace esa segunda conversión, de directa (la de la batería) a alterna: cuando la red falla no hay cambio que notar, y lo que llega al servidor siempre es limpio.
 
 Por debajo de ≈ 5 kVA se venden de los dos tipos. Las fuentes de servidor modernas aguantan bien el cambio de un interactivo; el de doble conversión cuesta más y protege mejor contra una red sucia, con picos y caídas.
 
@@ -190,13 +196,13 @@ Un UPS de 3 kVA // 2.7 kW de potencia activa | 2,700 − 2,500 | solo 200 W de m
 
 La holgura del 25 % es un criterio de diseño, no una cifra del fabricante. APC da una regla más conservadora: que la carga en VA no pase del 60 % de los VA del UPS. Con ella saldrían ≈ 4,390 VA, y la conclusión es la misma: un UPS de 5–6 kVA.
 
-El voltaje también tiene que coincidir. Un UPS de 230 V no sirve en un contacto de 127 V sin un transformador, y al revés. El UPS del despacho va en el circuito de 220 V, y su hoja dice qué interruptor pide en la entrada.
+El voltaje también tiene que coincidir: un UPS de 230 V no sirve en un contacto de 127 V sin transformador. El del despacho va en el circuito de 220 V.
 
 Los precios, como referencia y en tiendas de EE. UU., sin impuestos, a noviembre de 2026: el SMT3000RMI2U de 3 kVA, interactivo, ≈ **US$3,510** en PC Nation (sin existencias ese día). Uno de 6 kVA de doble conversión, el SRT6KRMXLI, aparece entre ≈ US$7,800 y 9,600 en distintas tiendas. En México no se encontró un precio publicado con fecha: se cotiza.
 
 ### Lo que el UPS no hace
 
-Con una carga alta, un UPS chico aguanta **minutos**, no horas. Su trabajo no es que el despacho siga trabajando durante un apagón; es que el servidor **se apague bien**. Para eso, el UPS se conecta al servidor por red o por USB, y un programa en el servidor escucha: cuando la batería baja de cierto nivel, cierra el servidor de modelos, guarda lo que haya que guardar y apaga el sistema operativo. Sin esa conexión, el UPS solo retrasa el apagón unos minutos.
+Con una carga alta, un UPS chico aguanta **minutos**, no horas. Su trabajo no es que el despacho siga trabajando durante un apagón; es que el servidor **se apague bien**. Para eso se conecta al servidor por red o USB, y un programa escucha: cuando la batería baja de cierto nivel, cierra el servidor de modelos y apaga el sistema operativo. Sin esa conexión, solo retrasa el apagón.
 
 Para seguir trabajando durante horas hace falta una **planta de emergencia** (un generador). La del edificio del despacho no alimenta su cuarto, así que el plan es apagar bien, no aguantar.
 
@@ -221,12 +227,12 @@ for P in (2500, 3000):         # el servidor solo, y con los 500 W que ya había
 3000 W: 6.6 °C por minuto; de 24 a 32 °C en 1.2 min
 ```
 
-En la realidad sube bastante más lento, porque las paredes, el piso, el rack y los propios equipos absorben calor; cuánto, depende de cada cuarto y solo se sabe midiendo. Pero el mensaje se queda: un cuarto chico con 3 kW adentro y el aire apagado pasa de cómodo a peligroso en **minutos o decenas de minutos**, no en horas. Un sensor de temperatura que mande una alerta, y un apagado automático también por temperatura, son baratos al lado de lo que protegen.
+En la realidad sube bastante más lento, porque las paredes, el piso y los equipos absorben calor; cuánto, solo se sabe midiendo. Pero el mensaje se queda: un cuarto chico con 3 kW y el aire apagado pasa de cómodo a peligroso en **minutos o decenas de minutos**, no en horas. Un sensor con alerta y un apagado automático por temperatura son baratos al lado de lo que protegen.
 :::
 
 ## Calor: cada watt que entra sale como un watt de calor {Heat: every watt in leaves as a watt of heat}
 
-Aquí está la idea más útil de la lección. Un servidor no «guarda» energía ni la manda a otro lado. Las respuestas que escribe son bits, y los bits no se llevan energía de la que valga la pena hablar. **Todo** lo que jala de la pared termina como calor en el cuarto, watt por watt. Un servidor de 2.5 kW es, para el aire del cuarto, un calefactor de 2.5 kW.
+Aquí está la idea más útil de la lección. Un servidor no «guarda» energía: las respuestas que escribe son bits, y los bits no se llevan energía que valga la pena contar. **Todo** lo que jala de la pared termina como calor en el cuarto, watt por watt. Un servidor de 2.5 kW es, para el aire del cuarto, un calefactor de 2.5 kW.
 
 Ese calor se mide, en el mundo del aire acondicionado, en otras unidades. Un **BTU** (*British thermal unit*) es una cantidad de energía, y los aires acondicionados se anuncian por los **BTU por hora** que pueden sacar. La **[[tonelada-de-refrigeracion|tonelada de refrigeración]]** son 12,000 BTU/h. El nombre viene de la época del hielo: es, más o menos, el calor que absorbe una tonelada corta de hielo al derretirse en un día. Un minisplit «de 1 tonelada» saca, en teoría, 12,000 BTU/h.
 
@@ -258,7 +264,7 @@ La referencia es ASHRAE, la asociación de ingenieros de aire acondicionado de E
 
 Dos detalles prácticos. Primero, la temperatura que importa es la del aire **al frente del servidor**, por donde entra, no la del termostato del minisplit ni la del pasillo. Un sensor pegado al frente del rack te dice la verdad. Segundo, no hace falta enfriar de más: un cuarto a 18 °C cuesta más luz que uno a 24 °C y el servidor no vive más.
 
-¿Y si se pasa? Las GPUs se protegen solas: cuando se calientan, bajan su reloj (el *throttling* que ves en [CPU y GPU](https://sensei.trueml.app/cpu-gpu/)). El servidor sigue contestando, pero más lento, y nadie se entera hasta que los abogados se quejan de que el sistema «anda raro». Antes de eso, los ventiladores suben al máximo y el ruido sube con ellos. Si sigue el calor, el servidor se apaga para no dañarse. Con la L40S, que no trae ventilador propio, todo depende de que el aire del chasis llegue frío.
+¿Y si se pasa? Las GPUs se protegen solas: cuando se calientan, bajan su reloj (el *throttling* que ves en [CPU y GPU](https://sensei.trueml.app/cpu-gpu/)). El servidor sigue contestando, pero más lento, y nadie se entera hasta que los abogados se quejan. Si sigue el calor, se apaga para no dañarse. Con la L40S, que no trae ventilador propio, todo depende de que el aire del chasis llegue frío.
 
 ## ¿Basta un minisplit de oficina? {Is an office mini-split enough?}
 
@@ -266,7 +272,7 @@ Los aparatos de aire se dividen en dos familias, y la diferencia explica casi to
 
 Un **aire de confort**, como un minisplit, está hecho para personas. Las personas sudan y respiran: sueltan calor y humedad. Por eso un aire de confort gasta buena parte de su capacidad en **quitar humedad** (calor latente) y el resto en bajar la temperatura (calor sensible). Los equipos, en cambio, sueltan calor seco: puro calor sensible. Según un documento de Vertiv, un fabricante de aire de precisión (y por eso parte interesada), un aire de confort dedica ≈ **60 %** de su capacidad al calor sensible, y uno de precisión ≈ **95 %**. El otro 40 % del minisplit se va en secar un aire que ya estaba seco, y un cuarto demasiado seco junta electricidad estática.
 
-Hay más diferencias. Un aire de precisión está hecho para trabajar 24 horas, los 365 días; un minisplit, para unas horas al día. Algunos aires de confort no arrancan bien cuando afuera hace frío (del orden de 13 °C), según el mismo fabricante. Y Vertiv mismo admite que, desde que ASHRAE ensanchó sus rangos, la precisión estricta ya no siempre es indispensable. Para un cuarto chico con un solo servidor, un minisplit **bien escogido y bien configurado** puede servir. El de 1 tonelada que ya está, no.
+Además, un aire de precisión está hecho para trabajar 24 horas, los 365 días; un minisplit, para unas horas al día. Y Vertiv mismo admite que, desde que ASHRAE ensanchó sus rangos, la precisión estricta ya no siempre es indispensable. Para un cuarto chico con un solo servidor, un minisplit **bien escogido y bien configurado** puede servir. El de 1 tonelada que ya está, no.
 
 :::formula Minisplit que hace falta
 C_{nom} ≥ frac{P}{k}
@@ -313,13 +319,15 @@ Los servidores respiran en una sola dirección: **entran aire por el frente y lo
 
 Las filas de racks se ponen **frente con frente** y **espalda con espalda**. Entre dos frentes queda un **pasillo frío**, adonde llega el aire frío y de donde todos los servidores lo toman. Entre dos espaldas queda un **[[pasillo-caliente|pasillo caliente]]** (*hot aisle*), adonde todos sueltan su aire caliente y de donde el aire acondicionado lo recoge. Así el aire caliente de un rack nunca entra al frente de otro.
 
-Sin ese orden aparece la **recirculación**: el aire caliente que sale por atrás da la vuelta por arriba o por los lados y vuelve a entrar por el frente. El servidor respira su propio escape, cada vez más caliente, aunque el termostato del cuarto marque 22 °C. La solución de los centros de datos es la **contención**: cerrar el pasillo frío o el caliente con techos y puertas para que los aires no se mezclen, y tapar con placas ciegas los huecos vacíos del rack, por donde el aire caliente se cuela hacia el frente.
+Sin ese orden aparece la **recirculación**: el aire caliente da la vuelta y vuelve a entrar por el frente, y el servidor respira su propio escape aunque el termostato marque 22 °C. La solución es la **contención**: cerrar un pasillo con techos y puertas, y tapar con placas ciegas los huecos vacíos del rack, por donde el aire caliente se cuela al frente.
 
 En el cuarto del despacho no hay pasillos: hay un rack. Pero la física es la misma, y las reglas se reducen a tres:
 
 1. **El frente del rack mira al aire frío.** El minisplit sopla hacia el frente, no hacia la espalda.
 2. **Atrás queda espacio.** La espalda no va pegada a la pared, para que el aire caliente salga y suba, y para poder trabajar en los cables.
-3. **El aire caliente regresa a la toma del minisplit** sin pasar por el frente del servidor. Un minisplit toma aire por arriba y lo suelta frío por abajo: el caliente, que sube solo, es justo lo que debe tomar.
+3. **El aire caliente regresa a la toma del minisplit** sin pasar por el frente del servidor. Un minisplit de pared toma aire por arriba y lo suelta frío por abajo: el caliente, que sube solo, es justo lo que debe tomar, como en un centro de datos el pasillo caliente regresa al aire acondicionado. Lo que no debe pasar es lo contrario: que el chorro frío del minisplit se meta directo a su propia toma sin pasar por el frente del rack, o que el escape del servidor dé vuelta hacia su propio frente.
+
+Un detalle que confunde: el termostato del minisplit mide el aire que **toma**, que es el caliente. Por eso marca más que lo que respira el servidor, y la temperatura que manda es la del sensor al frente del rack, no la del control remoto.
 
 ### Cuánto aire necesita un servidor
 
@@ -349,7 +357,7 @@ print(f"Regla de NVIDIA para el DGX H100: {4.445 * P / 1000:.1f} m³/min = {157 
 Regla de NVIDIA para el DGX H100: 11.1 m³/min = 392 cfm
 ```
 
-La guía de diseño de NVIDIA para sus DGX H100 pide como mínimo 4.445 m³ por minuto por cada kW (157 *cfm*, pies cúbicos por minuto, por kW), y la cuenta de física con un aire que se calienta ≈ 11 °C da lo mismo. Para el servidor del despacho son ≈ 11 m³ de aire por minuto: el cuarto entero, 22.5 m³, pasa por el servidor cada dos minutos. Por eso importa tanto que lo que pasa sea aire frío y no el escape de hace un minuto.
+La guía de diseño de NVIDIA para sus DGX H100 pide como mínimo 4.445 m³ por minuto por cada kW (157 *cfm*, pies cúbicos por minuto, por kW), y la cuenta de física con un aire que se calienta ≈ 11 °C da lo mismo. Para el servidor del despacho son ≈ 11 m³ por minuto: el aire del cuarto entero, 22.5 m³, pasa por él cada dos minutos. Por eso importa que sea aire frío y no el escape de hace un minuto.
 
 ## Cuando el aire ya no alcanza: enfriamiento líquido {When air is not enough: liquid cooling} [extra]
 
@@ -364,21 +372,21 @@ Ahora mira los equipos de IA grandes, con cifras de NVIDIA:
 - Un rack **GB200 NVL72** (72 GPUs Blackwell y 36 CPUs Grace en 18 bandejas) jala **≈ 120 kW**, con ocho estantes de fuentes de 33 kW. Eso son ≈ 34 toneladas de calor en un solo rack.
 
 :::figura el-cuarto-escalera
-La escalera de la potencia por equipo o por rack, en kW. Abajo, el servidor del despacho (2.5 kW). Luego, el rack promedio de 2026 según Uptime (7.8 kW), un DGX H100 (10.2 kW) y un DGX B200 (14.3 kW). Una franja marca dónde se acaba el aire, entre ≈ 20 y 40 kW por rack según quién lo diga. Arriba de todo, el GB200 NVL72, ≈ 120 kW, que ya va con líquido.
+La escalera de la potencia por equipo o por rack, en kW. Abajo, el servidor del despacho (2.5 kW). Luego, el rack promedio de 2026 según Uptime (7.8 kW), un DGX H100 (10.2 kW), un DGX B200 (14.3 kW) y un rack con los 4 DGX H100 que NVIDIA recomienda como máximo (≈ 41 kW). Una franja marca dónde se acaba el aire, entre ≈ 20 y 40 kW por rack según quién lo diga: ese rack de 41 kW ya queda arriba de ella. Arriba de todo, el GB200 NVL72, ≈ 120 kW, que ya va con líquido.
 :::
 
 El aire tiene un techo porque mover calor con aire es caro: el aire carga poco calor por litro. Para sacar 120 kW de un rack habría que meterle un huracán. Con un líquido, que carga muchísimo más calor por litro, basta un tubo. Eso es el **[[enfriamiento-liquido|enfriamiento líquido]]** directo al chip (*direct-to-chip liquid cooling*): una placa de metal pegada a cada GPU y cada CPU (una **placa fría**) por la que corre un líquido que se lleva el calor fuera del rack. El NVL72 enfría así sus CPUs y GPUs, y deja aire solo para la red y el almacenamiento.
 
 ¿Dónde empieza a hacer falta? No hay un umbral único publicado. Según resúmenes de informes de la industria, la mayoría cree que a más de ≈ 20 kW por rack el líquido directo es necesario; otros ponen el techo del aire entre 30 y 40 kW, y alguno lo estira a ≈ 50 kW. Lo seguro: un rack de 120 kW va con líquido, y uno de 2.5 kW no lo necesita ni de chiste.
 
-:::cuenta Un HGX B200 en el cuarto del despacho
+:::cuenta Un servidor HGX B200 en el cuarto del despacho
 Corriente a 220 V // \(P\) = 14.3 kW, \(f_p\) = 0.95 | 14,300 ÷ (220 × 0.95) | ≈ 68 A
 Interruptor, \(1.25 × I\) | 1.25 × 68 | ≈ 86 A
 Calor, \(Q_{t}\) | 14,300 ÷ 3,516.853 | ≈ 4.1 t
 = Más de 4 veces el servidor del despacho. Un equipo así pide alimentación trifásica, varios aires de precisión y casi seguro otro edificio: es el caso para un centro de datos.
 :::
 
-Para el despacho, la conclusión es corta: el enfriamiento líquido no es su problema. Pero si algún día quisiera un modelo de cientos de miles de millones de parámetros en 8 GPUs SXM, el cuarto de la oficina deja de ser opción.
+(HGX es la placa con 8 GPUs SXM que NVIDIA vende a los fabricantes para sus propios servidores; la cuenta supone los 14.3 kW del DGX B200.) Para el despacho, el enfriamiento líquido no es su problema. Pero si algún día quisiera un modelo de cientos de miles de millones de parámetros en 8 GPUs SXM, el cuarto de la oficina deja de ser opción.
 
 ## Lo que cuesta la luz {What electricity costs}
 
@@ -386,19 +394,23 @@ En México, la mayoría de los negocios compra la luz a CFE con las tarifas del 
 
 Las tarifas cambian según la **división** de CFE. La Ciudad de México no es una «región Central»: cae en las divisiones **Valle de México Centro, Norte o Sur**, según la colonia, y la que te toca la dice tu recibo. Aquí se usa Valle de México Centro.
 
-Y cambian según el contrato. Dos que importan:
+Y cambian según el contrato. Tres que importan aquí:
 
-- **PDBT**: baja tensión, para negocios con demanda de hasta ≈ 25 kW. Cobra por kWh y un cargo fijo.
-- **GDMTO**: gran demanda en media tensión, para quien recibe la luz con su propia subestación. Cobra menos por kWh, pero además cobra **por kW de demanda**: por lo más que jalaste en el mes.
+- **PDBT**: pequeña demanda en baja tensión (la luz llega a 220/127 V), para negocios con demanda de hasta ≈ 25 kW. Cobra por kWh y un cargo fijo.
+- **GDBT**: gran demanda en baja tensión, para los que pasan de ≈ 25 kW. Cobra menos por kWh, pero además cobra **por kW de demanda**: por lo más que jalaste en el mes.
+- **GDMTO**: gran demanda en media tensión, para quien recibe la luz en alta (más de 1,000 V) y la baja con su propia subestación. Cobra todavía menos por kWh y por kW.
 
 Cada tarifa se arma de varios cobros (transmisión, distribución, operación, generación…). Sumados para Valle de México Centro:
 
 | Tarifa (Valle de México Centro, oct-2026, antes de IVA) | Por kWh | Por kW de demanda, al mes | Cargo fijo, al mes |
 |---|---|---|---|
 | PDBT | ≈ $3.565 | — | $54.05 |
+| GDBT | ≈ $1.942 | ≈ $542.70 | $540.49 |
 | GDMTO | ≈ $1.542 | ≈ $395.29 | $540.49 |
 
-Una oficina de 200 personas casi seguro pasa de 25 kW, así que no cabría en PDBT. Para el ejemplo se supone que el despacho tiene **GDMTO**; su recibo lo diría. Cómo calcula CFE exactamente los kW que te cobra está en el contrato; aquí se aproxima con lo que el servidor y su aire suman a la demanda en horas de oficina, que es cuando el edificio jala más.
+Una oficina de 200 personas, con sus luces, computadoras y aire, razonablemente pasa de 25 kW, así que no cabría en PDBT. Y el despacho recibe la luz a 220/127 V, en baja tensión: la media tensión sería del edificio, si tuviera subestación. Para el ejemplo se supone **GDBT**; su recibo lo diría.
+
+¿Qué kW cobra? No exactamente «lo más que jalaste». La **demanda máxima medida** es el promedio de los 15 minutos de mayor consumo del mes. CFE factura, a grandes rasgos, la menor de dos cifras: esa demanda medida y una calculada con la energía, los kWh del mes ÷ (24 × días × un **factor de carga** que fija la regulación; en GDMTO es 0.55, según las guías del sector). Cuál de las dos manda depende de toda la oficina, y lo dice el recibo. Aquí se aproxima con lo que el servidor y su aire suman en horas de oficina, que es cuando la oficina jala más.
 
 ### Cuánta energía, de verdad
 
@@ -423,14 +435,14 @@ En uso, \(P_{uso}\) // 4 × 350 W × 0.6 + 800 W del resto | 840 + 800 | 1.64 kW
 En reposo, \(P_{rep}\) // 4 × 350 W × 0.2 + 550 W | 280 + 550 | 0.83 kW
 Energía del servidor // \(h_{uso}\) = 220, \(h_{rep}\) = 510 | 1.64 × 220 + 0.83 × 510 | ≈ 784 kWh
 Con el aire, \(E\) // PUE = 2.0 | 784 × 2.0 | ≈ 1,568 kWh
-Energía, \(E × p\) // GDMTO, \(p\) = $1.542 | 1,568 × 1.542 | ≈ $2,418
-Demanda, \(P_{uso} × PUE × d\) // \(d\) = $395.29 | 1.64 × 2.0 × 395.29 | ≈ $1,297
-Al mes, \(C\) | 2,418 + 1,297 | **≈ $3,715**
-Por pregunta // 3,000 al día × 22 días = 66,000 | 3,715 ÷ 66,000 | ≈ 6 centavos
+Energía, \(E × p\) // GDBT, \(p\) = $1.942 | 1,568 × 1.942 | ≈ $3,045
+Demanda, \(P_{uso} × PUE × d\) // \(d\) = $542.70 | 1.64 × 2.0 × 542.70 | ≈ $1,780
+Al mes, \(C\) | 3,045 + 1,780 | **≈ $4,825**
+Por pregunta // 3,000 al día × 22 días = 66,000 | 4,825 ÷ 66,000 | ≈ 7 centavos
 = Con tarifa PDBT serían ≈ $5,591 al mes. Y en el peor caso, el servidor al pico las 730 horas con PDBT y PUE 2.0, ≈ $13,066 con el cargo fijo.
 :::
 
-Pon esos números junto al precio del servidor: ≈ US$76,101. Con cualquier tipo de cambio razonable, la luz de un año es una fracción chica de la compra. La luz no decide si conviene tener el servidor propio; decide, eso sí, que el cuarto con PUE 2.0 gasta casi el doble que el mismo servidor en un centro de datos eficiente. La comparación completa contra rentar GPUs o pagar una API es del [costo total](/herramientas/tco/): ahí la luz es un renglón más.
+Al lado del servidor, ≈ US$76,101, la luz de un año es una fracción chica de la compra con cualquier tipo de cambio razonable. No decide si conviene tener servidor propio; sí muestra que el cuarto con PUE 2.0 gasta casi el doble que un centro de datos eficiente. La comparación completa contra rentar GPUs o pagar una API es del [costo total](/herramientas/tco/): ahí la luz es un renglón más.
 
 ```python
 h_uso, h_rep = 10 * 22, 730 - 10 * 22        # horas de uso y de reposo al mes
@@ -440,18 +452,18 @@ kwh = (P_uso * h_uso + P_rep * h_rep) / 1000 # kWh del servidor solo
 for pue in (1.0, 1.56, 2.0):
     E = kwh * pue
     pdbt = E * 3.565
-    gdmto = E * 1.542 + P_uso / 1000 * pue * 395.29
-    print(f"PUE {pue}: {E:6.0f} kWh  PDBT ${pdbt:6,.0f}  GDMTO ${gdmto:6,.0f}")
+    gdbt = E * 1.9416 + P_uso / 1000 * pue * 542.70
+    print(f"PUE {pue}: {E:6.0f} kWh  PDBT ${pdbt:6,.0f}  GDBT ${gdbt:6,.0f}")
 ```
 
 ```salida
-PUE 1.0:    784 kWh  PDBT $ 2,795  GDMTO $ 1,857
-PUE 1.56:   1223 kWh  PDBT $ 4,361  GDMTO $ 2,897
-PUE 2.0:   1568 kWh  PDBT $ 5,591  GDMTO $ 3,715
+PUE 1.0:    784 kWh  PDBT $ 2,795  GDBT $ 2,412
+PUE 1.56:   1223 kWh  PDBT $ 4,361  GDBT $ 3,763
+PUE 2.0:   1568 kWh  PDBT $ 5,591  GDBT $ 4,825
 ```
 
 :::calculadora el-cuarto-luz
-Arranca con el despacho: GDMTO, PUE 2.0, 220 horas de uso. Cambia a PDBT y mira cuánto sube. Baja la PUE a 1.56, el promedio de los centros de datos: es lo que ahorraría el mismo servidor en un sitio eficiente. Sube las horas de uso a 730: es un servidor que trabaja de noche, por ejemplo resumiendo expedientes en lote.
+Arranca con el despacho: GDBT, PUE 2.0, 220 horas de uso. Cambia a PDBT y mira cuánto sube. Baja la PUE a 1.56, el promedio de los centros de datos: es lo que ahorraría el mismo servidor en un sitio eficiente. Sube las horas de uso a 730: es un servidor que trabaja de noche, por ejemplo resumiendo expedientes en lote.
 :::
 
 ## La red: lo que mueve y lo que no {The network: what it carries and what it doesn't}
@@ -480,31 +492,31 @@ Lo que sí mueve bytes en serio son las tareas de vez en cuando. Bajar los pesos
 
 ### Dentro del servidor: PCIe, sin NVLink
 
-Las 4 L40S se conectan a las CPUs por **PCIe Gen4 x16**, que da 64 GB/s sumando los dos sentidos. La L40S **no tiene NVLink**, el cable directo entre GPUs que tienen las SXM. Qué es cada uno y cuánto da lo ves en [CPU y GPU](https://sensei.trueml.app/cpu-gpu/).
+Las 4 L40S se conectan a las CPUs por **PCIe Gen4 x16**, que da 64 GB/s sumando los dos sentidos. La L40S **no tiene NVLink**, la conexión directa entre GPUs que tienen las [[sxm|SXM]]. Qué es cada uno y cuánto da lo ves en [CPU y GPU](https://sensei.trueml.app/cpu-gpu/).
 
-Para el despacho eso no importa, y la razón vale la pena: el modelo **cabe en una sola L40S** (pesos de 19.32 GB más el KV cache de sus conversaciones, en 48 GB). Cada GPU tiene su propia [[copia-del-servidor|copia del modelo]] y atiende sus conversaciones sola. Las GPUs no se hablan; un balanceador reparte las preguntas. Cuando un modelo no cabe en una GPU y hay que partirlo entre varias, que se pasan resultados en cada capa de cada token, la conexión entre GPUs sí manda. Eso es el *tensor parallel*, el tema de la lección «Varias GPUs: tensor y pipeline parallel».
+Para el despacho eso no importa: el modelo **cabe en la memoria de una L40S** (pesos de 19.32 GB más el KV cache de sus conversaciones, en 48 GB). Cada GPU tiene su propia [[copia-del-servidor|copia del modelo]] y atiende sus conversaciones sola; un balanceador (un programa que manda cada pregunta a la GPU menos ocupada) las reparte. Cuando un modelo no cabe en una GPU y hay que partirlo entre varias, que se pasan resultados en cada capa, la conexión entre GPUs sí manda. Eso es el *tensor parallel*, el tema de la lección «Varias GPUs: tensor y pipeline parallel».
 
 ### Entre servidores: RDMA e InfiniBand
 
-Cuando un modelo no cabe ni en un servidor entero, hay que partirlo entre **varios servidores**, y la red entre ellos se vuelve parte de cada paso de cálculo. Ahí la Ethernet normal estorba: cada mensaje pasa por la CPU y el sistema operativo de los dos lados, y eso agrega tiempo.
+Si un modelo no cabe ni en un servidor entero, se parte entre **varios servidores**, y la red entre ellos entra en cada paso de cálculo. Ahí la Ethernet normal estorba: cada mensaje pasa por la CPU y el sistema operativo de los dos lados.
 
 La salida es **[[rdma|RDMA]]** (*Remote Direct Memory Access*): la tarjeta de red copia memoria de un servidor a otro sin pasar por la CPU ni por el sistema operativo. Con GPUDirect RDMA, la copia va directo de la memoria de una GPU a la de otra GPU en otro servidor. Hay dos formas de tenerlo:
 
 - **[[infiniband|InfiniBand]]**: una red propia, con sus switches y cables, que trae RDMA de nacimiento. La generación NDR de NVIDIA da ≈ 400 Gb/s por puerto.
 - **RoCE** (*RDMA over Converged Ethernet*): RDMA encima de Ethernet, con switches de Ethernet bien configurados.
 
-Las tarjetas ConnectX-7 de NVIDIA hacen las dos cosas, a hasta 400 Gb/s. Es la red de los clústeres de entrenamiento y de los modelos gigantes. **El despacho no la necesita**: tiene un servidor, y su modelo cabe en una GPU.
+Es la red de los clústeres de entrenamiento y de los modelos gigantes. **El despacho no la necesita**: tiene un servidor, y su modelo cabe en una GPU.
 
 ### La red de gestión y el BMC
 
-Aquí sí hay que poner atención. Cada servidor trae un **[[bmc|BMC]]** (*baseboard management controller*): una computadita aparte, en la tarjeta madre, con su propio puerto de red. Funciona aunque el servidor esté apagado o el sistema operativo esté colgado. Desde ahí se enciende y apaga el servidor, se ve su pantalla, se instala el sistema operativo y se actualiza el firmware, todo por red. Cada marca le pone su nombre: iDRAC en Dell, iLO en HPE; el protocolo clásico es IPMI.
+Aquí sí hay que poner atención. Cada servidor trae un **[[bmc|BMC]]** (*baseboard management controller*): una computadita aparte, en la tarjeta madre, con su propio puerto de red. Funciona aunque el servidor esté apagado o el sistema operativo esté colgado. Desde ahí se enciende y apaga el servidor, se ve su pantalla, se instala el sistema operativo y se actualiza el **firmware** (el programa grabado en las piezas del equipo, que corre antes que el sistema operativo), todo por red. Cada marca le pone su nombre: iDRAC en Dell, iLO en HPE; el protocolo clásico es IPMI.
 
-Para 2 personas de TI que no viven junto al servidor, el BMC es una maravilla. También es la puerta más peligrosa del equipo. Un BMC da control **por debajo** del sistema operativo: quien entra ahí puede apagar el servidor, montar un disco falso o reinstalar todo, y ningún antivirus del sistema operativo lo ve. La agencia de ciberseguridad de EE. UU. (CISA) lo advirtió desde 2013: IPMI guarda contraseñas sin cifrar, muchos BMC vienen con contraseñas de fábrica o sin ninguna, y hay que encerrarlos en una red de gestión aparte. En 2023, CISA y la NSA publicaron juntas una guía para endurecer BMCs. Y no es teoría: hay fallas de BMC en el catálogo de vulnerabilidades explotadas de CISA, y se han contado del orden de 24,000 BMCs expuestos en internet filtrando datos de sus contraseñas.
+Para 2 personas de TI que no viven junto al servidor, el BMC es una maravilla. También es la puerta más peligrosa del equipo. Un BMC da control **por debajo** del sistema operativo: quien entra ahí puede apagar el servidor, montar un disco falso o reinstalar todo, y ningún antivirus del sistema operativo lo ve. La agencia de ciberseguridad de EE. UU. (CISA) lo advirtió desde 2013: IPMI guarda contraseñas sin cifrar, muchos BMC vienen con contraseñas de fábrica o sin ninguna, y hay que encerrarlos en una red de gestión aparte. En 2023, CISA y la NSA publicaron juntas una guía para endurecer BMCs. Y no es teoría. Desde junio de 2025 hay una falla de BMC (la CVE-2024-54085, en el firmware MegaRAC de AMI) en el catálogo de vulnerabilidades que CISA sabe explotadas. Y en julio de 2026 una investigación contó ≈ 24,650 BMCs expuestos en internet que entregan, antes de pedir contraseña, datos derivados de ella con los que se puede adivinar la contraseña probando, fuera de línea.
 
 Para el despacho, cuyos expedientes son secreto profesional, un BMC expuesto equivale a regalar la consola del servidor. Las reglas:
 
 1. **El puerto del BMC va en una red de gestión aparte** (una VLAN de gestión: una red separada dentro del mismo switch), sin salida a internet.
-2. **Se entra solo por VPN** o desde una máquina de administración dentro de esa red.
+2. **Se entra solo por VPN** (una conexión cifrada que mete a una máquina de fuera en esa red) o desde una máquina de administración dentro de ella.
 3. **Contraseña propia, larga y distinta** a todas, cambiada el primer día. Nada de la de fábrica.
 4. **Firmware al día** y los accesos anónimos apagados.
 
@@ -514,15 +526,12 @@ Si el cuarto del despacho no da (el edificio no deja meter otro circuito, el cas
 
 En México, **Querétaro** concentra la mayor parte de la capacidad de centros de datos del país, más del 60 % según un informe de la industria. Ahí están, por ejemplo, **Equinix MX1 y MX2, en El Marqués, Querétaro**, aunque la página de Equinix los agrupa como «Mexico City»; varios operadores más tienen sitios en la zona. En la Ciudad de México también hay sitios, por ejemplo los de KIO.
 
-¿Cuánto cuesta? **Ningún operador publica precios.** Todo es «cotización». Lo que sí puedes hacer es pedir la cotización bien. Pregunta por:
+¿Cuánto cuesta? **Ningún operador publica precios**: todo es «cotización». Pídela bien, preguntando por:
 
-- **kW por rack** garantizados, y si el sitio da ese kW con aire o pide líquido.
-- **Dos alimentaciones** (A y B) por rack, cada una capaz de cargar todo.
-- Duración del **contrato** (suelen ser anuales o más) y cómo sube el precio.
-- **Ancho de banda** y enlaces con la oficina.
+- **kW por rack** garantizados, con aire o con líquido, y **dos alimentaciones** (A y B), cada una capaz de cargar todo.
+- **Contrato** (suelen ser anuales o más), cómo sube el precio, y el **enlace** con la oficina.
 - **Manos remotas** (*remote hands*): técnicos del sitio que cambian un disco o reinician un equipo por ti.
-- Quién entra al rack y cómo queda registrado.
-- La **certificación**: qué nivel Tier y de qué tipo.
+- Quién entra al rack y cómo queda registrado, y la **certificación**: qué Tier y de qué tipo.
 
 ### Los niveles Tier
 
@@ -539,29 +548,26 @@ Dos letras chicas. Esas cifras son objetivos de diseño de **las instalaciones**
 
 ### Lo que gana y lo que cuesta
 
-Gana en **PUE**: un centro de datos moderno anda en ≈ 1.3–1.56 contra ≈ 2.0 de un cuarto de oficina. Gana en todo lo que esta lección le pidió al cuarto: circuitos A y B, UPS grandes, plantas de emergencia y aire de precisión redundante, que el despacho tendría que comprar y cuidar.
+Gana en **PUE** (≈ 1.3–1.56 contra ≈ 2.0 de un cuarto de oficina) y en todo lo que esta lección le pidió al cuarto: circuitos A y B, UPS grandes, planta de emergencia y aire de precisión redundante.
 
-Cuesta en otras cosas. El servidor queda a ≈ 200 km de la oficina, si está en Querétaro. Para un LLM eso casi no importa: la luz en fibra recorre esa distancia en ≈ 1 ms, y el primer token tarda ≈ 2 s. Lo que sí cuesta es el **enlace** privado entre la oficina y el sitio, y que cada visita al servidor sea un viaje. Y cuesta en confianza. Los expedientes salen físicamente de la oficina, aunque no salgan de máquinas del despacho. La [[soberania-de-datos|soberanía de los datos]] se conserva (el hardware y las llaves son tuyos, los discos van cifrados), pero hay que revisar que los contratos con los clientes del despacho lo permitan y documentar quién puede tocar el rack. Esa revisión, y la de mantener el servidor aislado de internet, es de la lección «Seguridad: aislamiento, sin internet y actualizaciones».
+Cuesta en otras cosas. El servidor queda a ≈ 200 km de la oficina, si está en Querétaro. Para un LLM eso casi no importa: la luz en fibra recorre esa distancia en ≈ 1 ms, y el primer token tarda ≈ 2 s. Lo que sí cuesta es el **enlace** privado con el sitio, y que cada visita sea un viaje. Y cuesta en confianza: los expedientes salen físicamente de la oficina, aunque no de máquinas del despacho. La [[soberania-de-datos|soberanía de los datos]] se conserva (el hardware y las llaves son tuyos, los discos van cifrados), pero hay que revisar que los contratos con los clientes del despacho lo permitan y documentar quién puede tocar el rack. Esa revisión, y la de mantener el servidor aislado de internet, es de la lección «Seguridad: aislamiento, sin internet y actualizaciones».
 
 ## Errores comunes {Common mistakes}
 
 1. **Conectar el servidor a un contacto de pared.** «Trae su cable y entra en el contacto». Un circuito de 15 A a 127 V aguanta ≈ 1.45 kW continuos y el servidor pide 2.5 kW. Funciona en la prueba con el servidor en reposo y se bota el día que todos preguntan. **Cómo evitarlo:** calcula \(I = P_{pico} ÷ (V × f_p)\), aplica el 125 % de la NOM y pide un [[circuito-dedicado|circuito dedicado]] a 220 V.
-2. **Leer las fuentes de poder como consumo.** «Trae 4 fuentes de 3,000 W: jala 12 kW». Es capacidad con redundancia, no consumo. **Cómo evitarlo:** suma TDPs y estima el resto para el pico; mide con `nvidia-smi`, el BMC o una PDU con medidor para el promedio.
-3. **Dimensionar el aire con la caja del minisplit.** «Son 10,236 BTU/h y el minisplit es de 12,000: sobra». Un aire de confort da ≈ 60 % de su capacidad como calor sensible. **Cómo evitarlo:** divide la [[carga-termica|carga térmica]] entre 0.6 y pon N+1.
-4. **Contar con el aire del edificio.** Se apaga de noche y en fines de semana, justo cuando nadie mira. **Cómo evitarlo:** el cuarto tiene su propio aire, con arranque automático después de un apagón y una alerta de temperatura.
-5. **Pensar que el UPS es para seguir trabajando.** Con un servidor de 2.5 kW, un UPS da minutos. **Cómo evitarlo:** conecta el UPS al servidor para que se apague solo, y si de verdad necesitas horas, eso es una planta de emergencia.
-6. **Comprar red cara para los usuarios.** El tráfico de 200 abogados cabe en 0.002 % de un enlace de 1 GbE. InfiniBand es para partir un modelo entre servidores. **Cómo evitarlo:** 10 GbE para el servidor, y gasta en lo que sí importa: el aire, el UPS y la red de gestión.
-7. **Dejar el BMC en la red de la oficina con la contraseña de fábrica.** Es la consola del servidor, por debajo del sistema operativo. **Cómo evitarlo:** VLAN de gestión sin internet, VPN, contraseña propia y firmware al día, el primer día.
+2. **Dimensionar el aire con la caja del minisplit.** «Son 10,236 BTU/h y el minisplit es de 12,000: sobra». Un aire de confort da ≈ 60 % de su capacidad como calor sensible. **Cómo evitarlo:** divide la [[carga-termica|carga térmica]] entre 0.6 y pon N+1.
+3. **Contar con el aire del edificio.** Se apaga de noche y en fines de semana, justo cuando nadie mira. **Cómo evitarlo:** el cuarto tiene su propio aire, con arranque automático después de un apagón y una alerta de temperatura.
+4. **Pensar que el UPS es para seguir trabajando.** Con un servidor de 2.5 kW, un UPS da minutos. **Cómo evitarlo:** conecta el UPS al servidor para que se apague solo, y si de verdad necesitas horas, eso es una planta de emergencia.
+5. **Comprar red cara para los usuarios.** El tráfico de 200 abogados cabe en 0.002 % de un enlace de 1 GbE. InfiniBand es para partir un modelo entre servidores. **Cómo evitarlo:** 10 GbE para el servidor, y gasta en lo que sí importa: el aire, el UPS y la red de gestión.
+6. **Dejar el BMC en la red de la oficina con la contraseña de fábrica.** Es la consola del servidor, por debajo del sistema operativo. **Cómo evitarlo:** VLAN de gestión sin internet, VPN, contraseña propia y firmware al día, el primer día.
 
 ## En la vida real {In real life}
 
-**El despacho.** El plan para su cuarto de 9 m² queda así. Dos circuitos dedicados de **20 A a 220 V**, A y B, con dos fuentes del servidor en cada uno. Un **UPS de 5–6 kVA de doble conversión** en el circuito A, conectado al servidor para que se apague solo; el switch también va en el UPS, para que el aviso de apagado viaje por la red. Los 500 W que ya había siguen en su circuito. **Dos minisplits de 2 toneladas** que se turnan, en circuitos propios, a 24 °C fijos y con arranque automático, más un sensor de temperatura al frente del rack que mande alertas. El rack con el frente hacia el aire frío y espacio atrás. Un puerto de 10 GbE al switch de la oficina, y el BMC en una VLAN de gestión sin internet. La luz: ≈ $3,700 al mes antes de IVA con GDMTO y PUE 2.0, ≈ 6 centavos por pregunta. Y una pregunta abierta para la dirección: si el edificio no deja hacer las obras, la alternativa es un rack en colocation, con su cotización, su enlace y la revisión de los contratos con los clientes.
+**El despacho.** El plan para su cuarto de 9 m² queda así. Dos circuitos dedicados de **20 A a 220 V**, A y B, con dos fuentes del servidor en cada uno. Un **UPS de 5–6 kVA de doble conversión** en el circuito A, conectado al servidor para que se apague solo; el switch también va en el UPS, para que el aviso de apagado viaje por la red. Los 500 W que ya había siguen en su circuito. **Dos minisplits de 2 toneladas** que se turnan, en circuitos propios, a 24 °C fijos y con arranque automático, más un sensor de temperatura al frente del rack que mande alertas. El rack con el frente hacia el aire frío y espacio atrás. Un puerto de 10 GbE al switch de la oficina, y el BMC en una VLAN de gestión sin internet. La luz: ≈ $4,800 al mes antes de IVA con GDBT y PUE 2.0, ≈ 7 centavos por pregunta. Y una pregunta abierta para la dirección: si el edificio no deja hacer las obras, la alternativa es un rack en colocation, con su cotización, su enlace y la revisión de los contratos con los clientes.
 
-**Una clínica con una workstation.** Supuesto del ejemplo: una clínica quiere un asistente de notas médicas en una workstation de torre con una RTX PRO 6000 Blackwell (600 W según `gpus.json`), en total ≈ 1,000 W en el pico. A 127 V son ≈ 8.3 A, y con el 125 %, ≈ 10.4 A: **sí cabe** en un circuito de 15 A, siempre que sea dedicado (nada de compartirlo con el esterilizador). El calor, ≈ 3,400 BTU/h, lo saca el aire del consultorio si está prendido; de noche, la workstation se apaga o se va a un cuarto con aire. Si la clínica pone **dos** de esas GPUs (≈ 1,600 W), son ≈ 16.6 A con el 125 %: ya no cabe en 15 A. El salto de una a dos GPUs es el salto de «se enchufa» a «llama al electricista».
+**Una clínica con una workstation.** Supuesto del ejemplo: una clínica quiere un asistente de notas médicas en una workstation de torre con una RTX PRO 6000 Blackwell Workstation Edition (600 W según `gpus.json`; es la que trae ventilador, para torre), en total ≈ 1,000 W en el pico. A 127 V son ≈ 8.3 A, y con el 125 %, ≈ 10.4 A: **sí cabe** en un circuito de 15 A, siempre que sea dedicado (nada de compartirlo con el esterilizador). El calor, ≈ 3,400 BTU/h, lo saca el aire del consultorio si está prendido; de noche, la workstation se apaga o se va a un cuarto con aire. Si la clínica pone **dos** de esas GPUs (≈ 1,600 W), son ≈ 16.6 A con el 125 %: ya no cabe en 15 A. El salto de una a dos GPUs es el salto de «se enchufa» a «llama al electricista».
 
-**Una fábrica con un modelo en la planta.** Supuesto del ejemplo: una planta quiere un LLM junto a la línea de producción, sin depender de internet. El problema no es la potencia sino el ambiente: en una nave sin aire puede hacer 35 °C, en el borde del rango «permitido» de ASHRAE para la clase A2, con polvo y vibración. Ahí la respuesta no es un minisplit de oficina, sino un gabinete cerrado con su propio aire, o un servidor hecho para ese ambiente (los fabricantes publican para qué rango está hecho cada uno). La red de gestión importa más que en una oficina, porque la red de la planta suele estar llena de equipos viejos.
-
-**Fuera de las computadoras: la cocina.** Un horno eléctrico de 2.5 kW calienta la cocina exactamente igual que el servidor del despacho calienta su cuarto, watt por watt. La diferencia es que el horno se prende una hora y la cocina tiene ventana. Deja el horno prendido 24 horas en un clóset cerrado con un minisplit chico, y tienes el problema de esta lección.
+**Una fábrica con un modelo en la planta.** Supuesto del ejemplo: una planta quiere un LLM junto a la línea de producción, sin depender de internet. El problema no es la potencia sino el ambiente: en una nave sin aire puede hacer 35 °C, en el borde del rango «permitido» de ASHRAE para la clase A2, con polvo y vibración. Ahí la respuesta es un gabinete cerrado con su propio aire, o un servidor hecho para ese ambiente (cada fabricante publica su rango).
 
 ## Ejercicios {Exercises}
 
@@ -569,34 +575,34 @@ Cuesta en otras cosas. El servidor queda a ≈ 200 km de la oficina, si está en
 ? [facil] Un servidor jala 1,800 W en el pico, con factor de potencia 0.95. ¿Cuántos amperes jala a 127 V y a 220 V, y qué interruptor mínimo pide cada uno con la regla del 125 %?
 A 127 V: \(I\) = 1,800 ÷ (127 × 0.95) ≈ **14.9 A**; × 1.25 ≈ **18.7 A** → un interruptor de 20 A. A 220 V: \(I\) = 1,800 ÷ (220 × 0.95) ≈ **8.6 A**; × 1.25 ≈ **10.8 A** → cabe en 15 A con margen.
 ? [facil] ¿Cuántos BTU por hora y cuántas toneladas de refrigeración son los 10.2 kW de un DGX H100?
-\(Q_{BTU}\) = 10,200 × 3.41214 ≈ **34,804 BTU/h** (la misma cifra que da NVIDIA). \(Q_{t}\) = 10,200 ÷ 3,516.853 ≈ **2.9 toneladas**: casi tres minisplits de 1 tonelada a toda su capacidad nominal, y más de cuatro de verdad, con el 60 % de calor sensible.
+\(Q_{BTU}\) = 10,200 × 3.41214 ≈ **34,804 BTU/h** (la misma cifra que da NVIDIA). \(Q_{t}\) = 10,200 ÷ 3,516.853 ≈ **2.9 toneladas**: con el 60 % de calor sensible, casi cinco minisplits de 1 tonelada.
 ? [facil] Un servidor de 2,000 W con factor de potencia 0.95. ¿Qué UPS mínimo pide con 25 % de holgura?
 2,000 ÷ 0.95 ≈ 2,105 VA; × 1.25 ≈ **2,632 VA**. Un UPS de 3 kVA alcanza, siempre que sus watts (≈ 2.7 kW en el de APC) también pasen de 2,000 W, y pasan.
 ? [facil] Con la tarifa PDBT de Valle de México Centro (≈ $3.565 por kWh, antes de IVA), ¿cuánto cuesta al mes un equipo que jala 1 kW parejo las 730 horas, sin contar el aire?
 1 kW × 730 h = 730 kWh; 730 × 3.565 ≈ **$2,602 al mes**, antes de IVA. Con una PUE de 2.0, el doble: ≈ $5,205.
 ? [medio] El despacho arranca con 3 L40S en vez de 4. Recalcula el pico de papel, la corriente a 220 V, el interruptor mínimo y la carga térmica del cuarto con los 500 W que ya había. ¿Cambia alguna decisión?
-Pico: 3 × 350 + 400 + 700 = **2,150 W**. A 220 V: 2,150 ÷ (220 × 0.95) ≈ 10.3 A; × 1.25 ≈ **12.9 A**: cabe en 15 A con algo de margen. Carga térmica: 2,150 + 500 = 2,650 W ≈ 9,042 BTU/h ≈ 0.75 t; minisplit nominal: 2,650 ÷ 0.6 ≈ 4,417 W ≈ 1.26 t. Con 3 GPUs alcanzaría un circuito de 15 A y un minisplit de 1.5 t; con la cuarta, no. Por eso el diseño se hace para 4: **no cambia nada** si ya se hizo para el servidor lleno, y si se hubiera hecho para 3, meter la cuarta obligaría a cambiar el interruptor y el aire.
+Pico: 3 × 350 + 400 + 700 = **2,150 W**. A 220 V: 2,150 ÷ (220 × 0.95) ≈ 10.3 A; × 1.25 ≈ **12.9 A**: cabe en 15 A con algo de margen. Carga térmica: 2,150 + 500 = 2,650 W ≈ 9,042 BTU/h ≈ 0.75 t; minisplit nominal: 2,650 ÷ 0.6 ≈ 4,417 W ≈ 1.26 t. Con 3 GPUs, un circuito de 15 A y un minisplit de 1.5 t (3,165 W útiles) alcanzan con margen. Con la cuarta quedan al filo: el de 15 A por 0.05 A (≈ 8 W de carga) y el de 1.5 t por 165 W. En papel caben; en la práctica no, porque el pico es una estimación. Por eso se diseña para 4: **no cambia nada** si ya se hizo para el servidor lleno (20 A y 2 t); si se hubiera hecho para 3, la cuarta obligaría a cambiar interruptor y aire.
 ? [medio] Con 220 V y el servidor del despacho de 2,500 W, el electricista propone un interruptor de 15 A «porque la cuenta da 14.95 A». ¿Qué le contestas?
 Que la cuenta da 14.95 A con un factor de potencia supuesto de 0.95 y un resto del servidor estimado. Si el factor real es 0.92, \(I\) = 2,500 ÷ (220 × 0.92) ≈ 12.4 A y × 1.25 ≈ **15.4 A**: ya no cabe. Y si el resto jala 100 W más, tampoco. Un diseño que cabe por 0.05 A no tiene margen para ningún supuesto. Se pone de **20 A**, que cabe con ≈ 5 A de sobra.
 ? [medio] Un cuarto de TI tiene 1,200 W de equipos. Le van a meter un servidor de 2,500 W. ¿Qué minisplit nominal hace falta con \(k\) = 0.6, y cuántos con N+1?
 Carga térmica: 1,200 + 2,500 = 3,700 W. Nominal: 3,700 ÷ 0.6 ≈ 6,167 W ≈ **1.75 t** → el tamaño comercial siguiente, 2 t (24,000 BTU/h ≈ 7,034 W nominales; × 0.6 ≈ 4,220 W útiles ≥ 3,700). Con N+1: **dos de 2 t**, cada uno capaz de cargar el cuarto solo.
 ? [medio] El servidor del despacho se lleva a colocation con PUE 1.56, y ahí el sitio le cobra la luz a ≈ $3.565 por kWh (supuesto). Con 784 kWh al mes del servidor, ¿cuánto pagaría de luz contra ≈ $5,591 en su oficina con PDBT y PUE 2.0?
-784 × 1.56 ≈ 1,223 kWh; × 3.565 ≈ **$4,361**. Ahorra ≈ $1,230 al mes en luz, ≈ 22 %. Pero ojo: un colocation cobra sobre todo por kW contratado y por el espacio, no solo por la luz, y esos precios no se publican. La luz sola no decide; la cotización completa, sí.
+784 × 1.56 ≈ 1,223 kWh; × 3.565 ≈ **$4,361**. Ahorra ≈ $1,230 al mes en luz, ≈ 22 %. Pero un colocation cobra sobre todo por kW contratado y espacio, y esos precios no se publican: decide la cotización completa, no la luz.
 ? [reto] Las 4 fuentes del Exxact están repartidas en dos circuitos, dos en cada uno. ¿Hasta qué pico aguanta el servidor la caída de un circuito a 127 V y a 220 V? Con el pico de 2,500 W, ¿cuánta capacidad le sobra o le falta en cada caso?
 Con un circuito caído quedan 2 fuentes. A 127 V: 2 × 1,000 = **2,000 W** de tope; contra 2,500 W **faltan 500 W**: el servidor se apaga, o la redundancia solo funciona si el servidor jala menos de 2 kW. A 220 V: 2 × 2,600 = **5,200 W**; contra 2,500 W **sobran 2,700 W**. Incluso con una sola fuente viva (2,600 W) aguantaría el pico, por 100 W. A 127 V la redundancia es de mentira; a 220 V es de verdad.
-? [reto] El servidor del despacho trabaja de noche resumiendo expedientes en lote: ahora pasa las 730 horas al ritmo de uso (1.64 kW). Con GDMTO y PUE 2.0, ¿cuánto cuesta la luz al mes? ¿Cuánto más que con el horario de oficina, y por qué la demanda no cambia?
-Energía: 1.64 × 730 ≈ 1,197 kWh; × 2.0 ≈ 2,394 kWh; × 1.542 ≈ **$3,692**. Demanda: 1.64 × 2.0 × 395.29 ≈ **$1,297**, igual que antes. Total ≈ **$4,989**, ≈ $1,274 más que los ≈ $3,715 del horario de oficina. La demanda no cambia porque cobra **lo más que jalaste**, no cuánto rato: el servidor ya jalaba 1.64 kW en horas de oficina. Trabajar de noche solo paga energía, a $1.542 por kWh: es la forma barata de usar más el mismo servidor.
+? [reto] El servidor del despacho trabaja de noche resumiendo expedientes en lote: ahora pasa las 730 horas al ritmo de uso (1.64 kW). Con GDBT y PUE 2.0, ¿cuánto cuesta la luz al mes? ¿Cuánto más que con el horario de oficina? ¿Cambia la demanda?
+Energía: 1.64 × 730 ≈ 1,197 kWh; × 2.0 ≈ 2,394 kWh; × 1.942 ≈ **$4,649**. Demanda, con la aproximación de la lección: 1.64 × 2.0 × 542.70 ≈ **$1,780**, igual que antes. Total ≈ **$6,429**, ≈ $1,604 más que los ≈ $4,825 del horario de oficina. Si en el recibo manda la demanda máxima medida, no cambia: cuenta los 15 minutos de más consumo, no cuánto rato, y el servidor ya jalaba 1.64 kW de día. Entonces trabajar de noche solo paga energía, y es la forma barata de usar más el servidor. Si manda la cifra calculada con los kWh del mes, esos kWh de más también suben la demanda cobrada; lo dice el recibo.
 ? [reto] Un despacho más grande quiere un servidor HGX B200 de 8 GPUs (≈ 14.3 kW, como el DGX B200) en su cuarto de oficina. Con lo de esta lección, haz la lista de lo que cambia: corriente a 220 V monofásica, interruptor, calor en toneladas, minisplits con \(k\) = 0.6 y N+1, UPS con 25 % de holgura y factor de potencia 0.95.
-Corriente: 14,300 ÷ (220 × 0.95) ≈ **68 A**; × 1.25 ≈ **86 A**: fuera de cualquier circuito de oficina, pide alimentación trifásica y un tablero propio. Calor: 14,300 W ≈ 48,794 BTU/h ≈ **4.1 t**; nominal: 14,300 ÷ 0.6 ≈ 23,833 W ≈ **6.8 t** de minisplits, más otro tanto por N+1: es un aire de precisión, no minisplits. UPS: 14,300 ÷ 0.95 × 1.25 ≈ **18.8 kVA**. Ruido, peso (el DGX H100, parecido, pesa ≈ 130 kg) y piso también cambian. La conclusión honesta: es un equipo para un centro de datos; en una oficina cuesta más adaptar el cuarto que rentar un rack.
+Corriente: 14,300 ÷ (220 × 0.95) ≈ **68 A**; × 1.25 ≈ **86 A**: fuera de cualquier circuito de oficina, pide alimentación trifásica y un tablero propio. Calor: 14,300 W ≈ 48,794 BTU/h ≈ **4.1 t**; nominal: 14,300 ÷ 0.6 ≈ 23,833 W ≈ **6.8 t** de minisplits, más otro tanto por N+1: es un aire de precisión, no minisplits. UPS: 14,300 ÷ 0.95 × 1.25 ≈ **18.8 kVA**. Ruido y peso (el DGX H100 pesa ≈ 130 kg) también cambian. Conclusión: es un equipo para un centro de datos.
 :::
 
 ## Lo que sigue {What comes next}
 
-- **«Comprar hardware: de la workstation al rack»**, la otra lección de este módulo, decide qué servidor entra al cuarto: tarjetas sueltas o servidor armado, de qué integrador, y cuándo conviene otra GPU. Su TDP y sus fuentes son los números de entrada de esta lección.
-- **«Varias GPUs: tensor y pipeline parallel»** explica cuándo un modelo se parte entre GPUs, y por qué ahí sí importan NVLink, PCIe y, entre servidores, RDMA e InfiniBand.
-- **«Observabilidad de GPUs e inferencia»** pone a vigilar lo que esta lección pide medir: potencia, temperatura, reloj de la GPU y alertas.
+- **«Comprar hardware: de la workstation al rack»** decide qué servidor entra al cuarto; su TDP y sus fuentes son los números de entrada de esta lección.
+- **«Varias GPUs: tensor y pipeline parallel»**: cuándo un modelo se parte entre GPUs, y por qué ahí sí importan NVLink, RDMA e InfiniBand.
+- **«Observabilidad de GPUs e inferencia»** vigila lo que aquí se pide medir: potencia, temperatura y reloj.
 - **«Seguridad: aislamiento, sin internet y actualizaciones»** sigue con la red de gestión, el BMC y lo que cambia si el servidor se va a colocation.
-- **«TCO: API, nube o servidor propio»** mete la luz, el UPS, el aire y el colocation en la comparación completa; mientras, la [herramienta de costo total](/herramientas/tco/) ya tiene sus renglones de luz y PUE.
+- **«TCO: API, nube o servidor propio»** mete la luz, el UPS, el aire y el colocation en la comparación completa; mientras, usa la [herramienta de costo total](/herramientas/tco/).
 - **«Cotizar, proponer y dar soporte»** ve cómo se cotiza todo esto en México, incluida la importación del hardware.
 - En Sensei: [CPU y GPU](https://sensei.trueml.app/cpu-gpu/) tiene PCIe, NVLink y el throttling; [Máquinas, GPUs y cómo se cobran](https://sensei.trueml.app/maquinas/), lo que cuesta rentar en vez de tener cuarto.
 
@@ -610,7 +616,7 @@ potencia-electrica factor-de-potencia circuito-dedicado fuente-redundante ups ca
 
 :::chequeo
 ? ¿Por qué el servidor del despacho va a 220 V y no a 127 V?
-Por dos razones. A 127 V jala ≈ 20.7 A y con el 125 % de la NOM pide ≈ 26 A, más que un circuito de 20 A. Y sus fuentes dan solo 1,000 W cada una a 127 V: si se cae uno de los dos circuitos, las 2 fuentes que quedan dan 2,000 W, menos que el pico de 2,500 W.
+A 127 V jala ≈ 20.7 A y con el 125 % de la NOM pide ≈ 26 A, más que un circuito de 20 A. Y sus fuentes dan solo 1,000 W cada una a 127 V: con un circuito caído, las 2 que quedan dan 2,000 W, menos que el pico de 2,500 W.
 ? ¿Qué dice la regla del 125 % de la NOM-001-SEDE-2012?
 Que para una carga continua, como un servidor prendido 24 horas, el cable y el interruptor deben aguantar al menos el 125 % de la corriente de la carga. Dicho al revés: la carga no pasa del 80 % del interruptor.
 ? ¿Por qué un minisplit de 1 tonelada no alcanza para 0.85 toneladas de calor?
@@ -622,5 +628,5 @@ Casi nada: ≈ 17 kbit/s en promedio y ≈ 43 kbit/s en la hora pico, ≈ 0.002 
 ? ¿Qué es el BMC y por qué va en una red aparte?
 Un controlador independiente del sistema operativo que enciende, apaga y administra el servidor por red, aunque esté apagado. Da control por debajo del sistema operativo, así que se encierra en una VLAN de gestión sin internet, con VPN y contraseña propia.
 ? ¿Qué gana el despacho con colocation y qué pierde?
-Gana una PUE de ≈ 1.3–1.56 en vez de ≈ 2.0, y circuitos, UPS, planta y aire redundantes que no tiene que cuidar. Pierde cercanía: un enlace que pagar, viajes para tocar el servidor y que los expedientes salgan físicamente de la oficina, lo que hay que revisar contra los contratos con sus clientes.
+Gana una PUE de ≈ 1.3–1.56 en vez de ≈ 2.0, y circuitos, UPS, planta y aire redundantes que no cuida él. Pierde cercanía: un enlace que pagar, viajes, y que los expedientes salgan físicamente de la oficina, lo que hay que revisar contra sus contratos.
 :::
