@@ -15,7 +15,7 @@
     { "id": "p2", "label": "2 · Perfil de carga", "sub": "λ, tokens/s, c", "badge": "2", "kind": "service", "x": 43, "y": 6, "w": 14, "h": 8,
       "note": "El [[perfil-de-carga|perfil de carga]] del pico: 0.208 preguntas por segundo, 1,250 tokens/s de entrada, ≈ 104 de salida y, con la [[ley-de-little|ley de Little]], ≈ 5.7 conversaciones a la vez." },
     { "id": "p3", "label": "3 · Presupuesto", "sub": "2,000 ms en el p95", "badge": "3", "kind": "service", "x": 63, "y": 6, "w": 14, "h": 8,
-      "note": "El [[presupuesto-de-latencia|presupuesto de latencia]]: de los 2,000 ms, ≈ 20 se van en red y gateway y ≈ 150 en buscar fragmentos (supuestos). Quedan ≈ 1,830 ms para la fila y el prefill, y 50 ms por token al escribir." },
+      "note": "El [[presupuesto-de-latencia|presupuesto de latencia]]: de los 2,000 ms, ≈ 20 se van en red y [[gateway-de-llm|gateway]] y ≈ 150 en buscar fragmentos (supuestos). Quedan ≈ 1,830 ms para la fila y el prefill, y 50 ms por token al escribir." },
     { "id": "p4", "label": "4 · Tres techos", "sub": "memoria, ancho, cómputo", "badge": "4", "kind": "gpu", "x": 63, "y": 26, "w": 14, "h": 8,
       "note": "En una L40S: por memoria caben **10** conversaciones; por [[ancho-de-banda|ancho de banda]] se escriben **6** a 20 tokens/s; por cómputo, el [[prefill]] de una pregunta tarda **2.38 s**." },
     { "id": "p5", "label": "5 · Capacidad", "sub": "b = 2 por L40S", "badge": "5", "kind": "gpu", "x": 43, "y": 26, "w": 14, "h": 8,

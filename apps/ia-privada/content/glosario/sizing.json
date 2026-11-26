@@ -25,9 +25,10 @@
       "termino": "Copia del servidor",
       "en": "replica",
       "corto": "Un modelo cargado y atendiendo, en una GPU o en varias que se lo reparten. Para atender a más gente se ponen más copias iguales detrás de un balanceador.",
-      "largo": "Cada copia tiene sus propios pesos en su [[vram|VRAM]] y su propio [[batch]] de conversaciones. Las GPUs de una misma copia se pasan resultados en cada paso (por eso conviene que estén unidas por NVLink); copias distintas no se hablan.",
+      "largo": "Cada copia tiene sus propios pesos en su [[vram|VRAM]] y su propio [[batch]] de conversaciones. Las GPUs de una misma copia se pasan resultados en cada paso (por eso conviene que estén unidas por NVLink); copias distintas no se hablan. Los servidores de inferencia llaman [[replica|réplica]] a cada copia cuando hay varias en [[data-parallel|data parallel]].",
       "analogia": "Las cajas de un súper: cada una cobra sola, y para atender a más gente abres otra caja igual.",
       "ejemplo": "El despacho de los casos: 3 copias de Qwen3 32B en INT4, cada una en su L40S, con hasta 2 conversaciones a 20 tokens por segundo cada una.",
+      "ver": ["replica"],
       "sensei": "balanceo"
     },
     {

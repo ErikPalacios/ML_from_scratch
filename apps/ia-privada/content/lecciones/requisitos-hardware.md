@@ -12,7 +12,7 @@ Dimensionar no es adivinar una GPU: es una receta de siete pasos que cualquiera 
 
 ## «Somos 200 y queremos que sea rápido» {“We are 200 and we want it fast”}
 
-Esta lección sigue a un ejemplo ficticio, **el despacho**: un despacho de abogados en la Ciudad de México que quiere preguntarle a sus 30,000 expedientes con un LLM sin que un solo documento salga de su red. Lo usarían **200 personas**, cada una haría ≈ **15 preguntas al día** entre las 9:00 y las 19:00, y en la hora más cargada llega **2.5 veces** el promedio. Cada pregunta lleva ≈ **6,000 tokens** de entrada (instrucciones, la pregunta y cinco fragmentos de expediente) y la respuesta, ≈ **500**. Quieren el primer token en **2 s o menos en el p95** y al menos **20 tokens por segundo** por persona. El modelo candidato es **Qwen3 32B en INT4 de AWQ**, con el razonamiento apagado. Todos esos números son supuestos del ejemplo; viven en una sola ficha y se usan tal cual.
+Esta lección sigue a un ejemplo ficticio, **el despacho**: un despacho de abogados en la Ciudad de México que quiere preguntarle a sus 30,000 expedientes con un LLM sin que un solo documento salga de su red. Lo usarían **200 personas**, cada una haría ≈ **15 preguntas al día** entre las 9:00 y las 19:00, y en la hora más cargada llega **2.5 veces** el promedio. Cada pregunta lleva ≈ **6,000 tokens** de entrada (instrucciones, la pregunta y cinco fragmentos de expediente) y la respuesta, ≈ **500**. Quieren el primer token en **2 s o menos en el p95** y al menos **20 tokens por segundo** por persona. El modelo candidato es **Qwen3 32B en INT4 de [[awq|AWQ]]**, con el razonamiento apagado. Todos esos números son supuestos del ejemplo; viven en una sola ficha y se usan tal cual.
 
 En la primera reunión nadie dice esas cifras: el socio director dice «somos 200 y queremos que sea rápido». Esta lección es el camino de esa frase a una cotización, y abre por dentro la [herramienta de sizing](/herramientas/sizing/): al final vas a reproducir su resultado, **3 L40S**, y explicar cada número.
 
@@ -20,7 +20,7 @@ En la primera reunión nadie dice esas cifras: el socio director dice «somos 20
 
 Los requisitos **funcionales** dicen *qué* hace el sistema: «contesta sobre los expedientes y cita el documento y la página». Los [[requisito-no-funcional|no funcionales]] (*non-functional requirements*) dicen *qué tan bien*: qué tan rápido, para cuántos, cuántas horas, cuánto puede fallar. «Somos 200 y queremos que sea rápido» son dos no funcionales en lenguaje de sobremesa.
 
-El hardware sale casi entero de los no funcionales: el mismo «contesta con cita» cabe en una laptop si lo usa una persona a la semana, y pide un servidor de rack si lo usan 200 en su hora pico. Y sin número no sirven: «rápido» no se puede comprar.
+El hardware sale casi entero de los no funcionales: el mismo «contesta con cita» cabe en una laptop si lo usa una persona a la semana, y pide un [[servidor-gpu|servidor de rack]] si lo usan 200 en su hora pico. Y sin número no sirven: «rápido» no se puede comprar.
 
 :::analogia El ingeniero civil y el puente
 Un puente no se diseña con «que pase mucha gente». Se diseña con cuántos vehículos por hora, de qué peso, en la hora pico, con un viento máximo, y luego se multiplica por un factor de seguridad. Dimensionar un servidor de LLMs es lo mismo: la carga en números, la capacidad de cada pieza, y un margen.
@@ -191,7 +191,7 @@ El [[presupuesto-de-latencia|presupuesto de latencia]] (*latency budget*) es rep
 :::formula El tiempo al primer token que siente la persona
 TTFT = t_{red} + t_{rec} + t_{cola} + t_{pre}
 t_{cola} + t_{pre} ≤ TTFT_{obj} − t_{red} − t_{rec}
-- t_{red}: la red y el gateway (el programa que va delante de las GPUs: revisa quién pregunta y a qué GPU manda la pregunta), ida y vuelta, en s
+- t_{red}: la red y el [[gateway-de-llm|gateway]] (el programa que va delante de las GPUs: revisa quién pregunta y a qué GPU manda la pregunta), ida y vuelta, en s
 - t_{rec}: la recuperación (*retrieval*): buscar los fragmentos que se parecen a la pregunta, en s
 - t_{cola}: lo que la pregunta espera a que una GPU se desocupe para leerla, en s
 - t_{pre}: el prefill de la pregunta con la GPU libre, en s
@@ -224,7 +224,7 @@ Los percentiles no se suman ([Promedios, medianas y percentiles](https://sensei.
 
 ## Paso 4: los tres techos de una GPU {Step 4: the three ceilings of a GPU}
 
-Ahora se cambia de lado: lo que aguanta **una** GPU. Lo aguanta con tres recursos, y cada uno pone su techo. Los viste por partes: la memoria en [¿Cabe en la GPU?](/herramientas/vram/), el ancho de banda y el prefill en [batching](/batching/) y [concurrencia](/concurrencia/). Aquí van lado a lado para dos GPUs: la **L40S** de 48 GB (864 GB/s, 362.05 TFLOPS densos en FP16, del [catálogo](/herramientas/catalogo/)) y la **RTX PRO 6000 Blackwell Server Edition** de 96 GB, la variante pasiva de rack que [Comprar hardware](/comprar-hardware/) propone como alternativa. NVIDIA publica para ella 1,597 GB/s y «1 PFLOP» en FP16 sin decir si cuenta la [[sparsity]] (página consultada en noviembre de 2026); comparada con la Workstation Edition, del mismo chip, el pico denso es ≈ **500 TFLOPS**, un valor derivado. El catálogo trae la Workstation Edition, de torre (1,792 GB/s): no las confundas.
+Ahora se cambia de lado: lo que aguanta **una** GPU. Lo aguanta con tres recursos, y cada uno pone su techo. Los viste por partes: la memoria en [¿Cabe en la GPU?](/herramientas/vram/), el ancho de banda y el prefill en [batching](/batching/) y [concurrencia](/concurrencia/). Aquí van lado a lado para dos GPUs: la **L40S** de 48 GB (864 GB/s, 362.05 TFLOPS densos en FP16, del [catálogo](/herramientas/catalogo/)) y la **RTX PRO 6000 Blackwell Server Edition** de 96 GB, la [[tarjeta-pasiva|variante pasiva]] de rack que [Comprar hardware](/comprar-hardware/) propone como alternativa. NVIDIA publica para ella 1,597 GB/s y «1 PFLOP» en FP16 sin decir si cuenta la [[sparsity]] (página consultada en noviembre de 2026); comparada con la Workstation Edition, del mismo chip, el pico denso es ≈ **500 TFLOPS**, un valor derivado. El catálogo trae la Workstation Edition, de torre (1,792 GB/s): no las confundas.
 
 **Techo 1, la memoria: cuántas conversaciones caben.** Lo que queda de la [[vram|VRAM]] después de los [[pesos]] y del programa, entre el [[kv-cache|KV cache]] de una conversación.
 
@@ -240,7 +240,7 @@ b_{anch} = ⌊ frac{1 ÷ v − a_0}{a_1} ⌋
 t_{pre} = frac{2 × A × N_p + 2 × L × h × d × N_p^2}{η_c × F}
 λ_{máx} = frac{1}{t_{pre}}
 - M: la VRAM, en GB; f: el margen que deja libre el servidor (0.1); M_{prog}: el programa que sirve el modelo (2 GB)
-- W: los pesos, en GB (19.32 en Qwen3 32B en INT4 de AWQ)
+- W: los pesos, en GB (19.32 en Qwen3 32B en INT4 de [[awq|AWQ]])
 - m: los bytes de KV cache por token (256 KiB en Qwen3 32B); N_{tope}: el tope de contexto (8,192)
 - b_{mem}: las conversaciones que caben; ⌊ ⌋ redondea hacia abajo
 - B: el ancho de banda; η_m: la [[eficiencia|eficiencia]] de memoria (0.7, supuesta)
@@ -321,7 +321,7 @@ Server Edition: \(b_{vel}\) | ⌊(1 − 0.346) ÷ (0.0293 + 0.0690)⌋ = ⌊6.66
 De cada segundo de la L40S, el **64 %** se va en leer los pesos 20 veces. Queda el 36 %, y cada conversación se come casi 15 % (5.4 de decode y 9.5 de prefill): caben dos. (La herramienta también calcula un techo de cómputo del decode, 9.6 en la L40S, que aquí no manda.)
 
 :::ojo
-\(b\) = 2 **no es el tope** que se le pone al motor: es cuántas conversaciones lleva **en promedio** cada L40S a ≥ 20 tokens por segundo, y sirve para contar GPUs. El tope del motor (`--max-num-seqs` en vLLM; el comando de [Del laptop al servidor](/stack-serving/) usa 8, el número de diseño) va más alto a propósito: con 2, la tercera pregunta de esa GPU esperaría hasta ≈ 27 s, lo que dura una respuesta. Con 8, en un momento lleno todas escriben un rato más despacio (8 escribiendo, sin prompts nuevos: ≈ 18.6 tokens por segundo) y nadie espera para empezar.
+\(b\) = 2 **no es el tope** que se le pone al motor: es cuántas conversaciones lleva **en promedio** cada L40S a ≥ 20 tokens por segundo, y sirve para contar GPUs. El tope del motor (`--max-num-seqs` en [[vllm|vLLM]]; el comando de [Del laptop al servidor](/stack-serving/) usa 8, el número de diseño) va más alto a propósito: con 2, la tercera pregunta de esa GPU esperaría hasta ≈ 27 s, lo que dura una respuesta. Con 8, en un momento lleno todas escriben un rato más despacio (8 escribiendo, sin prompts nuevos: ≈ 18.6 tokens por segundo) y nadie espera para empezar.
 :::
 
 ### El cuello de botella
@@ -346,7 +346,7 @@ Con la carga (\(c\)) y la capacidad por GPU (\(b\)), lo primero es dividir y red
 
 ### Holgura: no llenar al 100 %
 
-La [[holgura|holgura]] (*headroom*) es la capacidad que se deja sin usar a propósito, y se mide como capacidad ÷ demanda. [Latencia y throughput](https://sensei.trueml.app/latencia/) explica qué paga (el p99 lejos del codo, la caída de una réplica, el error de la medición) y da su regla práctica para un servicio en línea: planear a ≈ 50–70 % de la capacidad medida. No hay un porcentaje oficial; los libros de SRE de Google piden reservar capacidad para sobrecargas y redundancia sin dar un número. Aquí se usa una **utilización máxima** \(u_{máx}\) de 70 % en la hora pico, un supuesto en el borde menos exigente de esa regla. Con un LLM hay una razón más para no apretarla: \(b\) está **calculada** con eficiencias supuestas, no medida.
+La [[holgura|holgura]] (*headroom*) es la capacidad que se deja sin usar a propósito, y se mide como capacidad ÷ demanda. [Latencia y throughput](https://sensei.trueml.app/latencia/) explica qué paga (el p99 lejos del codo, la caída de una [[replica|réplica]], el error de la medición) y da su regla práctica para un servicio en línea: planear a ≈ 50–70 % de la capacidad medida. No hay un porcentaje oficial; los libros de SRE de Google piden reservar capacidad para sobrecargas y redundancia sin dar un número. Aquí se usa una **utilización máxima** \(u_{máx}\) de 70 % en la hora pico, un supuesto en el borde menos exigente de esa regla. Con un LLM hay una razón más para no apretarla: \(b\) está **calculada** con eficiencias supuestas, no medida.
 
 ### N+1: que una falla no tumbe el servicio
 
@@ -506,7 +506,7 @@ for nombre, prefill, copias in (("3 L40S", 2.38, 3), ("4 L40S", 2.38, 4),
 
 **Al azar, ninguna opción cumple.** 3 L40S: ≈ 4.2 s, más del doble de la promesa; una cuarta apenas lo baja a ≈ 3.9 s. 2 Server Edition: ≈ 3.1 s. Las GPUs pasan solo 16–18 % del tiempo en prefills, y aun así la mala suerte de las llegadas le pega a 1 de cada 20.
 
-**Lo que importa es qué mira el balanceador.** Por turno o viendo la fila, el p95 de 3 L40S queda en 2.38 s: el prefill solo. Contar las peticiones abiertas ayuda menos (≈ 3.3 s): de las ≈ 2 abiertas de cada GPU, casi siempre todas están escribiendo, que apenas estorba a un prompt nuevo, y el conteo no distingue un prompt a medio leer. Por turno funciona aquí porque las preguntas pesan casi igual y las GPUs son iguales; fuera de eso, no hay garantía. Viendo la fila lo puede hacer un gateway, que ve cuándo sale el primer token. Ojo con lo de fábrica: LiteLLM, el gateway de [esa lección](/gateway/), reparte al azar si no se le dice otra cosa (`simple-shuffle`), y su `least-busy` es «menos abiertas» (su documentación, a noviembre de 2026). Es la palanca más barata, y no es del hardware.
+**Lo que importa es qué mira el balanceador.** Por turno o viendo la fila, el p95 de 3 L40S queda en 2.38 s: el prefill solo. Contar las peticiones abiertas ayuda menos (≈ 3.3 s): de las ≈ 2 abiertas de cada GPU, casi siempre todas están escribiendo, que apenas estorba a un prompt nuevo, y el conteo no distingue un prompt a medio leer. Por turno funciona aquí porque las preguntas pesan casi igual y las GPUs son iguales; fuera de eso, no hay garantía. Viendo la fila lo puede hacer un [[gateway-de-llm|gateway]], que ve cuándo sale el primer token. Ojo con lo de fábrica: LiteLLM, el gateway de [esa lección](/gateway/), reparte al azar si no se le dice otra cosa (`simple-shuffle`), y su `least-busy` es «menos abiertas» (su documentación, a noviembre de 2026). Es la palanca más barata, y no es del hardware.
 
 **Con la L40S, el piso es el prefill.** Ningún reparto baja de 2.38 s: con L40S y prompts de 6,000 tokens la promesa no se cumple, como ya dice la ficha del despacho. Con 2 Server Edition bien repartidas, 1.77 s; con los 170 ms supuestos de red y búsqueda, ≈ 1.94 s: en el filo, y en un modelo que deja cosas fuera. Es una razón para cotizarla, no una garantía.
 
@@ -515,7 +515,7 @@ El TTFT de cada opción contra la promesa de 2 s: sin fila, el p95 repartiendo v
 :::
 
 :::ojo
-Es un modelo simple y deja fuera tres cosas. En vLLM, con [[batching-continuo|batching continuo]] y [[chunked-prefill|chunked prefill]], el prefill se mezcla con el decode de las demás y tarda un poco más que con la GPU sola. No tiene ráfagas: si en la hora pico llegara el doble, el p95 de 3 L40S subiría a ≈ 5.3 s al azar y a ≈ 2.9 s viendo la fila (simulado). Y todos los prompts miden lo mismo: si varían ≈ 30 %, el p95 sube con cualquier reparto (≈ 3.7 s en 3 L40S viendo la fila). Nada de esto cambia la ficha: 3 L40S sigue siendo el resultado del sizing y la Server Edition, la alternativa por cotizar. El p95 de verdad lo mide la prueba de carga del piloto, tema de la lección «Pruebas de carga y benchmarks honestos».
+Es un modelo simple y deja fuera tres cosas. En [[vllm|vLLM]], con [[batching-continuo|batching continuo]] y [[chunked-prefill|chunked prefill]], el prefill se mezcla con el decode de las demás y tarda un poco más que con la GPU sola. No tiene ráfagas: si en la hora pico llegara el doble, el p95 de 3 L40S subiría a ≈ 5.3 s al azar y a ≈ 2.9 s viendo la fila (simulado). Y todos los prompts miden lo mismo: si varían ≈ 30 %, el p95 sube con cualquier reparto (≈ 3.7 s en 3 L40S viendo la fila). Nada de esto cambia la ficha: 3 L40S sigue siendo el resultado del sizing y la Server Edition, la alternativa por cotizar. El p95 de verdad lo mide la prueba de carga del piloto, tema de la lección «Pruebas de carga y benchmarks honestos».
 :::
 
 ### Las palancas, de la más barata a la más cara
@@ -576,9 +576,9 @@ Los cambios que el despacho va a preguntar, con las fórmulas de la herramienta:
 
 **Subir la velocidad a 30 tokens por segundo.** En la L40S, leer los pesos 30 veces ya se come el 96 % de cada segundo: no queda lugar ni para una conversación. La Server Edition atiende 3, y hacen falta 2. Pedir más velocidad de escritura castiga mucho más a las GPUs de poco ancho de banda.
 
-**Qwen3 30B-A3B, un MoE.** Un modelo de mezcla de expertos ([[moe|MoE]]): de sus ≈ 30.5 mil millones de parámetros, cada token usa ≈ 3.3 mil millones (sus [[parametros-activos|parámetros activos]]). En INT4 de AWQ pesa ≈ 16.8 GB y su prefill en la L40S baja a ≈ 0.3 s. La capacidad por L40S es incierta: ≈ 29 si cada paso lee solo los expertos que usa (lo que supone la herramienta) y ≈ 13 si, con muchas conversaciones, termina leyendo casi todos. Con cualquiera de las dos, la cuenta cabría en una sola L40S. **Eso no quiere decir que al despacho le baste una L40S**: el despacho eligió Qwen3 32B, y con él son 3. Cambiar de modelo no es una decisión de hardware. Primero el modelo nuevo tiene que pasar el examen de 200 preguntas (≥ 85 % bien y con la cita correcta, como pide la ficha); solo entonces se rehace el sizing con él y se mide en el piloto. Cómo se compara, en [Elegir un modelo para la tarea](/elegir-modelo/).
+**Qwen3 30B-A3B, un MoE.** Un modelo de mezcla de expertos ([[moe|MoE]]): de sus ≈ 30.5 mil millones de parámetros, cada token usa ≈ 3.3 mil millones (sus [[parametros-activos|parámetros activos]]). En INT4 de [[awq|AWQ]] pesa ≈ 16.8 GB y su prefill en la L40S baja a ≈ 0.3 s. La capacidad por L40S es incierta: ≈ 29 si cada paso lee solo los expertos que usa (lo que supone la herramienta) y ≈ 13 si, con muchas conversaciones, termina leyendo casi todos. Con cualquiera de las dos, la cuenta cabría en una sola L40S. **Eso no quiere decir que al despacho le baste una L40S**: el despacho eligió Qwen3 32B, y con él son 3. Cambiar de modelo no es una decisión de hardware. Primero el modelo nuevo tiene que pasar el examen de 200 preguntas (≥ 85 % bien y con la cita correcta, como pide la ficha); solo entonces se rehace el sizing con él y se mide en el piloto. Cómo se compara, en [Elegir un modelo para la tarea](/elegir-modelo/).
 
-**Llama 3.3 70B.** En FP8 pesa ≈ 72.7 GB: no cabe en una L40S y hacen falta 2 por copia ([Varias GPUs: tensor y pipeline parallel](/varias-gpus/)). Aun así, leer 72.7 GB por paso con el ancho de banda de las dos tarda ≈ 60 ms, más de los 50 ms de la promesa: **ni una conversación** llega a 20 tokens por segundo. En una Server Edition sola, ≈ 65 ms: tampoco. En INT4 de AWQ (≈ 39.8 GB) sí: **6 L40S** (3 copias de 2), 6 Server Edition (capacidad de 1, por un prefill de ≈ 3.6 s) o **1 H100 SXM**. Las cuentas con 2 GPUs por copia suponen que repartir el modelo no cuesta; con PCIe sí, y la lección de varias GPUs lo mide.
+**Llama 3.3 70B.** En [[fp8-dinamico|FP8]] pesa ≈ 72.7 GB: no cabe en una L40S y hacen falta 2 por [[replica|copia]] ([Varias GPUs: tensor y pipeline parallel](/varias-gpus/)). Aun así, leer 72.7 GB por paso con el ancho de banda de las dos tarda ≈ 60 ms, más de los 50 ms de la promesa: **ni una conversación** llega a 20 tokens por segundo. En una Server Edition sola, ≈ 65 ms: tampoco. En INT4 de AWQ (≈ 39.8 GB) sí: **6 L40S** (3 copias de 2), 6 Server Edition (capacidad de 1, por un prefill de ≈ 3.6 s) o **1 H100 SXM**. Las cuentas con 2 GPUs por copia suponen que repartir el modelo no cuesta; con PCIe sí, y la lección de varias GPUs lo mide.
 
 :::nota La regla de bolsillo
 Para cada cambio, pregunta qué letra mueve. Tokens de entrada: \(t_{pre}\) y \(a_1\). Velocidad: el \(v × a_0\) fijo. Modelo: \(W\), \(A\) y \(m\). Tráfico: solo \(c\). Las GPUs siguen al techo que se movió.
@@ -598,7 +598,7 @@ Al socio director no se le enseñan fórmulas, sino una página que aguante que 
 
 - **NVIDIA** («LLM Inference Benchmarking: How Much Does Your LLM Inference Cost?») sigue el mismo camino: medir la curva de rendimiento contra latencia de una unidad de despliegue, quedarse con el mejor punto que cumple la latencia, estimar el pico de peticiones por segundo (usuarios no es concurrencia) y dividir. Ahí la capacidad por instancia **se mide**; aquí se calcula como primera estimación.
 - **Databricks** («LLM Inference Performance Engineering: Best Practices») explica que el decode a lotes chicos lo predice el ancho de banda de memoria, y define su utilización (*MBU*) igual que \(η_m\). En su ejemplo de 7 mil millones de parámetros sale ≈ 50 %: el 0.7 de la herramienta es un supuesto, no esa medición.
-- **Red Hat** publicó en MLPerf Inference v4.1 un servidor con **4 L40S** sirviendo Llama 2 70B en FP8 con vLLM 0.5.1, como dos réplicas de 2 L40S: 1,469 tokens por segundo a 4.97 peticiones por segundo con TTFT ≤ 2 s y 200 ms por token. La herramienta con ese modelo da el mismo orden de magnitud, pero la fuente no da el largo de los prompts, y sin él no se puede validar a ±20 %: no la contradice ni la confirma.
+- **Red Hat** publicó en MLPerf Inference v4.1 un servidor con **4 L40S** sirviendo Llama 2 70B en FP8 con [[vllm|vLLM]] 0.5.1, como dos [[replica|réplicas]] de 2 L40S: 1,469 tokens por segundo a 4.97 peticiones por segundo con TTFT ≤ 2 s y 200 ms por token. La herramienta con ese modelo da el mismo orden de magnitud, pero la fuente no da el largo de los prompts, y sin él no se puede validar a ±20 %: no la contradice ni la confirma.
 - **Un blog de Hugging Face** (junio de 2026, de un tercero) midió Gemma-4 31B en FP8 con vLLM 0.20 en una RTX PRO 6000 de 96 GB (sin decir cuál variante): con 12 a 24 peticiones a la vez, TTFT de 0.73 s en el p50 y **2.82 s en el p95**. El p95 casi cuatro veces el p50: la misma lección de la cola, medida.
 
 Ninguno es el número del despacho (otro modelo, otra cuantización, otros prompts): sirven para decir «el método es el estándar y el orden de magnitud cuadra», no para sustituir la medición con el perfil propio (por ejemplo, con `vllm bench serve`), tema de la lección «Pruebas de carga y benchmarks honestos».
@@ -648,7 +648,7 @@ Con 5 fragmentos: la capacidad pide 3 L40S y N+1 pide 4; viendo la fila, el p95 
 
 - **[Varias GPUs: tensor y pipeline parallel](/varias-gpus/)** contesta lo que esta lección dejó abierto: si las 3 L40S del despacho llevan una copia del modelo cada una o reparten uno solo, y qué cuesta repartir un modelo grande como Llama 3.3 70B entre GPUs conectadas por PCIe.
 - **[Del laptop al servidor: llama.cpp, Ollama, vLLM, SGLang y TensorRT-LLM](/stack-serving/)** pone el número en un programa: qué motor corre en esas GPUs y qué perillas fijan cuántas conversaciones acepta.
-- **[Gateway, API compatible con OpenAI, autenticación y varios modelos](/gateway/)** es donde vive el reparto «viendo la fila» que más bajó el p95, junto con las cuotas por persona que salen de la capacidad de este sizing.
+- **[Gateway, API compatible con OpenAI, autenticación y varios modelos](/gateway/)** es donde vive el reparto «viendo la fila» que más bajó el p95, junto con las [[cuota-de-tokens|cuotas por persona]] que salen de la capacidad de este sizing.
 - **«Pruebas de carga y benchmarks honestos»** mide lo que aquí se calculó: el p95 real, las eficiencias reales, la curva del despacho.
 - La [herramienta de sizing](/herramientas/sizing/) hace los pasos 2, 4, 5 y el mínimo del 6 para cualquier GPU del catálogo, y la de [TCO](/herramientas/tco/) les pone precio.
 - En Sensei: [Promedios, medianas y percentiles](https://sensei.trueml.app/percentiles/) para leer un p95 sin engañarte, y [Números grandes, unidades y estimaciones](https://sensei.trueml.app/unidades/) para las cuentas de servilleta de los pasos 1 y 2.

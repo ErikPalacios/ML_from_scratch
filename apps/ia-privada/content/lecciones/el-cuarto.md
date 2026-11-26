@@ -492,7 +492,7 @@ Lo que sí mueve bytes en serio son las tareas de vez en cuando. Bajar los pesos
 
 Las 4 L40S se conectan a las CPUs por **PCIe Gen4 x16**, que da 64 GB/s sumando los dos sentidos. La L40S **no tiene NVLink**, la conexión directa entre GPUs que tienen las [[sxm|SXM]]. Qué es cada uno y cuánto da lo ves en [CPU y GPU](https://sensei.trueml.app/cpu-gpu/).
 
-Para el despacho eso no importa: el modelo **cabe en la memoria de una L40S** (pesos de 19.32 GB más el KV cache de sus conversaciones, en 48 GB). Cada GPU tiene su propia [[copia-del-servidor|copia del modelo]] y atiende sus conversaciones sola; un balanceador (un programa que manda cada pregunta a la GPU menos ocupada) las reparte. Cuando un modelo no cabe en una GPU y hay que partirlo entre varias, que se pasan resultados en cada capa, la conexión entre GPUs sí manda. Eso es el *tensor parallel*, el tema de la lección «Varias GPUs: tensor y pipeline parallel».
+Para el despacho eso no importa: el modelo **cabe en la memoria de una L40S** (pesos de 19.32 GB más el KV cache de sus conversaciones, en 48 GB). Cada GPU tiene su propia [[copia-del-servidor|copia del modelo]] y atiende sus conversaciones sola; un balanceador (un programa que manda cada pregunta a la GPU menos ocupada) las reparte. Cuando un modelo no cabe en una GPU y hay que partirlo entre varias, que se pasan resultados en cada capa, la conexión entre GPUs sí manda. Eso es el *tensor parallel*, el tema de la lección «[Varias GPUs: tensor y pipeline parallel](/varias-gpus/)».
 
 ### Entre servidores: RDMA e InfiniBand
 
@@ -597,7 +597,7 @@ Corriente: 14,300 ÷ (220 × 0.95) ≈ **68 A**; × 1.25 ≈ **86 A**: fuera de 
 ## Lo que sigue {What comes next}
 
 - **«[Comprar hardware: de la workstation al rack](/comprar-hardware/)»** decide qué servidor entra al cuarto; su [[tdp|TDP]] y sus fuentes son los números de entrada de esta lección.
-- **«Varias GPUs: tensor y pipeline parallel»**: cuándo un modelo se parte entre GPUs, y por qué ahí sí importan NVLink, RDMA e InfiniBand.
+- **«[Varias GPUs: tensor y pipeline parallel](/varias-gpus/)»**: cuándo un modelo se parte entre GPUs, y por qué ahí sí importan NVLink, RDMA e InfiniBand.
 - **«Observabilidad de GPUs e inferencia»** vigila lo que aquí se pide medir: potencia, temperatura y reloj.
 - **«Seguridad: aislamiento, sin internet y actualizaciones»** sigue con la red de gestión, el BMC y lo que cambia si el servidor se va a colocation.
 - **«TCO: API, nube o servidor propio»** mete la luz, el UPS, el aire y el colocation en la comparación completa; mientras, usa la [herramienta de costo total](/herramientas/tco/).

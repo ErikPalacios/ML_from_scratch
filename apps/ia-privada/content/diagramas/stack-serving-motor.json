@@ -9,9 +9,9 @@
   ],
   "nodes": [
     { "id": "cliente", "label": "Cliente", "sub": "chat o gateway", "kind": "client", "x": 4, "y": 3, "w": 18, "h": 6.5,
-      "note": "La interfaz de chat del despacho, o el gateway que va delante. Manda la pregunta como JSON y recibe la respuesta en pedazos. Qué más hace el gateway es tema de su propia lección." },
+      "note": "La interfaz de chat del despacho, o el [[gateway-de-llm|gateway]] que va delante. Manda la pregunta como JSON y recibe la respuesta en pedazos. Qué más hace el gateway es tema de su propia lección." },
     { "id": "http", "label": "Servidor HTTP", "sub": "compatible con OpenAI", "kind": "edge", "x": 4, "y": 20, "w": 18, "h": 8,
-      "note": "El servidor compatible con OpenAI: escucha en un puerto (8000 en vLLM), revisa la clave si se la pusiste y convierte el JSON en una petición interna. De regreso, manda cada token en cuanto existe (streaming)." },
+      "note": "El [[api-compatible-openai|servidor compatible con OpenAI]]: escucha en un puerto (8000 en vLLM), revisa la clave si se la pusiste y convierte el JSON en una petición interna. De regreso, manda cada token en cuanto existe (streaming)." },
     { "id": "plantilla", "label": "Plantilla y tokenizador", "sub": "mensajes → tokens", "kind": "service", "x": 30, "y": 20, "w": 18, "h": 8,
       "note": "La [[plantilla-de-chat|plantilla de chat]] pega los mensajes en un solo texto con marcas especiales (y en Qwen3 decide si el modelo piensa); el tokenizador lo vuelve ≈ 6,000 ids de tokens." },
     { "id": "scheduler", "label": "Scheduler", "sub": "arma el batch de cada paso", "kind": "service", "x": 56, "y": 20, "w": 18, "h": 8,
@@ -21,7 +21,7 @@
     { "id": "paso", "label": "Paso del modelo", "sub": "kernels + CUDA graph", "kind": "gpu", "x": 30, "y": 37, "w": 18, "h": 8,
       "note": "La GPU corre cientos de kernels: el [[prefill|prefill]] de las nuevas (o un trozo) y un token de [[decode|decode]] de cada una. En el decode, un [[cuda-graph|CUDA graph]] le ahorra a la CPU lanzar los kernels uno por uno." },
     { "id": "pesos", "label": "Pesos", "sub": "≈ 19.32 GB en AWQ", "kind": "store", "x": 30, "y": 53, "w": 18, "h": 8,
-      "note": "Los [[pesos]] de Qwen3 32B en INT4 de AWQ, cargados una vez al arrancar. Cada paso los lee todos: por eso el decode espera a la memoria." },
+      "note": "Los [[pesos]] de Qwen3 32B en INT4 de [[awq|AWQ]], cargados una vez al arrancar. Cada paso los lee todos: por eso el decode espera a la memoria." },
     { "id": "sampler", "label": "Sampler", "sub": "elige el token", "kind": "service", "x": 4, "y": 37, "w": 18, "h": 8,
       "note": "De las puntuaciones de la última capa elige un token según la temperatura de la petición, lo vuelve texto y lo entrega al servidor. Se repite hasta el token de fin o el tope." }
   ],

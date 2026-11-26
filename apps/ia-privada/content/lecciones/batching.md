@@ -431,7 +431,7 @@ Avg prompt throughput: 1250.0 tokens/s, Avg generation throughput: 150.0 tokens/
 
 También lo cuenta en sus métricas, el contador `vllm:num_preemptions`. (La documentación todavía muestra un aviso del motor anterior, «Sequence group 0 is preempted by PreemptionMode.RECOMPUTE mode…»: en el código de la 0.34.0 ya no existe, así que no lo busques en su registro.)
 
-Unos cuantos desalojos en la hora pico son normales: es el servidor estirando la memoria al máximo. Muchos seguidos quieren decir que el servidor está metiendo más conversaciones de las que le caben, y cada preemption es trabajo repetido. Los remedios que da la documentación de vLLM: darle más memoria al KV cache (el parámetro `gpu_memory_utilization`), bajar el máximo de conversaciones a la vez (`max_num_seqs`) o de tokens por paso (`max_num_batched_tokens`), o repartir el modelo entre más GPUs (eso es la lección «Varias GPUs: tensor y pipeline parallel»).
+Unos cuantos desalojos en la hora pico son normales: es el servidor estirando la memoria al máximo. Muchos seguidos quieren decir que el servidor está metiendo más conversaciones de las que le caben, y cada preemption es trabajo repetido. Los remedios que da la documentación de vLLM: darle más memoria al KV cache (el parámetro `gpu_memory_utilization`), bajar el máximo de conversaciones a la vez (`max_num_seqs`) o de tokens por paso (`max_num_batched_tokens`), o repartir el modelo entre más GPUs (eso es la lección «[Varias GPUs: tensor y pipeline parallel](/varias-gpus/)»).
 
 :::ojo
 La preemption no es un error ni un mensaje que haya que apagar. Es la consecuencia directa de no reservar el máximo: a cambio de meter 13 conversaciones donde con reserva cabían 10, a veces una tiene que esperar. Si en el despacho aparece seguido, la respuesta no es «subir el límite», es medir: ¿cuántas conversaciones a la vez hay de verdad en la hora pico, y cuánto contexto traen?
@@ -479,7 +479,7 @@ Las cifras publicadas vienen de SARATHI (2023), que propuso armar lotes con un t
 
 ## Lo que imprime el servidor y sus perillas {What the server prints and its knobs} [extra]
 
-El servidor vLLM tiene su propia lección («Del laptop al servidor: llama.cpp, Ollama, vLLM, SGLang y TensorRT-LLM»). Aquí solo lo que toca a esta: cómo leer lo que dice al arrancar y qué perillas mueven lo que viste.
+El servidor vLLM tiene su propia lección («[Del laptop al servidor: llama.cpp, Ollama, vLLM, SGLang y TensorRT-LLM](/stack-serving/)»). Aquí solo lo que toca a esta: cómo leer lo que dice al arrancar y qué perillas mueven lo que viste.
 
 ### La línea que hay que buscar
 
@@ -505,7 +505,7 @@ El primer número son los tokens de KV cache que caben (bloques × tokens por bl
 Tres lecturas para el despacho:
 
 - **`max_num_seqs` = 256 no es su límite.** Con su memoria caben ≈ 13 conversaciones; el límite real es el KV cache, y lo pone el gestor de bloques, no esta perilla. Bajarla sirve para proteger la velocidad por persona: con 13 en [[decode|decode]], cada una vería ≈ 15 tokens por segundo; sin tope, el servidor metería todas las que le quepan.
-- **`gpu_memory_utilization` cambió entre versiones.** La herramienta de VRAM usa un margen del 10 % (el 0.9 de antes); la versión 0.34.0 usa otra regla. Lo que importa es fijar el valor a mano, anotarlo y confirmar con la línea de arranque cuánto KV cache quedó.
+- **`gpu_memory_utilization` cambió entre versiones.** La herramienta de VRAM usa un margen del 10 % (el 0.9 de antes); la versión 0.34.0 usa otra regla. Lo que importa es fijar la versión, no poner el valor (salvo que otro programa comparta la GPU: las notas de la 0.34.0, del 16 de noviembre de 2026, recomiendan quitar el flag, y [Del laptop al servidor](/stack-serving/) lo explica) y confirmar con la línea de arranque cuánto KV cache quedó.
 - **El tamaño de bloque efectivo hay que verlo, no suponerlo.** Cambia entre versiones y según el backend de atención; si vLLM lo cambia, lo dice al arrancar («Setting kv cache block size to …»). Para lo que cuenta esta lección (el desperdicio por conversación) da casi igual: con 64 tokens, el último bloque desperdicia en promedio 32 tokens, 8 MiB, todavía menos del 1 %.
 
 :::ojo
@@ -564,7 +564,7 @@ De bueno: si **todas** las conversaciones llegaran al tope de 8,192 tokens a la 
 - **[Concurrencia: la curva de usuarios contra latencia](/concurrencia/)**, la siguiente lección de este módulo, toma lo que viste aquí (el paso que se alarga con cada conversación, la memoria que pone el tope) y lo convierte en la curva que se dibuja en una prueba de carga: cuántas personas a la vez, cuánto tardan en ver el primer token y cada token, y dónde está el [[codo|codo]].
 - **«[Formatos de cuantización en la práctica](/formatos-cuantizacion/)»** mide lo que cuesta en calidad bajar los pesos o el KV cache a menos bits, la palanca más directa para leer menos bytes por paso.
 - **«[Speculative decoding y contexto largo](/speculative/)»** ataca el mismo límite desde otro lado: hacer que cada lectura de los pesos produzca más de un token por conversación.
-- **«Del laptop al servidor: llama.cpp, Ollama, vLLM, SGLang y TensorRT-LLM»** pone estas ideas en programas concretos: cuáles hacen batching continuo, cuáles PagedAttention y cuáles no.
+- **«[Del laptop al servidor: llama.cpp, Ollama, vLLM, SGLang y TensorRT-LLM](/stack-serving/)»** pone estas ideas en programas concretos: cuáles hacen batching continuo, cuáles PagedAttention y cuáles no.
 - En Sensei: [Matrices y FLOPs](https://sensei.trueml.app/flops/) tiene el [[roofline|roofline]] completo, y [Latencia y throughput](https://sensei.trueml.app/latencia/) las colas que explican por qué la espera crece cuando la GPU se llena.
 
 ## Palabras que vas a oír {Words you'll hear}

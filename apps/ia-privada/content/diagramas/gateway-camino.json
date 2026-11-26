@@ -35,12 +35,12 @@
     {
       "id": "v1", "label": "vLLM · L40S 1", "sub": "copia 1", "kind": "gpu",
       "x": 2, "y": 45, "w": 18, "h": 9,
-      "note": "Un servidor vLLM con una copia completa de Qwen3 32B en INT4 de AWQ. Atiende bien ≈ 2 conversaciones a 20 tokens por segundo. Su puerto **solo** lo alcanza el gateway."
+      "note": "Un servidor [[vllm|vLLM]] con una copia completa de Qwen3 32B en INT4 de [[awq|AWQ]]. Atiende bien ≈ 2 conversaciones a 20 tokens por segundo. Su puerto **solo** lo alcanza el gateway."
     },
     {
       "id": "v2", "label": "vLLM · L40S 2", "sub": "copia 2", "badge": "5", "kind": "gpu",
       "x": 30, "y": 45, "w": 18, "h": 9,
-      "note": "La segunda copia, idéntica. Que sean tres copias independientes (y no un modelo partido entre tres GPUs) se explica en [Varias GPUs](/varias-gpus/)."
+      "note": "La segunda copia, idéntica. Que sean tres [[replica|copias]] independientes (y no un modelo partido entre tres GPUs) se explica en [Varias GPUs](/varias-gpus/)."
     },
     {
       "id": "v3", "label": "vLLM · L40S 3", "sub": "copia 3", "kind": "gpu",
@@ -66,8 +66,8 @@
         { "nodes": ["abogada", "webui"], "edges": ["abogada>webui"], "text": "**2 · Preguntar.** Escribe «¿El contrato del expediente 4127 permite ceder los derechos?». Open WebUI arma un `POST /v1/chat/completions` con `stream: true`, unos ≈ 6,000 tokens de entrada en total." },
         { "nodes": ["webui", "gateway"], "edges": ["webui>gateway"], "text": "**3 · La puerta.** Open WebUI entra al gateway con **su** clave de servicio y le pasa el Id de la abogada en un encabezado. El gateway revisa la clave, busca la cuota de esa persona y reserva los tokens. Si no le alcanza, contesta **429** con `Retry-After` y la GPU ni se entera." },
         { "nodes": ["gateway", "v2"], "edges": ["gateway>v2"], "text": "**4 · La ruta.** El nombre que pidió la app es `chat-grande`; detrás hay tres copias. El gateway elige una (aquí la 2) y le reenvía la request tal cual: es el [[enrutamiento-de-modelos|enrutamiento]]." },
-        { "nodes": ["v2", "gateway", "webui", "abogada"], "edges": ["gateway>v2", "webui>gateway", "abogada>webui"], "text": "**5 · El stream de vuelta.** vLLM lee los 6,000 tokens (≈ 2.4 s sin fila) y empieza a escribir. Cada pedazo viaja como un evento [[streaming-sse|SSE]] por el gateway y por Open WebUI sin detenerse: ninguno debe juntar pedazos. El gateway agrega milisegundos a un camino que tarda segundos." },
-        { "nodes": ["gateway", "registro"], "edges": ["gateway>registro"], "text": "**6 · La fila.** Al terminar, el último pedazo trae `usage`: 6,012 de entrada y 480 de salida, por ejemplo. El gateway ajusta la cuota con lo real y escribe la fila: Id, hora, `chat-grande`, réplica 2, tokens, 26.9 s, `stop`. **Sin el texto.**" }
+        { "nodes": ["v2", "gateway", "webui", "abogada"], "edges": ["gateway>v2", "webui>gateway", "abogada>webui"], "text": "**5 · El stream de vuelta.** [[vllm|vLLM]] lee los 6,000 tokens (≈ 2.4 s sin fila) y empieza a escribir. Cada pedazo viaja como un evento [[streaming-sse|SSE]] por el gateway y por Open WebUI sin detenerse: ninguno debe juntar pedazos. El gateway agrega milisegundos a un camino que tarda segundos." },
+        { "nodes": ["gateway", "registro"], "edges": ["gateway>registro"], "text": "**6 · La fila.** Al terminar, el último pedazo trae `usage`: 6,012 de entrada y 480 de salida, por ejemplo. El gateway ajusta la cuota con lo real y escribe la fila: Id, hora, `chat-grande`, [[replica|réplica]] 2, tokens, 26.9 s, `stop`. **Sin el texto.**" }
       ]
     }
   ]

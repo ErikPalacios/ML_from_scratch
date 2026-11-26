@@ -697,7 +697,7 @@ Miden cosas distintas: MMLU contra MMLU-Redux (otro conjunto de preguntas, corre
 ## Lo que sigue {What comes next}
 
 - **«[Speculative decoding y contexto largo](/speculative/)»**, la siguiente lección de este módulo, ataca el mismo límite del decode desde otro lado: en vez de leer menos bytes por token, sacar más de un token por cada lectura de los pesos. Y el contexto largo hace crecer justo el KV cache que aquí aprendiste a cuantizar.
-- **«Del laptop al servidor: llama.cpp, Ollama, vLLM, SGLang y TensorRT-LLM»** pone los formatos en programas concretos: cuál lee GGUF, cuál AWQ y FP8, y qué kernel usa cada uno.
+- **«[Del laptop al servidor: llama.cpp, Ollama, vLLM, SGLang y TensorRT-LLM](/stack-serving/)»** pone los formatos en programas concretos: cuál lee GGUF, cuál AWQ y FP8, y qué kernel usa cada uno.
 - **«[Comprar hardware: de la workstation al rack](/comprar-hardware/)»** retoma qué GPU calcula en FP8 y en FP4, porque esa columna de la hoja de datos decide qué formatos te sirven.
 - La [herramienta de VRAM](/herramientas/vram/) hace la cuenta completa de memoria con cada formato, y el [catálogo de GPUs](/herramientas/catalogo/) dice cuáles calculan en FP8 y en FP4.
 - En Sensei: [Cómo guarda números una computadora](https://sensei.trueml.app/numeros-maquina/) tiene los cimientos (escala, punto cero, INT4 y FP8), y [Ruido, muestras y pruebas A/B](https://sensei.trueml.app/ruido/), la estadística de la comparación pareada.

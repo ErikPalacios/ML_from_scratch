@@ -12,14 +12,14 @@ Un LLM no se sirve solo: lo sirve un **[[motor-de-inferencia|motor de inferencia
 
 ## «Ya funciona en mi laptop» {"It already works on my laptop"}
 
-Esta lección sigue a un ejemplo ficticio, **el despacho**: un despacho de abogados en la Ciudad de México que quiere preguntarle a sus expedientes con un LLM sin que un solo documento salga de su red. Lo usarían **200 personas**, ≈ 15 preguntas cada una al día, de 9:00 a 19:00, con una hora pico de 2.5 veces el promedio: **750 preguntas en esa hora**, ≈ 0.21 por segundo. Cada pregunta trae ≈ **6,000 tokens** de entrada (instrucciones, la pregunta y cinco fragmentos de expediente) y la respuesta, ≈ **500**; el tope por conversación es de **8,192 tokens**. Se pide el primer token en **≤ 2 s** (en el p95) y al menos **20 tokens por segundo** por persona. El modelo es **Qwen3 32B en INT4 de AWQ** (≈ 19.32 GB de pesos), con el razonamiento apagado, y el sizing dio **3 NVIDIA L40S** de 48 GB. Su equipo de TI son **2 personas** que saben de redes y de Windows y nunca han operado una GPU.
+Esta lección sigue a un ejemplo ficticio, **el despacho**: un despacho de abogados en la Ciudad de México que quiere preguntarle a sus expedientes con un LLM sin que un solo documento salga de su red. Lo usarían **200 personas**, ≈ 15 preguntas cada una al día, de 9:00 a 19:00, con una hora pico de 2.5 veces el promedio: **750 preguntas en esa hora**, ≈ 0.21 por segundo. Cada pregunta trae ≈ **6,000 tokens** de entrada (instrucciones, la pregunta y cinco fragmentos de expediente) y la respuesta, ≈ **500**; el tope por conversación es de **8,192 tokens**. Se pide el primer token en **≤ 2 s** (en el p95) y al menos **20 tokens por segundo** por persona. El modelo es **Qwen3 32B en INT4 de [[awq|AWQ]]** (≈ 19.32 GB de pesos), con el razonamiento apagado, y el sizing dio **3 NVIDIA L40S** de 48 GB. Su equipo de TI son **2 personas** que saben de redes y de Windows y nunca han operado una GPU.
 
 Uno de ellos hizo lo que haría cualquiera: instaló Ollama en su laptop, escribió `ollama run qwen3:32b`, esperó a que bajaran ≈ 20 GB y le pegó un contrato. La respuesta salió bien. «Ya funciona; nada más hay que ponerlo en el servidor».
 
 La prueba demostró algo valioso: que el modelo entiende español jurídico y que el TI sabe correr un modelo. **No** demostró casi todo lo demás:
 
 - **Una persona no son 750 en una hora.** Ollama, por omisión, atiende **una petición a la vez por modelo** en GPUs de NVIDIA y AMD; las demás esperan en fila. Lo cuentas en la sección de Ollama.
-- **No es el mismo archivo.** `qwen3:32b` de Ollama es un GGUF con su propia cuantización (su página no dice cuál); el del servidor es el AWQ de Qwen. Son dos versiones de 4 bits del mismo modelo, y la calidad de una no prueba la de la otra: el examen se repite con el archivo que se va a servir (lo ves en [Formatos de cuantización en la práctica](/formatos-cuantizacion/)).
+- **No es el mismo archivo.** `qwen3:32b` de Ollama es un [[gguf|GGUF]] con su propia cuantización (su página no dice cuál); el del servidor es el AWQ de Qwen. Son dos versiones de 4 bits del mismo modelo, y la calidad de una no prueba la de la otra: el examen se repite con el archivo que se va a servir (lo ves en [Formatos de cuantización en la práctica](/formatos-cuantizacion/)).
 - **El contexto puede ser otro.** Ollama elige el contexto según la memoria de la GPU; en una laptop con poca VRAM son 4,096 tokens, y un prompt de 6,000 no cabe.
 - **Nadie pidió contraseña.** El servidor de Ollama no tiene autenticación: quien llegue a su puerto usa el modelo.
 - **Se descarga solo.** Tras 5 minutos sin preguntas, Ollama saca el modelo de la memoria, y la siguiente pregunta paga la carga.
@@ -43,7 +43,7 @@ Para ver qué hace, sigue a una pregunta del despacho por dentro. Es la misma en
 
 :::pasos
 1. Llega la petición por HTTP
-El cliente (la interfaz de chat del despacho, por ejemplo) manda un JSON a una dirección como `/v1/chat/completions`, con la lista de mensajes («sistema: eres un asistente jurídico…», «usuario: ¿qué dice la cláusula 14?»). Esa dirección y ese formato son los de la API de OpenAI: los cinco motores la imitan, así que cualquier programa que sepa hablarle a OpenAI le habla a tu motor cambiando solo la dirección base (`base_url`). A eso se le llama un **servidor compatible con OpenAI**; sus campos y lo que se pone delante para cuidarlo son tema de [Gateway, API compatible con OpenAI, autenticación y varios modelos](/gateway/).
+El cliente (la interfaz de chat del despacho, por ejemplo) manda un JSON a una dirección como `/v1/chat/completions`, con la lista de mensajes («sistema: eres un asistente jurídico…», «usuario: ¿qué dice la cláusula 14?»). Esa dirección y ese formato son los de la API de OpenAI: los cinco motores la imitan, así que cualquier programa que sepa hablarle a OpenAI le habla a tu motor cambiando solo la dirección base (`base_url`). A eso se le llama un **[[api-compatible-openai|servidor compatible con OpenAI]]**; sus campos y lo que se pone delante para cuidarlo son tema de [Gateway, API compatible con OpenAI, autenticación y varios modelos](/gateway/).
 
 2. La plantilla de chat convierte los mensajes en un solo texto
 El modelo no sabe de «mensajes»: lee una sola fila de tokens. La **[[plantilla-de-chat|plantilla de chat]]** (*chat template*) es un pequeño programa, que viene con el modelo, que pega los mensajes en un texto con marcas especiales («aquí empieza el sistema», «aquí habla el usuario», «ahora te toca»). En Qwen3, esa plantilla también decide si el modelo **piensa** antes de contestar: es donde se apaga el razonamiento.
@@ -55,7 +55,7 @@ Ese texto se convierte en números, los ids de los tokens. Las ≈ 6,000 de la p
 El [[scheduler]] decide, antes de cada paso del modelo, qué conversaciones van juntas ([[batching-continuo|batching continuo]]) y si hay memoria para la nueva. El gestor del [[kv-cache|KV cache]] le aparta bloques de memoria ([[pagedattention|PagedAttention]]) y, si su principio ya se calculó antes, lo reutiliza ([[prefix-caching|prefix caching]]). Todo eso lo viste a fondo en [Batching continuo y PagedAttention](/batching/).
 
 5. La GPU corre el paso con sus kernels
-Un **kernel** es una función que corre en la GPU, repartida en miles de hilos: una multiplicación de matrices, la atención, una suma. En Qwen3 32B, con 64 capas y varios kernels por capa, cada paso lanza cientos, uno tras otro. Qué tan rápidos son depende del formato de los pesos: el AWQ del despacho, en vLLM, corre en un kernel llamado Marlin (lo ves en [Formatos de cuantización en la práctica](/formatos-cuantizacion/)).
+Un **kernel** es una función que corre en la GPU, repartida en miles de hilos: una multiplicación de matrices, la atención, una suma. En Qwen3 32B, con 64 capas y varios kernels por capa, cada paso lanza cientos, uno tras otro. Qué tan rápidos son depende del formato de los pesos: el [[awq|AWQ]] del despacho, en vLLM, corre en un kernel llamado Marlin (lo ves en [Formatos de cuantización en la práctica](/formatos-cuantizacion/)).
 
 6. El sampler elige el token y sale por streaming
 De la última capa sale una puntuación por cada token posible. El *sampler* (muestreo) elige uno según la temperatura y los demás parámetros de la petición, el detokenizador lo vuelve texto y el servidor lo manda al cliente en cuanto existe. Se repite hasta el token de fin o el tope.
@@ -70,7 +70,7 @@ Una pregunta del despacho por dentro del motor: entra como JSON, sale como token
 :::profundo CUDA graphs: dejar de dictarle a la GPU paso por paso
 Una pieza que no se ve en los diagramas explica por qué los motores de servidor gastan memoria «de más». La CPU le dice a la GPU qué kernel correr, uno por uno, y cada orden cuesta un poquito de tiempo. En el [[prefill|prefill]], con miles de tokens, cada kernel trabaja tanto que no se nota. En el [[decode|decode]], con un token por conversación, los kernels son cortos y la GPU puede quedarse esperando la siguiente orden.
 
-Un **[[cuda-graph|CUDA graph]]** es una grabación: el motor corre el paso una vez, CUDA (la plataforma de NVIDIA para programar sus GPUs) anota toda la secuencia de kernels con sus memorias, y desde entonces la CPU manda **una** orden («repite la grabación») en vez de cientos. vLLM los usa por omisión; su documentación avisa que ocupan memoria extra y que con `--enforce-eager` se apagan: arranca más rápido y el decode va más lento.
+Un **[[cuda-graph|CUDA graph]]** es una grabación: el motor corre el paso una vez, [[cuda|CUDA]] (la plataforma de NVIDIA para programar sus GPUs) anota toda la secuencia de kernels con sus memorias, y desde entonces la CPU manda **una** orden («repite la grabación») en vez de cientos. vLLM los usa por omisión; su documentación avisa que ocupan memoria extra y que con `--enforce-eager` se apagan: arranca más rápido y el decode va más lento.
 
 **Una analogía: dictar una receta o dar la tarjeta.** Puedes dictarle la receta a un cocinero paso por paso, o darle la tarjeta con todo escrito; con la tarjeta, no espera a que termines cada frase.
 
@@ -88,7 +88,7 @@ Los cinco hacen los pasos de arriba. Lo que cambia es para qué los optimizaron.
 | Versión estable | v1.1.0 (26 nov.) | v0.40.18 (24 nov.) | v0.34.0 (16 nov.) | v0.5.23 (2 nov.) | v1.3.0 (20 nov.) |
 | Escrito en | C++ | Go (y llama.cpp adentro) | Python, kernels en C++/CUDA | Python, kernels en C++/CUDA | Python, núcleo en C++/CUDA |
 | Dónde corre | CPU, NVIDIA, AMD, Apple, Vulkan y más | Windows, macOS, Linux; NVIDIA, AMD, Apple | Linux; NVIDIA, AMD, Intel, CPU, TPU | Linux; NVIDIA, AMD, TPU, Intel, Apple | Linux, solo NVIDIA |
-| Formato de pesos (safetensors: el de Hugging Face) | GGUF | GGUF (y safetensors con MLX en Mac) | safetensors: AWQ, GPTQ, FP8, FP4… | safetensors: AWQ, GPTQ, FP8, FP4… | safetensors: FP8, NVFP4, AWQ, GPTQ… |
+| Formato de pesos (safetensors: el de Hugging Face) | [[gguf\|GGUF]] | GGUF (y safetensors con [[mlx\|MLX]] en Mac) | safetensors: AWQ, [[gptq\|GPTQ]], FP8, [[fp4\|FP4]]… | safetensors: AWQ, GPTQ, FP8, FP4… | safetensors: FP8, NVFP4, AWQ, GPTQ… |
 | Servidor y puerto por omisión | `llama-server`, 9931 | `ollama serve`, 11434 | `vllm serve`, 8000 | `sglang serve`, 30000 | `trtllm-serve` (8000 en su guía) |
 | ¿Sirve el Qwen3-32B-AWQ del despacho en una L40S? | No: usa GGUF | No: usa GGUF | Sí (leído en su código) | Probablemente | Su documentación dice que sí |
 
@@ -115,9 +115,9 @@ Los que corren en la laptop del TI: primero el motor, después la envoltura que 
 
 **[[llama-cpp|llama.cpp]]** es «inferencia de LLMs en C/C++»: un programa sin dependencias pesadas, sobre una biblioteca propia de cálculo, `ggml`. Lo empezó Georgi Gerganov en 2023 y hoy lo mantiene ggml-org. Licencia MIT.
 
-Corre en casi todo. Su guía de compilación lista CPU (con varias bibliotecas de álgebra), **Metal** (las GPUs de Apple), **CUDA** (NVIDIA), **HIP** (AMD), **Vulkan** (una interfaz gráfica que tienen casi todas las GPUs) y una docena más. Para una L40S se compila con CUDA para la arquitectura 8.9, la de las GPUs Ada.
+Corre en casi todo. Su guía de compilación lista CPU (con varias bibliotecas de álgebra), **Metal** (las GPUs de Apple), **[[cuda|CUDA]]** (NVIDIA), **HIP** (AMD), **Vulkan** (una interfaz gráfica que tienen casi todas las GPUs) y una docena más. Para una L40S se compila con CUDA para la arquitectura 8.9, la de las GPUs Ada.
 
-Su formato es **GGUF**: un solo archivo con los pesos cuantizados y todo lo necesario para cargarlos (arquitectura, tokenizador, plantilla de chat). Las variantes como Q4_K_M y Q8_0, qué son y cuánto pesan, están en [Formatos de cuantización en la práctica](/formatos-cuantizacion/). AWQ y GPTQ **no** son formatos de llama.cpp.
+Su formato es **[[gguf|GGUF]]**: un solo archivo con los pesos cuantizados y todo lo necesario para cargarlos (arquitectura, tokenizador, plantilla de chat). Las variantes como Q4_K_M y Q8_0, qué son y cuánto pesan, están en [Formatos de cuantización en la práctica](/formatos-cuantizacion/). [[awq|AWQ]] y [[gptq|GPTQ]] **no** son formatos de llama.cpp.
 
 :::ojo Dos números de versión
 Hasta noviembre de 2026, llama.cpp solo tenía *builds* numeradas (`b1234`), varias al día. El 13 de noviembre de 2026 salió la **v1.0.0**, con versiones semánticas (el primer número cambia cuando se rompe la interfaz pública). Hoy conviven las dos: la estable **v1.1.0** (26 de noviembre) y las builds que GitHub marca como *prerelease* casi cada hora (b12785 la noche del 26). Cuando anotes «qué versión usamos», di cuál de las dos.
@@ -125,7 +125,7 @@ Hasta noviembre de 2026, llama.cpp solo tenía *builds* numeradas (`b1234`), var
 
 ### El servidor: `llama-server`
 
-El programa de llama.cpp que sirve por HTTP es `llama-server`, con API compatible con OpenAI (`/v1/chat/completions`, `/v1/models` y otras). Para una prueba del despacho con el GGUF de Qwen3 32B (el nombre del archivo es de ejemplo):
+El programa de llama.cpp que sirve por HTTP es `llama-server`, con [[api-compatible-openai|API compatible con OpenAI]] (`/v1/chat/completions`, `/v1/models` y otras). Para una prueba del despacho con el GGUF de Qwen3 32B (el nombre del archivo es de ejemplo):
 
 ```bash
 llama-server -m ./Qwen3-32B-Q4_K_M.gguf -c 8192 --reasoning off --api-key "$CLAVE"
@@ -158,7 +158,7 @@ Un hilo de GitHub del proyecto junta mediciones que manda la comunidad (actualiz
 
 **[[ollama|Ollama]]** es un programa de escritorio y servidor para correr modelos locales: escribes `ollama run qwen3:32b` y él baja el modelo de su biblioteca (`ollama.com/library`), lo carga y te deja platicar en la terminal. Lo hace una empresa del mismo nombre, en Go, con licencia MIT. La estable al 26 de noviembre de 2026 es la **v0.40.18** (24 de noviembre).
 
-¿Y por dentro? **Hoy usa llama.cpp.** El código de la v0.40.18 sirve cada modelo GGUF con un subproceso de `llama-server`: una build de llama.cpp fijada en un archivo del repositorio (`b12651` en esa versión), con parches propios. En las Mac con chips de Apple usa además **MLX**, el marco de Apple, por omisión desde la v0.40.0 (septiembre de 2026). En 2025 Ollama corría varios modelos, Qwen3 entre ellos, en un «motor nuevo» propio; la v0.30.0 (mayo de 2026) anunció mejor compatibilidad y velocidad «usando llama.cpp», y ese motor ya no aparece en su código. Si lees un artículo de 2025 sobre «el motor de Ollama», está viejo.
+¿Y por dentro? **Hoy usa llama.cpp.** El código de la v0.40.18 sirve cada modelo GGUF con un subproceso de `llama-server`: una build de llama.cpp fijada en un archivo del repositorio (`b12651` en esa versión), con parches propios. En las Mac con chips de Apple usa además **[[mlx|MLX]]**, el marco de Apple, por omisión desde la v0.40.0 (septiembre de 2026). En 2025 Ollama corría varios modelos, Qwen3 entre ellos, en un «motor nuevo» propio; la v0.30.0 (mayo de 2026) anunció mejor compatibilidad y velocidad «usando llama.cpp», y ese motor ya no aparece en su código. Si lees un artículo de 2025 sobre «el motor de Ollama», está viejo.
 
 Así que Ollama es **llama.cpp con una envoltura cómoda**: descarga, nombres de modelos, carga y descarga automáticas, una API. Sus límites de velocidad son los de llama.cpp; sus trampas, las de la envoltura.
 
@@ -283,9 +283,9 @@ Para una persona en su laptop, 3 tokens por segundo pueden ser aceptables para p
 
 ## vLLM y el comando del despacho {vLLM and the firm's command}
 
-**[[vllm|vLLM]]** es el motor de servidor abierto más popular: de los tres de servidor, el de más estrellas en GitHub (≈ 98 mil a fines de noviembre de 2026). Nació en Berkeley con el paper de **PagedAttention** (Kwon y otros, presentado en SOSP 2023, un congreso de sistemas), que reportó de 2 a 4 veces más throughput que los sistemas de entonces a igual latencia. Hoy es un proyecto comunitario con licencia Apache 2.0, escrito en Python con kernels en C++ y CUDA. La versión al 26 de noviembre de 2026 es la **v0.34.0** (16 de noviembre), con 1,061 cambios de 412 personas. Sale una versión cada 2 a 4 semanas: la 0.31 fue el 5 de octubre y la 0.32 el 18.
+**[[vllm|vLLM]]** es el motor de servidor abierto más popular: de los tres de servidor, el de más estrellas en GitHub (≈ 98 mil a fines de noviembre de 2026). Nació en Berkeley con el paper de **PagedAttention** (Kwon y otros, presentado en SOSP 2023, un congreso de sistemas), que reportó de 2 a 4 veces más throughput que los sistemas de entonces a igual latencia. Hoy es un proyecto comunitario con licencia Apache 2.0, escrito en Python con kernels en C++ y [[cuda|CUDA]]. La versión al 26 de noviembre de 2026 es la **v0.34.0** (16 de noviembre), con 1,061 cambios de 412 personas. Sale una versión cada 2 a 4 semanas: la 0.31 fue el 5 de octubre y la 0.32 el 18.
 
-Dónde corre, según su documentación de la 0.34.0: GPUs de NVIDIA con *compute capability* 7.5 o más (el número de generación de la arquitectura: la L40S es 8.9), AMD con ROCm (la plataforma de AMD que hace el papel de CUDA), Intel, CPU, TPU, y Mac con un complemento. Pide **Linux** y Python 3.11 a 3.14. Se instala con `uv`, y la guía de la 0.34.0 agrega un paso que baja kernels ya compilados (sin él, vLLM los compila al arrancar y tarda minutos más):
+Dónde corre, según su documentación de la 0.34.0: GPUs de NVIDIA con *compute capability* 7.5 o más (el número de generación de la arquitectura: la L40S es 8.9), AMD con [[rocm|ROCm]] (la plataforma de AMD que hace el papel de CUDA), Intel, CPU, TPU, y Mac con un complemento. Pide **Linux** y Python 3.11 a 3.14. Se instala con `uv`, y la guía de la 0.34.0 agrega un paso que baja kernels ya compilados (sin él, vLLM los compila al arrancar y tarda minutos más):
 
 ```bash
 uv venv --python 3.12 --seed
@@ -295,10 +295,10 @@ vllm download-kernels
 
 Lo de adentro ya lo conoces de [Batching continuo y PagedAttention](/batching/), que se contó con vLLM: [[batching-continuo|batching continuo]], el KV cache en [[bloque-kv|bloques]], [[prefix-caching|prefix caching]] y [[chunked-prefill|chunked prefill]] **prendidos por omisión**, y [[preemption]] cuando falta memoria. Encima de eso:
 
-- **Kernels para cada formato.** Un checkpoint AWQ como el del despacho se reconoce solo (por su `config.json`) y, con capability 7.5 o más, va al kernel Marlin. Eso dice su código de la 0.34.0; que arranque en la L40S y a qué velocidad, se confirma al probar.
+- **Kernels para cada formato.** Un checkpoint [[awq|AWQ]] como el del despacho se reconoce solo (por su `config.json`) y, con capability 7.5 o más, va al kernel Marlin. Eso dice su código de la 0.34.0; que arranque en la L40S y a qué velocidad, se confirma al probar.
 - **CUDA graphs** por omisión, como viste arriba.
 - **[[salida-estructurada|Salida estructurada]]**: obligar a que la respuesta siga un esquema JSON, con los motores `xgrammar` o `guidance`. Lo ves con SGLang.
-- **Speculative decoding** (lo ves en [Speculative decoding y contexto largo](/speculative/)), varias GPUs (lo ves en [Varias GPUs: tensor y pipeline parallel](/varias-gpus/)) y métricas para el monitoreo.
+- **[[speculative-decoding|Speculative decoding]]** (lo ves en [Speculative decoding y contexto largo](/speculative/)), varias GPUs (lo ves en [Varias GPUs: tensor y pipeline parallel](/varias-gpus/)) y métricas para el monitoreo.
 
 **En qué es bueno:** muchas personas a la vez en una GPU de servidor; casi cualquier modelo abierto el día que sale; el formato del despacho; una comunidad enorme que ya se topó con tu error. **En qué no:** Windows; arrancar rápido; flags estables entre versiones.
 
@@ -324,7 +324,7 @@ Cada línea, y lo que **no** está:
 | `--max-model-len` | Contexto máximo por conversación: prompt más respuesta | el del `config.json` del modelo | 8,192, el tope de la ficha |
 | `--max-num-seqs` | Cuántas conversaciones a lo mucho van en el [[batch\|batch]] | 256 en GPUs de menos de 70 GiB, como la L40S (1,024 en una H100) | 8, el número de diseño de la ficha |
 | `--served-model-name` | El nombre que verán los clientes en `/v1/models` | el nombre del modelo | `qwen3-32b`, corto y estable |
-| `--api-key` | La clave que debe traer cada petición (`Authorization: Bearer …`); también `VLLM_API_KEY` | ninguna | Una sola clave, para el gateway |
+| `--api-key` | La clave que debe traer cada petición (`Authorization: Bearer …`); también `VLLM_API_KEY` | ninguna | Una sola clave, para el [[gateway-de-llm\|gateway]] |
 | `--reasoning-parser qwen3` | **Separa** el razonamiento en un campo aparte (`reasoning`) | ninguno | Por si alguna petición lo prende |
 | `--default-chat-template-kwargs` | Valores por omisión para la [[plantilla-de-chat\|plantilla de chat]] en todas las peticiones | ninguno | `enable_thinking: false`: **apaga** el razonamiento |
 | `--enable-prefix-caching` | [[prefix-caching\|Prefix caching]] | **prendido** | No hace falta ponerlo |
@@ -336,7 +336,7 @@ Tres detalles que muerden:
 
 **`--max-num-seqs`.** El tope por omisión, 256, es mucho más de lo que cabe. El despacho lo fija en **8**, las conversaciones a la vez con que dimensionó la memoria de cada L40S (con 0.90 caben 10 al tope, abajo). Ojo: 8 no es lo que una L40S atiende **a buena velocidad**. [De requisitos a hardware](/requisitos-hardware/) calcula ≈ 2 a ≥ 20 tokens por segundo con los prefills del despacho; por eso son 3 copias para las ≈ 5.6 a la vez de la hora pico, y en un día normal el tope ni se toca. Sirve para las ráfagas: si una copia junta 8, cada persona baja a ≈ 11–19 tokens por segundo (según cuántos prompts lea la GPU a la vez), pero nadie espera para empezar; con un tope de 2, las otras 6 esperarían en la fila hasta ≈ 27 s, lo que dura una respuesta. El número final lo da la prueba de carga del piloto.
 
-**La clave.** `--api-key` es **una** clave para todos: no sabe quién es quién, no pone cuotas y no deja registro. Sirve para que nadie de la red le hable directo al motor salvo el gateway. Lo de las personas va delante.
+**La [[clave-de-api|clave]].** `--api-key` es **una** clave para todos: no sabe quién es quién, no pone cuotas y no deja registro. Sirve para que nadie de la red le hable directo al motor salvo el gateway. Lo de las personas va delante.
 
 ### Cuánta memoria le queda al KV cache
 
@@ -418,7 +418,7 @@ Para el despacho, con una copia por GPU y nada más en ella, se recomienda no po
 
 ### Tres copias y una prueba
 
-El despacho tiene 3 L40S y el modelo cabe en una: lo natural son **3 copias independientes**, una por GPU, cada una en su puerto, con un balanceador delante (por qué copias y no repartir un modelo entre las tres es tema de [Varias GPUs: tensor y pipeline parallel](/varias-gpus/)). Para arrancarlas, a cada proceso se le dice qué GPU ve con la variable `CUDA_VISIBLE_DEVICES`, como en la guía de vLLM:
+El despacho tiene 3 L40S y el modelo cabe en una: lo natural son **3 [[replica|copias]] independientes**, una por GPU, cada una en su puerto, con un balanceador delante (por qué copias y no repartir un modelo entre las tres es tema de [Varias GPUs: tensor y pipeline parallel](/varias-gpus/)). Para arrancarlas, a cada proceso se le dice qué GPU ve con la variable `CUDA_VISIBLE_DEVICES`, como en la guía de vLLM:
 
 ```bash
 CUDA_VISIBLE_DEVICES=0 vllm serve Qwen/Qwen3-32B-AWQ --port 8000 ...   # el resto de los flags, igual
@@ -445,7 +445,7 @@ Los dos de servidor que el despacho no eligió, pero que vas a oír siempre. Cad
 Corre en mucho hardware: NVIDIA desde las RTX 30 hasta las B300, AMD Instinct, TPU, Intel, Apple. La L40S aparece en su guía de instalación entre las GPUs que soporta FlashInfer, su kernel de atención por omisión.
 
 :::ojo SGLang 0.5.23 pide CUDA 13
-La guía de instalación de la 0.5.23 dice que SGLang requiere **CUDA 13** (y un driver de NVIDIA compatible con CUDA 13) y PyTorch 2.14; las imágenes de Docker para CUDA 12 terminaron en la v0.5.19. Si el servidor trae un driver viejo, no corre hasta actualizarlo. Para un TI que nunca ha operado una GPU, es una tarde de trabajo que hay que planear.
+La guía de instalación de la 0.5.23 dice que SGLang requiere **[[cuda|CUDA]] 13** (y un driver de NVIDIA compatible con CUDA 13) y PyTorch 2.14; las imágenes de Docker para CUDA 12 terminaron en la v0.5.19. Si el servidor trae un driver viejo, no corre hasta actualizarlo. Para un TI que nunca ha operado una GPU, es una tarde de trabajo que hay que planear.
 :::
 
 Sus dos ideas de nombre propio:
@@ -473,7 +473,7 @@ python -m sglang.launch_server --model-path Qwen/Qwen3-32B-AWQ \
   --context-length 8192 --reasoning-parser qwen3 --port 30000
 ```
 
-(La 0.5.23 también acepta `sglang serve`.) Los equivalentes de vLLM: `--context-length` es el contexto; `--mem-fraction-static`, la fracción de la memoria para pesos y KV cache (sin definir, la calcula sola); `--api-key` y `--served-model-name`, lo mismo; RadixAttention viene **prendido** (`--disable-radix-cache` lo apaga); el razonamiento de Qwen3 se apaga igual, con `enable_thinking`. Trae su propio balanceador para varias copias. ¿Corre el AWQ del despacho en una L40S? Su lista de métodos incluye `awq` y `awq_marlin`, y la ficha de Qwen pide SGLang 0.4.6.post1 o más; qué kernel usa en una L40S no está escrito en lo que revisamos: se confirma probando.
+(La 0.5.23 también acepta `sglang serve`.) Los equivalentes de vLLM: `--context-length` es el contexto; `--mem-fraction-static`, la fracción de la memoria para pesos y KV cache (sin definir, la calcula sola); `--api-key` y `--served-model-name`, lo mismo; RadixAttention viene **prendido** (`--disable-radix-cache` lo apaga); el razonamiento de Qwen3 se apaga igual, con `enable_thinking`. Trae su propio balanceador para varias copias. ¿Corre el [[awq|AWQ]] del despacho en una L40S? Su lista de métodos incluye `awq` y `awq_marlin`, y la ficha de Qwen pide SGLang 0.4.6.post1 o más; qué kernel usa en una L40S no está escrito en lo que revisamos: se confirma probando.
 
 **En qué es bueno:** cargas con mucho prefijo compartido (agentes, chats largos, evaluaciones), salida estructurada, servicio a gran escala con su balanceador. **En qué no:** pide un stack de CUDA muy reciente; menos documentación y menos respuestas resueltas en internet que vLLM.
 
@@ -497,11 +497,11 @@ La documentación de la v1.3.0 dice que **el backend antiguo de TensorRT se quit
 trtllm-serve "nvidia/Qwen3-8B-FP8"
 ```
 
-`trtllm-serve` trae la API compatible con OpenAI, `/health`, `/metrics` y flags para varias GPUs (`--tp_size`, `--pp_size`, `--ep_size`).
+`trtllm-serve` trae la [[api-compatible-openai|API compatible con OpenAI]], `/health`, `/metrics` y flags para varias GPUs (`--tp_size`, `--pp_size`, `--ep_size`).
 
 ### En una L40S, y su «0.9» que no es el de vLLM
 
-La tabla de cuantización de la v1.3.0 dice que en **Ada** se soportan FP8 y **AWQ de 4 bits con activaciones de 16 (W4A16)**, y NVFP4 y MXFP4 **no** (la L40S no tiene hardware de FP4). La fila de Qwen3 también marca W4A16 AWQ. Pero la documentación habla de modelos cuantizados con las recetas de NVIDIA (ModelOpt), no del AWQ de Qwen: que ese archivo corra tal cual no está comprobado.
+La tabla de cuantización de la v1.3.0 dice que en **Ada** se soportan FP8 y **AWQ de 4 bits con activaciones de 16 ([[solo-pesos|W4A16]])**, y [[fp4|NVFP4]] y MXFP4 **no** (la L40S no tiene hardware de FP4). La fila de Qwen3 también marca W4A16 AWQ. Pero la documentación habla de modelos cuantizados con las recetas de NVIDIA (ModelOpt), no del AWQ de Qwen: que ese archivo corra tal cual no está comprobado.
 
 Un detalle que confunde a quien viene de vLLM: TensorRT-LLM también tiene una fracción de **0.9** por omisión, `free_gpu_memory_fraction`, pero es la de la memoria **libre** (después de cargar el modelo) que va al KV cache, no la del total.
 
@@ -527,16 +527,16 @@ Cada proyecto publica números. Juntos en una tabla parecen una competencia; no 
 |---|---|---|---|---|---|
 | vLLM (blog) | 2023-06 | A10G y A100 de 40 GB | LLaMA 7B y 13B, 16 bits | Largos de ShareGPT (chats reales compartidos) | hasta 24× sobre Hugging Face y 3.5× sobre TGI |
 | SGLang (blog de LMSYS) | 2024-07 | A100 y H100 | Llama 3 8B y 70B, BF16 y FP8 | Sintética y ShareGPT, prefix caching apagado | hasta 3.1× sobre vLLM 0.5.2 en 70B |
-| TensorRT-LLM (página de rendimiento) | 2026-11 | H100, H200, B200 | Llama 3.3 70B, GPT-OSS, Qwen3 MoE; FP8 y FP4 | Todo de golpe, largos fijos | tokens de salida/s por GPU |
+| TensorRT-LLM (página de rendimiento) | 2026-11 | H100, H200, B200 | Llama 3.3 70B, GPT-OSS, Qwen3 MoE; FP8 y [[fp4\|FP4]] | Todo de golpe, largos fijos | tokens de salida/s por GPU |
 | llama.cpp (hilo de GitHub) | 2026-11 | RTX, H100, A100, L40 | Llama 2 7B, Q4_0 | **Una** conversación | tokens/s al leer 512 y al escribir 128 |
 
-De fila a fila cambian la GPU, el modelo, el formato, los largos, el tipo de carga, la versión del rival (vLLM 0.5.2 es de 2024) y quién mide (cada proyecto afina mejor su propio motor). **Ninguna fila es en una L40S con Qwen3 32B en AWQ.** Lo más cercano en la GPU del despacho es la curva de NIM con Llama 3.1 8B que viste en [Concurrencia](/concurrencia/): otro modelo.
+De fila a fila cambian la GPU, el modelo, el formato, los largos, el tipo de carga, la versión del rival (vLLM 0.5.2 es de 2024) y quién mide (cada proyecto afina mejor su propio motor). **Ninguna fila es en una L40S con Qwen3 32B en [[awq|AWQ]].** Lo más cercano en la GPU del despacho es la curva de NIM con Llama 3.1 8B que viste en [Concurrencia](/concurrencia/): otro modelo.
 
 Los benchmarks publicados sirven para saber que un motor está en la conversación, no para decidir entre dos. Eso se decide midiendo **tu** modelo en **tu** GPU, con **tus** prompts y **tu** concurrencia, con los mismos ajustes para los dos. Cómo se hace una prueba así sin engañarte es el tema de la lección «Pruebas de carga y benchmarks honestos».
 
 ### Los demás que vas a oír
 
-- **TGI** (Text Generation Inference, de Hugging Face): en **modo de mantenimiento** según su README, que recomienda vLLM, SGLang, llama.cpp o MLX; el repositorio está archivado (última versión, diciembre de 2025). Un tutorial que lo usa está viejo.
+- **TGI** (Text Generation Inference, de Hugging Face): en **modo de mantenimiento** según su README, que recomienda vLLM, SGLang, llama.cpp o [[mlx|MLX]]; el repositorio está archivado (última versión, diciembre de 2025). Un tutorial que lo usa está viejo.
 - **LMDeploy** (del grupo InternLM): servidor con motor propio en C++/CUDA (TurboMind) y otro en PyTorch, Apache 2.0, activo (v0.18.0, septiembre de 2026).
 - **NVIDIA Dynamo** (v1.7.0, 24 de noviembre de 2026, Apache 2.0): no es un motor; **orquesta** motores (vLLM, SGLang, TensorRT-LLM) en clústeres, con el prefill y el decode en máquinas distintas. Para 3 GPUs sobra.
 - **NVIDIA NIM**: contenedores de NVIDIA con un modelo curado y un motor adentro (su documentación v2.1.7 nombra vLLM y SGLang). Su licencia y precio no los revisamos aquí.
@@ -551,10 +551,10 @@ La elección sale de cinco preguntas, en este orden: las primeras descartan más
 Una persona o un puñado (tú, tu equipo, una demo): los locales bastan y son más fáciles. Decenas o cientos a la vez, o un objetivo de latencia ([[slo|SLO]]) que alguien va a medir: un motor de servidor.
 
 2. ¿Qué hardware y qué sistema operativo?
-Mac: llama.cpp, MLX-LM u Ollama (que usa MLX). Solo CPU o una GPU que no es de NVIDIA ni de AMD: llama.cpp. GPU de NVIDIA o AMD en Linux: los de servidor. Solo NVIDIA y de gama alta: TensorRT-LLM entra a la lista. Windows sin Linux: los locales (o WSL para probar).
+Mac: llama.cpp, [[mlx|MLX]]-LM u Ollama (que usa MLX). Solo CPU o una GPU que no es de NVIDIA ni de AMD: llama.cpp. GPU de NVIDIA o AMD en Linux: los de servidor. Solo NVIDIA y de gama alta: TensorRT-LLM entra a la lista. Windows sin Linux: los locales (o WSL para probar).
 
 3. ¿En qué formato está tu modelo?
-GGUF: llama.cpp u Ollama. AWQ, GPTQ, FP8 o FP4 en safetensors: vLLM, SGLang o TensorRT-LLM, si el motor tiene kernel para ese formato **en tu GPU**. Si cambias de motor, cambias de archivo, y el examen se repite.
+[[gguf|GGUF]]: llama.cpp u Ollama. [[awq|AWQ]], [[gptq|GPTQ]], FP8 o [[fp4|FP4]] en safetensors: vLLM, SGLang o TensorRT-LLM, si el motor tiene kernel para ese formato **en tu GPU**. Si cambias de motor, cambias de archivo, y el examen se repite.
 
 4. ¿Qué pide la carga?
 Chat general con un prompt fijo: vLLM. Mucho prefijo compartido y ramificado (agentes, evaluaciones, chats largos) o salida JSON pesada: SGLang merece una prueba. Latencia mínima en H100 o Blackwell con FP8 o FP4: TensorRT-LLM merece una prueba.
@@ -569,20 +569,20 @@ El árbol de decisión, de la primera pregunta a un motor. Recorre el camino del
 
 ### La decisión del despacho
 
-- **En el servidor: vLLM 0.34.0**, una copia por L40S (tres), en Linux, con el comando de arriba. Razones: atiende a muchos a la vez; sirve el AWQ del despacho con el kernel Marlin (según su código); trae la API compatible con OpenAI que espera el gateway; y es el de más documentación y comunidad para un equipo que empieza. Si el despacho cotiza la alternativa de **2 RTX PRO 6000 Blackwell Server Edition**, el motor y el comando son los mismos; cambian cuántas conversaciones caben en cada copia y el tope de `--max-num-seqs`.
+- **En el servidor: vLLM 0.34.0**, una copia por L40S (tres), en Linux, con el comando de arriba. Razones: atiende a muchos a la vez; sirve el AWQ del despacho con el kernel Marlin (según su código); trae la [[api-compatible-openai|API compatible con OpenAI]] que espera el [[gateway-de-llm|gateway]]; y es el de más documentación y comunidad para un equipo que empieza. Si el despacho cotiza la alternativa de **2 RTX PRO 6000 Blackwell Server Edition**, el motor y el comando son los mismos; cambian cuántas conversaciones caben en cada copia y el tope de `--max-num-seqs`.
 - **En la laptop y en las demos: Ollama** (o llama.cpp), con el contexto fijado a mano (`OLLAMA_CONTEXT_LENGTH=8192`) y `think: false`. Para probar ideas de prompt en minutos; no para medir velocidad ni aprobar la calidad, que se hace con el AWQ en vLLM.
 - **Delante de todo: el gateway**, que es el que autentica, reparte entre las 3 copias y registra ([la lección de gateway](/gateway/)).
 - **La versión se fija y se anota.** vLLM saca versión cada 2 a 4 semanas, y la 0.34.0 cambió valores por omisión importantes. El piloto se corre con una versión, y se actualiza a propósito, repitiendo la prueba de carga y el examen, no porque salió una nueva.
 - **El TI aprende Linux.** Los tres motores de servidor son de Linux: es parte del plan del piloto, no un detalle.
 
 :::profundo ¿Y SGLang para el despacho?
-El despacho tiene justo el tipo de prefijo que SGLang aprovecha: instrucciones fijas y repreguntas. Pero vLLM también lo reutiliza con su prefix caching, y la diferencia (árbol contra bloques con hash) se nota sobre todo con mucho prefijo ramificado, que el despacho no tiene. Y SGLang 0.5.23 pide CUDA 13 y tiene menos camino recorrido para el TI. Es buena segunda opción para el piloto, con la misma prueba de carga, si sobra una semana; no la primera.
+El despacho tiene justo el tipo de prefijo que SGLang aprovecha: instrucciones fijas y repreguntas. Pero vLLM también lo reutiliza con su prefix caching, y la diferencia (árbol contra bloques con hash) se nota sobre todo con mucho prefijo ramificado, que el despacho no tiene. Y SGLang 0.5.23 pide [[cuda|CUDA]] 13 y tiene menos camino recorrido para el TI. Es buena segunda opción para el piloto, con la misma prueba de carga, si sobra una semana; no la primera.
 :::
 
 ## Errores comunes {Common mistakes}
 
-1. **Aprobar la calidad con el archivo de la laptop.** «En Ollama contestó bien, ya está». Era un GGUF; el servidor sirve un AWQ, otra cuantización. **Cómo evitarlo:** el examen del despacho se pasa con el archivo y el motor que van a producción.
-2. **Dejar Ollama con sus valores por omisión en un servidor compartido.** Una petición a la vez, contexto según la VRAM, descarga a los 5 minutos, sin clave. **Cómo evitarlo:** para unas cuantas personas, fija `OLLAMA_NUM_PARALLEL`, `OLLAMA_CONTEXT_LENGTH` y `OLLAMA_KEEP_ALIVE`, ponle un gateway delante y mira `ollama ps`; para cientos, un motor de servidor.
+1. **Aprobar la calidad con el archivo de la laptop.** «En Ollama contestó bien, ya está». Era un [[gguf|GGUF]]; el servidor sirve un [[awq|AWQ]], otra cuantización. **Cómo evitarlo:** el examen del despacho se pasa con el archivo y el motor que van a producción.
+2. **Dejar Ollama con sus valores por omisión en un servidor compartido.** Una petición a la vez, contexto según la VRAM, descarga a los 5 minutos, sin clave. **Cómo evitarlo:** para unas cuantas personas, fija `OLLAMA_NUM_PARALLEL`, `OLLAMA_CONTEXT_LENGTH` y `OLLAMA_KEEP_ALIVE`, ponle un [[gateway-de-llm|gateway]] delante y mira `ollama ps`; para cientos, un motor de servidor.
 3. **Copiar el comando de un blog viejo.** El puerto 8080 de `llama-server` (desde octubre de 2026, 9931), el 0.9 de `--gpu-memory-utilization` (hoy 1.0 y se recomienda quitarlo), el `--enable-reasoning` de vLLM (ya no existe), el `trtllm-build` de TensorRT-LLM (ya no existe). **Cómo evitarlo:** lee la documentación de tu versión, corre `--help` y anota la versión junto al comando.
 4. **Creer que `--reasoning-parser` apaga el razonamiento.** Solo lo separa en otro campo; el modelo sigue pensando y gastando segundos. **Cómo evitarlo:** `enable_thinking: false` en la plantilla (`--default-chat-template-kwargs` o por petición), y comprueba que la respuesta no trae razonamiento.
 5. **Leer una fracción de memoria sin saber de qué es fracción.** El 0.9 de vLLM es del total e incluye los pesos; el de TensorRT-LLM es de lo libre. **Cómo evitarlo:** no prometas el KV cache con la cuenta: léelo en el log de arranque y anótalo.
@@ -591,9 +591,9 @@ El despacho tiene justo el tipo de prefijo que SGLang aprovecha: instrucciones f
 
 ## En la vida real {In real life}
 
-**El despacho.** La laptop con Ollama sirvió para ver que Qwen3 entiende sus contratos. El servidor son tres copias de vLLM 0.34.0, una por L40S, en Linux: el AWQ, contexto de 8,192, a lo más 8 conversaciones por copia, sin razonamiento y con una clave que solo conoce el gateway. Con Ollama tal cual, una L40S atendería ≈ 179 preguntas por hora contra 750.
+**El despacho.** La laptop con Ollama sirvió para ver que Qwen3 entiende sus contratos. El servidor son tres copias de vLLM 0.34.0, una por L40S, en Linux: el [[awq|AWQ]], contexto de 8,192, a lo más 8 conversaciones por copia, sin razonamiento y con una clave que solo conoce el [[gateway-de-llm|gateway]]. Con Ollama tal cual, una L40S atendería ≈ 179 preguntas por hora contra 750.
 
-**Una persona con una Mac de 64 GB.** Supuesto del ejemplo: una consultora quiere un asistente privado en su Mac mini con M5 Pro de 64 GB de memoria unificada (307 GB/s, del catálogo). Aquí ganan los locales: Ollama (que en Mac usa MLX), llama.cpp con Metal o MLX-LM. Qwen3 32B en Q4_K_M pesa ≈ 20 GB y cabe con holgura. Con la eficiencia supuesta de 0.7, cada token lee ≈ 20 GB a ≈ 215 GB/s efectivos: **≈ 10 a 11 tokens por segundo** para ella sola, legible y suficiente. No hay offload porque hay una sola memoria, la [[memoria-unificada|memoria unificada]]. vLLM ni se considera.
+**Una persona con una Mac de 64 GB.** Supuesto del ejemplo: una consultora quiere un asistente privado en su Mac mini con M5 Pro de 64 GB de memoria unificada (307 GB/s, del catálogo). Aquí ganan los locales: Ollama (que en Mac usa [[mlx|MLX]]), llama.cpp con Metal o MLX-LM. Qwen3 32B en Q4_K_M pesa ≈ 20 GB y cabe con holgura. Con la eficiencia supuesta de 0.7, cada token lee ≈ 20 GB a ≈ 215 GB/s efectivos: **≈ 10 a 11 tokens por segundo** para ella sola, legible y suficiente. No hay offload porque hay una sola memoria, la [[memoria-unificada|memoria unificada]]. vLLM ni se considera.
 
 **Una empresa que extrae datos de facturas en JSON.** Supuesto del ejemplo: una aseguradora manda miles de facturas al día a un modelo que debe devolver un JSON con 15 campos fijos, y un programa lo lee sin humanos. Un JSON roto es un reclamo atorado: la [[salida-estructurada|salida estructurada]] no es lujo, y el prompt (instrucciones y esquema) es el mismo en todas: prefijo compartido. SGLang, con su árbol de prefijos y su motor de gramáticas, es candidato natural; vLLM, con `structured_outputs`, también. Se prueban los dos con mil facturas reales y se elige por errores y por throughput.
 
@@ -607,7 +607,7 @@ Menos de 24 GiB de VRAM → **4k** (4,096 tokens): 8 GB son ≈ 7.5 GiB. La preg
 ? [facil] Son las 9:00 y la primera abogada del día pregunta algo al Ollama del servidor de pruebas, que nadie usó desde ayer a las 19:00. ¿Por qué tarda mucho más que las preguntas de las 10:00, y qué variable lo evita?
 Por el [[keep-alive|keep-alive]]: tras **5 minutos** sin peticiones (`OLLAMA_KEEP_ALIVE` por omisión), Ollama sacó el modelo de la VRAM, y la primera pregunta paga la carga de ≈ 20 GB desde el disco. Con `OLLAMA_KEEP_ALIVE=-1` (o `keep_alive: -1` en la petición) se queda cargado siempre.
 ? [facil] De los cinco motores, ¿cuáles pueden servir el archivo `Qwen/Qwen3-32B-AWQ` tal cual, y cuáles no?
-**vLLM sí** (su código lo manda al kernel Marlin en GPUs con capability 7.5 o más, como la L40S). **SGLang, probablemente** (AWQ está en su lista de métodos y la ficha de Qwen pide SGLang ≥ 0.4.6.post1). **TensorRT-LLM, según su documentación** (W4A16 AWQ en Ada y para Qwen3), sin comprobar con ese archivo. **llama.cpp y Ollama, no**: usan GGUF, otra cuantización del mismo modelo.
+**vLLM sí** (su código lo manda al kernel Marlin en GPUs con capability 7.5 o más, como la L40S). **SGLang, probablemente** ([[awq|AWQ]] está en su lista de métodos y la ficha de Qwen pide SGLang ≥ 0.4.6.post1). **TensorRT-LLM, según su documentación** ([[solo-pesos|W4A16]] AWQ en Ada y para Qwen3), sin comprobar con ese archivo. **llama.cpp y Ollama, no**: usan [[gguf|GGUF]], otra cuantización del mismo modelo.
 ? [facil] Con vLLM 0.34.0, ¿cuál es la diferencia entre `--reasoning-parser qwen3` y `--default-chat-template-kwargs '{"enable_thinking": false}'`?
 El primero **separa** el razonamiento en el campo `reasoning`; el modelo sigue pensando. El segundo lo **apaga** en la plantilla de chat de todas las peticiones (salvo que una pida otra cosa). El despacho quiere el segundo; el primero no estorba.
 ? [medio] Con `--gpu-memory-utilization 0.85` en una L40S (48 GB), pesos de 19.32 GB y 2 GB de overhead, ¿cuánta memoria queda para el KV cache, cuántos tokens caben (bloques de 64) y cuántas conversaciones de 8,192?
@@ -642,11 +642,11 @@ motor-de-inferencia plantilla-de-chat cuda-graph llama-cpp offload-a-cpu ollama 
 
 :::chequeo
 ? ¿Qué demostró la prueba de Ollama en la laptop del despacho, y qué no?
-Que Qwen3 entiende sus documentos y que el TI sabe correr un modelo. No que aguante 750 preguntas en la hora pico (Ollama atiende una a la vez por omisión), ni la calidad del AWQ que se va a servir (la laptop corrió un GGUF), ni nada de autenticación.
+Que Qwen3 entiende sus documentos y que el TI sabe correr un modelo. No que aguante 750 preguntas en la hora pico (Ollama atiende una a la vez por omisión), ni la calidad del [[awq|AWQ]] que se va a servir (la laptop corrió un [[gguf|GGUF]]), ni nada de autenticación.
 ? ¿Qué hace un motor de inferencia entre que llega el JSON y sale el primer token?
 Aplica la plantilla de chat, tokeniza, el scheduler mete la petición en un batch con bloques de KV cache (reutilizando el prefijo si ya existe), la GPU corre los kernels del prefill y el sampler elige el primer token, que sale por streaming.
 ? ¿Por qué Ollama tiene los mismos límites de velocidad que llama.cpp?
-Porque por dentro **es** llama.cpp: sirve cada GGUF con un subproceso de `llama-server` (y usa MLX en Mac). Ollama agrega la descarga, los nombres, la carga automática y la API.
+Porque por dentro **es** llama.cpp: sirve cada GGUF con un subproceso de `llama-server` (y usa [[mlx|MLX]] en Mac). Ollama agrega la descarga, los nombres, la carga automática y la API.
 ? ¿Qué cuenta exactamente `--gpu-memory-utilization` en vLLM 0.34.0, y por qué el despacho no lo pone?
 La fracción de la memoria **total** de la GPU que puede usar esa copia, pesos incluidos. En la 0.34.0 vale 1.0 con el KV cache extensible, que mide la memoria libre al arrancar, y las notas recomiendan quitarlo si nada más usa la GPU. El KV cache que quedó se lee en el log de arranque.
 ? ¿Qué es RadixAttention y en qué carga gana más?

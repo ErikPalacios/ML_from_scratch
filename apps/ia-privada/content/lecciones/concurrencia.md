@@ -601,7 +601,7 @@ Los 3,676 son a 250 a la vez, con TTFT de 5 s: no cumple. A 200, el ITL es 55.33
 ## Lo que sigue {What comes next} [extra]
 
 - **[[batching-continuo|Batching continuo]] y [[pagedattention|PagedAttention]]** (de esta app) explica el mecanismo que esta lección usó como resultado: por qué el [[decode|decode]] espera a la memoria, cómo el servidor mete y saca conversaciones del [[batch|lote]] en cada paso, cómo reparte el KV cache en bloques para que quepan ≈ 12 en vez de 8 y cómo parte los prefills en trozos.
-- **De requisitos a hardware** convierte todo esto en una compra: de personas, tokens y promesas a cuántas GPUs y de cuál tipo, con la [herramienta de sizing](/herramientas/sizing/).
+- **[De requisitos a hardware](/requisitos-hardware/)** convierte todo esto en una compra: de personas, tokens y promesas a cuántas GPUs y de cuál tipo, con la [herramienta de sizing](/herramientas/sizing/).
 - **Elegir un modelo para la tarea** retoma una de las salidas del despacho: un modelo con menos [[parametros-activos|parámetros activos]] hace el [[prefill|prefill]] más barato.
 - **Pruebas de carga y benchmarks honestos** (de esta app): cómo medir con tus prompts y tu tasa de llegada, la única forma de cambiar las eficiencias supuestas por las tuyas.
 - En Sensei, [Qué tan rápido y cuánto: latencia y throughput](https://sensei.trueml.app/latencia/) tiene la teoría de colas detrás de la fila de los prefills, y [Promedios, medianas y percentiles](https://sensei.trueml.app/percentiles/), por qué las promesas van en p95.

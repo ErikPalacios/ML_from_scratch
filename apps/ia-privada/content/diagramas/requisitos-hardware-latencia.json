@@ -10,7 +10,7 @@
     { "id": "abogada", "label": "Una abogada", "sub": "pregunta y espera", "kind": "client", "x": 1, "y": 8, "w": 14, "h": 8,
       "note": "Escribe su pregunta en el chat del despacho. Lo que siente es el [[ttft-con-cola|TTFT con cola]] de punta a punta: desde que aprieta «Enviar» hasta la primera palabra." },
     { "id": "red", "label": "Red y gateway", "sub": "≈ 20 ms", "badge": "1", "kind": "edge", "x": 22, "y": 8, "w": 14, "h": 8,
-      "note": "La red local de la oficina y el gateway que revisa quién es y a qué GPU va. **Supuesto**: ≈ 20 ms ida y vuelta. Es décimas de lo demás." },
+      "note": "La red local de la oficina y el [[gateway-de-llm|gateway]] que revisa quién es y a qué GPU va. **Supuesto**: ≈ 20 ms ida y vuelta. Es décimas de lo demás." },
     { "id": "rag", "label": "Búsqueda", "sub": "≈ 150 ms", "badge": "2", "kind": "service", "x": 43, "y": 8, "w": 14, "h": 8,
       "note": "Convertir la pregunta en un vector y buscar los 5 fragmentos de expediente que se le pasan al modelo. **Supuesto**: ≈ 150 ms; la lección de RAG lo mide." },
     { "id": "fila", "label": "Fila", "sub": "0 s a varios s", "badge": "3", "kind": "queue", "x": 63, "y": 8, "w": 14, "h": 8,
@@ -34,7 +34,7 @@
   "flows": [
     { "id": "suma", "label": "Sumar el presupuesto",
       "steps": [
-        { "nodes": ["abogada", "red"], "edges": ["abogada>red"], "text": "La pregunta sale del navegador y pasa por la red y el gateway: **≈ 20 ms** (supuesto). Van 20 de 2,000." },
+        { "nodes": ["abogada", "red"], "edges": ["abogada>red"], "text": "La pregunta sale del navegador y pasa por la red y el [[gateway-de-llm|gateway]]: **≈ 20 ms** (supuesto). Van 20 de 2,000." },
         { "nodes": ["rag"], "edges": ["red>rag"], "text": "Se buscan los 5 fragmentos: **≈ 150 ms** (supuesto). Van 170: quedan **1,830 ms** para la GPU." },
         { "nodes": ["fila"], "edges": ["rag>fila"], "text": "Si la GPU está ocupada con otro prefill, la pregunta espera. Con 3 L40S y reparto al azar, el p95 de la espera es de casi 2 s: ya se comió todo." },
         { "nodes": ["prefill", "token"], "edges": ["fila>prefill", "prefill>token"], "text": "El prefill: **2,380 ms** en una L40S. Aun sin fila, 170 + 2,380 = 2,550 ms: el presupuesto ya no cabe. En una Server Edition, 170 + 1,724 ≈ 1,894 ms: cabe, con ≈ 106 ms para la fila." },

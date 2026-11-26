@@ -24,7 +24,7 @@
    "y": 4,
    "w": 22,
    "h": 8,
-   "note": "La primera pregunta, siempre: ¿los [[pesos]] y el [[kv-cache|KV cache]] de las conversaciones que necesitas caben en la [[vram|VRAM]] de una GPU, con su margen? Qwen3 32B en INT4 de AWQ en una L40S: sí, 10 de 8,192 tokens. Llama 3.3 70B: no, quedan 1.43 GB."
+   "note": "La primera pregunta, siempre: ¿los [[pesos]] y el [[kv-cache|KV cache]] de las conversaciones que necesitas caben en la [[vram|VRAM]] de una GPU, con su margen? Qwen3 32B en INT4 de [[awq|AWQ]] en una L40S: sí, 10 de 8,192 tokens. Llama 3.3 70B: no, quedan 1.43 GB."
   },
   {
    "id": "dp",
@@ -58,7 +58,7 @@
    "y": 17,
    "w": 20,
    "h": 8,
-   "note": "Si no cabe en un servidor: [[tensor-parallel|tensor parallel]] con las GPUs de cada servidor (donde está NVLink) y [[pipeline-parallel|pipeline parallel]] entre servidores (un vector por token por la red). Es la regla de Megatron-LM y la de la documentación de vLLM."
+   "note": "Si no cabe en un servidor: [[tensor-parallel|tensor parallel]] con las GPUs de cada servidor (donde está NVLink) y [[pipeline-parallel|pipeline parallel]] entre servidores (un vector por token por la red). Es la regla de Megatron-LM y la de la documentación de [[vllm|vLLM]]."
   },
   {
    "id": "q3",
@@ -92,7 +92,7 @@
    "y": 45,
    "w": 22,
    "h": 8,
-   "note": "Si \\(n\\) no divide las cabezas, o no hay NVLink, la documentación de vLLM sugiere pipeline parallel: capas en fila, comunicación barata. No baja el tiempo de una pregunta; da throughput si hay muchas conversaciones."
+   "note": "Si \\(n\\) no divide las cabezas, o no hay NVLink, la documentación de [[vllm|vLLM]] sugiere pipeline parallel: capas en fila, comunicación barata. No baja el tiempo de una pregunta; da throughput si hay muchas conversaciones."
   },
   {
    "id": "ep",
@@ -181,7 +181,7 @@
       "q1"
      ],
      "edges": [],
-     "text": "Qwen3 32B en INT4 de AWQ pesa **19.32 GB**. En una L40S de 48 GB, con 10 % de margen y 2 GB de programa, quedan 21.88 GB: **10 conversaciones** de 8,192 tokens. Cabe."
+     "text": "Qwen3 32B en INT4 de [[awq|AWQ]] pesa **19.32 GB**. En una L40S de 48 GB, con 10 % de margen y 2 GB de programa, quedan 21.88 GB: **10 conversaciones** de 8,192 tokens. Cabe."
     },
     {
      "nodes": [
@@ -204,7 +204,7 @@
       "q1"
      ],
      "edges": [],
-     "text": "Llama 3.3 70B en INT4 de AWQ pesa **39.77 GB**: en una L40S quedan 1.43 GB, menos que una conversación de 8,192 (2.68 GB). No cabe."
+     "text": "Llama 3.3 70B en INT4 de [[awq|AWQ]] pesa **39.77 GB**: en una L40S quedan 1.43 GB, menos que una conversación de 8,192 (2.68 GB). No cabe."
     },
     {
      "nodes": [
@@ -224,7 +224,7 @@
      "edges": [
       "q2>q3"
      ],
-     "text": "2 divide las 64 cabezas. Pero la L40S no tiene NVLink: la documentación de vLLM sugiere pipeline parallel y la cuenta de esta lección dice que tensor parallel baja más el primer token."
+     "text": "2 divide las 64 cabezas. Pero la L40S no tiene NVLink: la documentación de [[vllm|vLLM]] sugiere pipeline parallel y la cuenta de esta lección dice que tensor parallel baja más el primer token."
     },
     {
      "nodes": [
@@ -262,7 +262,7 @@
      "edges": [
       "q2>multi"
      ],
-     "text": "Tensor parallel de 8 **dentro** de cada servidor, por NVLink, y pipeline parallel de 2 **entre** los dos, por InfiniBand: entre servidores solo cruza un vector por token."
+     "text": "Tensor parallel de 8 **dentro** de cada servidor, por NVLink, y pipeline parallel de 2 **entre** los dos, por [[infiniband|InfiniBand]]: entre servidores solo cruza un vector por token."
     }
    ]
   }

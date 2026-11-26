@@ -167,7 +167,7 @@ El 85 % y el 2 % son decisiones del despacho, no números de la técnica. Los po
 
 ## Sizing en una servilleta {Napkin sizing}
 
-El [[sizing]] (dimensionar) es calcular cuánto hardware hace falta. Aquí va la versión de servilleta: la que se hace en la primera reunión para saber si hablamos de una GPU o de veinte. La versión a fondo es la lección «De requisitos a hardware».
+El [[sizing]] (dimensionar) es calcular cuánto hardware hace falta. Aquí va la versión de servilleta: la que se hace en la primera reunión para saber si hablamos de una GPU o de veinte. La versión a fondo es la lección «[De requisitos a hardware](/requisitos-hardware/)».
 
 ### De personas a preguntas por segundo
 
@@ -346,9 +346,9 @@ Las seis capas del despacho, con la lección donde se ve cada una a fondo.
 
 **2 · Sistema y drivers.** Linux, el driver de NVIDIA (el programa que deja al sistema operativo hablar con la GPU) y CUDA (la plataforma con que los programas usan la GPU), y casi siempre contenedores: paquetes que llevan un programa con todo lo que necesita, para que corra igual en cualquier máquina. Es la capa más frágil en actualizaciones: basta un driver que no corresponda con la versión de CUDA que espera el servidor de inferencia para que no arranque nada. Para el TI del despacho, que sabe de Windows, es la capa más nueva. Lección: «Seguridad: aislamiento, sin internet y actualizaciones».
 
-**3 · Servidor de inferencia.** *Inferencia* es usar un modelo ya entrenado para contestar. El servidor de inferencia es el programa que carga el modelo en la GPU y atiende a muchas conversaciones a la vez, [[batch|juntándolas]] para aprovechar la GPU. Es el corazón técnico: decide cuántas caben y qué tan rápido va cada una. Lecciones: «[Batching continuo y PagedAttention](/batching/)» y «Del laptop al servidor: llama.cpp, Ollama, vLLM, SGLang y TensorRT-LLM».
+**3 · Servidor de inferencia.** *Inferencia* es usar un modelo ya entrenado para contestar. El servidor de inferencia es el programa que carga el modelo en la GPU y atiende a muchas conversaciones a la vez, [[batch|juntándolas]] para aprovechar la GPU. Es el corazón técnico: decide cuántas caben y qué tan rápido va cada una. Lecciones: «[Batching continuo y PagedAttention](/batching/)» y «[Del laptop al servidor: llama.cpp, Ollama, vLLM, SGLang y TensorRT-LLM](/stack-serving/)».
 
-**4 · La API.** La ventanilla por donde los programas le preguntan al modelo. Se usa casi siempre una API compatible con la de OpenAI, para que cualquier herramienta que ya sepa hablar con OpenAI hable con el servidor propio. Delante va un *gateway* que pide usuario y llave, registra quién preguntó qué y reparte entre modelos. Lección: «Gateway, API compatible con OpenAI y varios modelos».
+**4 · La API.** La ventanilla por donde los programas le preguntan al modelo. Se usa casi siempre una API compatible con la de OpenAI, para que cualquier herramienta que ya sepa hablar con OpenAI hable con el servidor propio. Delante va un *gateway* que pide usuario y llave, registra quién preguntó qué y reparte entre modelos. Lección: «[Gateway, API compatible con OpenAI, autenticación y varios modelos](/gateway/)».
 
 **5 · La aplicación con RAG.** Lo que el abogado usa: busca en los 30,000 expedientes los fragmentos que hablan de su pregunta, se los pasa al modelo y muestra la respuesta con su cita. Aquí se gana o se pierde la calidad: si la búsqueda no encuentra la página correcta, el mejor modelo del mundo no la puede citar. Lección: «RAG privado: embeddings y vector DB locales».
 
@@ -584,8 +584,8 @@ Las lecciones de esta app, en orden, y qué toma cada una de esta:
 - **«[Concurrencia: la curva de usuarios contra latencia](/concurrencia/)»**: el [[ttft|TTFT]], la velocidad, la [[ley-de-little|Ley de Little]] y el margen \(m\) de la servilleta, hechos con cuidado.
 - **«[Formatos de cuantización en la práctica](/formatos-cuantizacion/)»** y **«[Speculative decoding y contexto largo](/speculative/)»**: de dónde salen los 19.32 GB del INT4 de AWQ y cómo se estira el contexto.
 - **«[Comprar hardware: de la workstation al rack](/comprar-hardware/)»** y **«[El cuarto: energía, enfriamiento y red](/el-cuarto/)»**: la etapa de compra y la capa 1.
-- **«De requisitos a hardware»** y **«Varias GPUs: tensor y pipeline parallel»**: el sizing a fondo, más allá de la servilleta.
-- **«Del laptop al servidor»** y **«Gateway, API compatible con OpenAI y varios modelos»**: las capas 3 y 4 del despliegue.
+- **«[De requisitos a hardware](/requisitos-hardware/)»** y **«[Varias GPUs: tensor y pipeline parallel](/varias-gpus/)»**: el sizing a fondo, más allá de la servilleta.
+- **«[Del laptop al servidor](/stack-serving/)»** y **«[Gateway, API compatible con OpenAI, autenticación y varios modelos](/gateway/)»**: las capas 3 y 4 del despliegue.
 - **«RAG privado: embeddings y vector DB locales»** y **«Agentes, tools y guardrails»**: la capa 5, donde se gana la calidad.
 - **«Demostrar que el modelo abierto sirve»** y **«Pruebas de carga y benchmarks honestos»**: las dos mitades de las evals.
 - **«Observabilidad de GPUs e inferencia»** y **«Seguridad: aislamiento, sin internet y actualizaciones»**: el día 2.

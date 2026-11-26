@@ -283,7 +283,7 @@ En vLLM todo pasa por una opción, `--speculative-config`, con un JSON. Sus camp
 --speculative-config '{"model":"RedHatAI/Qwen3-32B-speculator.eagle3","num_speculative_tokens":3,"method":"eagle3"}'
 ```
 
-La documentación de vLLM resume la diferencia: los métodos con modelo (EAGLE, MTP, borrador) dan la mayor reducción de latencia, y los simples (n-gram, y *suffix decoding*, que busca también en respuestas anteriores) dan aceleraciones modestas. llama.cpp tiene su propio juego de opciones (`--spec-type` con borrador aparte, EAGLE-3, MTP o varias formas de n-gram); los servidores se comparan a fondo en la lección «Del laptop al servidor».
+La documentación de vLLM resume la diferencia: los métodos con modelo (EAGLE, MTP, borrador) dan la mayor reducción de latencia, y los simples (n-gram, y *suffix decoding*, que busca también en respuestas anteriores) dan aceleraciones modestas. llama.cpp tiene su propio juego de opciones (`--spec-type` con borrador aparte, EAGLE-3, MTP o varias formas de n-gram); los servidores se comparan a fondo en la lección «[Del laptop al servidor](/stack-serving/)».
 :::
 
 :::ojo
@@ -646,9 +646,9 @@ De bueno: la cuenta de techo es correcta. Con 8 conversaciones de 6,250 tokens, 
 ## Lo que sigue {What comes next}
 
 - **«[Formatos de cuantización en la práctica](/formatos-cuantizacion/)»**, la otra lección de este módulo, explica de dónde salen los 19.32 GB del INT4 de [[awq|AWQ]] y cómo se guarda el [[cuantizar-kv-cache|KV cache en FP8]]: la mitad de memoria para un expediente largo, a cambio de una pérdida que se mide.
-- **«De requisitos a hardware»** junta todo lo que pesa en el sizing: prefills largos, decode, KV cache y, ahora, las peticiones largas que conviene apartar.
-- **«Varias GPUs: tensor y pipeline parallel»** explica cómo repartir un modelo entre GPUs, la salida cuando un contexto de 131 mil tokens no cabe en una sola.
-- **«Del laptop al servidor: llama.cpp, Ollama, vLLM, SGLang y TensorRT-LLM»** compara qué servidor soporta qué borrador, YaRN y chunked prefill.
+- **«[De requisitos a hardware](/requisitos-hardware/)»** junta todo lo que pesa en el sizing: prefills largos, decode, KV cache y, ahora, las peticiones largas que conviene apartar.
+- **«[Varias GPUs: tensor y pipeline parallel](/varias-gpus/)»** explica cómo repartir un modelo entre GPUs, la salida cuando un contexto de 131 mil tokens no cabe en una sola.
+- **«[Del laptop al servidor: llama.cpp, Ollama, vLLM, SGLang y TensorRT-LLM](/stack-serving/)»** compara qué servidor soporta qué borrador, YaRN y chunked prefill.
 - **«RAG privado: embeddings y vector DB locales»** es la vía para preguntar sobre un expediente sin meterlo entero, y **«Demostrar que el modelo abierto sirve»** arma el examen que mide el contexto efectivo.
 - En Sensei: [Transformers y LLMs](https://sensei.trueml.app/llms/) tiene el prefill, el decode, la atención y RoPE desde cero, y [Latencia y throughput](https://sensei.trueml.app/latencia/) explica por qué una tarea larga en la misma fila hace esperar a todos.
 

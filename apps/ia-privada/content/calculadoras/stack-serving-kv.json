@@ -1,6 +1,6 @@
 {
   "titulo": "¿Cuánto KV cache te deja --gpu-memory-utilization?",
-  "intro": "Aplica la cuenta de vLLM: \\(M_{pedida} = f × V\\), \\(M_{KV} = M_{pedida} − W − O\\), \\(T = M_{KV} ÷ m_{token}\\) en bloques de 64 tokens y \\(c = T ÷ N\\). Arranca con el despacho: Qwen3 32B en INT4 de AWQ en una L40S, con 0.90 y 2 GB de overhead. Es una cota: el número de verdad lo imprime vLLM al arrancar.",
+  "intro": "Aplica la cuenta de vLLM: \\(M_{pedida} = f × V\\), \\(M_{KV} = M_{pedida} − W − O\\), \\(T = M_{KV} ÷ m_{token}\\) en bloques de 64 tokens y \\(c = T ÷ N\\). Arranca con el despacho: Qwen3 32B en INT4 de [[awq|AWQ]] en una L40S, con 0.90 y 2 GB de overhead. Es una cota: el número de verdad lo imprime vLLM al arrancar.",
   "preajustes": [
     {
       "label": "GPU (datos de gpus.json)",

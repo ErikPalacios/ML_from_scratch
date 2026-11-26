@@ -1,6 +1,6 @@
 {
  "titulo": "Lo que se pasan las GPUs en tensor parallel",
- "intro": "Aplica \\(t_{AR} = 2(n − 1)/n × N ÷ B_{enl} + α\\) a los \\(2 × L\\) [[all-reduce|all-reduce]] de un token, con \\(N = b × h × 2\\) bytes en el [[decode|decode]] y \\(N = T × h × 2\\) en el [[prefill|prefill]]. La compara con lo que cada GPU tarda en leer su parte de la memoria y en hacer su parte del cálculo. Arranca con el despacho: Qwen3 32B en INT4 de AWQ en 2 L40S por PCIe 4.0, una conversación.",
+ "intro": "Aplica \\(t_{AR} = 2(n − 1)/n × N ÷ B_{enl} + α\\) a los \\(2 × L\\) [[all-reduce|all-reduce]] de un token, con \\(N = b × h × 2\\) bytes en el [[decode|decode]] y \\(N = T × h × 2\\) en el [[prefill|prefill]]. La compara con lo que cada GPU tarda en leer su parte de la memoria y en hacer su parte del cálculo. Arranca con el despacho: Qwen3 32B en INT4 de [[awq|AWQ]] en 2 L40S por PCIe 4.0, una conversación.",
  "preajustes": [
   {
    "label": "Modelo (arquitectura del config.json)",

@@ -137,7 +137,7 @@ Cuando un modelo no cabe en una GPU, se reparte entre varias que trabajan como u
 Lo que esa suma no ve:
 
 - **Cada GPU tiene su propio programa.** Con más GPUs, sube \(M_{prog}\). En el ejemplo de Sensei, una copia con 2 H100 usa ≈ 5 GB de programa.
-- **El reparto no siempre es parejo.** La forma de partir el modelo (tensor parallel o pipeline parallel) y la red entre GPUs deciden qué tan bien se aprovecha la memoria y qué tan rápido va. Eso es tema de la lección «Varias GPUs: tensor y pipeline parallel».
+- **El reparto no siempre es parejo.** La forma de partir el modelo (tensor parallel o pipeline parallel) y la red entre GPUs deciden qué tan bien se aprovecha la memoria y qué tan rápido va. Eso es tema de la lección «[Varias GPUs: tensor y pipeline parallel](/varias-gpus/)».
 - **Un [[moe|modelo MoE]] no se salva.** Aunque cada token use pocos expertos, en memoria van todos. Qwen3 30B-A3B pesa como un modelo de 30B, no como uno de 3B.
 
 :::cuenta Llama 3.3 70B en FP8, en 2 H100 SXM

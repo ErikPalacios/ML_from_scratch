@@ -42,9 +42,9 @@
       "x": 2, "y": 35, "w": 18, "h": 8,
       "note": "Si también falla el modelo chico, se contesta **503** con un mensaje que la persona entienda. Un error honesto es mejor que una respuesta de otro lado sin que nadie lo sepa."
     },
-    { "id": "r1", "label": "Copia 1", "sub": "L40S 1", "kind": "gpu", "x": 31, "y": 35, "w": 13, "h": 8, "note": "vLLM con Qwen3 32B en la primera L40S." },
-    { "id": "r2", "label": "Copia 2", "sub": "L40S 2", "kind": "gpu", "x": 47, "y": 35, "w": 13, "h": 8, "note": "vLLM con Qwen3 32B en la segunda L40S." },
-    { "id": "r3", "label": "Copia 3", "sub": "L40S 3", "kind": "gpu", "x": 63, "y": 35, "w": 13, "h": 8, "note": "vLLM con Qwen3 32B en la tercera L40S." }
+    { "id": "r1", "label": "Copia 1", "sub": "L40S 1", "kind": "gpu", "x": 31, "y": 35, "w": 13, "h": 8, "note": "[[vllm|vLLM]] con Qwen3 32B en la primera L40S." },
+    { "id": "r2", "label": "Copia 2", "sub": "L40S 2", "kind": "gpu", "x": 47, "y": 35, "w": 13, "h": 8, "note": "[[vllm|vLLM]] con Qwen3 32B en la segunda L40S." },
+    { "id": "r3", "label": "Copia 3", "sub": "L40S 3", "kind": "gpu", "x": 63, "y": 35, "w": 13, "h": 8, "note": "[[vllm|vLLM]] con Qwen3 32B en la tercera L40S." }
   ],
   "edges": [
     { "from": "req", "to": "clave", "kind": "online", "label": "Bearer", "fromSide": "r", "toSide": "l" },

@@ -1,6 +1,6 @@
 {
  "titulo": "Memoria por GPU con tensor parallel",
- "intro": "Aplica \\(M_{GPU} = W/n + c × K_{conv}/n + M_{prog}\\), con \\(M_{prog}\\) en **cada** GPU, y cuenta cuántas conversaciones \\(c\\) caben en \\((1 − f) × V\\). Revisa también la regla de las cabezas: \\(n\\) tiene que dividir las cabezas de consulta, y si pasa de los juegos de K y V, vLLM los repite. Arranca con Llama 3.3 70B en INT4 de AWQ en 2 L40S.",
+ "intro": "Aplica \\(M_{GPU} = W/n + c × K_{conv}/n + M_{prog}\\), con \\(M_{prog}\\) en **cada** GPU, y cuenta cuántas conversaciones \\(c\\) caben en \\((1 − f) × V\\). Revisa también la regla de las cabezas: \\(n\\) tiene que dividir las cabezas de consulta, y si pasa de los juegos de K y V, [[vllm|vLLM]] los repite. Arranca con Llama 3.3 70B en INT4 de [[awq|AWQ]] en 2 L40S.",
  "preajustes": [
   {
    "label": "Modelo (arquitectura del config.json)",

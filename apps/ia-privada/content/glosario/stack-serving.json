@@ -5,9 +5,9 @@
    "termino": "Motor de inferencia",
    "en": "inference engine, inference server",
    "corto": "El programa que carga un modelo en la GPU y lo usa para contestar: recibe peticiones, arma los batches, guarda el KV cache, corre los kernels y devuelve los tokens.",
-   "largo": "Inferencia es usar un modelo ya entrenado. El motor hace todo lo que pasa entre que llega un JSON y sale cada token: aplica la [[plantilla-de-chat|plantilla de chat]], tokeniza, el [[scheduler]] decide qué conversaciones van juntas ([[batching-continuo|batching continuo]]), el gestor del [[kv-cache|KV cache]] reparte la memoria ([[pagedattention|PagedAttention]]), la GPU corre los kernels y el *sampler* elige el token. Casi siempre trae su propio servidor compatible con OpenAI. Los cinco más conocidos: [[llama-cpp|llama.cpp]], [[ollama|Ollama]], [[vllm|vLLM]], [[sglang|SGLang]] y [[tensorrt-llm|TensorRT-LLM]].",
+   "largo": "Inferencia es usar un modelo ya entrenado. El motor hace todo lo que pasa entre que llega un JSON y sale cada token: aplica la [[plantilla-de-chat|plantilla de chat]], tokeniza, el [[scheduler]] decide qué conversaciones van juntas ([[batching-continuo|batching continuo]]), el gestor del [[kv-cache|KV cache]] reparte la memoria ([[pagedattention|PagedAttention]]), la GPU corre los kernels y el *sampler* elige el token. Casi siempre trae su propio [[api-compatible-openai|servidor compatible con OpenAI]]. Los cinco más conocidos: [[llama-cpp|llama.cpp]], [[ollama|Ollama]], [[vllm|vLLM]], [[sglang|SGLang]] y [[tensorrt-llm|TensorRT-LLM]].",
    "analogia": "La cocina completa de un restaurante, no solo la estufa: recibe las órdenes, decide cuáles se cocinan juntas, guarda lo que ya se preparó y saca los platos.",
-   "ejemplo": "El despacho corre una copia de vLLM 0.34.0 en cada una de sus 3 L40S; cada copia carga los ≈ 19.32 GB de Qwen3 32B en AWQ y reparte el resto de la memoria en bloques de KV cache.",
+   "ejemplo": "El despacho corre una copia de vLLM 0.34.0 en cada una de sus 3 L40S; cada copia carga los ≈ 19.32 GB de Qwen3 32B en [[awq|AWQ]] y reparte el resto de la memoria en bloques de KV cache.",
    "ver": [
     "vllm",
     "llama-cpp"
@@ -46,7 +46,7 @@
    "termino": "llama.cpp",
    "en": "llama.cpp",
    "corto": "Un motor de inferencia en C/C++, con licencia MIT, que corre LLMs en casi cualquier máquina (CPU, Mac, GPUs de NVIDIA y AMD) con archivos GGUF. Su servidor es llama-server.",
-   "largo": "Lo empezó Georgi Gerganov en 2023 y hoy lo mantiene ggml-org. Su fuerte es correr donde sea: cuantización agresiva en GGUF, [[offload-a-cpu|offload]] de capas a la RAM, Metal en Mac. `llama-server` hace [[batching-continuo|batching continuo]] y trae API compatible con OpenAI. En noviembre de 2026 empezó versiones semánticas (v1.0.0 el día 13, v1.1.0 el 26), que conviven con builds por hora (`bNNNNN`). Su `llama-server` escucha por omisión en `127.0.0.1:9931`. No lee AWQ ni GPTQ.",
+   "largo": "Lo empezó Georgi Gerganov en 2023 y hoy lo mantiene ggml-org. Su fuerte es correr donde sea: cuantización agresiva en [[gguf|GGUF]], [[offload-a-cpu|offload]] de capas a la RAM, Metal en Mac. `llama-server` hace [[batching-continuo|batching continuo]] y trae [[api-compatible-openai|API compatible con OpenAI]]. En noviembre de 2026 empezó versiones semánticas (v1.0.0 el día 13, v1.1.0 el 26), que conviven con builds por hora (`bNNNNN`). Su `llama-server` escucha por omisión en `127.0.0.1:9931`. No lee [[awq|AWQ]] ni [[gptq|GPTQ]].",
    "ejemplo": "`llama-server -m ./Qwen3-32B-Q4_K_M.gguf -c 8192 --reasoning off` sirve el GGUF de Qwen3 32B con contexto de 8,192 y sin razonamiento.",
    "ver": [
     "ollama",
@@ -73,7 +73,7 @@
    "termino": "Ollama",
    "en": "Ollama",
    "corto": "Un programa de escritorio y servidor (MIT, en Go) para bajar y correr modelos locales con un comando. Por dentro usa llama.cpp, y MLX en las Mac.",
-   "largo": "Envuelve a [[llama-cpp|llama.cpp]] (sirve cada GGUF con un subproceso de `llama-server`) con descarga de modelos, nombres cortos (`qwen3:32b`), carga y descarga automáticas y una API, también compatible con OpenAI en `/v1/`. Escucha en `127.0.0.1:11434`. Sus valores por omisión están pensados para una persona: una petición a la vez por modelo en NVIDIA y AMD (`OLLAMA_NUM_PARALLEL`), contexto según la VRAM (4k, 32k o 256k), [[keep-alive|keep-alive]] de 5 minutos y sin autenticación. En 2025 corría varios modelos en un motor propio; desde la v0.30.0 (mayo de 2026) corre con llama.cpp, y ese motor ya no está en su código. Con varias GPUs suma su VRAM para elegir el contexto.",
+   "largo": "Envuelve a [[llama-cpp|llama.cpp]] (sirve cada [[gguf|GGUF]] con un subproceso de `llama-server`) con descarga de modelos, nombres cortos (`qwen3:32b`), carga y descarga automáticas y una API, también compatible con OpenAI en `/v1/`. Escucha en `127.0.0.1:11434`. Sus valores por omisión están pensados para una persona: una petición a la vez por modelo en NVIDIA y AMD (`OLLAMA_NUM_PARALLEL`), contexto según la VRAM (4k, 32k o 256k), [[keep-alive|keep-alive]] de 5 minutos y sin autenticación. En 2025 corría varios modelos en un motor propio; desde la v0.30.0 (mayo de 2026) corre con llama.cpp, y ese motor ya no está en su código. Con varias GPUs suma su VRAM para elegir el contexto.",
    "ejemplo": "Con una petición a la vez, una L40S atendería ≈ 179 preguntas por hora del despacho contra 750 que llegan en la hora pico: la utilización sale ≈ 4.2.",
    "ver": [
     "llama-cpp",
@@ -87,7 +87,7 @@
    "termino": "Modelfile",
    "en": "Modelfile",
    "corto": "La receta de texto de Ollama para crear una variante de un modelo: de qué modelo parte (FROM), qué parámetros fija (PARAMETER) y qué instrucciones trae.",
-   "largo": "Se escribe en un archivo y se convierte en un modelo con `ollama create NOMBRE -f Modelfile`. Sirve para fijar el contexto (`num_ctx`), la temperatura o un mensaje de sistema sin repetirlos en cada petición. No cuantiza ni convierte formatos: un GGUF se prepara antes con las herramientas de llama.cpp.",
+   "largo": "Se escribe en un archivo y se convierte en un modelo con `ollama create NOMBRE -f Modelfile`. Sirve para fijar el contexto (`num_ctx`), la temperatura o un mensaje de sistema sin repetirlos en cada petición. No cuantiza ni convierte formatos: un [[gguf|GGUF]] se prepara antes con las herramientas de llama.cpp.",
    "ejemplo": "`FROM qwen3:32b` y `PARAMETER num_ctx 8192`, y después `ollama create despacho-qwen -f Modelfile`.",
    "ver": [
     "ollama"
@@ -111,7 +111,7 @@
    "termino": "vLLM",
    "en": "vLLM",
    "corto": "El motor de inferencia de servidor abierto más popular: PagedAttention, batching continuo, muchos formatos de cuantización y API compatible con OpenAI. Apache 2.0, para Linux.",
-   "largo": "Nació en Berkeley con el paper de [[pagedattention|PagedAttention]] (SOSP 2023). Trae [[batching-continuo|batching continuo]], [[prefix-caching|prefix caching]] y [[chunked-prefill|chunked prefill]] prendidos por omisión, [[cuda-graph|CUDA graphs]], kernels para AWQ, GPTQ, FP8 y FP4, [[salida-estructurada|salida estructurada]] y varias GPUs. Corre en NVIDIA desde la capability 7.5, AMD, Intel, CPU y TPU; no en Windows nativo. Saca versión cada 2 a 4 semanas; en la v0.34.0 (16 de noviembre de 2026) `--gpu-memory-utilization` pasó a 1.0 con el KV cache extensible (antes 0.9, y 0.92 desde abril de 2026).",
+   "largo": "Nació en Berkeley con el paper de [[pagedattention|PagedAttention]] (SOSP 2023). Trae [[batching-continuo|batching continuo]], [[prefix-caching|prefix caching]] y [[chunked-prefill|chunked prefill]] prendidos por omisión, [[cuda-graph|CUDA graphs]], kernels para [[awq|AWQ]], [[gptq|GPTQ]], FP8 y [[fp4|FP4]], [[salida-estructurada|salida estructurada]] y varias GPUs. Corre en NVIDIA desde la capability 7.5, AMD, Intel, CPU y TPU; no en Windows nativo. Saca versión cada 2 a 4 semanas; en la v0.34.0 (16 de noviembre de 2026) `--gpu-memory-utilization` pasó a 1.0 con el KV cache extensible (antes 0.9, y 0.92 desde abril de 2026).",
    "ejemplo": "`vllm serve Qwen/Qwen3-32B-AWQ --max-model-len 8192 --max-num-seqs 8 --api-key \"$VLLM_CLAVE\"` es la base del comando del despacho.",
    "ver": [
     "motor-de-inferencia",
@@ -125,7 +125,7 @@
    "termino": "SGLang",
    "en": "SGLang",
    "corto": "Un motor de inferencia de servidor (Apache 2.0) que hospeda LMSYS, conocido por RadixAttention (KV cache en árbol de prefijos) y por su salida estructurada rápida.",
-   "largo": "Su paper (Zheng y otros, 2023) propuso [[radixattention|RadixAttention]] y una máquina de estados comprimida para la [[salida-estructurada|salida estructurada]]. Brilla en cargas con mucho prefijo compartido: agentes, evaluaciones, chats largos. Se arranca con `python -m sglang.launch_server` o `sglang serve` (puerto 30000). La v0.5.23 (noviembre de 2026) pide CUDA 13.",
+   "largo": "Su paper (Zheng y otros, 2023) propuso [[radixattention|RadixAttention]] y una máquina de estados comprimida para la [[salida-estructurada|salida estructurada]]. Brilla en cargas con mucho prefijo compartido: agentes, evaluaciones, chats largos. Se arranca con `python -m sglang.launch_server` o `sglang serve` (puerto 30000). La v0.5.23 (noviembre de 2026) pide [[cuda|CUDA]] 13.",
    "ejemplo": "Una aseguradora que extrae 15 campos fijos de miles de facturas, con el mismo prompt y el mismo esquema JSON en todas, es un candidato natural para probar SGLang.",
    "ver": [
     "radixattention",
@@ -165,8 +165,8 @@
    "termino": "TensorRT-LLM",
    "en": "TensorRT-LLM",
    "corto": "La biblioteca abierta de NVIDIA (Apache 2.0) para servir LLMs en sus GPUs, hoy construida sobre PyTorch y con su servidor trtllm-serve. Solo NVIDIA y Linux.",
-   "largo": "Antes servía [[engine-compilado|engines compilados]] con `trtllm-build`; la v1.3.0 (noviembre de 2026) ya quitó ese backend y carga el modelo de Hugging Face directo. Su fuerte son las GPUs grandes de NVIDIA con FP8 y FP4. En Ada (L40S) soporta FP8 y AWQ de 4 bits, no FP4. Su `free_gpu_memory_fraction` (0.9) es fracción de la memoria libre, no del total como en vLLM.",
-   "ejemplo": "`trtllm-serve \"nvidia/Qwen3-8B-FP8\"` baja ese modelo y lo sirve con API compatible con OpenAI, sin paso de compilación.",
+   "largo": "Antes servía [[engine-compilado|engines compilados]] con `trtllm-build`; la v1.3.0 (noviembre de 2026) ya quitó ese backend y carga el modelo de Hugging Face directo. Su fuerte son las GPUs grandes de NVIDIA con FP8 y [[fp4|FP4]]. En Ada (L40S) soporta FP8 y [[awq|AWQ]] de 4 bits, no FP4. Su `free_gpu_memory_fraction` (0.9) es fracción de la memoria libre, no del total como en vLLM.",
+   "ejemplo": "`trtllm-serve \"nvidia/Qwen3-8B-FP8\"` baja ese modelo y lo sirve con [[api-compatible-openai|API compatible con OpenAI]], sin paso de compilación.",
    "ver": [
     "engine-compilado",
     "vllm"

@@ -1,6 +1,6 @@
 {
   "titulo": "Los tres techos de una GPU y cuántas hacen falta",
-  "intro": "Calcula por separado los tres techos de una copia del servidor: **memoria** \\(b_{mem} = ⌊((1 − f) × n × M − W − M_{prog}) ÷ (m × N_{tope})⌋\\), **ancho de banda** \\(b_{anch} = ⌊(1 ÷ v − a_0) ÷ a_1⌋\\) y **cómputo** \\(λ_{máx} = 1 ÷ t_{pre}\\). Luego los mezcla como la [herramienta de sizing](/herramientas/sizing/), \\(b_{vel} = ⌊(1 − v × a_0) ÷ (v × a_1 + v × t_{pre} ÷ N_o)⌋\\), y saca las GPUs con holgura, repuesto y crecimiento, y el TTFT con la fila. Arranca con el despacho: Qwen3 32B en INT4 de AWQ, 0.208 preguntas por segundo, 6,000 tokens de entrada, 500 de salida, ≥ 20 tokens/s, en una L40S.",
+  "intro": "Calcula por separado los tres techos de una copia del servidor: **memoria** \\(b_{mem} = ⌊((1 − f) × n × M − W − M_{prog}) ÷ (m × N_{tope})⌋\\), **ancho de banda** \\(b_{anch} = ⌊(1 ÷ v − a_0) ÷ a_1⌋\\) y **cómputo** \\(λ_{máx} = 1 ÷ t_{pre}\\). Luego los mezcla como la [herramienta de sizing](/herramientas/sizing/), \\(b_{vel} = ⌊(1 − v × a_0) ÷ (v × a_1 + v × t_{pre} ÷ N_o)⌋\\), y saca las GPUs con holgura, repuesto y crecimiento, y el TTFT con la fila. Arranca con el despacho: Qwen3 32B en INT4 de [[awq|AWQ]], 0.208 preguntas por segundo, 6,000 tokens de entrada, 500 de salida, ≥ 20 tokens/s, en una L40S.",
   "preajustes": [
     {
       "label": "Modelo (pesos y arquitectura de su config.json)",

@@ -12,7 +12,7 @@ Un servidor de modelos sabe generar tokens, pero no sabe **quién** pide, **cuá
 
 ## Lo que falta delante de vLLM {What is missing in front of vLLM}
 
-Esta lección sigue a un ejemplo ficticio, **el despacho**: un despacho de abogados en la Ciudad de México que quiere preguntarle a sus 30,000 expedientes con un LLM sin que un solo documento salga de su red. Lo usarían **200 personas**, cada una ≈ 15 preguntas al día en un horario de 10 horas, con una hora pico de 2.5 veces el promedio. Cada pregunta lleva ≈ 6,000 tokens de entrada (instrucciones, la pregunta y cinco fragmentos de expediente) y la respuesta ≈ 500. El modelo es **Qwen3 32B en INT4 de AWQ**, servido con vLLM en **3 GPUs L40S**, una copia del modelo en cada una. Su equipo de TI son 2 personas que saben de redes y de Windows. Y el despacho ya usa cuentas de Microsoft para el correo.
+Esta lección sigue a un ejemplo ficticio, **el despacho**: un despacho de abogados en la Ciudad de México que quiere preguntarle a sus 30,000 expedientes con un LLM sin que un solo documento salga de su red. Lo usarían **200 personas**, cada una ≈ 15 preguntas al día en un horario de 10 horas, con una hora pico de 2.5 veces el promedio. Cada pregunta lleva ≈ 6,000 tokens de entrada (instrucciones, la pregunta y cinco fragmentos de expediente) y la respuesta ≈ 500. El modelo es **Qwen3 32B en INT4 de [[awq|AWQ]]**, servido con [[vllm|vLLM]] en **3 GPUs L40S**, una copia del modelo en cada una. Su equipo de TI son 2 personas que saben de redes y de Windows. Y el despacho ya usa cuentas de Microsoft para el correo.
 
 Supón que vLLM ya arrancó en las tres GPUs. Cada una contesta en su puerto `8000`. ¿Qué pasa si el TI le da a cada abogado la dirección de una de ellas?
 
@@ -35,7 +35,7 @@ El camino de una pregunta del despacho. Toca cada caja para ver por qué está a
 
 ## La API compatible con OpenAI, de verdad {The OpenAI-compatible API, for real}
 
-Todo en el diagrama habla el mismo idioma: Open WebUI (la página de chat que usan los abogados, la ves a fondo más abajo) le habla al gateway como si el gateway fuera OpenAI, y el gateway le habla a cada vLLM igual. Ese idioma es la [[api-compatible-openai|API compatible con OpenAI]]: un conjunto de rutas HTTP con un JSON conocido. Las que importan son cuatro:
+Todo en el diagrama habla el mismo idioma: Open WebUI (la página de chat que usan los abogados, la ves a fondo más abajo) le habla al gateway como si el gateway fuera OpenAI, y el gateway le habla a cada [[vllm|vLLM]] igual. Ese idioma es la [[api-compatible-openai|API compatible con OpenAI]]: un conjunto de rutas HTTP con un JSON conocido. Las que importan son cuatro:
 
 | Ruta | Para qué | En el despacho |
 |---|---|---|
@@ -44,7 +44,7 @@ Todo en el diagrama habla el mismo idioma: Open WebUI (la página de chat que us
 | `GET /v1/models` | Listar los modelos que hay | Open WebUI la llama para llenar su menú |
 | `POST /v1/embeddings` | Convertir textos en vectores | La búsqueda de fragmentos (la lección de RAG) |
 
-Por qué todos la imitan: hay miles de programas, bibliotecas y SDKs que ya saben hablar con OpenAI. Si tu servidor habla igual, cualquiera de ellos le habla **cambiando una sola cosa**: la dirección base (`base_url`). A noviembre de 2026, vLLM 0.34.0, llama-server (el servidor de llama.cpp) y Ollama sirven las cuatro rutas; cómo se elige entre esos motores lo ves en [Del laptop al servidor](/stack-serving/).
+Por qué todos la imitan: hay miles de programas, bibliotecas y SDKs que ya saben hablar con OpenAI. Si tu servidor habla igual, cualquiera de ellos le habla **cambiando una sola cosa**: la dirección base (`base_url`). A noviembre de 2026, vLLM 0.34.0, llama-server (el servidor de [[llama-cpp|llama.cpp]]) y [[ollama|Ollama]] sirven las cuatro rutas; cómo se elige entre esos motores lo ves en [Del laptop al servidor](/stack-serving/).
 
 ### El request por dentro
 
@@ -104,7 +104,7 @@ Una respuesta del despacho tarda ≈ 27 s: ≈ 2 s hasta el primer token (el [[t
 Lo que viaja por el cable en una respuesta en streaming: ≈ 2.4 s de nada mientras el servidor lee la entrada, después un evento por pedazo, el pedazo con `usage` si se pidió, y `data: [DONE]`. Abajo, lo que pasa si algo en medio junta los pedazos.
 :::
 
-Cada pedazo es un objeto `chat.completion.chunk`. Todos traen el mismo `id`; en vez de `message` traen `delta`, con solo el texto nuevo. El último con texto trae el `finish_reason`. Y un detalle que importa para cobrar: **`usage` no viene en el stream a menos que se pida** con `"stream_options": {"include_usage": true}`; entonces llega un pedazo extra al final, con `choices` vacío y los tokens. Al final va la línea `data: [DONE]`: la referencia de OpenAI dice que el pedazo de `usage` llega «antes del mensaje `data: [DONE]`», y vLLM 0.34.0 la manda igual.
+Cada pedazo es un objeto `chat.completion.chunk`. Todos traen el mismo `id`; en vez de `message` traen `delta`, con solo el texto nuevo. El último con texto trae el `finish_reason`. Y un detalle que importa para cobrar: **`usage` no viene en el stream a menos que se pida** con `"stream_options": {"include_usage": true}`; entonces llega un pedazo extra al final, con `choices` vacío y los tokens. Al final va la línea `data: [DONE]`: la referencia de OpenAI dice que el pedazo de `usage` llega «antes del mensaje `data: [DONE]`», y [[vllm|vLLM]] 0.34.0 la manda igual.
 
 :::profundo Un stream, leído por un programa
 Esto es lo que hace un gateway con cada pedazo: reenviarlo y, al final, quedarse con la factura. (Sensei enseña a leer SSE en general; aquí importa dónde llega la factura.)
@@ -182,10 +182,10 @@ Prueba el stream **de punta a punta**, desde el navegador de una abogada, no des
 
 Que todos hablen la «misma» API no quiere decir que hagan lo mismo. Lo que cambia entre motores, a noviembre de 2026, y que el gateway tiene que conocer:
 
-- **Parámetros extra.** vLLM acepta parámetros que OpenAI no tiene, como `top_k`; con el SDK de OpenAI van dentro de `extra_body`. El del despacho es `chat_template_kwargs`: está en el esquema del request de vLLM y se pasa a la plantilla del modelo. Ahí viaja el `enable_thinking: false` que apaga el razonamiento de Qwen3; la documentación de vLLM 0.34.0 lo dice así para la serie Qwen3 (la lección [Elegir un modelo](/elegir-modelo/) explica por qué el despacho lo apaga). Si el gateway o Open WebUI no lo reenvían, el modelo piensa por omisión y gasta tokens y segundos antes de cada respuesta. Más seguro: arrancar vLLM con `--default-chat-template-kwargs '{"enable_thinking": false}'`, que lo apaga para todas las requests que no digan otra cosa.
+- **Parámetros extra.** [[vllm|vLLM]] acepta parámetros que OpenAI no tiene, como `top_k`; con el SDK de OpenAI van dentro de `extra_body`. El del despacho es `chat_template_kwargs`: está en el esquema del request de vLLM y se pasa a la plantilla del modelo. Ahí viaja el `enable_thinking: false` que apaga el razonamiento de Qwen3; la documentación de vLLM 0.34.0 lo dice así para la serie Qwen3 (la lección [Elegir un modelo](/elegir-modelo/) explica por qué el despacho lo apaga). Si el gateway o Open WebUI no lo reenvían, el modelo piensa por omisión y gasta tokens y segundos antes de cada respuesta. Más seguro: arrancar vLLM con `--default-chat-template-kwargs '{"enable_thinking": false}'`, que lo apaga para todas las requests que no digan otra cosa.
 - **Valores por omisión distintos.** vLLM aplica por omisión el `generation_config.json` que publica quien hizo el modelo (temperatura y otros), y se apaga con `--generation-config vllm`. Dos servidores «iguales» pueden contestar distinto a la misma pregunta.
 - **Campos ignorados.** vLLM ignora el campo `user` del chat y no soporta `suffix` en `/v1/completions`. Quien quiera saber qué persona pidió no puede confiar en `user`: lo resuelve el gateway.
-- **Una API nueva.** OpenAI dice, en su guía de migración consultada el 26 de noviembre de 2026, que Chat Completions «sigue soportada» pero recomienda su **Responses API** para proyectos nuevos; su stream usa eventos con nombre (`response.output_text.delta`, `response.completed`) en vez de `[DONE]`. vLLM, llama-server y Ollama ya sirven una ruta `/v1/responses`. Para el despacho, Chat Completions es el denominador común: todo lo que usa la entiende.
+- **Una API nueva.** OpenAI dice, en su guía de migración consultada el 26 de noviembre de 2026, que Chat Completions «sigue soportada» pero recomienda su **Responses API** para proyectos nuevos; su stream usa eventos con nombre (`response.output_text.delta`, `response.completed`) en vez de `[DONE]`. vLLM, llama-server y [[ollama|Ollama]] ya sirven una ruta `/v1/responses`. Para el despacho, Chat Completions es el denominador común: todo lo que usa la entiende.
 - **La llave de juguete.** Ollama, en tu computadora, pide una `api_key` que **ignora**: su propia documentación la marca como obligatoria pero no revisada. llama-server sí revisa su `--api-key`, pero deja `/health` público. «Compatible con OpenAI» no quiere decir «autenticado».
 
 ## Qué es un gateway de LLMs, y por qué la llave de vLLM no basta {What an LLM gateway is, and why vLLM's key is not enough}
@@ -213,7 +213,7 @@ El gateway es la recepción de un edificio de oficinas. Revisa tu gafete (quién
 
 ### El `--api-key` de vLLM: una llave, y puertas laterales
 
-vLLM tiene una opción `--api-key`. ¿Por qué no basta? Primero, porque es **una sola** llave para todos: no dice quién pidió ni separa cuotas. Segundo, porque no cubre todo. La documentación de seguridad de vLLM 0.34.0 lo dice en una advertencia explícita: la llave solo protege las rutas que empiezan con `/v1`, `/v2`, `/inference` y `/cohere`, y otras rutas del mismo servidor **no** se autentican, entre ellas `/invocations`, que da la misma inferencia que `/v1`. En la lista de rutas sin llave también están `/metrics`, `/health`, `/tokenize`, `/score`, `/rerank` y las de control (`/pause`, `/abort_requests`…). La propia documentación cierra: no confíes solo en `--api-key` para proteger vLLM.
+[[vllm|vLLM]] tiene una opción `--api-key`. ¿Por qué no basta? Primero, porque es **una sola** llave para todos: no dice quién pidió ni separa cuotas. Segundo, porque no cubre todo. La documentación de seguridad de vLLM 0.34.0 lo dice en una advertencia explícita: la llave solo protege las rutas que empiezan con `/v1`, `/v2`, `/inference` y `/cohere`, y otras rutas del mismo servidor **no** se autentican, entre ellas `/invocations`, que da la misma inferencia que `/v1`. En la lista de rutas sin llave también están `/metrics`, `/health`, `/tokenize`, `/score`, `/rerank` y las de control (`/pause`, `/abort_requests`…). La propia documentación cierra: no confíes solo en `--api-key` para proteger vLLM.
 
 Lo que recomienda vLLM es exactamente un gateway: ponerlo detrás de un proxy inverso que deje pasar **solo** las rutas que quieres exponer, bloquee todas las demás, y agregue autenticación, límites y registro. Para el despacho, eso son dos reglas de red y una pieza de software:
 
@@ -370,7 +370,7 @@ Una segunda razón para contar tokens. Un script que manda 4 requests por minuto
 
 ### Qué da el servidor, y cuánto pide la hora pico
 
-Para repartir hay que saber cuánto hay. La [herramienta de sizing](/herramientas/sizing/) dice que, con los prefills de 6,000 tokens, cada L40S atiende bien **2 conversaciones** a ≥ 20 tokens por segundo. Esa es la capacidad que se reparte: no lo que cabe en memoria, sino lo que se atiende bien.
+Para repartir hay que saber cuánto hay. La [herramienta de sizing](/herramientas/sizing/) dice que, con los prefills de 6,000 tokens, cada L40S atiende bien **2 conversaciones** a ≥ 20 tokens por segundo. Esa es la [[capacidad-por-gpu|capacidad]] que se reparte: no lo que cabe en memoria, sino lo que se atiende bien.
 
 :::formula La capacidad que se reparte, y lo que pide el pico
 C = n × c × v × 60
@@ -522,7 +522,7 @@ En LiteLLM los límites se escriben así (en la clave de una app, o en el presup
 Dos diferencias con la cubeta de la cuenta, que conviene saber:
 
 - **LiteLLM no promete un token bucket.** Su documentación describe límites por minuto que se aplican «reservando tokens antes de la llamada y conciliando contra el uso real después». La cubeta es el modelo mental para elegir los números; cómo se comporta exactamente la ventana de LiteLLM con ráfagas hay que probarlo en la versión que instales.
-- **Sin `max_tokens`, la reserva es una adivinanza.** Si la request no trae tope de salida, LiteLLM tiene que adivinar cuántos tokens reservar y usa una estimación fija; se puede declarar `default_estimated_output_tokens` por clave o por equipo. Más simple: que el gateway o Open WebUI siempre manden `max_tokens`, y que vLLM tenga su propio tope de contexto (`--max-model-len 8192`) por si algo se cuela.
+- **Sin `max_tokens`, la reserva es una adivinanza.** Si la request no trae tope de salida, LiteLLM tiene que adivinar cuántos tokens reservar y usa una estimación fija; se puede declarar `default_estimated_output_tokens` por clave o por equipo. Más simple: que el gateway o Open WebUI siempre manden `max_tokens`, y que [[vllm|vLLM]] tenga su propio tope de contexto (`--max-model-len 8192`) por si algo se cuela.
 :::
 
 Y un recordatorio: la cuota no hace fila. Si en el pico llegan más preguntas de las que caben, la cuota no las ordena: unas reciben 429 y otras esperan en la fila de vLLM. Qué conviene hacer ahí (cola en el gateway, aviso en la interfaz, más GPUs) es una decisión con números, y la [concurrencia](/concurrencia/) los da.
@@ -543,7 +543,7 @@ Las apps piden `chat-grande`, no «Qwen/Qwen3-32B-AWQ en vllm-2:8000». Si el de
 
 ### Entre copias del mismo modelo
 
-Las 3 L40S tienen cada una su copia de Qwen3 32B (por qué tres copias y no un modelo partido en tres lo explica [Varias GPUs](/varias-gpus/)). En LiteLLM, eso se escribe repitiendo el mismo `model_name` con tres direcciones distintas, y el respaldo, los reintentos y la pausa van en el mismo archivo (abajo).
+Las 3 L40S tienen cada una su [[replica|copia]] de Qwen3 32B (por qué tres copias y no un modelo partido en tres lo explica [Varias GPUs](/varias-gpus/)). En LiteLLM, eso se escribe repitiendo el mismo `model_name` con tres direcciones distintas, y el respaldo, los reintentos y la pausa van en el mismo archivo (abajo).
 
 :::profundo El config.yaml del despacho
 Un `config.yaml` para el despacho (ilustrativo, armado con campos de la documentación de LiteLLM a noviembre de 2026; no probado tal cual):
@@ -580,13 +580,13 @@ general_settings:
   database_url: os.environ/DATABASE_URL
 ```
 
-El prefijo `hosted_vllm/` le dice a LiteLLM que del otro lado hay un servidor vLLM compatible con OpenAI. El `api_key` hacia cada vLLM sigue sirviendo (protege las rutas `/v1` del motor), pero ya no es la defensa principal: lo son la red y el gateway.
+El prefijo `hosted_vllm/` le dice a LiteLLM que del otro lado hay un servidor [[vllm|vLLM]] compatible con OpenAI. El `api_key` hacia cada vLLM sigue sirviendo (protege las rutas `/v1` del motor), pero ya no es la defensa principal: lo son la red y el gateway.
 :::
 
 Cada request va a una de las tres; cómo se elige importa más de lo que parece, por el prefix caching de cada copia.
 
 :::profundo Cómo elige la copia, y la afinidad
-**Cómo elige la copia.** LiteLLM tiene varias estrategias (`routing_strategy`). La que su documentación recomienda para producción es `simple-shuffle`: al azar, o con pesos si se le dan. `least-busy` manda a la copia con menos llamadas en curso. La basada en uso (`usage-based-routing`) la propia documentación la desaconseja en producción por su costo.
+**Cómo elige la copia.** LiteLLM tiene varias estrategias (`routing_strategy`). La que su documentación recomienda para producción es `simple-shuffle`: al azar, o con pesos si se le dan. `least-busy` manda a la copia con menos llamadas en curso. El reparto al azar es justo el peor caso de la simulación de [De requisitos a hardware](/requisitos-hardware/) (sección «La cola»): con 3 L40S, el p95 del primer token sale ≈ 4.2 s al azar y ≈ 3.3 s contando las peticiones abiertas (lo que hace `least-busy`), contra 2.38 s, el prefill solo, si el reparto va por turno o viendo la fila. Es una simulación y no una medición: el piloto mide el real. La basada en uso (`usage-based-routing`) la propia documentación la desaconseja en producción por su costo.
 
 **Afinidad y prefix caching.** Cada copia de vLLM tiene su propio KV cache y su propio [[prefix-caching|prefix caching]]. La repregunta de una abogada empieza con los ≈ 6,000 tokens de su primera pregunta: si cae en la **misma** copia, esos bloques ya están calculados; si cae en otra, se recalculan (≈ 2.4 s). LiteLLM documenta una afinidad de sesión que manda una conversación a la copia que atendió su primera request. Para el despacho tiene sentido probarla; cuánto ahorra no está medido y lo dirá el piloto.
 :::
@@ -651,7 +651,7 @@ Para un proyecto de IA privada, la licencia de cada pieza importa tanto como la 
 | Open WebUI | 0.13.5 (25-nov-2026) | BSD de 3 cláusulas **más** una cláusula de marca | Gratis de usar y desplegar; con más de 50 usuarios finales en 30 días no se puede quitar ni cambiar la marca «Open WebUI» sin permiso o licencia de pago. El despacho (200) la conserva |
 | nginx | 1.30.8, la estable (23-nov-2026) | BSD de 2 cláusulas | Candado HTTPS, filtro de rutas, límite por IP. No cuenta tokens ni conoce personas |
 | Envoy AI Gateway, hoy **Agent Router** | 1.3.0 (18-nov-2026) | Apache 2.0 | Sobre Kubernetes, con sus propios recursos; pesado para un TI de 2 sin Kubernetes |
-| Kong Gateway | 3.9.5 (19-nov-2026) | Apache 2.0 | Su repositorio abierto trae `ai-proxy`, con vLLM como proveedor; el límite en tokens (*AI Rate Limiting Advanced*) es de su oferta de pago, «AI Gateway Enterprise» |
+| Kong Gateway | 3.9.5 (19-nov-2026) | Apache 2.0 | Su repositorio abierto trae `ai-proxy`, con [[vllm\|vLLM]] como proveedor; el límite en tokens (*AI Rate Limiting Advanced*) es de su oferta de pago, «AI Gateway Enterprise» |
 | Portkey AI Gateway | 1.15.2 (12-ene-2026) | MIT | Ligero; avisa que su versión 2.0 junta lo «enterprise» en lo abierto |
 
 Sobre Open WebUI, un matiz: con esa cláusula de marca, su licencia no es «open source» en el sentido estricto de la Open Source Initiative, aunque se pueda usar gratis; es una lectura, no un dictamen de la OSI.
@@ -680,7 +680,7 @@ Son cifras del proveedor con un modelo simulado, no una medición del despacho. 
 
 ## Errores comunes {Common mistakes}
 
-1. **Dar a cada app la dirección de vLLM con `--api-key`.** Una llave para todos, sin personas, sin cuotas, y con rutas que no protege (`/invocations`, `/metrics`, `/tokenize`). **Cómo evitarlo:** los puertos de vLLM solo los alcanza el gateway; el gateway expone solo las rutas `/v1` que se usan y da una [[clave-de-api|clave]] por app.
+1. **Dar a cada app la dirección de [[vllm|vLLM]] con `--api-key`.** Una llave para todos, sin personas, sin cuotas, y con rutas que no protege (`/invocations`, `/metrics`, `/tokenize`). **Cómo evitarlo:** los puertos de vLLM solo los alcanza el gateway; el gateway expone solo las rutas `/v1` que se usan y da una [[clave-de-api|clave]] por app.
 2. **Limitar requests y no tokens.** Con «4 requests por minuto», una pregunta al tope (8,192 tokens) y una corta (500) pesan lo mismo, y la primera ocupa la GPU ≈ 26 veces más antes de su primer token. **Cómo evitarlo:** pon `tpm_limit` calculado con la capacidad (\(q_{p} = C ÷ (N × a)\)) y usa el `rpm` solo como freno de ciclos.
 3. **Un proxy que junta el stream o lo corta.** `proxy_buffering` prendido entrega todo al final; un timeout de 30 o 60 s antes del primer token mata respuestas en la hora pico. **Cómo evitarlo:** apaga el buffering para `/v1/`, separa el timeout total del del primer pedazo y prueba desde el navegador de una abogada.
 4. **Usar el correo como identidad.** Microsoft dice que el claim `email` puede cambiar y no debe usarse para autorizar; Open WebUI llama inseguro juntar cuentas por correo. **Cómo evitarlo:** identifica por `oid` (con `tid`); en el gateway, mapea el Id que manda Open WebUI, no el nombre.
@@ -711,7 +711,7 @@ Se identifica con **`oid`** (con `tid`, el tenant): no cambia y es el mismo en t
 Activas: 200 × 0.25 = 50. \(q_{p}\) = 7,200 ÷ 50 = **144 tokens/min** de salida. \(Q_{h}\) = 144 ÷ 500 × 60 = **17.28 preguntas/h**. \(L_{tpm}\) = 144 ÷ 500 × 6,500 = **1,872 tokens/min**. Es 4.6 veces el uso típico en el pico (17.28 ÷ 3.75): generoso, y peligroso si el supuesto de 25 % resulta falso.
 ? [medio] La cubeta de una abogada (recarga 936 tokens/min, tamaño 19,500) está llena a las 10:00. Hace 3 preguntas típicas seguidas a las 10:00. ¿A qué hora puede hacer la cuarta? ¿Y si la cubeta fuera de 32,500?
 Tras 3 preguntas: 19,500 − 3 × 6,500 = 0. \(w\) = (6,500 − 0) ÷ 936 ≈ 6.94 min: la cuarta pasa a las **≈ 10:07**. Con 32,500: ⌊32,500 ÷ 6,500⌋ = 5 preguntas seguidas pasan; la cuarta pasa **de inmediato** (quedan 6,500 tras la cuarta y 0 tras la quinta). La sexta esperaría ≈ 6.9 min. Lo sostenido no cambia: 8.64 por hora en los dos casos.
-? [medio] La sobrecarga del gateway en la prueba de LiteLLM fue de 13 ms en el p99 con 4 instancias. Si el despacho pone nginx (supón 1 ms) y LiteLLM (13 ms) delante de vLLM, ¿qué fracción del TTFT de 2.38 s agregan? ¿Vale la pena preocuparse?
+? [medio] La sobrecarga del gateway en la prueba de LiteLLM fue de 13 ms en el p99 con 4 instancias. Si el despacho pone nginx (supón 1 ms) y LiteLLM (13 ms) delante de [[vllm|vLLM]], ¿qué fracción del TTFT de 2.38 s agregan? ¿Vale la pena preocuparse?
 \(t_{gw}\) = 1 + 13 = 14 ms. \(f\) = 14 ÷ 2,380 ≈ **0.6 %**. No: el TTFT del despacho lo deciden el prefill (≈ 2.2–2.4 s) y la fila de la hora pico. Si de verdad midieran cientos de milisegundos, sería señal de una mala configuración, no del gateway en sí. Y las cifras de LiteLLM son con un modelo simulado: se confirman con una prueba de carga.
 ? [reto] El despacho quiere conectar una app que clasifica correos: 30 correos por minuto de 1,500 tokens de entrada y 50 de salida, de 9:00 a 19:00. ¿Qué parte de la capacidad de salida usa? ¿Cabe junto con la hora pico de los abogados? ¿Qué límite le pondrías?
 Salida de la app: 30 × 50 = **1,500 tokens/min**, el 1,500 ÷ 7,200 ≈ **20.8 %** de la capacidad. En la hora pico los abogados ya piden 6,250: juntos, 7,750 > 7,200, el **107.6 %**. No cabe. Lo que sobra en el pico es 7,200 − 6,250 = **950 tokens/min** de salida: a la app le alcanzan 950 ÷ 50 = **19 correos/min** sin quitarle a nadie. Opciones: `tpm_limit` de la app con ese tope (en tokens totales, 19 × 1,550 = 29,450), o que procese su fila fuera de la hora pico o de noche, o que use `chat-chico`. Ojo también con la entrada: 30 × 1,500 = 45,000 tokens/min de prefill más, que suben el TTFT de los abogados.
@@ -723,7 +723,7 @@ Que «por si acaso» no es una finalidad: la ley pide que el tratamiento sea el 
 
 ## Lo que sigue {What comes next} [extra]
 
-- **[Del laptop al servidor: llama.cpp, Ollama, vLLM, SGLang y TensorRT-LLM](/stack-serving/)** explica los motores que este gateway tiene detrás: qué hace cada uno por dentro, cómo se arranca vLLM para el despacho y qué flags mueven lo que viste aquí (el tope de contexto, el razonamiento apagado).
+- **[Del laptop al servidor: llama.cpp, Ollama, vLLM, SGLang y TensorRT-LLM](/stack-serving/)** explica los motores que este gateway tiene detrás: qué hace cada uno por dentro, cómo se arranca [[vllm|vLLM]] para el despacho y qué flags mueven lo que viste aquí (el tope de contexto, el razonamiento apagado).
 - **[Varias GPUs: tensor y pipeline parallel](/varias-gpus/)** explica por qué el despacho pone tres copias detrás de un nombre en vez de un modelo partido entre tres GPUs, y cuándo cambiaría.
 - **[De requisitos a hardware](/requisitos-hardware/)** es de donde sale la capacidad que se reparte en las cuotas, y por qué el TTFT del p95 con fila es mayor que el de una pregunta sola.
 - **«RAG privado: embeddings y vector DB locales»** usa el modelo `embeddings` de este gateway y resuelve lo que el SSO no resuelve: que la búsqueda respete qué expedientes puede ver cada persona.
@@ -739,7 +739,7 @@ gateway-de-llm api-compatible-openai chat-completions streaming-sse clave-de-api
 ## Chequeo {Check}
 
 :::chequeo
-? ¿Por qué el `--api-key` de vLLM no basta para proteger el servidor?
+? ¿Por qué el `--api-key` de [[vllm|vLLM]] no basta para proteger el servidor?
 Porque es una sola llave para todos (sin personas ni cuotas) y porque, según la documentación de vLLM, solo protege las rutas `/v1`, `/v2`, `/inference` y `/cohere`: `/invocations` da la misma inferencia sin llave, y `/metrics`, `/health` y `/tokenize` tampoco piden llave.
 ? ¿Por qué un gateway de LLMs limita en tokens y no solo en requests?
 Porque una request no es una unidad de trabajo: una de 8,192 tokens pesa 16 veces una de 500 y ocupa la GPU mucho más antes de su primer token. Lo que se agota son los tokens que la GPU lee y escribe.

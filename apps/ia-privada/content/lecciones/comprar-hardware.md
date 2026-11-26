@@ -43,7 +43,7 @@ Una hoja de datos (*datasheet*) de GPU trae decenas de cifras. Para servir un LL
 3. **Cálculo denso en FP16 y FP8, en TFLOPS.** Decide el prefill, y con él el TTFT. Ojo con la cifra de la portada: casi siempre es **con *[[sparsity]]***, el doble de la útil. La densa es la mitad.
 4. **Potencia máxima (TDP), en watts.** Decide la fuente, el enfriamiento y la luz. Va en la siguiente sección.
 5. **Formato.** Tarjeta PCIe de una o dos ranuras, con o sin ventilador, o módulo [[sxm|SXM]] que no se vende suelto.
-6. **Interconexión.** Si la tarjeta tiene NVLink o solo PCIe. Importa cuando un modelo se reparte entre varias GPUs (la lección «Varias GPUs: tensor y pipeline parallel» lo ve a fondo).
+6. **Interconexión.** Si la tarjeta tiene NVLink o solo PCIe. Importa cuando un modelo se reparte entre varias GPUs (la lección «[Varias GPUs: tensor y pipeline parallel](/varias-gpus/)» lo ve a fondo).
 7. **Formatos de número.** Si calcula en FP8 o en [[fp4|FP4]] con hardware propio. Una GPU sin FP8 no acelera un modelo guardado en FP8.
 8. **Software.** CUDA, ROCm o Metal. Tiene su propia sección: puede decidir más que todo lo de arriba.
 
@@ -491,8 +491,8 @@ PRO 6000: ⌈8 ÷ 7⌉ = **2 tarjetas**, y con la Server Edition ⌈8 ÷ 6⌉ = 
 ## Lo que sigue {What comes next}
 
 - **«[El cuarto: energía, enfriamiento y red](/el-cuarto/)»**, la siguiente lección de este módulo, toma el servidor que elegiste aquí y pregunta si el cuarto de TI del despacho lo aguanta: los watts se vuelven amperes, BTU por hora y toneladas de aire acondicionado, y la red se vuelve cables.
-- **«De requisitos a hardware»** hace el sizing completo, del que aquí solo se usó el resultado, con picos, colas y márgenes.
-- **«Varias GPUs: tensor y pipeline parallel»** explica qué pasa cuando un modelo no cabe en una tarjeta y se reparte entre varias, y por qué ahí NVLink pesa tanto.
+- **«[De requisitos a hardware](/requisitos-hardware/)»** hace el sizing completo, del que aquí solo se usó el resultado, con picos, colas y márgenes.
+- **«[Varias GPUs: tensor y pipeline parallel](/varias-gpus/)»** explica qué pasa cuando un modelo no cabe en una tarjeta y se reparte entre varias, y por qué ahí NVLink pesa tanto.
 - **«TCO: API, nube o servidor propio»** convierte el precio del servidor en un costo mensual con luz, personas y depreciación; mientras tanto, la herramienta [API, nube o servidor propio](/herramientas/tco/) ya hace la cuenta.
 - **«Cotizar, proponer y dar soporte»** ve la importación, la aduana y cómo se le presenta todo esto a un cliente.
 - En Sensei: [CPU y GPU](https://sensei.trueml.app/cpu-gpu/) tiene la memoria HBM, PCIe, NVLink, CUDA y el driver por dentro; [Máquinas, GPUs y cómo se cobran](https://sensei.trueml.app/maquinas/), la otra mitad de la decisión: rentar en vez de comprar.

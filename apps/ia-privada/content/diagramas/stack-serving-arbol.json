@@ -12,17 +12,17 @@
     { "id": "q2", "label": "¿Qué máquina?", "sub": "Mac, PC, solo CPU", "kind": "human", "x": 4, "y": 19, "w": 24, "h": 8,
       "note": "Para una persona importa la máquina que ya tienes. Windows está bien aquí: llama.cpp y Ollama corren nativos." },
     { "id": "mac", "label": "Ollama o MLX-LM", "sub": "Mac con chip de Apple", "kind": "service", "x": 1, "y": 37, "w": 16, "h": 8,
-      "note": "En Mac, Ollama usa MLX por omisión desde su v0.40.0; también sirven llama.cpp con Metal y MLX-LM. La memoria es unificada: no hay offload." },
+      "note": "En Mac, Ollama usa [[mlx|MLX]] por omisión desde su v0.40.0; también sirven llama.cpp con Metal y MLX-LM. La memoria es unificada: no hay offload." },
     { "id": "loc", "label": "llama.cpp u Ollama", "sub": "PC, Windows, CPU", "kind": "service", "x": 19, "y": 37, "w": 17, "h": 8,
-      "note": "[[llama-cpp|llama.cpp]] corre en casi todo, con GGUF y [[offload-a-cpu|offload]] si el modelo no cabe. [[ollama|Ollama]] es lo mismo con una envoltura cómoda." },
+      "note": "[[llama-cpp|llama.cpp]] corre en casi todo, con [[gguf|GGUF]] y [[offload-a-cpu|offload]] si el modelo no cabe. [[ollama|Ollama]] es lo mismo con una envoltura cómoda." },
     { "id": "q4", "label": "¿Qué pide la carga?", "sub": "Linux, NVIDIA o AMD", "kind": "human", "x": 45, "y": 19, "w": 26, "h": 8,
-      "note": "Ya en un servidor con Linux y GPU de centro de datos. Antes de elegir por la carga, revisa que tu formato (AWQ, GPTQ, FP8) tenga kernel en tu GPU con ese motor." },
+      "note": "Ya en un servidor con Linux y GPU de centro de datos. Antes de elegir por la carga, revisa que tu formato ([[awq|AWQ]], [[gptq|GPTQ]], FP8) tenga kernel en tu GPU con ese motor." },
     { "id": "vllm", "label": "vLLM", "sub": "chat general", "kind": "service", "x": 38, "y": 37, "w": 12, "h": 8,
       "note": "[[vllm|vLLM]]: la opción por omisión. Más modelos y formatos, más documentación, más gente que ya resolvió tu error. La del despacho." },
     { "id": "sgl", "label": "SGLang", "sub": "prefijos, JSON", "kind": "service", "x": 52, "y": 37, "w": 12, "h": 8,
-      "note": "[[sglang|SGLang]]: mucho prefijo compartido y ramificado ([[radixattention|RadixAttention]]) o mucha [[salida-estructurada|salida estructurada]]. Pide CUDA 13 en la v0.5.23." },
+      "note": "[[sglang|SGLang]]: mucho prefijo compartido y ramificado ([[radixattention|RadixAttention]]) o mucha [[salida-estructurada|salida estructurada]]. Pide [[cuda|CUDA]] 13 en la v0.5.23." },
     { "id": "trt", "label": "TensorRT-LLM", "sub": "H100+, FP8", "kind": "service", "x": 66, "y": 37, "w": 12, "h": 8,
-      "note": "[[tensorrt-llm|TensorRT-LLM]]: solo NVIDIA; brilla en H100, H200 y Blackwell con FP8 o FP4, con un equipo que sabe afinar." },
+      "note": "[[tensorrt-llm|TensorRT-LLM]]: solo NVIDIA; brilla en H100, H200 y Blackwell con FP8 o [[fp4|FP4]], con un equipo que sabe afinar." },
     { "id": "prueba", "label": "Prueba de carga y examen", "sub": "tu modelo, tu GPU, tus prompts", "kind": "job", "x": 44, "y": 51, "w": 28, "h": 8,
       "note": "Ningún árbol reemplaza medir: el candidato (o los dos finalistas) se prueba con la misma carga y el mismo examen de calidad, con el archivo que de verdad se va a servir." }
   ],
@@ -42,15 +42,15 @@
     { "id": "despacho", "label": "El camino del despacho",
       "steps": [
         { "nodes": ["q1"], "edges": [], "text": "**200 abogados**, ≈ 0.21 preguntas por segundo en la hora pico y un TTFT objetivo de ≤ 2 s en el p95: muchas a la vez, con un SLO." },
-        { "nodes": ["q1", "q4"], "edges": ["q1>q4"], "text": "Servidor con **3 L40S** en Linux. El modelo es un AWQ de 4 bits, que vLLM corre con el kernel Marlin en una GPU Ada." },
+        { "nodes": ["q1", "q4"], "edges": ["q1>q4"], "text": "Servidor con **3 L40S** en Linux. El modelo es un [[awq|AWQ]] de 4 bits, que vLLM corre con el kernel Marlin en una GPU Ada." },
         { "nodes": ["q4", "vllm"], "edges": ["q4>vllm"], "text": "Chat con un prompt fijo y repreguntas: nada que pida SGLang o TensorRT-LLM de entrada, y un equipo de TI que empieza. **vLLM**, una copia por GPU." },
-        { "nodes": ["vllm", "prueba"], "edges": ["vllm>prueba"], "text": "En el piloto: la prueba de carga con sus prompts de ≈ 6,000 tokens y el examen de 200 preguntas, con el AWQ en vLLM, **no** con el GGUF de la laptop." }
+        { "nodes": ["vllm", "prueba"], "edges": ["vllm>prueba"], "text": "En el piloto: la prueba de carga con sus prompts de ≈ 6,000 tokens y el examen de 200 preguntas, con el [[awq|AWQ]] en vLLM, **no** con el [[gguf|GGUF]] de la laptop." }
       ] },
     { "id": "mac", "label": "Una consultora con una Mac de 64 GB",
       "steps": [
         { "nodes": ["q1"], "edges": [], "text": "Una sola persona: no hace falta un motor de servidor." },
         { "nodes": ["q1", "q2"], "edges": ["q1>q2"], "text": "Su máquina es una Mac mini con **64 GB** de memoria unificada." },
-        { "nodes": ["q2", "mac"], "edges": ["q2>mac"], "text": "**Ollama** (que en Mac usa MLX) o MLX-LM. Qwen3 32B en 4 bits cabe y escribe ≈ 10 tokens por segundo para ella." }
+        { "nodes": ["q2", "mac"], "edges": ["q2>mac"], "text": "**Ollama** (que en Mac usa [[mlx|MLX]]) o MLX-LM. Qwen3 32B en 4 bits cabe y escribe ≈ 10 tokens por segundo para ella." }
       ] }
   ]
 }

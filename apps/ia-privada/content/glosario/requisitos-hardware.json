@@ -39,7 +39,7 @@
    "corto": "Repartir el tiempo de la promesa (por ejemplo, 2 s al primer token) entre las piezas del camino: red, gateway, búsqueda, fila y prefill. Si lo comprometido ya pasa del total, no hay GPU que lo arregle.",
    "largo": "El [[ttft|TTFT]] que siente la persona es \\(t_{red} + t_{rec} + t_{cola} + t_{pre}\\). El presupuesto dice cuánto le queda a la GPU (fila + prefill) después de lo demás. La segunda mitad es la velocidad de escritura: ≥ 20 tokens por segundo es ≤ 50 ms por token ([[tpot|TPOT]]). Sumar los p95 de cada tramo da una cota pesimista, útil para presupuestar; el número real se mide de punta a punta.",
    "analogia": "El dinero de un viaje: tanto para el avión, tanto para el hotel, y lo que sobra para comer. Si el avión ya cuesta más que todo el presupuesto, no se arregla con un hotel más barato.",
-   "ejemplo": "El despacho: 2,000 ms − 20 de red y gateway − 150 de búsqueda (supuestos de la lección, no datos de la ficha) = 1,830 ms para fila y prefill. El prefill de una L40S son 2,380 ms: roto antes de la fila. El de una RTX PRO 6000 Server Edition, ≈ 1,724: le deja ≈ 106 ms a la fila.",
+   "ejemplo": "El despacho: 2,000 ms − 20 de red y [[gateway-de-llm|gateway]] − 150 de búsqueda (supuestos de la lección, no datos de la ficha) = 1,830 ms para fila y prefill. El prefill de una L40S son 2,380 ms: roto antes de la fila. El de una RTX PRO 6000 Server Edition, ≈ 1,724: le deja ≈ 106 ms a la fila.",
    "ver": ["ttft-con-cola", "slo"],
    "leccion": "requisitos-hardware",
    "sensei": "latencia"
@@ -49,7 +49,7 @@
    "termino": "Capacidad por GPU",
    "en": "per-GPU capacity",
    "corto": "Cuántas conversaciones a la vez atiende una GPU (o una copia del servidor) cumpliendo la promesa: que quepan en la memoria y que cada una reciba su velocidad.",
-   "largo": "Es el menor de los techos de memoria, ancho de banda y cómputo, pero bien mezclados: el [[prefill]] y el [[decode]] comparten el tiempo de la GPU, así que \\(b_{vel} = ⌊(1 − v × a_0) ÷ (v × a_1 + v × t_{pre} ÷ N_o)⌋\\) y \\(b = mín(b_{mem}, b_{vel})\\). Calculada es una primera estimación; la de verdad se mide en una prueba de carga. No es el tope de conversaciones que se le pone al motor (`--max-num-seqs` en vLLM), que va más alto para que una ráfaga escriba un poco más lento en vez de hacer fila.",
+   "largo": "Es el menor de los techos de memoria, ancho de banda y cómputo, pero bien mezclados: el [[prefill]] y el [[decode]] comparten el tiempo de la GPU, así que \\(b_{vel} = ⌊(1 − v × a_0) ÷ (v × a_1 + v × t_{pre} ÷ N_o)⌋\\) y \\(b = mín(b_{mem}, b_{vel})\\). Calculada es una primera estimación; la de verdad se mide en una prueba de carga. No es el tope de conversaciones que se le pone al motor (`--max-num-seqs` en [[vllm|vLLM]]), que va más alto para que una ráfaga escriba un poco más lento en vez de hacer fila.",
    "ejemplo": "Una L40S con el despacho: caben 10 por memoria y 6 se escribirían a 20 tokens por segundo sin prompts nuevos, pero con los prefills de 2.38 s la capacidad es **2**. Una RTX PRO 6000 Server Edition: 6.",
    "ver": ["cuello-de-botella", "copia-del-servidor"],
    "leccion": "requisitos-hardware"
@@ -123,7 +123,7 @@
    "termino": "Reparto viendo la fila",
    "en": "queue-aware routing",
    "corto": "Que el balanceador mande cada pregunta a la copia del servidor con menos prompts por leer, es decir, con menos preguntas que todavía no reciben su primer token.",
-   "largo": "Con prefills largos, como los de un RAG, es la palanca más barata para el p95 del [[ttft-con-cola|TTFT con cola]]: evita que una pregunta caiga en una GPU que está leyendo otro prompt mientras otra está libre. No es lo mismo que contar las peticiones abiertas (*least outstanding requests*): en un LLM casi todas las abiertas ya están escribiendo, que apenas estorba a un prompt nuevo, y ese conteo ayuda menos. Un gateway puede verlo porque sabe cuándo sale el primer token de cada respuesta.",
+   "largo": "Con prefills largos, como los de un RAG, es la palanca más barata para el p95 del [[ttft-con-cola|TTFT con cola]]: evita que una pregunta caiga en una GPU que está leyendo otro prompt mientras otra está libre. No es lo mismo que contar las peticiones abiertas (*least outstanding requests*): en un LLM casi todas las abiertas ya están escribiendo, que apenas estorba a un prompt nuevo, y ese conteo ayuda menos. Un [[gateway-de-llm|gateway]] puede verlo porque sabe cuándo sale el primer token de cada respuesta.",
    "ejemplo": "3 L40S del despacho, p95 del TTFT en una simulación simple: ≈ 4.2 s al azar, ≈ 3.3 s contando las peticiones abiertas y 2.38 s viendo la fila (por turno da lo mismo, porque todas las preguntas pesan casi igual).",
    "ver": ["ttft-con-cola", "copia-del-servidor"],
    "leccion": "requisitos-hardware",
