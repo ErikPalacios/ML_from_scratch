@@ -1,0 +1,36 @@
+{
+ "acl": [
+  [
+   "group:fraude@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:fraude@marketplace.test"
+    ]
+   ],
+   "chunk_id": "jira:SEG-6#000",
+   "doc_id": "jira:SEG-6",
+   "orden": 0,
+   "ruta": [
+    "SEG-6 · Posible cuenta de vendedor duplicada #6"
+   ],
+   "texto": "SEG-6 · Posible cuenta de vendedor duplicada #6\n\n# SEG-6 · Posible cuenta de vendedor duplicada #6\nDos cuentas de vendedor comparten la misma cuenta bancaria (caso 6).",
+   "titulo": "Posible cuenta de vendedor duplicada #6",
+   "tokens": 44,
+   "traslape": 0,
+   "url": "http://localhost:8120/jira/api/ticket/SEG-6",
+   "version": "2026-11-08T12:30:00.000-0600"
+  }
+ ],
+ "doc_id": "jira:SEG-6",
+ "hash": "0b27d3c65e9d2cc1c4d8b4fb5ecb626b6b0b0a273d13f4aca76a218c28efa25c",
+ "huella": "0e80943c7995",
+ "sha256_texto": "5558d2e284a13ab621be551af71740e23844203a74a825d6d86e4e4349d081a0",
+ "titulo": "Posible cuenta de vendedor duplicada #6",
+ "url": "http://localhost:8120/jira/api/ticket/SEG-6",
+ "version": "2026-11-08T12:30:00.000-0600"
+}

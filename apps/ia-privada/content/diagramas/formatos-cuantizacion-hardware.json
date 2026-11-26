@@ -1,0 +1,300 @@
+{
+ "titulo": "Qué formato probar según la GPU que tienes",
+ "width": 78,
+ "height": 48,
+ "lanes": [
+  {
+   "id": "gpu",
+   "label": "Tu GPU",
+   "kind": "neutral",
+   "x": 0,
+   "y": 0,
+   "w": 78,
+   "h": 14
+  },
+  {
+   "id": "fmt",
+   "label": "El formato a probar",
+   "kind": "offline",
+   "x": 0,
+   "y": 15,
+   "w": 78,
+   "h": 17
+  },
+  {
+   "id": "dec",
+   "label": "La decisión",
+   "kind": "monitor",
+   "x": 0,
+   "y": 33,
+   "w": 78,
+   "h": 15
+  }
+ ],
+ "nodes": [
+  {
+   "id": "bw",
+   "label": "Blackwell",
+   "sub": "B200 · RTX PRO 6000",
+   "kind": "gpu",
+   "x": 1,
+   "y": 4,
+   "w": 18,
+   "h": 8,
+   "note": "Sus Tensor Cores de quinta generación multiplican en [[fp4|FP4]] además de FP8. Mira el [catálogo de GPUs](/herramientas/catalogo/): la columna de FP4."
+  },
+  {
+   "id": "ada",
+   "label": "Ada o Hopper",
+   "sub": "L40S · L4 · H100",
+   "kind": "gpu",
+   "x": 20.5,
+   "y": 4,
+   "w": 18,
+   "h": 8,
+   "note": "Calculan en FP8 (W8A8) y corren W4A16 con Marlin (Ada) o Machete (Hopper). La L40S del despacho está aquí."
+  },
+  {
+   "id": "amp",
+   "label": "Ampere",
+   "sub": "A100 · A10G",
+   "kind": "gpu",
+   "x": 40,
+   "y": 4,
+   "w": 18,
+   "h": 8,
+   "note": "Sin cálculo FP8: un checkpoint FP8 corre como solo pesos con Marlin. El INT4 W4A16 es su formato natural."
+  },
+  {
+   "id": "mac",
+   "label": "Mac o CPU",
+   "sub": "sin GPU de servidor",
+   "kind": "gpu",
+   "x": 59.5,
+   "y": 4,
+   "w": 17.5,
+   "h": 8,
+   "note": "Ahí no corre vLLM con Marlin: corre llama.cpp (u Ollama) con GGUF, o [[mlx|MLX]] en Apple Silicon con su [[memoria-unificada|memoria unificada]]."
+  },
+  {
+   "id": "f4",
+   "label": "NVFP4 o FP8",
+   "sub": "cálculo nativo",
+   "kind": "model",
+   "x": 1,
+   "y": 20,
+   "w": 18,
+   "h": 9,
+   "note": "NVFP4 cuesta ≈ 4.5 bits y multiplica en FP4: sirve para cuando el cálculo pesa, con batches grandes. NVIDIA reporta ≤ 1 % de pérdida en DeepSeek-R1 desde FP8. Igual se mide."
+  },
+  {
+   "id": "f8",
+   "label": "W4A16 o FP8",
+   "sub": "según las dos fases",
+   "kind": "model",
+   "x": 20.5,
+   "y": 20,
+   "w": 18,
+   "h": 9,
+   "note": "FP8 acelera el [[prefill|prefill]]; W4A16 lee menos bytes en el [[decode|decode]]. En la L40S, con un 32B, gana el INT4: según la cuenta de las dos fases (derivada, no medida), FP8 escribe a ≈ 16.8 tokens/s con una persona. En una H100, FP8 es lo natural."
+  },
+  {
+   "id": "f416",
+   "label": "W4A16",
+   "sub": "AWQ · GPTQ",
+   "kind": "model",
+   "x": 40,
+   "y": 20,
+   "w": 18,
+   "h": 9,
+   "note": "[[solo-pesos|Solo pesos]] en 4 bits, multiplicando en FP16 con Marlin. Ahorra memoria y acelera el decode; el prefill va igual que en BF16."
+  },
+  {
+   "id": "fgguf",
+   "label": "GGUF o MLX",
+   "sub": "Q4_K_M · Q8_0 · 4 bits",
+   "kind": "model",
+   "x": 59.5,
+   "y": 20,
+   "w": 17.5,
+   "h": 9,
+   "note": "[[k-quant|k-quants]] de llama.cpp o el entero afín de [[mlx|MLX]]. Con una persona a la vez, la velocidad la pone el [[ancho-de-banda|ancho de banda]]: menos bits, más tokens por segundo."
+  },
+  {
+   "id": "examen",
+   "label": "Examen propio, pareado",
+   "sub": "flips y ruido · criterio de aceptación",
+   "kind": "monitor",
+   "x": 20.5,
+   "y": 37,
+   "w": 37.5,
+   "h": 8,
+   "note": "Todos los caminos terminan aquí. Las mismas preguntas con el original y con el cuantizado; la pérdida \\((c − b) ÷ N\\) contra el ruido \\(1.96 × sqrt{b + c} ÷ N\\), y el [[criterio-de-aceptacion|criterio de aceptación]]."
+  }
+ ],
+ "edges": [
+  {
+   "from": "bw",
+   "to": "f4",
+   "kind": "offline",
+   "fromSide": "b",
+   "toSide": "t"
+  },
+  {
+   "from": "ada",
+   "to": "f8",
+   "kind": "offline",
+   "fromSide": "b",
+   "toSide": "t"
+  },
+  {
+   "from": "amp",
+   "to": "f416",
+   "kind": "offline",
+   "fromSide": "b",
+   "toSide": "t"
+  },
+  {
+   "from": "mac",
+   "to": "fgguf",
+   "kind": "offline",
+   "fromSide": "b",
+   "toSide": "t"
+  },
+  {
+   "from": "f4",
+   "to": "examen",
+   "kind": "monitor",
+   "fromSide": "b",
+   "toSide": "l",
+   "via": [
+    [
+     10,
+     41
+    ]
+   ]
+  },
+  {
+   "from": "f8",
+   "to": "examen",
+   "kind": "monitor",
+   "fromSide": "b",
+   "toSide": "t"
+  },
+  {
+   "from": "f416",
+   "to": "examen",
+   "kind": "monitor",
+   "fromSide": "b",
+   "toSide": "t"
+  },
+  {
+   "from": "fgguf",
+   "to": "examen",
+   "kind": "monitor",
+   "fromSide": "b",
+   "toSide": "r",
+   "via": [
+    [
+     68.25,
+     41
+    ]
+   ]
+  }
+ ],
+ "flows": [
+  {
+   "id": "despacho",
+   "label": "El despacho: L40S",
+   "steps": [
+    {
+     "nodes": [
+      "ada"
+     ],
+     "edges": [],
+     "text": "La L40S es **Ada**: tiene FP8 (733 TFLOPS densos) y no FP4."
+    },
+    {
+     "nodes": [
+      "f8"
+     ],
+     "edges": [
+      "ada>f8"
+     ],
+     "text": "Dos candidatos: el AWQ de 19.32 GB y el FP8 de 34.33 GB. La cuenta de las dos fases (derivada, no medida) dice que el FP8 escribe a ≈ 16.8 tokens/s con una persona: menos de 20. Se queda el **INT4 de AWQ**."
+    },
+    {
+     "nodes": [
+      "examen"
+     ],
+     "edges": [
+      "f8>examen"
+     ],
+     "text": "Y aun así, el AWQ tiene que pasar el examen: ≥ 170 de 200, con los flips leídos."
+    }
+   ]
+  },
+  {
+   "id": "a100",
+   "label": "Una A100",
+   "steps": [
+    {
+     "nodes": [
+      "amp"
+     ],
+     "edges": [],
+     "text": "Ampere: no calcula en FP8."
+    },
+    {
+     "nodes": [
+      "f416"
+     ],
+     "edges": [
+      "amp>f416"
+     ],
+     "text": "El formato natural es **W4A16** (AWQ o GPTQ) con Marlin. Un FP8 correría como solo pesos: más bytes por token sin ganar cálculo."
+    },
+    {
+     "nodes": [
+      "examen"
+     ],
+     "edges": [
+      "f416>examen"
+     ],
+     "text": "El mismo examen pareado."
+    }
+   ]
+  },
+  {
+   "id": "laptop",
+   "label": "Una Mac en un consultorio",
+   "steps": [
+    {
+     "nodes": [
+      "mac"
+     ],
+     "edges": [],
+     "text": "Sin GPU de servidor y con una persona a la vez."
+    },
+    {
+     "nodes": [
+      "fgguf"
+     ],
+     "edges": [
+      "mac>fgguf"
+     ],
+     "text": "**GGUF** con llama.cpp u Ollama, o MLX. Q4_K_M para velocidad, Q8_0 si sobra memoria y se quiere perder menos."
+    },
+    {
+     "nodes": [
+      "examen"
+     ],
+     "edges": [
+      "fgguf>examen"
+     ],
+     "text": "El examen se hace con las notas reales de la clínica, no con la perplejidad."
+    }
+   ]
+  }
+ ]
+}

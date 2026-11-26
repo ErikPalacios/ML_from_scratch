@@ -1,0 +1,40 @@
+{
+ "acl": [
+  [
+   "group:operaciones@marketplace.test",
+   "group:soporte@marketplace.test",
+   "user:marco.diaz@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:marco.diaz@marketplace.test"
+    ]
+   ],
+   "chunk_id": "jira:SOP-32#000",
+   "doc_id": "jira:SOP-32",
+   "orden": 0,
+   "ruta": [
+    "SOP-32 · Talla equivocada en la publicación"
+   ],
+   "texto": "SOP-32 · Talla equivocada en la publicación\n\n# SOP-32 · Talla equivocada en la publicación\nEl vendedor publicó talla de Estados Unidos sin equivalencia.\nResolución: Devolución pagada por quien vende y aviso de calidad.\nComentarios:\n- Le escribí a la persona.",
+   "titulo": "Talla equivocada en la publicación",
+   "tokens": 69,
+   "traslape": 0,
+   "url": "http://localhost:8120/jira/api/ticket/SOP-32",
+   "version": "2026-11-16T05:44:00.000-0600"
+  }
+ ],
+ "doc_id": "jira:SOP-32",
+ "hash": "df76d931da14d8d51d94af257baf416cba83685447bac1fcd76b9a90499d8bbc",
+ "huella": "0e80943c7995",
+ "sha256_texto": "1634aa9a21e41ffd524a17c61f5e4a64c03555ed4eca880c694ce9f914aa070d",
+ "titulo": "Talla equivocada en la publicación",
+ "url": "http://localhost:8120/jira/api/ticket/SOP-32",
+ "version": "2026-11-16T05:44:00.000-0600"
+}

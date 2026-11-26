@@ -1,0 +1,40 @@
+{
+ "acl": [
+  [
+   "group:operaciones@marketplace.test",
+   "group:soporte@marketplace.test",
+   "user:marco.diaz@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:marco.diaz@marketplace.test"
+    ]
+   ],
+   "chunk_id": "jira:SOP-7#000",
+   "doc_id": "jira:SOP-7",
+   "orden": 0,
+   "ruta": [
+    "SOP-7 · Factura de un pedido del mes pasado"
+   ],
+   "texto": "SOP-7 · Factura de un pedido del mes pasado\n\n# SOP-7 · Factura de un pedido del mes pasado\nLa pide fuera del mes de compra.\nResolución: Se canalizó con quien vende para que la emita.\nComentarios:\n- Le escribí a la persona.\n- La persona confirmó que ya quedó resuelto.",
+   "titulo": "Factura de un pedido del mes pasado",
+   "tokens": 78,
+   "traslape": 0,
+   "url": "http://localhost:8120/jira/api/ticket/SOP-7",
+   "version": "2026-11-21T08:43:00.000-0600"
+  }
+ ],
+ "doc_id": "jira:SOP-7",
+ "hash": "6094c0b2d5ff1e44c867afad3f4ae84c39018779d4ffb8658348bdf2fc4bbe43",
+ "huella": "0e80943c7995",
+ "sha256_texto": "d172314cc267b94f334a83e7fa7049f6e9e6f3fd160ed7089059bd0ede947376",
+ "titulo": "Factura de un pedido del mes pasado",
+ "url": "http://localhost:8120/jira/api/ticket/SOP-7",
+ "version": "2026-11-21T08:43:00.000-0600"
+}

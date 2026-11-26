@@ -1,0 +1,65 @@
+{
+  "titulo": "¿Cabe en el cuarto?",
+  "intro": "Del servidor al cuarto, con las fórmulas de la lección: el pico \\(P_{pico} = n × T_{GPU} + P_{CPU} + P_{resto}\\), la corriente \\(I = P ÷ (V × f_p)\\) con la regla del 125 % de la NOM-001-SEDE-2012, el UPS \\(S ≥ P ÷ f_p × (1 + h)\\), el calor en BTU/h y toneladas, y el minisplit \\(C_{nom} ≥ P ÷ k\\). Arranca con el servidor del despacho (4 L40S) en el cuarto que ya tiene: 220 V, un interruptor de 20 A y un minisplit de 1 tonelada.",
+  "preajustes": [
+    {
+      "label": "GPU (datos de gpus.json)",
+      "datos": "gpus",
+      "inicial": "l40s",
+      "campos": { "T": "potencia_w" }
+    }
+  ],
+  "entradas": [
+    { "id": "T", "label": "TDP de cada GPU, \\(T_{GPU}\\)", "unidad": "W", "min": 0, "max": 2000, "paso": 1, "valor": 350, "tipo": "numero" },
+    { "id": "n", "label": "GPUs en el servidor, \\(n\\)", "min": 1, "max": 10, "paso": 1, "valor": 4 },
+    { "id": "cpu", "label": "CPUs juntas, \\(P_{CPU}\\) (2 EPYC 9124 ≈ 400 W)", "unidad": "W", "min": 0, "max": 2000, "paso": 50, "valor": 400 },
+    { "id": "resto", "label": "Resto del servidor, \\(P_{resto}\\): RAM, discos, red, ventiladores (estimado)", "unidad": "W", "min": 0, "max": 5000, "paso": 50, "valor": 700 },
+    { "id": "V", "label": "Voltaje del circuito, \\(V\\)", "tipo": "opcion", "valor": 220, "opciones": [
+      { "valor": 127, "label": "127 V · fase y neutro (contacto de pared)" },
+      { "valor": 220, "label": "220 V · entre dos fases" }
+    ] },
+    { "id": "fp", "label": "Factor de potencia, \\(f_p\\) (supuesto)", "min": 0.6, "max": 1, "paso": 0.01, "valor": 0.95 },
+    { "id": "B", "label": "Interruptor del circuito, \\(I_{int}\\)", "tipo": "opcion", "valor": 20, "opciones": [
+      { "valor": 15, "label": "15 A" },
+      { "valor": 20, "label": "20 A" },
+      { "valor": 30, "label": "30 A" },
+      { "valor": 40, "label": "40 A" }
+    ] },
+    { "id": "h", "label": "Holgura del UPS, \\(h\\) (0.25 = 25 %, criterio de diseño)", "min": 0, "max": 1, "paso": 0.05, "valor": 0.25 },
+    { "id": "otros", "label": "Otros equipos que ya calientan el cuarto", "unidad": "W", "min": 0, "max": 10000, "paso": 50, "valor": 500 },
+    { "id": "k", "label": "Parte de su capacidad que el aire da como calor sensible, \\(k\\) (≈ 0.6 confort, ≈ 0.95 precisión)", "min": 0.3, "max": 1, "paso": 0.05, "valor": 0.6 },
+    { "id": "t", "label": "Capacidad nominal de cada minisplit, en toneladas", "tipo": "opcion", "valor": 1, "opciones": [
+      { "valor": 1, "label": "1 t · 12,000 BTU/h" },
+      { "valor": 1.5, "label": "1.5 t · 18,000 BTU/h" },
+      { "valor": 2, "label": "2 t · 24,000 BTU/h" },
+      { "valor": 3, "label": "3 t · 36,000 BTU/h" }
+    ] }
+  ],
+  "calculos": [
+    { "id": "P", "formula": "n * T + cpu + resto" },
+    { "id": "I", "formula": "P / (V * fp)" },
+    { "id": "Q", "formula": "P + otros" },
+    { "id": "util", "formula": "t * 3516.853 * k" }
+  ],
+  "salidas": [
+    { "label": "1 · Pico de papel, \\(P_{pico}\\), en W", "formula": "P", "formato": "int", "barra": true,
+      "cuenta": "{{n|int}} × {{T|int}} W + {{cpu|int}} W + {{resto|int}} W = **{{P|int}} W**" },
+    { "label": "2 · Corriente, \\(I\\), en A", "formula": "I", "formato": "num", "decimales": 2,
+      "cuenta": "{{P|int}} W ÷ ({{V|int}} V × {{fp|corto}}) = **{{I|num|2}} A**" },
+    { "label": "3 · Lo que debe aguantar el interruptor, \\(1.25 × I\\), en A", "formula": "1.25 * I", "formato": "num", "decimales": 2,
+      "nota": "el 125 % de la NOM para cargas continuas",
+      "cuenta": "1.25 × {{I|num|2}} A = **{{1.25 * I|num|2}} A**" },
+    { "label": "¿Cabe en el interruptor?", "formula": "B - 1.25 * I", "veredicto": { "si": "Sí cabe", "no": "No cabe" },
+      "cuenta": "{{B|int}} A − {{1.25 * I|num|2}} A = {{B - 1.25 * I|num|2}} A de margen (negativo: falta)" },
+    { "label": "4 · UPS mínimo, \\(S_{UPS}\\), en VA", "formula": "P / fp * (1 + h)", "formato": "int",
+      "cuenta": "{{P|int}} W ÷ {{fp|corto}} × (1 + {{h|corto}}) = **{{P / fp * (1 + h)|int}} VA**" },
+    { "label": "5 · Carga térmica del cuarto, en BTU/h", "formula": "Q * 3.41214", "formato": "int", "barra": true,
+      "nota": "servidor + otros equipos, × 3.41214",
+      "cuenta": "({{P|int}} + {{otros|int}}) W × 3.41214 = **{{Q * 3.41214|int}} BTU/h** = {{Q / 3516.853|num|2}} t" },
+    { "label": "6 · Minisplit nominal mínimo, \\(C_{nom}\\), en toneladas", "formula": "Q / k / 3516.853", "formato": "num", "decimales": 2,
+      "cuenta": "{{Q|int}} W ÷ {{k|corto}} = {{Q / k|int}} W ÷ 3,516.853 = **{{Q / k / 3516.853|num|2}} t**" },
+    { "label": "¿Alcanza un minisplit de los elegidos?", "formula": "util - Q", "veredicto": { "si": "Sí alcanza", "no": "No alcanza" },
+      "cuenta": "{{t|corto}} t × 3,516.853 × {{k|corto}} = {{util|int}} W útiles − {{Q|int}} W = {{util - Q|int}} W (con N+1 pon dos de estos)" }
+  ],
+  "nota": "Cambia a 127 V: la corriente sube a ≈ 20.7 A y ni un interruptor de 20 A alcanza. A 220 V, con uno de 15 A cabe por 0.05 A: sin margen para ningún supuesto. Para el aire, sube el minisplit a 1.5 t (alcanza por 165 W) y a 2 t (alcanza con margen)."
+}

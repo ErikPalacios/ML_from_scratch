@@ -1,0 +1,198 @@
+{
+  "terminos": [
+    {
+      "id": "workstation",
+      "termino": "Workstation",
+      "en": "workstation",
+      "corto": "Una computadora de torre potente, hecha para una persona o un equipo chico, que cabe bajo un escritorio y acepta de 1 a 4 GPUs con ventilador propio.",
+      "largo": "Se conecta a un contacto normal y hace un ruido tolerable. Su límite es físico: la fuente de escritorio, la corriente del contacto y el aire de una torre. Sirve para desarrollo, pilotos y oficinas sin cuarto de servidores; no trae fuentes redundantes ni gestión remota, así que no es la caja para un servicio que usa toda una empresa. Solo acepta tarjetas activas: una [[tarjeta-pasiva|tarjeta pasiva]] ahí se sobrecalienta.",
+      "analogia": "La camioneta de una familia: lleva a varios con comodidad, pero no es un camión de reparto.",
+      "ejemplo": "Una torre Exxact con 2 RTX PRO 6000 Max-Q: 192 GB de VRAM y 600 W de GPUs, que caben en una fuente de escritorio.",
+      "ver": [
+        "servidor-gpu",
+        "tdp"
+      ],
+      "leccion": "comprar-hardware"
+    },
+    {
+      "id": "servidor-gpu",
+      "termino": "Servidor con GPUs",
+      "en": "GPU server",
+      "corto": "Una computadora hecha para atornillarse en un rack, con ranuras y aire para 4 a 10 GPUs PCIe, fuentes redundantes y gestión remota.",
+      "largo": "Mide 2U o 4U de alto ([[unidad-de-rack|unidades de rack]]) y sus ventiladores empujan una corriente fuerte de aire de adelante hacia atrás, la que necesitan las tarjetas pasivas como la L40S. Trae dos o más fuentes, de modo que si una falla las otras cargan con todo, y una tarjeta de gestión que deja prenderlo y verlo por la red aunque el sistema esté colgado. Lo diseña un [[oem|OEM]] y casi siempre lo arma un [[integrador]].",
+      "analogia": "El horno industrial de una panadería: ruidoso, con su propia ventilación y su conexión especial, hecho para trabajar todo el día.",
+      "ejemplo": "Exxact TensorEX 4U con 4 L40S: US$76,101.30 en su configurador (noviembre de 2026), fuentes de 4 × 3,000 W en 3 + 1.",
+      "ver": [
+        "workstation",
+        "hgx",
+        "unidad-de-rack"
+      ],
+      "leccion": "comprar-hardware"
+    },
+    {
+      "id": "unidad-de-rack",
+      "termino": "Unidad de rack (U)",
+      "en": "rack unit",
+      "corto": "La medida de altura de los equipos que van en un rack: 1U = 1.75 pulgadas = 44.45 mm. Un rack típico completo tiene 42U.",
+      "largo": "El rack estándar mide 19 pulgadas de ancho, y cada equipo ocupa un número entero de U. Un servidor normal es de 1U o 2U; los de GPUs, de 2U, 4U u 8U, porque las tarjetas y su aire necesitan espacio. El panel real es un poco más bajo que lo nominal, para dejar holgura entre equipos.",
+      "ejemplo": "En un rack de 42U caben 10 servidores de 4U y sobran 2U para un switch y una charola. Altura útil: 42 × 44.45 mm ≈ 1.87 m.",
+      "ver": [
+        "servidor-gpu"
+      ],
+      "leccion": "comprar-hardware"
+    },
+    {
+      "id": "tdp",
+      "termino": "TDP",
+      "en": "thermal design power",
+      "corto": "La potencia máxima que una tarjeta o un chip puede pedir sostenidamente, en watts, y por lo tanto el calor que hay que sacarle.",
+      "largo": "Cada fabricante le pone su nombre (consumo máximo, TGP, potencia total de la tarjeta), pero el uso es el mismo: sumar los TDP de las GPUs más lo del resto del equipo dice qué fuente hace falta, cuánto calor hay que sacar del cuarto y cuánta luz se gasta. Algunas tarjetas permiten configurarlo: la RTX PRO 6000 Server Edition va de 400 a 600 W.",
+      "analogia": "Los watts que dice la etiqueta de un calentador eléctrico: es lo que jala del contacto y lo que calienta el cuarto.",
+      "ejemplo": "L40S 350 W, RTX PRO 6000 Workstation 600 W, H100 SXM 700 W, B200 1,000 W. Cuatro L40S suman 1,400 W solo de GPUs.",
+      "ver": [
+        "tarjeta-pasiva",
+        "servidor-gpu"
+      ],
+      "leccion": "comprar-hardware"
+    },
+    {
+      "id": "tarjeta-pasiva",
+      "termino": "Tarjeta pasiva",
+      "en": "passively cooled card",
+      "corto": "Una GPU sin ventilador propio: solo trae aletas, y depende de que el chasis del servidor empuje aire a través de ellas.",
+      "largo": "Es el diseño normal de las GPUs de centro de datos en tarjeta, porque en un servidor los ventiladores del frente mueven el aire de todas las tarjetas en un solo sentido, mejor que muchos ventiladores chicos peleándose. En una torre de oficina, sin esa corriente de aire, se calienta hasta frenarse o apagarse. Lo contrario es una tarjeta activa, con ventiladores propios, hecha para torres.",
+      "analogia": "Un radiador de coche: enfría muy bien mientras el coche avanza y el aire entra por el frente; parado en el tráfico, sin el ventilador, se calienta.",
+      "ejemplo": "La L40S y la RTX PRO 6000 Server Edition son pasivas; la RTX PRO 6000 Workstation y la Max-Q son activas, con la misma memoria.",
+      "ver": [
+        "tdp",
+        "servidor-gpu",
+        "workstation"
+      ],
+      "leccion": "comprar-hardware"
+    },
+    {
+      "id": "hgx",
+      "termino": "HGX",
+      "en": "NVIDIA HGX baseboard",
+      "corto": "La placa base de NVIDIA con 8 GPUs SXM unidas entre sí por NVLink, que NVIDIA vende a los fabricantes de servidores para que la metan en sus equipos.",
+      "largo": "Las GPUs [[sxm|SXM]] no tienen ranura PCIe: solo existen montadas en esta placa. Por eso una H100 SXM, una H200 o una B200 se compran como un servidor de 8, de 6U u 8U, con fuentes de miles de watts. AMD tiene el equivalente con sus módulos [[oam|OAM]] sobre una placa UBB.",
+      "analogia": "Un motor de avión: no lo compras en la refaccionaria, viene montado en el avión.",
+      "ejemplo": "HGX B200: 8 GPUs, 1.4 TB de memoria en total, 1.8 TB/s de NVLink de GPU a GPU. El servidor Exxact de 8 B200 cuesta US$447,238 (noviembre de 2026).",
+      "ver": [
+        "sxm",
+        "oam",
+        "servidor-gpu"
+      ],
+      "leccion": "comprar-hardware"
+    },
+    {
+      "id": "oam",
+      "termino": "OAM",
+      "en": "OCP Accelerator Module",
+      "corto": "El formato de módulo de las GPUs grandes de AMD (Instinct MI300X, MI325X, MI355X): como el SXM de NVIDIA, va de 8 en 8 sobre una placa base, no en una ranura PCIe.",
+      "largo": "Es un formato de la industria (del Open Compute Project) para aceleradores en módulo. AMD vende la placa de 8 a fabricantes de servidores, y la empresa compra el servidor completo por cotización: ninguna Instinct grande se encontró a la venta suelta.",
+      "ejemplo": "Dell PowerEdge XE9680 con 8 × MI300X de 192 GB, o Lenovo ThinkSystem SR685a V3 con su placa de 8 MI300X.",
+      "ver": [
+        "hgx",
+        "sxm"
+      ],
+      "leccion": "comprar-hardware"
+    },
+    {
+      "id": "oem",
+      "termino": "OEM",
+      "en": "original equipment manufacturer",
+      "corto": "El fabricante que diseña y vende el servidor completo con su marca: tarjeta madre, chasis, fuentes, firmware y garantía. Dell, HPE, Lenovo y Supermicro.",
+      "largo": "El OEM no hace la GPU: la compra al fabricante del chip y diseña el equipo alrededor de ella, con el aire y la corriente que pide. Su garantía cubre el conjunto, y sus contratos de servicio pueden incluir técnico en sitio. Casi siempre publica fichas sin precio: se cotiza con él o con un distribuidor.",
+      "analogia": "La armadora de coches: no fabrica cada pieza, pero diseña el coche, le pone su marca y responde por él.",
+      "ejemplo": "Supermicro SYS-221GE-NR: un 2U con hasta 4 GPUs de doble ancho (L40S, H100), 3 fuentes de 2,000 W, certificado por NVIDIA.",
+      "ver": [
+        "integrador",
+        "sistema-certificado"
+      ],
+      "leccion": "comprar-hardware"
+    },
+    {
+      "id": "integrador",
+      "termino": "Integrador",
+      "en": "system integrator",
+      "corto": "La empresa que arma el equipo a tu medida: pone las tarjetas, la RAM y los discos en un chasis, instala sistema y drivers, lo prueba y te da una sola garantía.",
+      "largo": "Toma chasis de un [[oem|OEM]] o propios y entrega el equipo funcionando. Su valor para un equipo de TI sin experiencia en GPUs es que el equipo llega probado y que hay un solo teléfono cuando algo falla. Su precio por tarjeta suele ser casi el de la tienda: su margen está en el servidor base.",
+      "ejemplo": "Exxact suma US$8,910 por cada L40S a su servidor 4U de US$40,461.30; la tarjeta suelta cuesta ≈ US$9,005 (gpus.json, noviembre de 2026).",
+      "ver": [
+        "oem",
+        "garantia-de-hardware"
+      ],
+      "leccion": "comprar-hardware"
+    },
+    {
+      "id": "sistema-certificado",
+      "termino": "Sistema certificado por NVIDIA",
+      "en": "NVIDIA-Certified System",
+      "corto": "Un modelo de servidor o workstation que un socio de NVIDIA probó con una GPU concreta y NVIDIA validó: rendimiento, seguridad, gestión y pruebas térmicas, mecánicas y de potencia.",
+      "largo": "Asegura que esa tarjeta en ese chasis recibe su corriente y su aire, no hace mal contacto y corre cargas reales de IA con una y varias GPUs. Hay niveles (Foundation, Enterprise, NVIDIA Cloud Partner). La prueba gratis de 90 días de NVIDIA AI Enterprise exige uno.",
+      "ejemplo": "Supermicro marca con la insignia sus SYS-221GE-NR (2U, 4 GPUs) y SYS-421GE-TNRT (4U, hasta 10).",
+      "ver": [
+        "oem",
+        "integrador"
+      ],
+      "leccion": "comprar-hardware"
+    },
+    {
+      "id": "cuda",
+      "termino": "CUDA",
+      "en": "Compute Unified Device Architecture",
+      "corto": "La plataforma de NVIDIA para programar sus GPUs: compilador, runtime y bibliotecas. Casi todo el software de inferencia se escribe primero para ella.",
+      "largo": "Existe desde 2007 y solo corre en GPUs de NVIDIA. Sus bibliotecas (cuBLAS para matrices, cuDNN, NCCL para varias GPUs, TensorRT) son las que usan por dentro PyTorch, vLLM y compañía. Para comprar hardware importa por el ecosistema: los formatos nuevos, los kernels más rápidos y la gente que sabe operarlo llegan primero a CUDA.",
+      "analogia": "Las gasolineras de cada esquina: no son la única forma de mover un coche, pero son la que siempre encuentras.",
+      "ejemplo": "Qwen3 32B en INT4 de AWQ con vLLM en una L40S usa kernels de CUDA hechos para ese formato.",
+      "ver": [
+        "rocm",
+        "mlx"
+      ],
+      "leccion": "comprar-hardware",
+      "sensei": "cpu-gpu"
+    },
+    {
+      "id": "rocm",
+      "termino": "ROCm",
+      "en": "ROCm",
+      "corto": "La plataforma de software de AMD para programar sus GPUs, de código abierto: el equivalente de CUDA para las Instinct y algunas Radeon.",
+      "largo": "Funciona, y vLLM corre en ella con las Instinct MI200, MI300 y MI350 y algunas Radeon. Pero cada versión soporta una lista concreta de GPUs y de sistemas operativos, y cambia cada pocos meses. Antes de comprar se revisa la matriz de compatibilidad de la versión que se va a instalar.",
+      "analogia": "Una red de cargadores para coches eléctricos: ya cubre las autopistas principales, pero conviene revisar el mapa antes de salir.",
+      "ejemplo": "La Radeon AI PRO R9700 y las Instinct MI300X y MI355X están en la matriz de ROCm 10.2.0 (18 de noviembre de 2026).",
+      "ver": [
+        "cuda",
+        "mlx"
+      ],
+      "leccion": "comprar-hardware"
+    },
+    {
+      "id": "mlx",
+      "termino": "MLX",
+      "en": "MLX",
+      "corto": "El marco de arreglos de Apple para sus chips, con una API de Python parecida a NumPy, que aprovecha la memoria unificada de las Mac.",
+      "largo": "Con MLX y con llama.cpp (que usa Metal, la interfaz gráfica de Apple) se corren LLMs en una Mac. En una Mac no hay CUDA ni el vLLM oficial de GPU: vLLM tiene un soporte experimental solo de CPU, y para la GPU hay un complemento de la comunidad sobre MLX.",
+      "ejemplo": "`pip install mlx` en macOS; en Linux existe una variante con backend de CUDA.",
+      "ver": [
+        "memoria-unificada",
+        "cuda"
+      ],
+      "leccion": "comprar-hardware"
+    },
+    {
+      "id": "garantia-de-hardware",
+      "termino": "Garantía de hardware",
+      "en": "hardware warranty",
+      "corto": "El compromiso del vendedor de reparar o cambiar lo que falle durante un plazo. Hay que leer por separado los años de mano de obra y los de piezas.",
+      "largo": "«3 años» puede ser 3 de mano de obra y 1 de piezas. Importa también si mandan la pieza antes de que devuelvas la descompuesta (*cross-ship* avanzado), si hay técnico en sitio, y quién cubre las GPUs: el integrador o el fabricante. Los OEM venden contratos de servicio aparte.",
+      "analogia": "La garantía de un coche: no es lo mismo que cubra el motor 5 años a que cubra solo la mano de obra.",
+      "ejemplo": "Servidores de GPU de Supermicro: 3 años de mano de obra, 1 de piezas y 1 de cross-ship avanzado. Workstation de Exxact: 3 años de piezas y mano de obra.",
+      "ver": [
+        "integrador",
+        "oem"
+      ],
+      "leccion": "comprar-hardware"
+    }
+  ]
+}

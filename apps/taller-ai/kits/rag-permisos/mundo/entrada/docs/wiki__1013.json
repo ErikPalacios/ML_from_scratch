@@ -1,0 +1,59 @@
+{
+ "acl": [
+  [
+   "group:operaciones@marketplace.test",
+   "group:soporte@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:1013#000",
+   "doc_id": "wiki:1013",
+   "orden": 0,
+   "ruta": [
+    "Macro: cancelar un pedido"
+   ],
+   "texto": "Macro: cancelar un pedido\n\n# Macro: cancelar un pedido\nSe cancela sin costo si el pedido no ha salido. Si ya salió, se rechaza en la entrega y se reembolsa al regresar al almacén.",
+   "titulo": "Macro: cancelar un pedido",
+   "tokens": 55,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/api/paginas/1013",
+   "version": "3"
+  },
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:1013#001",
+   "doc_id": "wiki:1013",
+   "orden": 1,
+   "ruta": [
+    "Macro: cancelar un pedido",
+    "Antes de enviarla"
+   ],
+   "texto": "Macro: cancelar un pedido › Antes de enviarla\n\n## Antes de enviarla\nPersonaliza el saludo y confirma el número de pedido.",
+   "titulo": "Macro: cancelar un pedido",
+   "tokens": 33,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/api/paginas/1013",
+   "version": "3"
+  }
+ ],
+ "doc_id": "wiki:1013",
+ "hash": "b50334eb26082ce44d479a1e1162e5ad4561593cf0b6b9cc66fdd8198091796c",
+ "huella": "0e80943c7995",
+ "sha256_texto": "48f2de537b815f89e2fb8649fb0da6d0551324daadf309c8c92d91d1911aede0",
+ "titulo": "Macro: cancelar un pedido",
+ "url": "http://localhost:8120/wiki/api/paginas/1013",
+ "version": "3"
+}

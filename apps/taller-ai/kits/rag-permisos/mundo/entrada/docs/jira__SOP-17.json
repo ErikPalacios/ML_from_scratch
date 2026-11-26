@@ -1,0 +1,40 @@
+{
+ "acl": [
+  [
+   "group:operaciones@marketplace.test",
+   "group:soporte@marketplace.test",
+   "user:marco.diaz@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:marco.diaz@marketplace.test"
+    ]
+   ],
+   "chunk_id": "jira:SOP-17#000",
+   "doc_id": "jira:SOP-17",
+   "orden": 0,
+   "ruta": [
+    "SOP-17 · Cliente reporta pedido sin movimiento desde hace 5 días"
+   ],
+   "texto": "SOP-17 · Cliente reporta pedido sin movimiento desde hace 5 días\n\n# SOP-17 · Cliente reporta pedido sin movimiento desde hace 5 días\nLa guía no se mueve desde el centro de distribución de Querétaro.\nResolución: Se abrió investigación con la paquetería y se reenvió el pedido.\nComentarios:\n- Le escribí a la persona.",
+   "titulo": "Cliente reporta pedido sin movimiento desde hace 5 días",
+   "tokens": 82,
+   "traslape": 0,
+   "url": "http://localhost:8120/jira/api/ticket/SOP-17",
+   "version": "2026-11-09T08:59:00.000-0600"
+  }
+ ],
+ "doc_id": "jira:SOP-17",
+ "hash": "41f2b3a97f02311d5ed63b5fa57960d20676b4cbf430113086724681db698f47",
+ "huella": "0e80943c7995",
+ "sha256_texto": "bab42c2ec76084dcf996cbf7a0519975e6e0a8daa3b97febcb3fc6a0e5531f21",
+ "titulo": "Cliente reporta pedido sin movimiento desde hace 5 días",
+ "url": "http://localhost:8120/jira/api/ticket/SOP-17",
+ "version": "2026-11-09T08:59:00.000-0600"
+}

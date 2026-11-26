@@ -1,0 +1,38 @@
+{
+ "acl": [
+  [
+   "group:operaciones@marketplace.test",
+   "group:soporte@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "chunk_id": "politicas:garantias.md#000",
+   "doc_id": "politicas:garantias.md",
+   "orden": 0,
+   "ruta": [
+    "Política de garantías"
+   ],
+   "texto": "Política de garantías\n\n# Política de garantías\nLa garantía la da quien fabrica o quien vende. El marketplace media si no hay respuesta en 5 días hábiles.",
+   "titulo": "garantias.md",
+   "tokens": 37,
+   "traslape": 0,
+   "url": "http://localhost:8120/repo/politicas/crudo/garantias.md",
+   "version": "340e77fdd509170483b24a74188ae4d333c5153b"
+  }
+ ],
+ "doc_id": "politicas:garantias.md",
+ "hash": "c21994fc9d2dc7211d8ef62fa0ccb8e7f287c4e33b2219a41ed0afaabe7d992a",
+ "huella": "0e80943c7995",
+ "sha256_texto": "aefa7de6cbe3cb82dc0b0df7102011455a4b4e5c3e5c6aba32b6e31eba1dca16",
+ "titulo": "garantias.md",
+ "url": "http://localhost:8120/repo/politicas/crudo/garantias.md",
+ "version": "340e77fdd509170483b24a74188ae4d333c5153b"
+}

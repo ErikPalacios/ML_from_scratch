@@ -1,0 +1,36 @@
+{
+ "acl": [
+  [
+   "group:fraude@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:fraude@marketplace.test"
+    ]
+   ],
+   "chunk_id": "jira:SEG-7#000",
+   "doc_id": "jira:SEG-7",
+   "orden": 0,
+   "ruta": [
+    "SEG-7 · Posible cuenta de vendedor duplicada #7"
+   ],
+   "texto": "SEG-7 · Posible cuenta de vendedor duplicada #7\n\n# SEG-7 · Posible cuenta de vendedor duplicada #7\nDos cuentas de vendedor comparten la misma cuenta bancaria (caso 7).\nResolución: Se suspendió la cuenta más nueva mientras se revisa.",
+   "titulo": "Posible cuenta de vendedor duplicada #7",
+   "tokens": 58,
+   "traslape": 0,
+   "url": "http://localhost:8120/jira/api/ticket/SEG-7",
+   "version": "2026-11-09T12:30:00.000-0600"
+  }
+ ],
+ "doc_id": "jira:SEG-7",
+ "hash": "d79b896edc5947d03ff56519c66f8214a68e6ca5c8f356f76bde4bba1cb70b47",
+ "huella": "0e80943c7995",
+ "sha256_texto": "d4b4d36c630d4fd3a3a8eb8689c4a9a2cc800ab31a98f56b66cbe98423a036ed",
+ "titulo": "Posible cuenta de vendedor duplicada #7",
+ "url": "http://localhost:8120/jira/api/ticket/SEG-7",
+ "version": "2026-11-09T12:30:00.000-0600"
+}

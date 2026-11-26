@@ -1,0 +1,38 @@
+{
+ "acl": [
+  [
+   "group:operaciones@marketplace.test",
+   "group:soporte@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "chunk_id": "politicas:reembolsos.md#000",
+   "doc_id": "politicas:reembolsos.md",
+   "orden": 0,
+   "ruta": [
+    "Política de reembolsos"
+   ],
+   "texto": "Política de reembolsos\n\n# Política de reembolsos\nEl reembolso vuelve al método de pago original. Si el pago fue en tienda, se devuelve como saldo.",
+   "titulo": "reembolsos.md",
+   "tokens": 43,
+   "traslape": 0,
+   "url": "http://localhost:8120/repo/politicas/crudo/reembolsos.md",
+   "version": "1ad10f9cd9b8121592e066e8836b9bf9e38965bd"
+  }
+ ],
+ "doc_id": "politicas:reembolsos.md",
+ "hash": "3b3c74176a41060eaeab156e36a79ade76fb9dafea97d3595750d2ea5fc9e19e",
+ "huella": "0e80943c7995",
+ "sha256_texto": "50668bd24d28ce9e674dcbca0f5eb0cf23a5c85570fd97b57ee1e2a7193bddd6",
+ "titulo": "reembolsos.md",
+ "url": "http://localhost:8120/repo/politicas/crudo/reembolsos.md",
+ "version": "1ad10f9cd9b8121592e066e8836b9bf9e38965bd"
+}

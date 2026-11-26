@@ -186,6 +186,56 @@
       "dato": "Razonamiento (thinking)",
       "valor": "apagado",
       "nota": "Qwen3 32B piensa por omisión; el despacho lo apaga con enable_thinking=false para no gastar tokens ni segundos antes de cada respuesta (la lección «Elegir un modelo»)."
+    },
+    {
+      "id": "tokens_expediente",
+      "dato": "Tokens de un expediente",
+      "valor": "≈ 33,000–40,000",
+      "unidad": "tokens",
+      "nota": "Estimación gruesa de la lección «Speculative decoding y contexto largo»: 50 páginas × ≈ 500 palabras a espacio sencillo × 1.33–1.61 tokens por palabra = 33,250–40,250; para diseñar se usa el caso pesado, ≈ 40,250. Los tokens por palabra en español salen de la regla de OpenAI para inglés (1.33) y de la medición de un solo pasaje de un blog con tokenizadores de OpenAI (1.34 y 1.61): no están medidos con el tokenizador de Qwen3. Hay que medirlo con el tokenizador real y con expedientes reales. Supuesto del ejemplo: un resumen de expediente mide ≈ 500 tokens (≈ 400 por resumen intermedio en map-reduce)."
+    },
+    {
+      "id": "conversaciones_promedio",
+      "dato": "Conversaciones a la vez, en un día normal",
+      "valor": "≈ 2.25",
+      "unidad": "conversaciones",
+      "nota": "Derivado con la ley de Little, no es la cifra de diseño: 300 preguntas por hora ÷ 3,600 × 27 s ≈ 2.25 en una hora promedio (≈ 5.6 en la hora pico, hecho «a_la_vez»). Lo usa la lección de speculative decoding: casi todo el día hay menos de una conversación por GPU."
+    },
+    {
+      "id": "compra",
+      "dato": "Compra, decisión de la lección",
+      "valor": "servidor de rack 2U o 4U, certificado por NVIDIA y armado por un integrador, con al menos 4 ranuras PCIe de doble ancho; cotizar dos configuraciones: 3 × L40S (US$67,191.30 en el configurador de Exxact, 2026-11-25, con la cuarta ranura libre) y 2 × RTX PRO 6000 Blackwell Server Edition; el piloto decide",
+      "nota": "Lección «Comprar hardware: de la workstation al rack». No cambia el hecho «sizing» (3 × L40S; 4 para las 8 de diseño): agrega una segunda cotización. Con la herramienta de sizing la Server Edition (1,597 GB/s, ≈ 500 TFLOPS en FP16 denso, derivado) da ≈ 6 conversaciones por tarjeta y TTFT ≈ 1.7 s, que cumple el objetivo de 2 s que la L40S no cumple; es una cuenta, no una medición con el modelo del despacho. El precio de la Server Edition no está publicado (el de US$16,399 en gpus.json es de la Workstation): se cotiza. Supuesto: la Server Edition a 600 W tiene las cifras de la Workstation (no verificado). Con 4 L40S el servidor sale en US$76,101.30."
+    },
+    {
+      "id": "cuarto_ti",
+      "dato": "Cuarto de TI",
+      "valor": "≈ 3 × 3 m (9 m²) y 2.5 m de alto, sin ventanas, en el piso del despacho; hoy con un rack (switch, firewall, NAS y servidor de archivos) de ≈ 500 W; contactos de pared de 127 V y 15 A; el edificio recibe servicio trifásico de 220/127 V y hay lugar en el tablero del piso; un minisplit de confort de 1 tonelada (el aire central se apaga de noche y en fines de semana); la planta de emergencia es solo para elevadores y áreas comunes",
+      "nota": "Supuestos del ejemplo de la lección «El cuarto: energía, enfriamiento y red»; ficticio."
+    },
+    {
+      "id": "servidor_potencia",
+      "dato": "Potencia del servidor (Exxact 4U con 4 L40S)",
+      "valor": "pico ≈ 2,500 W; en horas de oficina ≈ 1,640 W; en reposo ≈ 830 W",
+      "nota": "Estimaciones derivadas: Exxact no publica la potencia del servidor. Pico = 4 × 350 W de GPUs + 400 W de CPUs + 700 W del resto = 2,500 W (con 3 GPUs, 2,150 W). En uso: GPUs al 60 % del TDP + 800 W = 1,640 W; en reposo: GPUs al 20 % + 550 W = 830 W (supuestos). Factor de potencia supuesto de 0.95. El valor de 2,500 W también está en equipos.json como estimado."
+    },
+    {
+      "id": "tarifa",
+      "dato": "Tarifa de luz (CFE)",
+      "valor": "GDBT, Valle de México Centro: ≈ $1.942 por kWh + ≈ $542.70 por kW de demanda al mes + $540.49 de cargo fijo",
+      "nota": "Cuadro de tarifas del Suministro Básico del Diario Oficial, vigente desde el 1 de octubre de 2026, antes de IVA. La tarifa es un supuesto: una oficina de 200 personas razonablemente pasa de 25 kW (límite de PDBT) y recibe la luz en baja tensión; el recibo diría. Para comparar: PDBT ≈ $3.565 por kWh con $54.05 de cargo fijo; GDMTO ≈ $1.542 por kWh y ≈ $395.29 por kW."
+    },
+    {
+      "id": "costo_luz",
+      "dato": "Costo de la luz del servidor",
+      "valor": "≈ $4,825 al mes (≈ $4,800 antes de IVA, sin el cargo fijo), ≈ 7 centavos por pregunta",
+      "nota": "Cuenta de la lección «El cuarto»: 22 días hábiles al mes (supuesto) = 220 horas de uso (10 h × 22) y 510 de reposo; energía del servidor ≈ 784 kWh; PUE del cuarto = 2.0 (supuesto, informe del Laboratorio Nacional Lawrence Berkeley de 2016 para un clóset de servidores) → ≈ 1,568 kWh; energía ≈ $3,045 + demanda ≈ $1,780 (1.64 kW × 2.0 × $542.70). 3,000 preguntas al día × 22 = 66,000 al mes. Con PDBT serían ≈ $5,591. La demanda se aproxima con el consumo del servidor y su aire en horas de oficina; el recibo real depende de toda la oficina."
+    },
+    {
+      "id": "plan_cuarto",
+      "dato": "Plan del cuarto, resultado de la lección",
+      "valor": "2 circuitos dedicados de 20 A a 220 V (A y B, con dos fuentes del servidor en cada uno); UPS de 5–6 kVA de doble conversión en el circuito A, con el switch; 2 minisplits de 2 toneladas en circuitos propios (N+1); un puerto de 10 GbE; BMC en una VLAN de gestión sin internet",
+      "nota": "Resultado de la lección «El cuarto: energía, enfriamiento y red»; supuesto del ejemplo. Si el edificio no deja hacer las obras, la alternativa es colocation."
     }
   ]
 }

@@ -1,0 +1,38 @@
+{
+ "acl": [
+  [
+   "group:legal@marketplace.test",
+   "group:soporte-lideres@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:legal@marketplace.test",
+     "group:soporte-lideres@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:3005#000",
+   "doc_id": "wiki:3005",
+   "orden": 0,
+   "ruta": [
+    "Retención de datos"
+   ],
+   "texto": "Retención de datos\n\n# Retención de datos\nLos tickets de soporte se guardan 2 años. Las grabaciones de llamadas, 6 meses. Los documentos de alta de vendedores, 5 años después de cerrar la cuenta.",
+   "titulo": "Retención de datos",
+   "tokens": 51,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/api/paginas/3005",
+   "version": "3"
+  }
+ ],
+ "doc_id": "wiki:3005",
+ "hash": "24272a590b5c423932f06a5d832797a0408e1231af7f46585de023f0194589f1",
+ "huella": "0e80943c7995",
+ "sha256_texto": "42774e7fb0b431ce6e329d1b18791996b547edf7da478d39e7f81f5dfb339b02",
+ "titulo": "Retención de datos",
+ "url": "http://localhost:8120/wiki/api/paginas/3005",
+ "version": "3"
+}

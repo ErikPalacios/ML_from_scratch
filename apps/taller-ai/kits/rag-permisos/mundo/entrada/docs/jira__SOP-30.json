@@ -1,0 +1,40 @@
+{
+ "acl": [
+  [
+   "group:operaciones@marketplace.test",
+   "group:soporte@marketplace.test",
+   "user:elena.cruz@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:elena.cruz@marketplace.test"
+    ]
+   ],
+   "chunk_id": "jira:SOP-30#000",
+   "doc_id": "jira:SOP-30",
+   "orden": 0,
+   "ruta": [
+    "SOP-30 · Cambio de dirección después de enviado"
+   ],
+   "texto": "SOP-30 · Cambio de dirección después de enviado\n\n# SOP-30 · Cambio de dirección después de enviado\nEl pedido ya había salido del almacén.\nResolución: Se ofreció recoger en sucursal.\nComentarios:\n- Le escribí a la persona.",
+   "titulo": "Cambio de dirección después de enviado",
+   "tokens": 63,
+   "traslape": 0,
+   "url": "http://localhost:8120/jira/api/ticket/SOP-30",
+   "version": "2026-11-15T03:30:00.000-0600"
+  }
+ ],
+ "doc_id": "jira:SOP-30",
+ "hash": "f46325d46014fa3a5b40743bc326b51aa2f8d94c94b559a2b99c47b324d19dc9",
+ "huella": "0e80943c7995",
+ "sha256_texto": "c625e9333f4d1f3db62485a66d4ff1febeeca4dba138581d876fa9d5cf11688b",
+ "titulo": "Cambio de dirección después de enviado",
+ "url": "http://localhost:8120/jira/api/ticket/SOP-30",
+ "version": "2026-11-15T03:30:00.000-0600"
+}

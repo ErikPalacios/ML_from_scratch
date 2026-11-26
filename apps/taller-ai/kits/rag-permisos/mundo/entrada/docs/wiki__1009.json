@@ -1,0 +1,59 @@
+{
+ "acl": [
+  [
+   "group:operaciones@marketplace.test",
+   "group:soporte@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:1009#000",
+   "doc_id": "wiki:1009",
+   "orden": 0,
+   "ruta": [
+    "Macro: producto distinto al publicado"
+   ],
+   "texto": "Macro: producto distinto al publicado\n\n# Macro: producto distinto al publicado\nPide fotos y el número de pedido. Si se confirma, el envío de regreso lo paga quien vende y se le descuenta del siguiente pago.",
+   "titulo": "Macro: producto distinto al publicado",
+   "tokens": 53,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/api/paginas/1009",
+   "version": "2"
+  },
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:1009#001",
+   "doc_id": "wiki:1009",
+   "orden": 1,
+   "ruta": [
+    "Macro: producto distinto al publicado",
+    "Antes de enviarla"
+   ],
+   "texto": "Macro: producto distinto al publicado › Antes de enviarla\n\n## Antes de enviarla\nPersonaliza el saludo y confirma el número de pedido.",
+   "titulo": "Macro: producto distinto al publicado",
+   "tokens": 34,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/api/paginas/1009",
+   "version": "2"
+  }
+ ],
+ "doc_id": "wiki:1009",
+ "hash": "9d70f9398e0dd1eaba0e254a76cba96d96c5029cf98d0b77569b46ec7b25b89c",
+ "huella": "0e80943c7995",
+ "sha256_texto": "8bceb0e04635f68d8633b8173fb65627911814d2c8e7bca17a65d91f15939610",
+ "titulo": "Macro: producto distinto al publicado",
+ "url": "http://localhost:8120/wiki/api/paginas/1009",
+ "version": "2"
+}

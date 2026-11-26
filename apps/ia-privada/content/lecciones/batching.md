@@ -562,8 +562,8 @@ De bueno: si **todas** las conversaciones llegaran al tope de 8,192 tokens a la 
 ## Lo que sigue {What comes next}
 
 - **[Concurrencia: la curva de usuarios contra latencia](/concurrencia/)**, la siguiente lección de este módulo, toma lo que viste aquí (el paso que se alarga con cada conversación, la memoria que pone el tope) y lo convierte en la curva que se dibuja en una prueba de carga: cuántas personas a la vez, cuánto tardan en ver el primer token y cada token, y dónde está el [[codo|codo]].
-- **«Formatos de cuantización en la práctica»** mide lo que cuesta en calidad bajar los pesos o el KV cache a menos bits, la palanca más directa para leer menos bytes por paso.
-- **«Speculative decoding y contexto largo»** ataca el mismo límite desde otro lado: hacer que cada lectura de los pesos produzca más de un token por conversación.
+- **«[Formatos de cuantización en la práctica](/formatos-cuantizacion/)»** mide lo que cuesta en calidad bajar los pesos o el KV cache a menos bits, la palanca más directa para leer menos bytes por paso.
+- **«[Speculative decoding y contexto largo](/speculative/)»** ataca el mismo límite desde otro lado: hacer que cada lectura de los pesos produzca más de un token por conversación.
 - **«Del laptop al servidor: llama.cpp, Ollama, vLLM, SGLang y TensorRT-LLM»** pone estas ideas en programas concretos: cuáles hacen batching continuo, cuáles PagedAttention y cuáles no.
 - En Sensei: [Matrices y FLOPs](https://sensei.trueml.app/flops/) tiene el [[roofline|roofline]] completo, y [Latencia y throughput](https://sensei.trueml.app/latencia/) las colas que explican por qué la espera crece cuando la GPU se llena.
 

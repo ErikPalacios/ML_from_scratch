@@ -1,0 +1,68 @@
+{
+ "acl": [
+  [
+   "group:legal@marketplace.test",
+   "group:soporte-lideres@marketplace.test"
+  ],
+  [
+   "group:legal-litigios@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:legal@marketplace.test",
+     "group:soporte-lideres@marketplace.test"
+    ],
+    [
+     "group:legal-litigios@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:3006#000",
+   "doc_id": "wiki:3006",
+   "orden": 0,
+   "ruta": [
+    "Caso Envíos Express"
+   ],
+   "texto": "Caso Envíos Express\n\n# Caso Envíos Express\nReclamación de Envíos Express por penalizaciones de octubre que el marketplace no reconoce.",
+   "titulo": "Caso Envíos Express",
+   "tokens": 35,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/api/paginas/3006",
+   "version": "1"
+  },
+  {
+   "acl": [
+    [
+     "group:legal@marketplace.test",
+     "group:soporte-lideres@marketplace.test"
+    ],
+    [
+     "group:legal-litigios@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:3006#001",
+   "doc_id": "wiki:3006",
+   "orden": 1,
+   "ruta": [
+    "Caso Envíos Express",
+    "Estado"
+   ],
+   "texto": "Caso Envíos Express › Estado\n\n## Estado\nEn revisión con el área de operaciones; audiencia de conciliación el 3 de diciembre.",
+   "titulo": "Caso Envíos Express",
+   "tokens": 30,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/api/paginas/3006",
+   "version": "1"
+  }
+ ],
+ "doc_id": "wiki:3006",
+ "hash": "c1492ee36d9950e7d26b308c233ca8736e74e114bf9c9a6602ce32a907cb8896",
+ "huella": "0e80943c7995",
+ "sha256_texto": "5702c50e4d76216407269208265266e90ae2d4357cc2e40f79cb30378fedef3d",
+ "titulo": "Caso Envíos Express",
+ "url": "http://localhost:8120/wiki/api/paginas/3006",
+ "version": "1"
+}

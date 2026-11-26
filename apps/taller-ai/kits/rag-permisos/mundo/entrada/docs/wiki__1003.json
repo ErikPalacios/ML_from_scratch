@@ -1,0 +1,59 @@
+{
+ "acl": [
+  [
+   "group:operaciones@marketplace.test",
+   "group:soporte@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:1003#000",
+   "doc_id": "wiki:1003",
+   "orden": 0,
+   "ruta": [
+    "Devoluciones de electrónica"
+   ],
+   "texto": "Devoluciones de electrónica\n\n# Devoluciones de electrónica\nUn equipo electrónico se revisa antes de reembolsar: quien vende tiene 3 días hábiles para confirmar que llegó completo y sin daños de uso.",
+   "titulo": "Devoluciones de electrónica",
+   "tokens": 48,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/api/paginas/1003",
+   "version": "2"
+  },
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:1003#001",
+   "doc_id": "wiki:1003",
+   "orden": 1,
+   "ruta": [
+    "Devoluciones de electrónica",
+    "Si quien vende no contesta"
+   ],
+   "texto": "Devoluciones de electrónica › Si quien vende no contesta\n\n## Si quien vende no contesta\nPasados los 3 días hábiles, el reembolso se libera solo y el caso se marca para revisión de calidad del vendedor.",
+   "titulo": "Devoluciones de electrónica",
+   "tokens": 50,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/api/paginas/1003",
+   "version": "2"
+  }
+ ],
+ "doc_id": "wiki:1003",
+ "hash": "bf0cb55f3c4a8cb02f15434d9ae0bff110d9ea0bd01ff7c3511732361175a1c6",
+ "huella": "0e80943c7995",
+ "sha256_texto": "0883c85f075711edf6abf64d08cf0edeedc4f0b17ff7800ea9dfa180552f1691",
+ "titulo": "Devoluciones de electrónica",
+ "url": "http://localhost:8120/wiki/api/paginas/1003",
+ "version": "2"
+}

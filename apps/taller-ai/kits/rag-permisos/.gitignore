@@ -1,0 +1,8 @@
+# lo que crea el mundo y lo que produce tu índice
+almacen/
+indice/
+.taller/
+.respaldo/
+.venv/
+__pycache__/
+*.pyc

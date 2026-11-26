@@ -1,0 +1,273 @@
+{
+ "titulo": "Cuánto acelera el speculative decoding, y si el batch lo deja",
+ "intro": "Aplica la fórmula de Leviathan y otros (2023): \\(E = (1 − α^{γ+1}) ÷ (1 − α)\\) tokens por ciclo y \\(S = E ÷ (γ × c + 1)\\) veces. Luego revisa su supuesto, que verificar γ + 1 tokens cueste un paso normal, con un modelo simplificado de la lección (no es de Leviathan): los dos relojes del decode, \\(t_{1} = max(t_{mem}, t_{cálc})\\) y \\(t_{ver} = max(t_{mem}, (γ + 1) × t_{cálc})\\), dan \\(S_{b} = E × t_{1} ÷ (t_{ver} + γ × c × t_{1})\\). Arranca con el despacho: Qwen3 32B en INT4 de AWQ en una L40S, una conversación de ≈ 6,250 tokens, y un borrador con \\(α\\) = 0.6 (el α equivalente de una medición de EAGLE-3 con Qwen3 32B) y \\(c\\) = 0.05 (supuesto).",
+ "preajustes": [
+  {
+   "label": "Escenario",
+   "inicial": 0,
+   "opciones": [
+    {
+     "label": "El despacho fuera de la hora pico: 1 conversación",
+     "valores": {
+      "a": 0.6,
+      "g": 3,
+      "c": 0.05,
+      "b": 1,
+      "T": 6250
+     },
+     "nota": "\\(α\\) = 0.6 sale de la longitud de aceptación que Red Hat midió para su EAGLE-3 de Qwen3 32B en resumen (2.15 con γ = 3): \\(α\\) equivalente ≈ 0.59. \\(c\\) = 0.05 es un supuesto."
+    },
+    {
+     "label": "El peor caso del despacho: las 8 de diseño en una L40S",
+     "valores": {
+      "a": 0.6,
+      "g": 3,
+      "c": 0.05,
+      "b": 8,
+      "T": 6250
+     },
+     "nota": "Las 8 conversaciones de diseño juntas en una GPU (le caben por memoria). Con contextos de 6,250 tokens el KV cache pesa tanto que verificar 4 tokens sigue cabiendo en el tiempo de la memoria. La cuenta de techo dice que el truco sobrevive; hay que medirlo."
+    },
+    {
+     "label": "Un clasificador de correos: 64 conversaciones cortas",
+     "valores": {
+      "a": 0.6,
+      "g": 3,
+      "c": 0.05,
+      "b": 64,
+      "T": 300
+     },
+     "nota": "Supuesto del ejemplo: prompts cortos de ≈ 300 tokens y muchas peticiones a la vez. El paso deja de esperar a la memoria y verificar 4 tokens cuesta 4 veces el cálculo: el truco **frena**."
+    },
+    {
+     "label": "El ejemplo del paper: α = 0.8",
+     "valores": {
+      "a": 0.8,
+      "g": 3,
+      "c": 0.05,
+      "b": 1,
+      "T": 6250
+     },
+     "nota": "Un borrador que atina 8 de cada 10: con γ = 3 salen 2.95 tokens por ciclo y 2.57× de aceleración."
+    }
+   ]
+  },
+  {
+   "label": "GPU (datos de gpus.json)",
+   "datos": "gpus",
+   "inicial": "l40s",
+   "requiere": [
+    "fp16_tflops_denso"
+   ],
+   "campos": {
+    "B": "ancho_banda_gbs",
+    "F": "fp16_tflops_denso"
+   }
+  }
+ ],
+ "entradas": [
+  {
+   "id": "a",
+   "label": "Tasa de aceptación del borrador, \\(α\\) (qué tan seguido el grande acepta su propuesta)",
+   "min": 0,
+   "max": 0.99,
+   "paso": 0.01,
+   "valor": 0.6
+  },
+  {
+   "id": "g",
+   "label": "Tokens que propone el borrador por ciclo, \\(γ\\)",
+   "min": 1,
+   "max": 12,
+   "paso": 1,
+   "valor": 3
+  },
+  {
+   "id": "c",
+   "label": "Costo de un paso del borrador entre un paso del grande, \\(c\\)",
+   "min": 0,
+   "max": 1,
+   "paso": 0.01,
+   "valor": 0.05
+  },
+  {
+   "id": "b",
+   "label": "Conversaciones a la vez en el batch, \\(b\\)",
+   "min": 1,
+   "max": 256,
+   "paso": 1,
+   "valor": 1
+  },
+  {
+   "id": "T",
+   "label": "Tokens en el KV cache de cada conversación, \\(T\\)",
+   "min": 100,
+   "max": 131072,
+   "paso": 50,
+   "valor": 6250,
+   "tipo": "numero"
+  },
+  {
+   "id": "Wg",
+   "label": "Pesos del modelo grande, \\(W\\), en GB (Qwen3 32B en INT4 de AWQ: 19.32)",
+   "min": 0.5,
+   "max": 400,
+   "paso": 0.01,
+   "valor": 19.32,
+   "tipo": "numero"
+  },
+  {
+   "id": "P",
+   "label": "Parámetros del modelo grande, \\(P\\), en miles de millones",
+   "min": 0.5,
+   "max": 1000,
+   "paso": 0.001,
+   "valor": 32.762,
+   "tipo": "numero"
+  },
+  {
+   "id": "mk",
+   "label": "KV cache por token, \\(m\\), en KiB (Qwen3 32B en BF16: 256)",
+   "min": 4,
+   "max": 1024,
+   "paso": 1,
+   "valor": 256,
+   "tipo": "numero"
+  },
+  {
+   "id": "B",
+   "label": "Ancho de banda de la GPU, \\(B_W\\), en GB/s (sale de la lista)",
+   "min": 50,
+   "max": 10000,
+   "paso": 1,
+   "valor": 864,
+   "tipo": "numero"
+  },
+  {
+   "id": "F",
+   "label": "Pico denso de la GPU en FP16, \\(F\\), en TFLOPS (sale de la lista)",
+   "min": 10,
+   "max": 5000,
+   "paso": 0.01,
+   "valor": 362.05,
+   "tipo": "numero"
+  },
+  {
+   "id": "em",
+   "label": "Eficiencia de la memoria, \\(η_m\\) (el despacho supone 0.7)",
+   "min": 0.1,
+   "max": 1,
+   "paso": 0.05,
+   "valor": 0.7
+  },
+  {
+   "id": "ec",
+   "label": "Eficiencia del cálculo, \\(η_c\\) (el despacho supone 0.5)",
+   "min": 0.1,
+   "max": 1,
+   "paso": 0.05,
+   "valor": 0.5
+  }
+ ],
+ "calculos": [
+  {
+   "id": "Ec",
+   "formula": "(1 - pow(a, g + 1)) / (1 - a)"
+  },
+  {
+   "id": "S",
+   "formula": "Ec / (g * c + 1)"
+  },
+  {
+   "id": "kv",
+   "formula": "b * T * mk * 1024"
+  },
+  {
+   "id": "tm",
+   "formula": "(Wg * 1e9 + kv) / (em * B * 1e9)"
+  },
+  {
+   "id": "tc",
+   "formula": "2 * P * 1e9 * b / (ec * F * 1e12)"
+  },
+  {
+   "id": "t1",
+   "formula": "max(tm, tc)"
+  },
+  {
+   "id": "tv",
+   "formula": "max(tm, (g + 1) * tc)"
+  },
+  {
+   "id": "Sr",
+   "formula": "Ec * t1 / (tv + g * c * t1)"
+  }
+ ],
+ "salidas": [
+  {
+   "label": "1 · Tokens que salen por ciclo, \\(E\\)",
+   "formula": "Ec",
+   "formato": "num",
+   "decimales": 2,
+   "nota": "\\((1 − α^{γ+1}) ÷ (1 − α)\\): entre 1 y γ + 1",
+   "cuenta": "(1 − {{a|corto}} elevado a {{g + 1|int}}) ÷ (1 − {{a|corto}}) = (1 − {{pow(a, g + 1)|num|4}}) ÷ {{1 - a|num|2}} = **{{Ec|num|2}} tokens**"
+  },
+  {
+   "label": "2 · Aceleración de la fórmula, \\(S\\)",
+   "formula": "S",
+   "formato": "x",
+   "decimales": 2,
+   "barra": true,
+   "nota": "supone que verificar γ + 1 cuesta un paso normal",
+   "cuenta": "{{Ec|num|2}} ÷ ({{g|int}} × {{c|corto}} + 1) = {{Ec|num|2}} ÷ {{g * c + 1|num|2}} = **{{S|num|2}}×**"
+  },
+  {
+   "label": "3 · Un paso normal del grande, \\(t_{1}\\)",
+   "formula": "t1 * 1000",
+   "formato": "ms",
+   "nota": "el mayor entre leer la memoria y calcular 1 token por conversación",
+   "cuenta": "memoria: ({{Wg|corto}} GB + {{kv|bytes|2}}) ÷ ({{em|corto}} × {{B|int}} GB/s) = {{tm * 1000|num|1}} ms · cálculo: {{tc * 1000|num|2}} ms → **{{t1 * 1000|num|1}} ms**"
+  },
+  {
+   "label": "4 · Un paso de verificación, \\(t_{ver}\\)",
+   "formula": "tv * 1000",
+   "formato": "ms",
+   "nota": "lo mismo, pero con γ + 1 tokens por conversación",
+   "cuenta": "memoria: {{tm * 1000|num|1}} ms · cálculo: {{g + 1|int}} × {{tc * 1000|num|2}} = {{(g + 1) * tc * 1000|num|2}} ms → **{{tv * 1000|num|1}} ms**"
+  },
+  {
+   "label": "¿Verificar sigue saliendo gratis?",
+   "formula": "tm - (g + 1) * tc",
+   "veredicto": {
+    "si": "Sí: la memoria manda y el cálculo extra cabe en su tiempo",
+    "no": "No: verificar ya cuesta más que un paso normal"
+   },
+   "cuenta": "{{tm * 1000|num|1}} ms de memoria − {{(g + 1) * tc * 1000|num|2}} ms de cálculo = {{(tm - (g + 1) * tc) * 1000|num|1}} ms"
+  },
+  {
+   "label": "5 · Aceleración con este batch, \\(S_{b}\\) (modelo simplificado)",
+   "formula": "Sr",
+   "formato": "x",
+   "decimales": 2,
+   "barra": true,
+   "cuenta": "{{Ec|num|2}} × {{t1 * 1000|num|1}} ms ÷ ({{tv * 1000|num|1}} + {{g|int}} × {{c|corto}} × {{t1 * 1000|num|1}}) ms = **{{Sr|num|2}}×**"
+  },
+  {
+   "label": "6 · Tokens por segundo de cada persona: sin y con borrador",
+   "formula": "Sr / t1",
+   "formato": "num",
+   "decimales": 1,
+   "cuenta": "sin: 1 ÷ {{t1 * 1000|num|1}} ms = {{1 / t1|num|1}} · con: {{Sr|num|2}} × {{1 / t1|num|1}} = **{{Sr / t1|num|1}} tokens/s**"
+  },
+  {
+   "label": "¿Ayuda o estorba?",
+   "formula": "Sr - 1",
+   "veredicto": {
+    "si": "Ayuda: sale más rápido que sin borrador",
+    "no": "Estorba: sale más lento que sin borrador"
+   },
+   "cuenta": "{{Sr|num|2}} − 1 = {{Sr - 1|num|2}}"
+  }
+ ],
+ "nota": "Prueba: con el despacho, sube γ de 3 a 5 y luego a 10: \\(E\\) apenas crece y el borrador cuesta más. Cambia al clasificador de correos y baja \\(b\\) hasta que vuelva a ayudar (≈ 54). Es una cuenta de techo con un modelo simplificado: supone que \\(α\\) no cambia con el batch y que todas las conversaciones especulan, y no cuenta la atención extra de verificar, ni el KV cache del borrador, ni los prefills que comparten la GPU. Mídelo con tu tráfico."
+}

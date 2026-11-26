@@ -1,0 +1,36 @@
+{
+ "acl": [
+  [
+   "group:operaciones@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:2001#000",
+   "doc_id": "wiki:2001",
+   "orden": 0,
+   "ruta": [
+    "Operaciones"
+   ],
+   "texto": "Operaciones\n\n# Operaciones\nEl espacio de operaciones documenta cómo se da de alta a quien vende, cómo se le paga y cómo se mueve el inventario de los almacenes propios.",
+   "titulo": "Operaciones",
+   "tokens": 43,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/api/paginas/2001",
+   "version": "1"
+  }
+ ],
+ "doc_id": "wiki:2001",
+ "hash": "98ecadfb79e3b1b6d19ce3bf52706eb5510b7a18c4105f8ca20516cb2b2c39b8",
+ "huella": "0e80943c7995",
+ "sha256_texto": "a9702c852fae6c0713911ad72c99012d33c9c785d5ae02c3b38176771d1e013b",
+ "titulo": "Operaciones",
+ "url": "http://localhost:8120/wiki/api/paginas/2001",
+ "version": "1"
+}

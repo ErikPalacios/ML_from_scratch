@@ -1,0 +1,59 @@
+{
+ "acl": [
+  [
+   "group:operaciones@marketplace.test",
+   "group:soporte@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:1016#000",
+   "doc_id": "wiki:1016",
+   "orden": 0,
+   "ruta": [
+    "Macro: garantía"
+   ],
+   "texto": "Macro: garantía\n\n# Macro: garantía\nLa garantía la da quien fabrica o quien vende, según la publicación. El marketplace solo media si no hay respuesta en 5 días hábiles.",
+   "titulo": "Macro: garantía",
+   "tokens": 42,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/api/paginas/1016",
+   "version": "3"
+  },
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:1016#001",
+   "doc_id": "wiki:1016",
+   "orden": 1,
+   "ruta": [
+    "Macro: garantía",
+    "Antes de enviarla"
+   ],
+   "texto": "Macro: garantía › Antes de enviarla\n\n## Antes de enviarla\nPersonaliza el saludo y confirma el número de pedido.",
+   "titulo": "Macro: garantía",
+   "tokens": 30,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/api/paginas/1016",
+   "version": "3"
+  }
+ ],
+ "doc_id": "wiki:1016",
+ "hash": "53ccbe6a32069e15fda57341c8b14fba001460a53c39c69a2cc2ada9c07f9996",
+ "huella": "0e80943c7995",
+ "sha256_texto": "9aa98c1630be0db19c61e4416cbf8054891d82b52801437c2614875d0f846b14",
+ "titulo": "Macro: garantía",
+ "url": "http://localhost:8120/wiki/api/paginas/1016",
+ "version": "3"
+}

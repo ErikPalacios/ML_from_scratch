@@ -1,0 +1,38 @@
+{
+ "acl": [
+  [
+   "group:operaciones@marketplace.test",
+   "user:sofia.leal@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "user:sofia.leal@marketplace.test"
+    ]
+   ],
+   "chunk_id": "drive:d02#000",
+   "doc_id": "drive:d02",
+   "orden": 0,
+   "ruta": [
+    "Manual de onboarding de vendedores"
+   ],
+   "texto": "Manual de onboarding de vendedores\n\nOnboarding de vendedores\nLa primera semana, cada vendedor nuevo tiene un contacto de operaciones asignado.\nDía 1: revisión de documentos. Día 2: carga de catálogo. Día 3: primera publicación\nrevisada.\nPrimer mes\nEl vendedor nuevo no paga comisión en sus primeras 10 ventas.\nSi su calificación baja de 3.5, el contacto lo llama antes de cualquier sanción.",
+   "titulo": "Manual de onboarding de vendedores.pdf",
+   "tokens": 86,
+   "traslape": 0,
+   "url": "http://localhost:8120/drive/v3/files/d02",
+   "version": "1"
+  }
+ ],
+ "doc_id": "drive:d02",
+ "hash": "40b86ac37b6cfc21ed664ec0cc4f515c09baee2ab73ff8962b636deacd6c7f16",
+ "huella": "0e80943c7995",
+ "sha256_texto": "fd18a2fe43033dd616331b43c8a1437b2c0bab1fd7d6a40c83d3ff94ab960f96",
+ "titulo": "Manual de onboarding de vendedores.pdf",
+ "url": "http://localhost:8120/drive/v3/files/d02",
+ "version": "1"
+}

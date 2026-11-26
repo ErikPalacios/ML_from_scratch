@@ -1,0 +1,38 @@
+{
+ "acl": [
+  [
+   "domain:marketplace.test",
+   "user:irene.sol@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "domain:marketplace.test",
+     "user:irene.sol@marketplace.test"
+    ]
+   ],
+   "chunk_id": "drive:d10#000",
+   "doc_id": "drive:d10",
+   "orden": 0,
+   "ruta": [
+    "Código de conducta"
+   ],
+   "texto": "Código de conducta\n\nCódigo de conducta\nTratamos a quien compra y a quien vende con respeto, aunque la conversación sea difícil.\nNadie acepta regalos de vendedores con un valor mayor a 500 pesos.\nConflictos de interés\nSi tienes relación con un vendedor, avisa a tu líder y no atiendas sus casos.",
+   "titulo": "Código de conducta.pdf",
+   "tokens": 71,
+   "traslape": 0,
+   "url": "http://localhost:8120/drive/v3/files/d10",
+   "version": "1"
+  }
+ ],
+ "doc_id": "drive:d10",
+ "hash": "f9e6cf4c87f0029d55f595c65e01407f85e27a76b32e7c94cf541d2d4270fd2c",
+ "huella": "0e80943c7995",
+ "sha256_texto": "63989d715abc8c52f2a1492352acbb8901c487fb2651d0afb61b30f5cced38ed",
+ "titulo": "Código de conducta.pdf",
+ "url": "http://localhost:8120/drive/v3/files/d10",
+ "version": "1"
+}

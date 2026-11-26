@@ -1,0 +1,38 @@
+{
+ "acl": [
+  [
+   "group:operaciones@marketplace.test",
+   "group:soporte@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "chunk_id": "politicas:privacidad.md#000",
+   "doc_id": "politicas:privacidad.md",
+   "orden": 0,
+   "ruta": [
+    "Datos personales en soporte"
+   ],
+   "texto": "Datos personales en soporte\n\n# Datos personales en soporte\nNo pidas datos de tarjeta completos. Los últimos 4 dígitos bastan para cualquier aclaración.",
+   "titulo": "privacidad.md",
+   "tokens": 38,
+   "traslape": 0,
+   "url": "http://localhost:8120/repo/politicas/crudo/privacidad.md",
+   "version": "a1e23f7d38731ecb957a235cf33dddf63730566b"
+  }
+ ],
+ "doc_id": "politicas:privacidad.md",
+ "hash": "f23c30f63ffd6163cb11095c96177b87bae4d59cf870dc83e0d2f6fc2f70f5b3",
+ "huella": "0e80943c7995",
+ "sha256_texto": "ec58e19938829519d7af32518f9d1aaefcc6e0e858345b18fe49e01549fd71df",
+ "titulo": "privacidad.md",
+ "url": "http://localhost:8120/repo/politicas/crudo/privacidad.md",
+ "version": "a1e23f7d38731ecb957a235cf33dddf63730566b"
+}

@@ -1,0 +1,38 @@
+{
+ "acl": [
+  [
+   "group:operaciones@marketplace.test",
+   "group:soporte@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:1017#000",
+   "doc_id": "wiki:1017",
+   "orden": 0,
+   "ruta": [
+    "Macros de respuesta"
+   ],
+   "texto": "Macros de respuesta\n\n# Macros de respuesta\nLas macros son respuestas base. Siempre se personalizan con el nombre de la persona y el número de pedido antes de enviarlas.",
+   "titulo": "Macros de respuesta",
+   "tokens": 41,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/api/paginas/1017",
+   "version": "1"
+  }
+ ],
+ "doc_id": "wiki:1017",
+ "hash": "eea38e4c09ab4bd27384874e4f918cea60e5b631a1f850a7d95dbfaf4c0ebebc",
+ "huella": "0e80943c7995",
+ "sha256_texto": "1d4600756fa9fbb198b021c10c636c926cb851a03f539aa647dc568f3e4c47de",
+ "titulo": "Macros de respuesta",
+ "url": "http://localhost:8120/wiki/api/paginas/1017",
+ "version": "1"
+}

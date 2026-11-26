@@ -1,0 +1,38 @@
+{
+ "acl": [
+  [
+   "group:operaciones@marketplace.test",
+   "group:soporte@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "chunk_id": "politicas:cancelaciones.md#000",
+   "doc_id": "politicas:cancelaciones.md",
+   "orden": 0,
+   "ruta": [
+    "Política de cancelaciones"
+   ],
+   "texto": "Política de cancelaciones\n\n# Política de cancelaciones\nUn pedido se cancela sin costo mientras no salga del almacén.",
+   "titulo": "cancelaciones.md",
+   "tokens": 28,
+   "traslape": 0,
+   "url": "http://localhost:8120/repo/politicas/crudo/cancelaciones.md",
+   "version": "6d8cd224d19c9d68516d755a23c234b52b19d276"
+  }
+ ],
+ "doc_id": "politicas:cancelaciones.md",
+ "hash": "c7aabc117f66564477aff0de31f9b556edfd8a088b7af541eb1554398ba962ba",
+ "huella": "0e80943c7995",
+ "sha256_texto": "0e84a7cae768a4ed80b7ed59e8e95e721bd48872231a396462d6ad1358a7542a",
+ "titulo": "cancelaciones.md",
+ "url": "http://localhost:8120/repo/politicas/crudo/cancelaciones.md",
+ "version": "6d8cd224d19c9d68516d755a23c234b52b19d276"
+}

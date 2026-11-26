@@ -1,0 +1,59 @@
+{
+ "acl": [
+  [
+   "group:operaciones@marketplace.test",
+   "group:soporte@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:1010#000",
+   "doc_id": "wiki:1010",
+   "orden": 0,
+   "ruta": [
+    "Macro: cambio de dirección"
+   ],
+   "texto": "Macro: cambio de dirección\n\n# Macro: cambio de dirección\nLa dirección solo se puede cambiar antes de que el pedido salga del almacén. Después, ofrece recoger en sucursal.",
+   "titulo": "Macro: cambio de dirección",
+   "tokens": 44,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/api/paginas/1010",
+   "version": "3"
+  },
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:1010#001",
+   "doc_id": "wiki:1010",
+   "orden": 1,
+   "ruta": [
+    "Macro: cambio de dirección",
+    "Antes de enviarla"
+   ],
+   "texto": "Macro: cambio de dirección › Antes de enviarla\n\n## Antes de enviarla\nPersonaliza el saludo y confirma el número de pedido.",
+   "titulo": "Macro: cambio de dirección",
+   "tokens": 32,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/api/paginas/1010",
+   "version": "3"
+  }
+ ],
+ "doc_id": "wiki:1010",
+ "hash": "375913f8a3408bd0bbebc200a2f318b7e6a901f120f0c943031e9329b190e44b",
+ "huella": "0e80943c7995",
+ "sha256_texto": "edf2d953b39d2cb513f7e79f851eb2e5b2229632092d9af035ac68886b6222d4",
+ "titulo": "Macro: cambio de dirección",
+ "url": "http://localhost:8120/wiki/api/paginas/1010",
+ "version": "3"
+}

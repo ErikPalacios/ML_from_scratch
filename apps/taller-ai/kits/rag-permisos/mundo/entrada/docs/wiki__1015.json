@@ -1,0 +1,59 @@
+{
+ "acl": [
+  [
+   "group:operaciones@marketplace.test",
+   "group:soporte@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:1015#000",
+   "doc_id": "wiki:1015",
+   "orden": 0,
+   "ruta": [
+    "Macro: cobro duplicado"
+   ],
+   "texto": "Macro: cobro duplicado\n\n# Macro: cobro duplicado\nPide los últimos 4 dígitos de la tarjeta y la fecha del cargo. Los cobros duplicados se reembolsan en 1 a 3 días hábiles.",
+   "titulo": "Macro: cobro duplicado",
+   "tokens": 56,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/api/paginas/1015",
+   "version": "2"
+  },
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:1015#001",
+   "doc_id": "wiki:1015",
+   "orden": 1,
+   "ruta": [
+    "Macro: cobro duplicado",
+    "Antes de enviarla"
+   ],
+   "texto": "Macro: cobro duplicado › Antes de enviarla\n\n## Antes de enviarla\nPersonaliza el saludo y confirma el número de pedido.",
+   "titulo": "Macro: cobro duplicado",
+   "tokens": 33,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/api/paginas/1015",
+   "version": "2"
+  }
+ ],
+ "doc_id": "wiki:1015",
+ "hash": "22b8097d137f9d713aef74b937d477a8dda35e5fc96f13e8ea29901e7bad820c",
+ "huella": "0e80943c7995",
+ "sha256_texto": "2c4a833f3ded40b45135c8416b7c44bb7c14fc456ce25e707ced5ec9f6810481",
+ "titulo": "Macro: cobro duplicado",
+ "url": "http://localhost:8120/wiki/api/paginas/1015",
+ "version": "2"
+}

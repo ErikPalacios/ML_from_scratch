@@ -1,0 +1,122 @@
+{
+ "acl": [
+  [
+   "group:operaciones@marketplace.test",
+   "user:jorge.paz@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "user:jorge.paz@marketplace.test"
+    ]
+   ],
+   "chunk_id": "drive:d21#000",
+   "doc_id": "drive:d21",
+   "orden": 0,
+   "ruta": [
+    "Tarifas de envío por estado 2026"
+   ],
+   "texto": "Tarifas de envío por estado 2026\n\n# Tarifas de envío por estado 2026\nEstas son las tarifas de la guía del marketplace por estado de destino, en pesos con IVA. Se descuentan del pago a quien vende cuando usa la guía del marketplace. El peso que cuenta es el mayor entre el peso real y el peso volumétrico (largo × ancho × alto en centímetros, entre 5,000).",
+   "titulo": "Tarifas de envío por estado 2026.md",
+   "tokens": 93,
+   "traslape": 0,
+   "url": "http://localhost:8120/drive/v3/files/d21",
+   "version": "1"
+  },
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "user:jorge.paz@marketplace.test"
+    ]
+   ],
+   "chunk_id": "drive:d21#001",
+   "doc_id": "drive:d21",
+   "orden": 1,
+   "ruta": [
+    "Tarifas de envío por estado 2026",
+    "Tarifas por estado"
+   ],
+   "texto": "Tarifas de envío por estado 2026 › Tarifas por estado\n\n## Tarifas por estado\n| Estado | Zona | Hasta 1 kg | De 1 a 5 kg | De 5 a 20 kg | Días hábiles |\n|---|---|---|---|---|---|\n| Aguascalientes | Centro | 99 | 135 | 219 | 2 a 3 |\n| Baja California | Noroeste | 129 | 179 | 299 | 3 a 5 |\n| Baja California Sur | Noroeste | 129 | 179 | 299 | 4 a 6 |\n| Campeche | Sureste | 125 | 172 | 289 | 3 a 5 |\n| Chiapas | Sureste | 125 | 172 | 289 | 4 a 6 |\n| Chihuahua | Norte | 115 | 159 | 259 | 3 a 4 |\n| Ciudad de México | Valle de México | 89 | 119 | 189 | 1 a 2 |\n| Coahuila | Norte | 115 | 159 | 259 | 2 a 4 |\n| Colima | Occidente | 105 | 145 | 235 | 3 a 4 |\n| Durango | Norte | 115 | 159 | 259 | 3 a 4 |\n| Estado de México | Valle de México | 89 | 119 | 189 | 1 a 2 |\n| Guanajuato | Centro | 99 | 135 | 219 | 2 a 3 |\n| Guerrero | Sur | 119 | 165 | 269 | 3 a 5 |",
+   "titulo": "Tarifas de envío por estado 2026.md",
+   "tokens": 396,
+   "traslape": 0,
+   "url": "http://localhost:8120/drive/v3/files/d21",
+   "version": "1"
+  },
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "user:jorge.paz@marketplace.test"
+    ]
+   ],
+   "chunk_id": "drive:d21#002",
+   "doc_id": "drive:d21",
+   "orden": 2,
+   "ruta": [
+    "Tarifas de envío por estado 2026",
+    "Tarifas por estado"
+   ],
+   "texto": "Tarifas de envío por estado 2026 › Tarifas por estado\n\n| Estado | Zona | Hasta 1 kg | De 1 a 5 kg | De 5 a 20 kg | Días hábiles |\n|---|---|---|---|---|---|\n| Hidalgo | Centro | 99 | 135 | 219 | 2 a 3 |\n| Jalisco | Occidente | 105 | 145 | 235 | 2 a 3 |\n| Michoacán | Occidente | 105 | 145 | 235 | 2 a 4 |\n| Morelos | Centro | 99 | 135 | 219 | 2 a 3 |\n| Nayarit | Occidente | 105 | 145 | 235 | 3 a 4 |\n| Nuevo León | Norte | 115 | 159 | 259 | 2 a 3 |\n| Oaxaca | Sur | 119 | 165 | 269 | 3 a 5 |\n| Puebla | Centro | 99 | 135 | 219 | 2 a 3 |\n| Querétaro | Centro | 99 | 135 | 219 | 2 a 3 |\n| Quintana Roo | Sureste | 125 | 172 | 289 | 3 a 5 |\n| San Luis Potosí | Centro | 99 | 135 | 219 | 2 a 4 |\n| Sinaloa | Noroeste | 129 | 179 | 299 | 3 a 4 |\n| Sonora | Noroeste | 129 | 179 | 299 | 3 a 5 |",
+   "titulo": "Tarifas de envío por estado 2026.md",
+   "tokens": 389,
+   "traslape": 0,
+   "url": "http://localhost:8120/drive/v3/files/d21",
+   "version": "1"
+  },
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "user:jorge.paz@marketplace.test"
+    ]
+   ],
+   "chunk_id": "drive:d21#003",
+   "doc_id": "drive:d21",
+   "orden": 3,
+   "ruta": [
+    "Tarifas de envío por estado 2026",
+    "Tarifas por estado"
+   ],
+   "texto": "Tarifas de envío por estado 2026 › Tarifas por estado\n\n| Estado | Zona | Hasta 1 kg | De 1 a 5 kg | De 5 a 20 kg | Días hábiles |\n|---|---|---|---|---|---|\n| Tabasco | Sureste | 125 | 172 | 289 | 3 a 4 |\n| Tamaulipas | Norte | 115 | 159 | 259 | 2 a 4 |\n| Tlaxcala | Centro | 99 | 135 | 219 | 2 a 3 |\n| Veracruz | Sureste | 125 | 172 | 289 | 2 a 4 |\n| Yucatán | Sureste | 125 | 172 | 289 | 3 a 5 |\n| Zacatecas | Centro | 99 | 135 | 219 | 3 a 4 |",
+   "titulo": "Tarifas de envío por estado 2026.md",
+   "tokens": 216,
+   "traslape": 0,
+   "url": "http://localhost:8120/drive/v3/files/d21",
+   "version": "1"
+  },
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "user:jorge.paz@marketplace.test"
+    ]
+   ],
+   "chunk_id": "drive:d21#004",
+   "doc_id": "drive:d21",
+   "orden": 4,
+   "ruta": [
+    "Tarifas de envío por estado 2026",
+    "Recargos"
+   ],
+   "texto": "Tarifas de envío por estado 2026 › Recargos\n\n## Recargos\n- Zona extendida (localidades sin cobertura diaria de la paquetería): 60 pesos por paquete.\n- Reintento de entrega a partir del segundo: 35 pesos.\n- Paquete de más de 20 kg: no se acepta con guía del marketplace.",
+   "titulo": "Tarifas de envío por estado 2026.md",
+   "tokens": 75,
+   "traslape": 0,
+   "url": "http://localhost:8120/drive/v3/files/d21",
+   "version": "1"
+  }
+ ],
+ "doc_id": "drive:d21",
+ "hash": "7f370598fbc7c15dabd531e753b287ef0ac5a954f856bf89acef9743d3853200",
+ "huella": "0e80943c7995",
+ "sha256_texto": "7f370598fbc7c15dabd531e753b287ef0ac5a954f856bf89acef9743d3853200",
+ "titulo": "Tarifas de envío por estado 2026.md",
+ "url": "http://localhost:8120/drive/v3/files/d21",
+ "version": "1"
+}

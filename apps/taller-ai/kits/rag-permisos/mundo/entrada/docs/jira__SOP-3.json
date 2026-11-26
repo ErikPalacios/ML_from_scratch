@@ -1,0 +1,40 @@
+{
+ "acl": [
+  [
+   "group:operaciones@marketplace.test",
+   "group:soporte@marketplace.test",
+   "user:paula.vega@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:paula.vega@marketplace.test"
+    ]
+   ],
+   "chunk_id": "jira:SOP-3#000",
+   "doc_id": "jira:SOP-3",
+   "orden": 0,
+   "ruta": [
+    "SOP-3 · Vendedor no responde mensajes"
+   ],
+   "texto": "SOP-3 · Vendedor no responde mensajes\n\n# SOP-3 · Vendedor no responde mensajes\nEl comprador escribió hace 3 días y no tiene respuesta.\nResolución: Soporte tomó el caso y autorizó la devolución.\nComentarios:\n- Le escribí a la persona.\n- La persona confirmó que ya quedó resuelto.",
+   "titulo": "Vendedor no responde mensajes",
+   "tokens": 79,
+   "traslape": 0,
+   "url": "http://localhost:8120/jira/api/ticket/SOP-3",
+   "version": "2026-11-21T08:41:00.000-0600"
+  }
+ ],
+ "doc_id": "jira:SOP-3",
+ "hash": "c83441b6a5b87cea4a5b943c49844df6d6262229086d60299e28362fbf61b1b3",
+ "huella": "0e80943c7995",
+ "sha256_texto": "c0be5e26f4892789937482c1b4c213c637ba3189cda60f45a6c05a05ff89e858",
+ "titulo": "Vendedor no responde mensajes",
+ "url": "http://localhost:8120/jira/api/ticket/SOP-3",
+ "version": "2026-11-21T08:41:00.000-0600"
+}

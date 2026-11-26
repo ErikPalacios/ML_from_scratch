@@ -1,0 +1,40 @@
+{
+ "acl": [
+  [
+   "group:operaciones@marketplace.test",
+   "group:soporte@marketplace.test",
+   "user:marco.diaz@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test",
+     "user:marco.diaz@marketplace.test"
+    ]
+   ],
+   "chunk_id": "jira:SOP-12#000",
+   "doc_id": "jira:SOP-12",
+   "orden": 0,
+   "ruta": [
+    "SOP-12 · Producto llegó dañado"
+   ],
+   "texto": "SOP-12 · Producto llegó dañado\n\n# SOP-12 · Producto llegó dañado\nLa pantalla llegó estrellada; mandó fotos.\nResolución: Devolución sin costo de envío para quien compró.\nComentarios:\n- Le escribí a la persona.",
+   "titulo": "Producto llegó dañado",
+   "tokens": 60,
+   "traslape": 0,
+   "url": "http://localhost:8120/jira/api/ticket/SOP-12",
+   "version": "2026-11-06T03:24:00.000-0600"
+  }
+ ],
+ "doc_id": "jira:SOP-12",
+ "hash": "3de0fc1d7105ec1c75cac18b5fe5d8f466c3c903fe6af24d1e9009d949edeab1",
+ "huella": "0e80943c7995",
+ "sha256_texto": "3aacb29c58de8abde0d1c2946aa4b8e6cf271aa0982a25ec8f2e5ddfc12d3d51",
+ "titulo": "Producto llegó dañado",
+ "url": "http://localhost:8120/jira/api/ticket/SOP-12",
+ "version": "2026-11-06T03:24:00.000-0600"
+}

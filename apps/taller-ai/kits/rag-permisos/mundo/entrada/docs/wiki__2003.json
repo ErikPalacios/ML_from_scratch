@@ -1,0 +1,65 @@
+{
+ "acl": [
+  [
+   "group:operaciones@marketplace.test"
+  ],
+  [
+   "group:operaciones-lideres@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test"
+    ],
+    [
+     "group:operaciones-lideres@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:2003#000",
+   "doc_id": "wiki:2003",
+   "orden": 0,
+   "ruta": [
+    "Alta de vendedores"
+   ],
+   "texto": "Alta de vendedores\n\n# Alta de vendedores\nPara vender, una persona o empresa necesita RFC, una cuenta bancaria a su nombre y una identificación vigente. La revisión tarda hasta 2 días hábiles.",
+   "titulo": "Alta de vendedores",
+   "tokens": 45,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/api/paginas/2003",
+   "version": "3"
+  },
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test"
+    ],
+    [
+     "group:operaciones-lideres@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:2003#001",
+   "doc_id": "wiki:2003",
+   "orden": 1,
+   "ruta": [
+    "Alta de vendedores",
+    "Motivos de rechazo"
+   ],
+   "texto": "Alta de vendedores › Motivos de rechazo\n\n## Motivos de rechazo\n- La cuenta bancaria está a nombre de otra persona.\n- El RFC no coincide con el nombre registrado.\n- Ya tuvo una cuenta cerrada por fraude.",
+   "titulo": "Alta de vendedores",
+   "tokens": 55,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/api/paginas/2003",
+   "version": "3"
+  }
+ ],
+ "doc_id": "wiki:2003",
+ "hash": "32aa165368f6558e39cbfa5b20c4f69386f76f3465388fa42326c3604a8fbd70",
+ "huella": "0e80943c7995",
+ "sha256_texto": "cb01c952aa8c425eb809ae8c9219cdaecb1240341da330aaa6daac563c74a893",
+ "titulo": "Alta de vendedores",
+ "url": "http://localhost:8120/wiki/api/paginas/2003",
+ "version": "3"
+}

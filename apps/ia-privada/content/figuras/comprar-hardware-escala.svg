@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 380" role="img" aria-labelledby="f-comprar-hardware-escala-t" class="f-svg" style="max-width:420px">
+<title id="f-comprar-hardware-escala-t">Los escalones del hardware dibujados a la misma escala de altura, donde cada unidad de rack (1U) mide 44.45 milímetros. A la izquierda, una torre de workstation de 58 centímetros de alto con 1 a 4 GPUs activas. A la derecha, un rack de 42U, de 1.87 metros de alto útil, con tres servidores: uno de 8U con una placa HGX de 8 GPUs SXM (hasta 8,000 watts solo de GPUs con B200), uno de 4U con 4 a 10 tarjetas PCIe y uno de 2U con hasta 4 tarjetas PCIe. El resto del rack queda libre para más servidores, la red y la energía.</title>
+<rect class="f-card" x="10" y="10" width="340" height="360" rx="16"/>
+<text class="f-l" x="26" y="34">A LA MISMA ESCALA · 1U = 44.45 MM</text>
+<rect class="f-chip" x="110" y="50" width="80" height="252" rx="3"/>
+<path class="f-linea" d="M110 56 L116 56 M110 62 L116 62 M110 68 L116 68 M110 74 L116 74 M110 80 L116 80 M110 86 L116 86 M110 92 L116 92 M110 98 L116 98 M110 104 L116 104 M110 110 L116 110 M110 116 L116 116 M110 122 L116 122 M110 128 L116 128 M110 134 L116 134 M110 140 L116 140 M110 146 L116 146 M110 152 L116 152 M110 158 L116 158 M110 164 L116 164 M110 170 L116 170 M110 176 L116 176 M110 182 L116 182 M110 188 L116 188 M110 194 L116 194 M110 200 L116 200 M110 206 L116 206 M110 212 L116 212 M110 218 L116 218 M110 224 L116 224 M110 230 L116 230 M110 236 L116 236 M110 242 L116 242 M110 248 L116 248 M110 254 L116 254 M110 260 L116 260 M110 266 L116 266 M110 272 L116 272 M110 278 L116 278 M110 284 L116 284 M110 290 L116 290 M110 296 L116 296"/>
+<rect class="f-dark" x="118" y="54" width="68" height="48" rx="3"/>
+<text class="f-dark-t" x="152" y="76" text-anchor="middle" style="font-size:13px">HGX</text>
+<text class="f-dark-l" x="152" y="92" text-anchor="middle">8 SXM</text>
+<rect class="f-b" x="118" y="110" width="68" height="24" rx="3"/>
+<text class="f-l" x="152" y="126" text-anchor="middle">4U</text>
+<rect class="f-g" x="118" y="142" width="68" height="12" rx="2"/>
+<text class="f-t" x="198" y="74" style="font-size:13px">8U · 8 GPUs SXM</text>
+<text class="f-s" x="198" y="90" style="font-size:12px">hasta 8,000 W</text>
+<text class="f-t" x="198" y="122" style="font-size:13px">4U · 4–10 PCIe</text>
+<text class="f-s" x="198" y="138" style="font-size:12px">2–4 fuentes</text>
+<text class="f-t" x="198" y="160" style="font-size:13px">2U · hasta 4 PCIe</text>
+<text class="f-s" x="198" y="210" style="font-size:12px">libre: más servidores,</text>
+<text class="f-s" x="198" y="226" style="font-size:12px">la red y la energía</text>
+<rect class="f-g" x="44" y="224" width="32" height="78" rx="4"/>
+<circle class="f-linea" cx="60" cy="244" r="6" style="fill:none"/>
+<text class="f-t" x="60" y="196" text-anchor="middle" style="font-size:13px">Torre</text>
+<text class="f-s" x="60" y="212" text-anchor="middle" style="font-size:12px">1–4 GPUs</text>
+<path class="f-linea" d="M22 302 L338 302"/>
+<text class="f-s" x="60" y="322" text-anchor="middle" style="font-size:12px">58 cm</text>
+<text class="f-s" x="150" y="322" text-anchor="middle" style="font-size:12px">42U ≈ 1.87 m útiles</text>
+<text class="f-s" x="26" y="342" style="font-size:12px">Del escritorio al centro de datos: cada escalón</text>
+<text class="f-s" x="26" y="357" style="font-size:12px">pide más aire y más corriente.</text>
+</svg>

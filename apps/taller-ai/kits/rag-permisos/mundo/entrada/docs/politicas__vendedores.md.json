@@ -1,0 +1,38 @@
+{
+ "acl": [
+  [
+   "group:operaciones@marketplace.test",
+   "group:soporte@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test",
+     "group:soporte@marketplace.test"
+    ]
+   ],
+   "chunk_id": "politicas:vendedores.md#000",
+   "doc_id": "politicas:vendedores.md",
+   "orden": 0,
+   "ruta": [
+    "Política para vendedores"
+   ],
+   "texto": "Política para vendedores\n\n# Política para vendedores\nQuien vende responde mensajes en 48 horas y envía en 2 días hábiles.",
+   "titulo": "vendedores.md",
+   "tokens": 33,
+   "traslape": 0,
+   "url": "http://localhost:8120/repo/politicas/crudo/vendedores.md",
+   "version": "b4cd96a2fbff000814341dfa0ca9b8a91c40a983"
+  }
+ ],
+ "doc_id": "politicas:vendedores.md",
+ "hash": "91aae4b5db21931dca5f10738e32461afb5bfe115f8b244fb71fa515694db47a",
+ "huella": "0e80943c7995",
+ "sha256_texto": "27e167fc8f97502d7adf3d9cf6577774b6cfba1a3ee6d2021cdb140753c481d1",
+ "titulo": "vendedores.md",
+ "url": "http://localhost:8120/repo/politicas/crudo/vendedores.md",
+ "version": "b4cd96a2fbff000814341dfa0ca9b8a91c40a983"
+}

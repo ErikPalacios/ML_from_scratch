@@ -1,0 +1,14 @@
+# Configuración de los permisos. Los pasos de GUION.md dicen cuándo tocar cada línea.
+
+directorio:
+  profundidad: 10      # cuántos niveles de grupos dentro de grupos se resuelven (1 = solo los grupos directos)
+
+permisos:
+  sin_acl: rechazar    # un chunk sin ACL válida: rechazar (no entra al índice) o publico (lo ve todo el dominio, para ver por qué no)
+
+busqueda:
+  k: 8                 # cuántos chunks llegan al prompt
+  filtro: antes        # antes del top-k (pre-filter) o despues (post-filter, para comparar)
+
+revocacion:
+  cada_segundos: 60    # cada cuánto corre el carril rápido (pipeline/revocar.py); el mundo avanza de minuto en minuto

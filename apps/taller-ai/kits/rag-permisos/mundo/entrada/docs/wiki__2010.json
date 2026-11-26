@@ -1,0 +1,116 @@
+{
+ "acl": [
+  [
+   "group:operaciones@marketplace.test"
+  ]
+ ],
+ "acl_leida": "2026-11-21T15:05:00Z",
+ "chunks": [
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:2010#000",
+   "doc_id": "wiki:2010",
+   "orden": 0,
+   "ruta": [
+    "Niveles de servicio con paqueterías"
+   ],
+   "texto": "Niveles de servicio con paqueterías\n\n# Niveles de servicio con paqueterías\nEsta página resume lo que el contrato marco de logística compromete a cada paquetería. El contrato completo, con sus anexos, lo guarda Legal en el Drive. Operaciones revisa estos números cada trimestre con los reportes de entrega.",
+   "titulo": "Niveles de servicio con paqueterías",
+   "tokens": 72,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/paginas/2010",
+   "version": "1"
+  },
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:2010#001",
+   "doc_id": "wiki:2010",
+   "orden": 1,
+   "ruta": [
+    "Niveles de servicio con paqueterías",
+    "Compromisos por paquetería"
+   ],
+   "texto": "Niveles de servicio con paqueterías › Compromisos por paquetería\n\n## Compromisos por paquetería\nPaquetería: Envíos Express; Cobertura: Nacional; Entrega comprometida: 2 a 4 días hábiles; Penalización por retraso: 5 % de la tarifa por día, hasta 30 %; Reporte de incidencias: en 24 horas\nPaquetería: Transportes del Norte; Cobertura: Norte y Bajío; Entrega comprometida: 1 a 3 días hábiles; Penalización por retraso: 4 % de la tarifa por día, hasta 25 %; Reporte de incidencias: en 24 horas\nPaquetería: Última Milla CDMX; Cobertura: Valle de México; Entrega comprometida: mismo día o siguiente; Penalización por retraso: 10 % de la tarifa por día, hasta 40 %; Reporte de incidencias: en 12 horas",
+   "titulo": "Niveles de servicio con paqueterías",
+   "tokens": 204,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/paginas/2010",
+   "version": "1"
+  },
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:2010#002",
+   "doc_id": "wiki:2010",
+   "orden": 2,
+   "ruta": [
+    "Niveles de servicio con paqueterías",
+    "Paquetes perdidos o dañados"
+   ],
+   "texto": "Niveles de servicio con paqueterías › Paquetes perdidos o dañados\n\n## Paquetes perdidos o dañados\nLa paquetería paga el valor declarado del paquete, hasta 15,000 pesos, si lo pierde o lo entrega dañado. Arriba de ese monto, el paquete tenía que ir con seguro adicional.\n- El reclamo se abre en los 10 días naturales siguientes a la fecha comprometida de entrega.\n- Se adjuntan la guía, las fotos del paquete y la factura del producto.\n- La paquetería tiene 15 días hábiles para pagar o rechazar el reclamo, con su motivo por escrito.",
+   "titulo": "Niveles de servicio con paqueterías",
+   "tokens": 141,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/paginas/2010",
+   "version": "1"
+  },
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:2010#003",
+   "doc_id": "wiki:2010",
+   "orden": 3,
+   "ruta": [
+    "Niveles de servicio con paqueterías",
+    "Cómo se calculan las penalizaciones"
+   ],
+   "texto": "Niveles de servicio con paqueterías › Cómo se calculan las penalizaciones\n\n## Cómo se calculan las penalizaciones\nOperaciones calcula las penalizaciones del mes con el reporte de entregas de cada paquetería y las descuenta de su siguiente factura. Si la paquetería no está de acuerdo, tiene 5 días hábiles para objetar con evidencia; si no objeta, la penalización queda firme.",
+   "titulo": "Niveles de servicio con paqueterías",
+   "tokens": 97,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/paginas/2010",
+   "version": "1"
+  },
+  {
+   "acl": [
+    [
+     "group:operaciones@marketplace.test"
+    ]
+   ],
+   "chunk_id": "wiki:2010#004",
+   "doc_id": "wiki:2010",
+   "orden": 4,
+   "ruta": [
+    "Niveles de servicio con paqueterías",
+    "Terminación anticipada"
+   ],
+   "texto": "Niveles de servicio con paqueterías › Terminación anticipada\n\n## Terminación anticipada\nEl marketplace puede terminar el contrato con 30 días de aviso si una paquetería incumple su entrega comprometida en más del 15 % de los paquetes durante dos meses seguidos. La paquetería puede terminarlo con 90 días de aviso.",
+   "titulo": "Niveles de servicio con paqueterías",
+   "tokens": 75,
+   "traslape": 0,
+   "url": "http://localhost:8120/wiki/paginas/2010",
+   "version": "1"
+  }
+ ],
+ "doc_id": "wiki:2010",
+ "hash": "24c91d7e079f25ffb1e1e3c7043cf9551824ad7378e394c44cd67b9ce5014109",
+ "huella": "0e80943c7995",
+ "sha256_texto": "24c91d7e079f25ffb1e1e3c7043cf9551824ad7378e394c44cd67b9ce5014109",
+ "titulo": "Niveles de servicio con paqueterías",
+ "url": "http://localhost:8120/wiki/paginas/2010",
+ "version": "1"
+}
