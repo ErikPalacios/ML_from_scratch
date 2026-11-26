@@ -62,14 +62,14 @@
           "valores": {
             "v": 2.9
           },
-          "nota": "Medición de Datalab (el proveedor de Marker) en un servidor que no describe."
+          "nota": "Medición de Datalab (el proveedor de Marker) en un equipo que no describe, en CPU."
         },
         {
           "label": "Docling · 2.1 pág/s",
           "valores": {
             "v": 2.1
           },
-          "nota": "Misma medición de Datalab."
+          "nota": "Misma medición de Datalab, en una GPU."
         },
         {
           "label": "Marker sin OCR · 57 pág/s",
@@ -83,7 +83,7 @@
           "valores": {
             "v": 23.6
           },
-          "nota": "Benchmark del propio proveedor."
+          "nota": "Benchmark del propio proveedor, en CPU."
         }
       ]
     }

@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 400" role="img" aria-labelledby="f-rag-privado-presupuesto-t" class="f-svg" style="max-width:420px">
-<title id="f-rag-privado-presupuesto-t">El tiempo al primer token de una pregunta del despacho sin fila, en una L40S, contra el objetivo de 2,000 milisegundos. Barra de arriba, 5 fragmentos sin reranker: 20 ms de red y gateway, 150 de búsqueda y 2,170 de prefill de 6,000 tokens, en total 2,340 ms, por encima del objetivo. Barra de abajo, 3 fragmentos con reranker: 20 de red, 150 de búsqueda, de 97 a 232 de reranker y 1,448 de prefill de 4,000 tokens, en total de 1,715 a 1,850 ms, por debajo del objetivo. Nota: con la fila de la hora pico las dos pasan de 2 segundos, y la versión de abajo solo vale si el examen acepta 3 fragmentos.</title>
+<title id="f-rag-privado-presupuesto-t">El tiempo al primer token de una pregunta del despacho sin fila, en una L40S, contra el objetivo de 2,000 milisegundos. Barra de arriba, 5 fragmentos sin reranker: 20 ms de red y gateway, 150 de búsqueda y 2,170 de prefill de 6,000 tokens, en total 2,340 ms, por encima del objetivo. Barra de abajo, 3 fragmentos con reranker: 20 de red, 150 de búsqueda, de 97 a 232 de reranker y 1,448 de prefill de 4,000 tokens, en total de 1,715 a 1,850 ms, por debajo del objetivo. Nota: con la fila de la hora pico y el reparto al azar del gateway, las dos pasan de 2 segundos, y la versión de abajo solo vale si el examen acepta 3 fragmentos.</title>
 <text class="f-l" x="14" y="24">EL TTFT SIN FILA, EN MILISEGUNDOS</text>
 <rect class="f-card" x="10" y="36" width="340" height="300" rx="16"/>
 <line class="f-linea" x1="30" y1="64" x2="30" y2="270"/>
@@ -25,6 +25,6 @@
 <rect class="f-b" x="30" y="304" width="12" height="12" rx="2"/><text class="f-s" x="46" y="314" style="font-size:11px">búsqueda 150</text>
 <rect class="f-o" x="128" y="304" width="12" height="12" rx="2"/><text class="f-s" x="144" y="314" style="font-size:11px">reranker</text>
 <rect class="f-p" x="210" y="304" width="12" height="12" rx="2"/><text class="f-s" x="226" y="314" style="font-size:11px">prefill</text>
-<text class="f-s" x="14" y="360" style="font-size:12px">Con la fila de la hora pico, las dos pasan de 2 s.</text>
+<text class="f-s" x="14" y="360" style="font-size:12px">Con fila y reparto al azar, las dos pasan de 2 s.</text>
 <text class="f-s" x="14" y="380" style="font-size:12px">La de abajo solo vale si el examen acepta 3.</text>
 </svg>

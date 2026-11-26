@@ -8,7 +8,7 @@ dojo: rag
 ---
 
 :::idea
-Un [[rag|RAG]] privado son dos máquinas de trabajo distinto. **De noche**, la [[ingesta]] convierte los expedientes en texto limpio, los parte en [[chunk|chunks]] que recuerdan su página y sus permisos, los vuelve vectores con un [[modelo-de-embeddings|modelo de embeddings]] local y los guarda en una [[vector-db|base de vectores]] local. **En vivo**, cada pregunta busca por palabras y por significado al mismo tiempo, **solo entre lo que esa persona puede ver**, reordena los mejores candidatos y se los da al LLM, que contesta citando la página que viajó en el chunk. En el despacho lo caro no es lo que se cree: el índice cabe 67 veces en la RAM, los embeddings se hacen en una noche, y lo que se come las noches es leer los PDFs, y lo que se come los milisegundos es el [[reranker]].
+Un [[rag|RAG]] privado son dos máquinas de trabajo distinto. **De noche**, la [[ingesta]] convierte los expedientes en texto limpio, los parte en [[chunk|chunks]] que recuerdan su página y sus permisos, los vuelve vectores con un [[modelo-de-embeddings|modelo de embeddings]] local y los guarda en una [[vector-db|base de vectores]] local. **En vivo**, cada pregunta busca por palabras y por significado al mismo tiempo, **solo entre lo que esa persona puede ver**, reordena los mejores candidatos y se los da al LLM, que contesta citando la página que viajó en el chunk. En el despacho lo caro no es lo que se cree. El índice cabe 67 veces en la RAM y los embeddings se hacen en una noche. Lo que se come las noches es leer los PDFs; lo que se come los milisegundos es el [[reranker]].
 :::
 
 ## De la pregunta a la página: el mapa {From the question to the page: the map}
@@ -83,7 +83,7 @@ Marker es la trampa de la tabla. Su código es Apache 2.0, pero los pesos de los
 
 ### Cuánto tarda leer 1.5 millones de páginas
 
-Nadie publica cuánto tarda cada herramienta con escaneos de contratos mexicanos. Lo que hay son cifras de un proveedor (Datalab, el que hace Marker, con su propio benchmark y en un servidor que no describe) y un informe técnico de IBM de 2024 sobre Docling. Úsalas para el orden de magnitud, no como veredicto.
+Nadie publica cuánto tarda cada herramienta con escaneos de contratos mexicanos. Lo que hay son cifras de un proveedor (Datalab, el que hace Marker, con su propio benchmark, en un solo equipo que no describe: Docling y los modos de Marker con modelo, en una GPU; Tesseract y el modo sin OCR, en CPU) y un informe técnico de IBM de 2024 sobre Docling. Úsalas para el orden de magnitud, no como veredicto.
 
 :::formula Noches de parsing
 h_p = frac{P}{v × 3,600}
@@ -100,8 +100,8 @@ Páginas, \(P\) // la ficha del despacho | 1.5 M | 1,500,000
 Velocidad, \(v\) // Tesseract 5 en la medición de Datalab | 2.9 pág/s | 2.9
 Horas, \(h_p\) | 1,500,000 ÷ (2.9 × 3,600) | ≈ 144 h
 Noches, \(n_p\) // \(H\) = 14 | 144 ÷ 14 | ≈ 10.3 noches
-Con Docling a 2.1 pág/s (misma medición) | 1,500,000 ÷ (2.1 × 3,600) ÷ 14 | ≈ 14 noches
-Con Marker sin OCR a 57 pág/s (benchmark del proveedor) | 1,500,000 ÷ (57 × 3,600) | ≈ 7.3 h
+Con Docling a 2.1 pág/s (misma medición, en una GPU) | 1,500,000 ÷ (2.1 × 3,600) ÷ 14 | ≈ 14 noches
+Con Marker sin OCR a 57 pág/s (benchmark del proveedor; en otra parte de su README dice 24–33) | 1,500,000 ÷ (57 × 3,600) | ≈ 7.3 h
 = Leer los PDFs cuesta de media noche a dos semanas de noches, según la herramienta y cuántos sean escaneos.
 :::
 
@@ -192,7 +192,7 @@ El filtro puede ir en dos lugares, y la diferencia es enorme. Con **[[prefiltro]
 
 :::formula Lo que sobrevive a un post-filtro
 k_{post} ≈ e × p
-- e: candidatos que devuelve el índice antes del filtro (en pgvector, `ef_search`, 40 por omisión)
+- e: candidatos que junta el recorrido del grafo antes del filtro (en pgvector, `hnsw.ef_search`, 40 por omisión)
 - p: fracción de los chunks que la persona puede ver
 - k_{post}: chunks que quedan, en promedio, si el filtro no tiene que ver con la pregunta
 :::
@@ -280,13 +280,13 @@ Cómo se lee, sin engañarse:
 
 ### La decisión del despacho
 
-**Qwen3-Embedding-0.6B para el piloto.** Razones: Apache 2.0; 1,024 dimensiones; 32 K de contexto (sobra para chunks de 1,000); 1.19 GB, que caben en la memoria que le sobra a una L40S; el mejor puntaje legal de su tamaño entre los de licencia permisiva; y soporte de primera en vLLM, el motor que el TI ya está aprendiendo. **Se compara en el piloto con Qwen3-Embedding-4B**: +5 puntos en las tareas legales, pero ≈ 8 veces el cómputo por token y 2.5 veces el índice. Se sube solo si el examen lo pide.
+**Qwen3-Embedding-0.6B para el piloto.** Razones: Apache 2.0; 1,024 dimensiones; 32 K de contexto (sobra para chunks de 1,000); 1.19 GB de pesos, que deberían caber en la memoria que le sobra a una L40S (se comprueba en el piloto); el mejor puntaje legal de su tamaño entre los de licencia permisiva; y soporte de primera en vLLM, el motor que el TI ya está aprendiendo. **Se compara en el piloto con Qwen3-Embedding-4B**: +5 puntos en las tareas legales, pero ≈ 8 veces el cómputo por token y 2.5 veces el índice. Se sube solo si el examen lo pide.
 
 Un detalle de uso que cambia los resultados: Qwen3-Embedding pide una **instrucción solo en la pregunta** (`Instruct: <la tarea>\nQuery: <la pregunta>`), escrita en inglés aun si la pregunta es en español; los chunks van sin nada. Su model card dice que sin instrucción se pierde entre 1 % y 5 %. Y como el modelo fija el tokenizador, el contexto, las dimensiones y el índice, **cambiarlo después obliga a reindexar todo** (tiene su sección más abajo).
 
 ## Servirlo dentro: vLLM en modo pooling {Serving it inside: vLLM in pooling mode} [extra]
 
-El modelo de embeddings necesita un servidor, igual que el LLM. Como el despacho ya opera [[vllm|vLLM]], lo natural es otro proceso de vLLM en el puerto 8001, que es justo lo que el [[gateway-de-llm|gateway]] ya tiene apuntado con el nombre `embeddings`.
+El modelo de embeddings necesita un servidor, igual que el LLM. En vLLM eso se llama **modo pooling**: *pooling* es juntar lo que el modelo calculó para cada token en un solo vector por texto. Como el despacho ya opera [[vllm|vLLM]], lo natural es otro proceso de vLLM en el puerto 8001, que es justo lo que el [[gateway-de-llm|gateway]] ya tiene apuntado con el nombre `embeddings`.
 
 ```bash
 # Ilustrativo, vLLM 0.34.0 (16-nov-2026): el modelo de embeddings del despacho
@@ -294,9 +294,9 @@ vllm serve Qwen/Qwen3-Embedding-0.6B --runner pooling --max-model-len 8192 \
   --served-model-name embeddings --api-key "$VLLM_CLAVE" --port 8001
 ```
 
-- `--runner pooling` le dice a vLLM que este modelo no genera: lee y devuelve un vector por texto (la última posición, normalizada). En versiones viejas se escribía `--task embed`; **en la 0.34.0 esa bandera ya no existe**. Si un tutorial la usa, es de otra época.
+- `--runner pooling` le dice a vLLM que este modelo no genera: lee y devuelve un vector por texto (el del último token, normalizado). La documentación dice que casi siempre vLLM lo detecta solo, pero Qwen3-Embedding tiene la arquitectura de un modelo que genera, así que conviene escribirla y no depender de esa detección. En versiones viejas se escribía `--task embed`; **en la 0.34.0 esa bandera ya no existe**. Si un tutorial la usa, es de otra época.
 - `--max-model-len 8192`: el modelo admite 32 K, pero ningún chunk del despacho pasa de ≈ 1,100 tokens; no hace falta más.
-- Las rutas: `/v1/embeddings` (la de OpenAI, la que usa el gateway) y también `/score` y `/rerank`, que sirven para el reranker.
+- Las rutas: `/v1/embeddings` (la de OpenAI, la que usa el gateway). Existen también `/score` y `/rerank`, pero con un modelo de embeddings solo calculan el coseno entre dos vectores. El reranker es **otro proceso** de vLLM con su propio modelo; su documentación da el arranque de Qwen3-Reranker-0.6B, con un `--hf_overrides` que le dice cómo leer sus respuestas «sí» y «no».
 
 En el gateway (la lección [Gateway](/gateway/)) solo se llena el hueco que quedó:
 
@@ -309,7 +309,7 @@ La documentación de vLLM avisa algo honesto: los modelos de este tipo se soport
 
 ### ¿En qué GPU vive?
 
-Cada L40S tiene 43.2 GB útiles y el LLM usa 38.50 (19.32 de pesos + 17.18 de [[kv-cache|KV cache]] + 2 del programa): sobran ≈ 4.7 GB. El modelo 0.6B (1.19 GB de pesos más su memoria de trabajo) cabe en ese hueco; el 4B (8.04 GB) no. El reranker 0.6B pide otro tanto. Lo que no está probado es cómo convive un segundo proceso con el KV cache del LLM, que en la 0.34.0 se dimensiona con la memoria libre: se prueba en el piloto, en la GPU rentada. Si no conviven bien, la salida es una GPU chica en la cuarta ranura del servidor para embeddings y reranker (las opciones están en el [catálogo](/herramientas/catalogo/)).
+Cada L40S tiene 43.2 GB útiles y el LLM usa 38.50 (19.32 de pesos + 17.18 de [[kv-cache|KV cache]] + 2 del programa): sobran ≈ 4.7 GB. Si cada proceso de vLLM pide ≈ 2 GB de programa, como el del LLM (supuesto), el de embeddings 0.6B ocupa ≈ 1.19 + 2 ≈ 3.2 GB: cabe en ese hueco. El 4B (8.04 GB de pesos) no. El reranker 0.6B pide otro tanto, y los dos juntos (≈ 6.4 GB) ya no caben en la misma tarjeta: lo natural es uno en el hueco de una L40S y el otro en el de otra. Lo que no está probado es cómo convive un segundo proceso con el KV cache del LLM, que en la 0.34.0 se dimensiona con la memoria libre: se prueba en el piloto, en la GPU rentada. Si no conviven bien, la salida es una GPU chica en la cuarta ranura del servidor para embeddings y reranker (las opciones están en el [catálogo](/herramientas/catalogo/)).
 
 ## La base de vectores {The vector database}
 
@@ -321,18 +321,18 @@ Versiones y documentación consultadas el 26 de noviembre de 2026:
 |---|---|---|---|---|---|
 | **Qdrant** | 1.20.2 (16-nov-2026) | Apache 2.0 | Dentro de la búsqueda: el HNSW agrega aristas por cada campo indexado | Sí, desde la 1.20.0, y fusión en la misma consulta | Un solo programa; **sin autenticación por omisión** |
 | **pgvector** | 0.8.7 sobre PostgreSQL 19 | Licencia de PostgreSQL | Post-filtro; desde la 0.8.0, escaneo iterativo que sigue buscando hasta juntar k | No: texto completo de Postgres (no es BM25), o la extensión ParadeDB, que es AGPL | El más fácil si ya hay Postgres |
-| Milvus | 3.0.6 (11-nov-2026) | Apache 2.0 | Antes de la búsqueda o iterativo | Sí | El más pesado: en la 2.6, etcd, MinIO y Pulsar a un lado |
+| Milvus | 3.0.6 (11-nov-2026) | Apache 2.0 | Antes de la búsqueda o iterativo | Sí | El más pesado: aun en un solo nodo, etcd y MinIO a un lado |
 | Weaviate | 1.41.0 (23-nov-2026) | BSD-3 **más** una carpeta con licencia empresarial | Prefiltro (ACORN por omisión) | Sí | Un programa; revisar qué funciones son de pago |
 | OpenSearch | 3.10.1 (24-nov-2026) | Apache 2.0 | Filtros eficientes en k-NN | Es lo suyo | Java, nodos, ajustes de memoria |
-| Elasticsearch | 9.4.10 (23-nov-2026) | AGPLv3 / SSPL / ELv2 | Filtro dentro de `knn` | Es lo suyo | Igual que OpenSearch |
-| Chroma | 1.5.9 | Apache 2.0 | Filtro sobre metadatos (sin verificar si antes o después) | Como vector disperso | Pensado para prototipos |
-| LanceDB | 0.41.0 | Apache 2.0 | SQL sobre metadatos (sin verificar) | Sí | Una biblioteca dentro de tu programa, sin servidor |
+| Elasticsearch | 9.5.7 (23-nov-2026) | AGPLv3 / SSPL / ELv2 | Filtro dentro de `knn` | Es lo suyo | Igual que OpenSearch |
+| Chroma | 1.5.9 (5-may-2026) | Apache 2.0 | Filtro sobre metadatos (sin verificar si antes o después) | Como vector disperso | Pensado para prototipos |
+| LanceDB | 0.41.0 (29-oct-2026) | Apache 2.0 | SQL sobre metadatos (sin verificar) | Sí | Una biblioteca dentro de tu programa, sin servidor |
 
 ### La decisión del despacho
 
 **Qdrant 1.20.2, en un contenedor, en el mismo servidor.** Razones:
 
-1. El filtro de la muralla ética se aplica **durante** la búsqueda, con documentación propia de cómo hacerlo: campos `acl` y `cliente_id` indexados como `keyword`, creados **antes** de ingestar.
+1. El filtro de la muralla ética se aplica **durante** la búsqueda, con documentación propia de cómo hacerlo: campos `acl` y `cliente_id` indexados como `keyword` (valores exactos, sin partir en palabras), creados **antes** de ingestar.
 2. BM25, vectores y la fusión de las dos listas en **una sola consulta**.
 3. Tiene una fórmula de memoria publicada (la usas en la sección siguiente).
 4. Un solo proceso: sin Java, sin etcd ni almacenamiento de objetos que cuidar.
@@ -352,7 +352,7 @@ Así se ve el filtro de una asociada en Qdrant (ilustrativo; la forma de las con
 `must` con `any`: el chunk tiene al menos uno de los grupos de la persona. `must_not`: nunca un chunk del cliente en conflicto, aunque un grupo lo deje pasar. Los grupos salen del directorio en el momento de preguntar; el servicio de búsqueda los arma, nunca la persona.
 
 :::ojo
-Qdrant abierto **no trae autenticación activada**: contesta a cualquiera que lo alcance en la red. Desde el primer día: llave de API (Qdrant tiene llaves de solo lectura para el servicio de búsqueda), TLS, y su puerto alcanzable solo desde el servicio de búsqueda y la ingesta. Una base de vectores abierta en la red interna es una copia de los expedientes al alcance de cualquier laptop infectada.
+Qdrant abierto **no trae autenticación activada**: contesta a cualquiera que lo alcance en la red. Desde el primer día: llave de API (Qdrant tiene llaves de solo lectura para el servicio de búsqueda), TLS (la conexión cifrada, el mismo candado de un sitio `https`), y su puerto alcanzable solo desde el servicio de búsqueda y la ingesta. Una base de vectores abierta en la red interna es una copia de los expedientes al alcance de cualquier laptop infectada.
 :::
 
 ## Cuánta memoria y disco pide el índice {How much memory and disk the index needs}
@@ -382,7 +382,7 @@ Veces que cabe | 384 ÷ 5.70 | ≈ 67
 
 Las fórmulas de cada motor no coinciden en el grafo (de ≈ 64 a ≈ 160 bytes por vector con m = 16), pero todas dicen lo mismo a esta escala: el grafo es ≈ 4 % de un vector float32 de 1,024 dimensiones. Encima del índice va lo demás, con supuestos: el texto de cada chunk (≈ 4 KB por 1,000 tokens) y sus metadatos (≈ 0.5 KB) suman ≈ 6 GB en disco, ≈ 9 GB con el 50 % extra que Qdrant calcula para su almacenamiento; el índice de BM25 no tiene fórmula publicada. Del orden de **10 a 20 GB de NVMe** y **6 a 10 GB de RAM**: menos que un solo modelo.
 
-Dónde vive, entonces: **en el mismo servidor**, en la CPU, la RAM y el disco NVMe que ya están, con un snapshot diario a otro disco o al NAS del cuarto. No hace falta otra máquina.
+Dónde vive, entonces: **en el mismo servidor**, en la CPU, la RAM y el disco NVMe que ya están, con un snapshot diario (una copia completa del índice en un momento dado) a otro disco o al NAS del cuarto. No hace falta otra máquina.
 
 :::calculadora rag-privado-indice
 Empieza con el despacho (caso pesado). Cambia el modelo a Qwen3-Embedding-8B: el índice se cuadruplica y todavía cabe de sobra. Prueba el caso de la clínica y el de la fábrica.
@@ -417,7 +417,7 @@ Con Qwen3-Embedding-4B // \(P_a\) ≈ 3,633.5 M; 36 h con 0.21 | 1,342 × 10⁶ 
 :::
 
 :::profundo De dónde sale el 0.21
-Nadie publica cuántos tokens por segundo da un modelo de embeddings en una L40S, ni Qwen, ni NVIDIA, ni vLLM. La única medición con condiciones claras es de IBM: su modelo granite-311m procesa 1,828 documentos de 512 tokens por segundo en una H100. Pasado por la misma fórmula, eso es aprovechar ≈ 21 % del pico. La verdad está entre 0.2 y 0.6 (otra gráfica de Hugging Face, en una A10G, da ≈ 0.57) y se mide en el piloto.
+Nadie publica cuántos tokens por segundo da un modelo de embeddings en una L40S, ni Qwen, ni NVIDIA, ni vLLM. La única medición con condiciones claras es de IBM: su modelo granite-311m procesa 1,828 documentos de 512 tokens por segundo en una H100. Pasado por la misma fórmula, eso es aprovechar ≈ 21 % del pico. La verdad está entre 0.2 y 0.6 (una gráfica de Hugging Face en una A10G, leída a ojo y con un dato de cómputo de segunda mano, da ≈ 0.57) y se mide en el piloto.
 :::
 
 ### Por qué de noche
@@ -428,7 +428,7 @@ Lo diario es casi nada. Supón (no está en la ficha) 40 expedientes nuevos o co
 
 ### La tensión que nadie anuncia
 
-Compara las dos cuentas de esta lección. Embeber: de 2 a 4 horas. Leer los PDFs: de media noche a 14 noches, según la herramienta y los escaneos. **El cuello de botella de la ingesta inicial es el parsing, no el embedding**, y corre en la CPU, no en la GPU. Por eso la ingesta inicial se reparte por prioridad: primero los expedientes activos (lo que la gente va a preguntar mañana), después los históricos. El piloto con 20 abogados no necesita los 30,000 expedientes el primer día.
+Compara las dos cuentas de esta lección. Embeber: de 2 a 4 horas. Leer los PDFs: de media noche a 14 noches, según la herramienta y los escaneos. **El cuello de botella de la ingesta inicial es el parsing, no el embedding.** Corre sobre todo en la CPU (Tesseract, o Marker sin OCR); una herramienta con modelos de diseño de página, como Docling, también puede usar de noche una GPU libre. Por eso la ingesta inicial se reparte por prioridad: primero los expedientes activos (lo que la gente va a preguntar mañana), después los históricos. El piloto con 20 abogados no necesita los 30,000 expedientes el primer día.
 
 :::calculadora rag-privado-ingesta
 Empieza con Qwen3-Embedding-0.6B en una L40S y Tesseract para leer. Cambia la herramienta de parsing y mira cómo las noches de lectura dominan; después cambia a Qwen3-Embedding-8B y mira cuándo el embedding empieza a pesar.
@@ -489,7 +489,7 @@ Con k = 60 casi todas las posiciones valen lo mismo, y gana el chunk en el que *
 
 ### El reranker, y el presupuesto que rompe
 
-Un [[reranker]] es un modelo que lee la pregunta **y** cada candidato juntos y les pone una calificación nueva. Es más preciso que comparar vectores (lee las dos cosas a la vez), y más caro: cada candidato es otra lectura completa. El candidato natural para el despacho es **Qwen3-Reranker-0.6B** (Apache 2.0, 596 M de parámetros, 32 K de contexto; en las pruebas de Qwen, con candidatos de su propio modelo de embeddings, saca 66.36 en la recuperación multilingüe reordenando 100 candidatos de su propio modelo de embeddings, que solo saca ≈ 64.6; el clásico bge-reranker-v2-m3 saca 58.36 en la misma tabla). Los rerankers de Jina, otra vez, son no comerciales.
+Un [[reranker]] es un modelo que lee la pregunta **y** cada candidato juntos y les pone una calificación nueva. Es más preciso que comparar vectores (lee las dos cosas a la vez), y más caro: cada candidato es otra lectura completa. El candidato natural para el despacho es **Qwen3-Reranker-0.6B** (Apache 2.0, 596 M de parámetros, 32 K de contexto). En la tabla de su model card (corridas de Qwen), reordenando los 100 primeros que trae Qwen3-Embedding-0.6B, sube la recuperación multilingüe de 64.64 a 66.36; el clásico bge-reranker-v2-m3, en la misma tabla, la **baja** a 58.36: un reranker no siempre mejora lo que recibe. Los rerankers de Jina, otra vez, son no comerciales.
 
 ¿Cuánto cuesta? El despacho reordena los 20 primeros de la fusión para quedarse con los 5 del prompt ([[top-k]] = 5).
 
@@ -519,7 +519,7 @@ Esa es la tensión, dicha completa. El presupuesto del despacho reparte 2,000 ms
 El TTFT de una pregunta sin fila, en dos versiones: 5 fragmentos sin reranker, y 3 fragmentos con reranker. La raya marca los 2 s del objetivo.
 :::
 
-Con la fórmula del prefill (2 × 32.76 mil millones de parámetros × tokens ÷ (0.5 × 362 TFLOPS)), 6,000 tokens son ≈ 2.17 s y 4,000 son ≈ 1.45 s: **≈ 0.72 s menos**, más que los 0.1–0.23 s del reranker. Sin fila, la pregunta pasaría de ≈ 2.34 s a ≈ 1.72–1.85 s. Dos honestidades: con la fila de la hora pico el TTFT de las L40S sigue arriba de 2 s (lo dice la simulación de «De requisitos a hardware»), y nada de esto vale si con 3 fragmentos la calidad baja. Se decide con el examen: si con reranker y 3 fragmentos se sigue contestando bien y con cita correcta al menos el 85 % de las 200 preguntas, se queda; si no, no.
+Con la fórmula del prefill (2 × 32.76 mil millones de parámetros × tokens ÷ (0.5 × 362 TFLOPS)), 6,000 tokens son ≈ 2.17 s y 4,000 son ≈ 1.45 s: **≈ 0.72 s menos**, más que los 0.1–0.23 s del reranker. Sin fila, la pregunta pasaría de ≈ 2.34 s a ≈ 1.72–1.85 s (con los 2.38 s de la herramienta de sizing en vez de la fórmula: de ≈ 2.55 s a ≈ 1.85–1.99 s, la misma conclusión sin margen). Tres honestidades. Con la fila de la hora pico y el reparto al azar que usa el gateway, el p95 de las L40S sigue arriba de 2 s también con 3 fragmentos: la misma simulación de «De requisitos a hardware», con el prefill más corto, da ≈ 2.5 s de fila y prefill antes de sumar búsqueda y reranker. Solo con un reparto por turno, que en esa simulación deja la fila casi en cero, quedaría en ≈ 1.85–1.99 s: en la raya. Y nada de esto vale si con 3 fragmentos la calidad baja. Se decide con el examen: si con reranker y 3 fragmentos se sigue contestando bien y con cita correcta al menos el 85 % de las 200 preguntas, se queda; si no, no.
 
 ### El examen empieza aquí
 
@@ -535,7 +535,7 @@ Lo que cuesta, en el despacho:
 - **No se repiten los chunks** si el tamaño y el tokenizador no cambian. Si cambian (otro modelo, otro límite), hay que volver a partir, y es barato: es texto.
 - **Se repiten los embeddings**: de 1.8 a 4.3 h con el 0.6B, de 15 a 36 h con el 4B en una L40S.
 
-Y se hace **al lado**, no encima (el cambio «azul-verde»): se construye una colección nueva junto a la vieja (con el doble de índice, ≈ 11 GB en RAM, nada para 384 GB), se corre el examen de 200 preguntas contra la nueva, y solo si pasa se cambia el nombre al que apunta el servicio de búsqueda. Si algo sale mal, se regresa al nombre viejo en un segundo. Cambiar el modelo de embeddings es un cambio como cualquier otro del sistema: no entra sin pasar el examen.
+Y se hace **al lado**, no encima (el cambio «azul-verde»): se construye una colección nueva (en Qdrant, una colección es lo que en SQL sería una tabla) junto a la vieja (con el doble de índice, ≈ 11 GB en RAM, nada para 384 GB), se corre el examen de 200 preguntas contra la nueva, y solo si pasa se cambia el nombre al que apunta el servicio de búsqueda. Si algo sale mal, se regresa al nombre viejo en un segundo. Cambiar el modelo de embeddings es un cambio como cualquier otro del sistema: no entra sin pasar el examen.
 
 :::ojo
 La huella del índice. Cada chunk guarda con qué modelo, qué versión, qué instrucción y qué dimensiones se calculó su vector. Así, un día que alguien actualice «solo la imagen de vLLM» y el modelo cambie por debajo, una consulta de prueba lo detecta antes de que las respuestas empeoren sin explicación.
@@ -546,7 +546,7 @@ La huella del índice. Cada chunk guarda con qué modelo, qué versión, qué in
 Igual que los pesos de un LLM se guardan en menos bits ([Formatos de cuantización](/formatos-cuantizacion/)), los vectores también: es otro tema con la misma idea.
 
 - **int8** (un byte por número): 4 veces menos memoria. Qdrant dice que el error es «normalmente menor al 1 %».
-- **Binaria** (un bit por número): 32 veces menos. Funciona con vectores de muchas dimensiones y se usa con sobremuestreo (traer 3 o 4 veces más candidatos) y reordenar con los vectores completos. Qdrant lo prueba con modelos de 1,536 a 4,096 dimensiones; para Qwen3-Embedding no hay dato publicado, y su propia documentación avisa que algunos modelos no cuantizan bien.
+- **Binaria** (un bit por número): 32 veces menos. Funciona con vectores de muchas dimensiones y se usa con sobremuestreo (traer de 2 a 4 veces más candidatos) y reordenar con los vectores completos. Qdrant la prueba con modelos de OpenAI y Cohere de 512 a 4,096 dimensiones, y pierde más mientras menos dimensiones tiene el vector; para Qwen3-Embedding no hay dato publicado, y su documentación avisa que un modelo con otra distribución de sus números pide experimentos propios.
 - **Recortar dimensiones (Matryoshka).** Qwen3-Embedding se entrenó para que los primeros números del vector ya sirvan solos: se puede guardar de 32 a 1,024. Se recorta, se **vuelve a normalizar**, y preguntas y chunks deben usar la misma dimensión.
 
 En el despacho, **nada de esto hace falta**. El índice float32 pesa ≈ 5.7 GB; en int8 serían ≈ 1.58 GB, y ahí el grafo ya pesaría 13 % del total. Cuantizar ahorra 4 GB en un servidor de 384 y agrega un riesgo de calidad que hay que medir. Importa a otra escala: 12 millones de chunks en float32 ya son ≈ 49 GB, y 100 millones no caben sin cuantizar.
@@ -589,7 +589,7 @@ k = 60: X = 1/62 + 1/63 ≈ 0.01613 + 0.01587 = **0.0320**; Y = 1/61 ≈ **0.016
 ? [medio] Una asistente sale del equipo del cliente A a las 11:00. ¿Qué hay que cambiar en el índice para que deje de ver sus expedientes, y qué no?
 Nada en los chunks: su ACL dice «equipo-cliente-a», no nombres. Lo que cambia es su pertenencia al grupo en el directorio, y el servicio de búsqueda resuelve sus grupos al preguntar (con un caché corto o el carril rápido, para que el cambio caiga en minutos). No se recalcula ningún vector ni se reindexa nada. Si la ACL guardara nombres de personas, habría que actualizar los metadatos de miles de chunks.
 ? [reto] Con el presupuesto del despacho (2,000 ms = 20 de red + 150 de búsqueda + el resto), el prefill de la fórmula (2.17 s con 6,000 tokens) y el reranker de 20 candidatos, compara sin fila: (a) 5 fragmentos sin reranker; (b) 3 fragmentos con reranker con \(η_c\) = 0.5; (c) igual con 0.21. ¿Cuál cumple?
-Prefill con 4,000 tokens: 2.17 × 4,000 ÷ 6,000 ≈ 1.45 s. (a) 20 + 150 + 2,170 = **2,340 ms**: no cumple. (b) 20 + 150 + 97 + 1,448 ≈ **1,715 ms**: cumple. (c) 20 + 150 + 232 + 1,448 ≈ **1,850 ms**: cumple, con 150 ms de margen. Pero esto es **sin fila**: en la hora pico la fila suma más de un segundo en las L40S, y ninguna de las tres cumple el p95. El reranker mejora el caso, no lo resuelve; y todo depende de que el examen acepte 3 fragmentos.
+Prefill con 4,000 tokens: 2.17 × 4,000 ÷ 6,000 ≈ 1.45 s. (a) 20 + 150 + 2,170 = **2,340 ms**: no cumple. (b) 20 + 150 + 97 + 1,448 ≈ **1,715 ms**: cumple. (c) 20 + 150 + 232 + 1,448 ≈ **1,850 ms**: cumple, con 150 ms de margen. Pero esto es **sin fila**: en la hora pico, con el reparto al azar del gateway, la fila suma ≈ 1.8 s al p95 con 5 fragmentos y ≈ 0.9 s con 3 (la simulación de «De requisitos a hardware»), y ninguna de las tres cumple. El reranker mejora el caso, no lo resuelve; y todo depende de que el examen acepte 3 fragmentos.
 ? [reto] El TI propone pgvector «porque ya tenemos Postgres». Escribe la condición mínima para aceptarlo y lo que se pierde frente a Qdrant.
 Condición: activar el escaneo iterativo (`hnsw.iterative_scan`) para que el filtro de permisos no se vuelva post-filtro, poner la ACL en una columna con índice, y probar con preguntas de una persona que ve ≈ 1–3 % que siguen llegando 5 fragmentos y la página correcta. Lo que se pierde: BM25 de verdad (el texto completo de Postgres ordena distinto, y la extensión con BM25 es AGPL), la fusión en una sola consulta (hay que hacer RRF a mano), y la fórmula de memoria publicada del índice HNSW. Lo que se gana: un solo motor de base de datos con respaldos, réplicas y permisos que el TI ya opera. A 1.34 M de chunks, es una decisión de operación, no de capacidad.
 :::

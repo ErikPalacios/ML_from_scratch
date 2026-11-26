@@ -77,7 +77,7 @@
       "y": 22,
       "w": 20,
       "h": 9,
-      "note": "Saca el texto con su estructura y sus páginas; [[ocr|OCR]] solo en los escaneos. Corre en la CPU y es el **cuello de botella** de la ingesta inicial: de media noche a ≈ 14 noches para 1.5 M de páginas, según la herramienta."
+      "note": "Saca el texto con su estructura y sus páginas; [[ocr|OCR]] solo en los escaneos. Corre sobre todo en la CPU y es el **cuello de botella** de la ingesta inicial: de media noche a ≈ 14 noches para 1.5 M de páginas, según la herramienta."
     },
     {
       "id": "texto",
@@ -264,7 +264,7 @@
             "emb>qdrant",
             "chunker>qdrant"
           ],
-          "text": "**6 · Guardar.** Qdrant recibe cada vector con su texto y sus metadatos (un *upsert*: si el chunk ya existía, se reemplaza). Mañana a las 9:00, la asociada del equipo A ya puede encontrarlo; nadie más."
+          "text": "**6 · Guardar.** Qdrant recibe cada vector con su texto y sus metadatos (un *upsert*: si el chunk ya existía, se reemplaza). Mañana a las 9:00 ya lo pueden encontrar el equipo del cliente A y los socios; nadie más."
         }
       ]
     }
