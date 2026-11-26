@@ -1,0 +1,78 @@
+{
+ "titulo": "La prueba pareada",
+ "intro": "Dos sistemas contestan **las mismas** preguntas. Solo cuentan las que discrepan: \\(b\\), las que solo A acierta, y \\(c\\), las que solo B acierta. Aplica McNemar \\(χ^2 = (|b − c| − 1)^2 ÷ (b + c)\\) con corrección, el intervalo pareado de \\(Δ = (c − b) ÷ N\\) y el gate de no inferioridad. Arranca con el segundo caso del texto: 165 aciertan los dos, 5 solo A, 17 solo B.",
+ "preajustes": {
+  "label": "Caso (supuestos)",
+  "inicial": 1,
+  "opciones": [
+   { "label": "1 · B gana 3 puntos: 8 y 14", "valores": { "A": 170, "b": 8, "c": 14 }, "nota": "22 discrepancias, 6 de diferencia neta: es poco para descartar el azar." },
+   { "label": "2 · B gana 6 puntos: 5 y 17", "valores": { "A": 170, "b": 5, "c": 17 }, "nota": "Las mismas 22 discrepancias, casi todas a favor de B: la pareada lo detecta y la comparación suelta no." },
+   { "label": "3 · Una actualización que mueve 1 punto: 10 y 12", "valores": { "A": 182, "b": 10, "c": 12 }, "nota": "Ruido puro: el gate la deja pasar, y se leen las 22 respuestas que cambiaron." },
+   { "label": "4 · Una actualización que pierde 5 puntos: 14 y 4", "valores": { "A": 182, "b": 14, "c": 4 }, "nota": "Pierde 5 puntos y el gate la detiene, aunque McNemar apenas lo distingue del azar." }
+  ]
+ },
+ "entradas": [
+  { "id": "N", "label": "Preguntas del examen, \\(N\\)", "min": 20, "max": 100000, "paso": 1, "valor": 200, "tipo": "numero" },
+  { "id": "A", "label": "Aciertos del sistema A (el que está en producción)", "min": 0, "max": 100000, "paso": 1, "valor": 170, "tipo": "numero" },
+  { "id": "b", "label": "Solo A acierta, \\(b\\)", "min": 0, "max": 100000, "paso": 1, "valor": 5, "tipo": "numero" },
+  { "id": "c", "label": "Solo B acierta, \\(c\\)", "min": 0, "max": 100000, "paso": 1, "valor": 17, "tipo": "numero" },
+  { "id": "M", "label": "Margen de no inferioridad del gate, \\(m\\), en puntos", "min": 1, "max": 15, "paso": 0.5, "valor": 5 }
+ ],
+ "calculos": [
+  { "id": "NN", "formula": "max(N, 1)" },
+  { "id": "bc", "formula": "max(b + c, 1e-9)" },
+  { "id": "d", "formula": "100 * (c - b) / NN" },
+  { "id": "chi", "formula": "pow(b - c, 2) / bc" },
+  { "id": "chic", "formula": "pow(max(abs(b - c) - 1, 0), 2) / bc" },
+  { "id": "se", "formula": "100 * sqrt(max(b + c - pow(b - c, 2) / NN, 0)) / NN" },
+  { "id": "pA", "formula": "min(max(A / NN, 0), 1)" },
+  { "id": "pB", "formula": "min(max((A - b + c) / NN, 0), 1)" },
+  { "id": "seu", "formula": "100 * sqrt(pA * (1 - pA) / NN + pB * (1 - pB) / NN)" }
+ ],
+ "salidas": [
+  {
+   "label": "1 · Aciertos de B",
+   "formula": "A - b + c", "formato": "int",
+   "cuenta": "{{A|int}} − {{b|int}} + {{c|int}} = **{{A - b + c|int}}** de {{N|int}}: A {{100 * pA|num|1}} %, B {{100 * pB|num|1}} %"
+  },
+  {
+   "label": "2 · Diferencia, \\(Δ = (c − b) ÷ N\\), en puntos",
+   "formula": "d", "formato": "num", "decimales": 1,
+   "cuenta": "100 × ({{c|int}} − {{b|int}}) ÷ {{N|int}} = **{{d|num|1}} puntos**"
+  },
+  {
+   "label": "3 · McNemar con corrección, \\(χ^2\\)",
+   "formula": "chic", "formato": "num", "decimales": 2,
+   "nota": "sin corrección: \\((b − c)^2 ÷ (b + c)\\), un poco más optimista",
+   "cuenta": "(|{{b|int}} − {{c|int}}| − 1)² ÷ ({{b|int}} + {{c|int}}) = **{{chic|num|2}}** (sin corrección: {{chi|num|2}})"
+  },
+  {
+   "label": "¿La diferencia es más que azar? (\\(χ^2\\) ≥ 3.84, el 5 %)",
+   "formula": "chic - 3.8415",
+   "veredicto": { "si": "Sí: se distingue del azar", "no": "No se distingue del azar" },
+   "cuenta": "{{chic|num|2}} contra 3.84"
+  },
+  {
+   "label": "4 · Intervalo pareado del 95 % de \\(Δ\\), límite de abajo",
+   "formula": "d - 1.96 * se", "formato": "num", "decimales": 1,
+   "nota": "\\(SE_Δ = sqrt{b + c − (b − c)^2 ÷ N} ÷ N\\)",
+   "cuenta": "{{d|num|1}} ± 1.96 × {{se|num|2}} = de **{{d - 1.96 * se|num|1}}** a **{{d + 1.96 * se|num|1}}** puntos"
+  },
+  {
+   "label": "5 · El mismo intervalo si se compararan dos % sueltos (medio ancho)",
+   "formula": "1.96 * seu", "formato": "num", "decimales": 1, "barra": true,
+   "cuenta": "1.96 × √({{pA|num|3}} × {{1 - pA|num|3}} ÷ {{N|int}} + {{pB|num|3}} × {{1 - pB|num|3}} ÷ {{N|int}}) × 100 = ±**{{1.96 * seu|num|1}}** (el pareado: ±{{1.96 * se|num|1}})"
+  },
+  {
+   "label": "¿Pasa el gate de no inferioridad? (B como cambio sobre A)",
+   "formula": "(d - 1.645 * se) + M",
+   "veredicto": { "si": "Pasa: aun en el peor caso pierde menos que el margen", "no": "Se detiene: podría perder más que el margen" },
+   "cuenta": "cota de abajo de una cola {{d|num|1}} − 1.645 × {{se|num|2}} = {{d - 1.645 * se|num|1}} contra −{{M|num|1}}"
+  },
+  {
+   "label": "Respuestas que cambiaron (las que se leen)",
+   "formula": "(b + c) / NN", "formato": "pct", "decimales": 1, "barra": true
+  }
+ ],
+ "nota": "Con menos de ≈ 25 discrepancias, la versión exacta de McNemar (cada discrepancia como un volado) es la buena; la corrección de continuidad da casi lo mismo. El gate usa la cota de una cola del 95 % (1.645), no la de dos colas."
+}

@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 390" role="img" aria-labelledby="f-evals-posicion-t" class="f-svg" style="max-width:420px">
+<title id="f-evals-posicion-t">El sesgo de posición medido por Zheng y otros en 2023: a tres jueces se les dio el mismo par de respuestas casi iguales en los dos órdenes. Claude-v1 dio el mismo veredicto en los dos órdenes solo 23.8 por ciento de las veces y prefirió la que iba primero 75 por ciento. GPT-3.5: 46.2 por ciento consistente y 50 por ciento a favor de la primera. GPT-4: 65 por ciento consistente, 30 por ciento a favor de la primera y 5 por ciento a favor de la segunda. Son jueces de 2023, no el modelo del despacho.</title>
+<rect class="f-card" x="10" y="10" width="340" height="370" rx="16"/>
+<text class="f-l" x="30" y="38">EL MISMO PAR, EN LOS DOS ÓRDENES</text>
+<text class="f-s" x="30" y="56" style="font-size:12px">80 casos · Zheng et al., 2023</text>
+<text class="f-t" x="30" y="78" style="font-size:13px">Claude-v1</text>
+<rect class="f-g" x="30.0" y="88" width="71.4" height="20"/>
+<rect class="f-o" x="101.4" y="88" width="225.0" height="20"/>
+<rect class="f-off" x="326.4" y="88" width="3.6" height="20"/>
+<text class="f-s" x="30" y="126" style="font-size:12px">mismo veredicto 23.8 % · prefiere la 1.ª 75.0 %</text>
+<text class="f-t" x="30" y="160" style="font-size:13px">GPT-3.5</text>
+<rect class="f-g" x="30.0" y="170" width="138.6" height="20"/>
+<rect class="f-o" x="168.6" y="170" width="150.0" height="20"/>
+<rect class="f-b" x="318.6" y="170" width="3.6" height="20"/>
+<rect class="f-off" x="322.2" y="170" width="7.8" height="20"/>
+<text class="f-s" x="30" y="208" style="font-size:12px">mismo veredicto 46.2 % · prefiere la 1.ª 50.0 %</text>
+<text class="f-t" x="30" y="242" style="font-size:13px">GPT-4</text>
+<rect class="f-g" x="30.0" y="252" width="195.0" height="20"/>
+<rect class="f-o" x="225.0" y="252" width="90.0" height="20"/>
+<rect class="f-b" x="315.0" y="252" width="15.0" height="20"/>
+<text class="f-s" x="30" y="290" style="font-size:12px">mismo veredicto 65.0 % · prefiere la 1.ª 30.0 %</text>
+<rect class="f-g" x="30" y="328" width="12" height="12" rx="2"/><text class="f-s" x="48" y="339" style="font-size:12px">mismo veredicto</text>
+<rect class="f-o" x="160" y="328" width="12" height="12" rx="2"/><text class="f-s" x="178" y="339" style="font-size:12px">gana la 1.ª</text>
+<rect class="f-b" x="30" y="350" width="12" height="12" rx="2"/><text class="f-s" x="48" y="361" style="font-size:12px">gana la 2.ª</text>
+<rect class="f-off" x="160" y="350" width="12" height="12" rx="2"/><text class="f-s" x="178" y="361" style="font-size:12px">otro resultado</text>
+</svg>

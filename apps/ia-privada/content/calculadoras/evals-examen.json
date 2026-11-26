@@ -1,0 +1,80 @@
+{
+ "titulo": "¿Cuánto se le cree al examen?",
+ "intro": "Mete el resultado de un examen y mira qué tan lejos puede estar el valor verdadero. Aplica el [[error-estandar|error estándar]] \\(SE = sqrt{p(1 − p) ÷ n}\\) y el intervalo de Wilson del 95 %, para los aciertos y para las citas inventadas. Arranca con el criterio del despacho: 170 de 200 bien, y 4 citas inventadas.",
+ "preajustes": {
+  "label": "Ejemplo (supuestos)",
+  "inicial": 0,
+  "opciones": [
+   { "label": "Justo en el criterio: 170 bien, 4 inventadas", "valores": { "n": 200, "k": 170, "f": 4 }, "nota": "Pasa el criterio tal como está escrito, y no demuestra ninguna de las dos cosas." },
+   { "label": "El número que sí convence: 180 bien, 0 inventadas", "valores": { "n": 200, "k": 180, "f": 0 }, "nota": "Con 180 el límite de abajo de Wilson ya pasa de 85 %; con 0 citas inventadas, el de arriba queda bajo 2 %." },
+   { "label": "Con más preguntas: 400, 85 %, 8 inventadas", "valores": { "n": 400, "k": 340, "f": 8 }, "nota": "El mismo 85 % y el mismo 2 %, con el doble de preguntas: el intervalo se angosta, pero no lo suficiente." },
+   { "label": "Un estrato chico: 26 de 30", "valores": { "n": 30, "k": 26, "f": 0 }, "nota": "Un estrato de 30 preguntas: el intervalo mide más de 20 puntos." }
+  ]
+ },
+ "entradas": [
+  { "id": "n", "label": "Preguntas del examen, \\(n\\)", "min": 10, "max": 100000, "paso": 1, "valor": 200, "tipo": "numero" },
+  { "id": "k", "label": "Preguntas bien y con la cita correcta, \\(k\\)", "min": 0, "max": 100000, "paso": 1, "valor": 170, "tipo": "numero" },
+  { "id": "K", "label": "Criterio de aciertos, en % (el despacho: 85)", "min": 50, "max": 99, "paso": 1, "valor": 85 },
+  { "id": "f", "label": "Respuestas con una cita inventada, \\(f\\)", "min": 0, "max": 100000, "paso": 1, "valor": 4, "tipo": "numero" },
+  { "id": "L", "label": "Tope de citas inventadas, en % (el despacho: 2)", "min": 0.5, "max": 10, "paso": 0.5, "valor": 2 }
+ ],
+ "calculos": [
+  { "id": "nn", "formula": "max(n, 1)" },
+  { "id": "p", "formula": "min(max(k / nn, 0), 1)" },
+  { "id": "se", "formula": "sqrt(p * (1 - p) / nn)" },
+  { "id": "z2", "formula": "3.8416" },
+  { "id": "wc", "formula": "(p + z2 / (2 * nn)) / (1 + z2 / nn)" },
+  { "id": "wm", "formula": "1.96 * sqrt(p * (1 - p) / nn + z2 / (4 * nn * nn)) / (1 + z2 / nn)" },
+  { "id": "q", "formula": "min(max(f / nn, 0), 1)" },
+  { "id": "qc", "formula": "(q + z2 / (2 * nn)) / (1 + z2 / nn)" },
+  { "id": "qm", "formula": "1.96 * sqrt(q * (1 - q) / nn + z2 / (4 * nn * nn)) / (1 + z2 / nn)" }
+ ],
+ "salidas": [
+  {
+   "label": "1 · Aciertos observados, \\(p = k ÷ n\\)",
+   "formula": "p", "formato": "pct", "decimales": 1, "barra": true,
+   "cuenta": "{{k|int}} ÷ {{n|int}} = **{{100 * p|num|1}} %**"
+  },
+  {
+   "label": "2 · Error estándar, \\(SE\\), en puntos",
+   "formula": "100 * se", "formato": "num", "decimales": 2,
+   "cuenta": "√({{p|num|3}} × {{1 - p|num|3}} ÷ {{n|int}}) × 100 = **{{100 * se|num|2}}** (el de Wald: ±{{196 * se|num|1}} puntos)"
+  },
+  {
+   "label": "3 · Intervalo de Wilson del 95 %, límite de abajo",
+   "formula": "wc - wm", "formato": "pct", "decimales": 1,
+   "nota": "Wilson no se sale de 0 a 100 % y se porta bien con pocos aciertos o pocas fallas",
+   "cuenta": "de **{{100 * (wc - wm)|num|1}} %** a **{{100 * (wc + wm)|num|1}} %** (centro {{100 * wc|num|1}} %, medio ancho {{100 * wm|num|1}} puntos)"
+  },
+  {
+   "label": "¿Pasa el criterio tal como está escrito?",
+   "formula": "k - K / 100 * n + 0.0001",
+   "veredicto": { "si": "Pasa: el observado llega", "no": "No pasa" },
+   "cuenta": "{{k|int}} contra {{K / 100 * n|num|0}} ({{K|int}} % de {{n|int}})"
+  },
+  {
+   "label": "¿Demuestra que el verdadero llega al criterio?",
+   "formula": "(wc - wm) - K / 100",
+   "veredicto": { "si": "Sí: aun el límite de abajo llega", "no": "No: el verdadero podría estar debajo" },
+   "cuenta": "límite de abajo {{100 * (wc - wm)|num|1}} % contra {{K|int}} %"
+  },
+  {
+   "label": "4 · Citas inventadas, límite de arriba de Wilson",
+   "formula": "qc + qm", "formato": "pct", "decimales": 2, "barra": true,
+   "cuenta": "{{f|int}} de {{n|int}} = {{100 * q|num|1}} % observado; Wilson del 95 %: de {{100 * max(qc - qm, 0)|num|2}} % a **{{100 * (qc + qm)|num|2}} %**"
+  },
+  {
+   "label": "¿Demuestra que las citas inventadas están bajo el tope?",
+   "formula": "L / 100 - (qc + qm)",
+   "veredicto": { "si": "Sí: aun el límite de arriba queda bajo el tope", "no": "No: la tasa verdadera podría pasar el tope" },
+   "cuenta": "límite de arriba {{100 * (qc + qm)|num|2}} % contra {{L|num|1}} %"
+  },
+  {
+   "label": "5 · Diferencia mínima entre dos sistemas sin parear, en puntos",
+   "formula": "196 * sqrt(2 * p * (1 - p) / nn)", "formato": "num", "decimales": 1,
+   "nota": "\\(1.96 × sqrt{2p(1 − p) ÷ n}\\): dos exámenes independientes del mismo tamaño",
+   "cuenta": "1.96 × √(2 × {{p|num|3}} × {{1 - p|num|3}} ÷ {{n|int}}) × 100 = **{{196 * sqrt(2 * p * (1 - p) / nn)|num|1}} puntos**"
+  }
+ ],
+ "nota": "Es el intervalo de Wilson de dos colas. La cota exacta de una cola (Clopper-Pearson) es un poco más estricta en un lado y menos en el otro: con ella bastan 179 de 200 para demostrar 85 %, y con 0 fallas la cota de citas inventadas es 1.49 % (Wilson da 1.88 %). Para el despacho las dos dicen lo mismo: 170 y 4 no demuestran nada."
+}

@@ -1,0 +1,94 @@
+{
+  "titulo": "El examen por capas: qué se califica en cada paso de una pregunta, y con qué",
+  "width": 78,
+  "height": 48,
+  "lanes": [
+    { "id": "sistema", "label": "El sistema, como lo usa un abogado", "kind": "online", "x": 0, "y": 0, "w": 78, "h": 19 },
+    { "id": "calif", "label": "La calificación · cada capa con su regla", "kind": "monitor", "x": 0, "y": 21, "w": 78, "h": 27 }
+  ],
+  "nodes": [
+    {
+      "id": "pregunta", "label": "Pregunta", "sub": "y quién la hace", "badge": "1", "kind": "client",
+      "x": 2, "y": 6, "w": 18, "h": 8,
+      "note": "Una de las 200 del [[golden-set|golden set]], con la cuenta de la persona que pregunta. La cuenta importa: en las 20 preguntas de permisos, el documento que contesta existe pero esa persona **no** lo puede ver."
+    },
+    {
+      "id": "busqueda", "label": "Búsqueda", "sub": "los 5 fragmentos", "badge": "2", "kind": "service",
+      "x": 30, "y": 6, "w": 18, "h": 8,
+      "note": "La capa del RAG: busca en los expedientes que la persona puede ver y trae los 5 fragmentos más parecidos. Si la página correcta no llega aquí, el modelo no la puede citar, por bueno que sea."
+    },
+    {
+      "id": "llm", "label": "Qwen3 32B", "sub": "respuesta + cita", "badge": "3", "kind": "model",
+      "x": 58, "y": 6, "w": 18, "h": 8,
+      "note": "El mismo modelo, la misma cuantización, el mismo prompt y la misma versión de [[vllm|vLLM]] que verán los abogados. Se examina **la configuración que se sirve**, no una parecida."
+    },
+    {
+      "id": "golden", "label": "Golden set", "sub": "referencia y página", "kind": "store",
+      "x": 2, "y": 25, "w": 18, "h": 8,
+      "note": "Por cada pregunta: la [[respuesta-de-referencia|respuesta de referencia]] que firmó un abogado, el documento y la página donde está (la «página de oro»), el estrato y, si aplica, quién no debe verla."
+    },
+    {
+      "id": "ret", "label": "Retrieval", "sub": "¿llegó la página? · código", "kind": "monitor",
+      "x": 30, "y": 25, "w": 18, "h": 8,
+      "note": "Una [[metrica-de-retrieval|métrica de retrieval]]: ¿está la página de oro entre los 5 fragmentos? Es un sí o no que calcula un programa, sin juez. Y en las de permisos: ¿llegó un fragmento que no debía? Eso es una fuga."
+    },
+    {
+      "id": "cita", "label": "Cita", "sub": "¿existe y lo dice? · código", "kind": "monitor",
+      "x": 58, "y": 25, "w": 18, "h": 8,
+      "note": "Un programa revisa que el expediente exista, que la página exista y que el texto citado esté en esa página. Si falla algo, es una [[cita-inventada|cita inventada]]. Determinista: no necesita juez."
+    },
+    {
+      "id": "abog", "label": "Abogados", "sub": "una muestra a mano", "kind": "human",
+      "x": 2, "y": 38, "w": 18, "h": 8,
+      "note": "Dos abogados califican a mano una muestra (≈ 100 respuestas) para medir si el juez concuerda con ellos: la [[kappa-de-cohen|kappa de Cohen]]. Sin esa muestra, el número del juez no vale nada."
+    },
+    {
+      "id": "tabla", "label": "Resultado", "sub": "por estrato, con intervalo", "kind": "store",
+      "x": 30, "y": 38, "w": 18, "h": 8,
+      "note": "Un renglón por pregunta con cada capa por separado. Así se sabe **dónde** falló: no encontró la página, la encontró y contestó mal, o contestó bien y citó otra cosa."
+    },
+    {
+      "id": "juez", "label": "Juez", "sub": "¿correcta y fiel?", "kind": "model",
+      "x": 58, "y": 38, "w": 18, "h": 8,
+      "note": "El [[llm-as-judge|LLM como juez]], corriendo **dentro** de la red: compara la respuesta con la referencia y con los fragmentos siguiendo una [[rubrica|rúbrica]]. Solo califica lo que el código no puede: si dice lo correcto y si es [[fidelidad|fiel]] a los fragmentos."
+    }
+  ],
+  "edges": [
+    { "from": "pregunta", "to": "busqueda", "kind": "online", "label": "pregunta", "fromSide": "r", "toSide": "l" },
+    { "from": "busqueda", "to": "llm", "kind": "online", "label": "fragmentos", "fromSide": "r", "toSide": "l" },
+    { "from": "busqueda", "to": "ret", "kind": "monitor", "label": "top-5", "fromSide": "b", "toSide": "t" },
+    { "from": "llm", "to": "cita", "kind": "monitor", "label": "cita", "fromSide": "b", "toSide": "t" },
+    { "from": "golden", "to": "ret", "kind": "offline", "label": "página", "fromSide": "r", "toSide": "l" },
+    { "from": "cita", "to": "juez", "kind": "monitor", "label": "respuesta", "fromSide": "b", "toSide": "t" },
+    { "from": "ret", "to": "tabla", "kind": "monitor", "fromSide": "b", "toSide": "t" },
+    { "from": "juez", "to": "tabla", "kind": "monitor", "label": "veredicto", "fromSide": "l", "toSide": "r" },
+    { "from": "abog", "to": "tabla", "kind": "neutral", "label": "muestra", "fromSide": "r", "toSide": "l" }
+  ],
+  "flows": [
+    {
+      "id": "bien",
+      "label": "Una pregunta que sale bien",
+      "steps": [
+        { "nodes": ["pregunta", "busqueda"], "edges": ["pregunta>busqueda"], "text": "**1 · Se pregunta como abogado.** «¿El contrato del expediente 4127 permite ceder los derechos?», con la cuenta de una asociada que sí puede ver ese expediente." },
+        { "nodes": ["busqueda", "ret", "golden"], "edges": ["busqueda>ret", "golden>ret"], "text": "**2 · Retrieval.** La página de oro (exp. 4127, p. 12) está entre los 5 fragmentos. Lo revisa un programa: **sí**." },
+        { "nodes": ["llm", "cita"], "edges": ["busqueda>llm", "llm>cita"], "text": "**3 · Cita.** La respuesta cita «exp. 4127, p. 12» con un pedazo de texto; el programa confirma que esa página existe y dice eso: **correcta**." },
+        { "nodes": ["juez", "tabla"], "edges": ["cita>juez", "juez>tabla", "ret>tabla"], "text": "**4 · Juez.** Compara la respuesta con la referencia y con los fragmentos: correcta y fiel. El renglón queda con las cuatro capas en verde." }
+      ]
+    },
+    {
+      "id": "no-llego",
+      "label": "La búsqueda no trajo la página",
+      "steps": [
+        { "nodes": ["busqueda", "ret"], "edges": ["busqueda>ret", "golden>ret"], "text": "La página de oro no está en los 5 fragmentos. El retrieval sale **mal** antes de que el modelo escriba una palabra." },
+        { "nodes": ["llm", "cita", "tabla"], "edges": ["llm>cita", "ret>tabla"], "text": "Si el modelo dice «no lo encontré», es honesto aunque la pregunta cuente como mal. Si cita una página que suena bien, el programa la marca **inventada**. En los dos casos el renglón dice dónde arreglar: en la búsqueda, no en el modelo." }
+      ]
+    },
+    {
+      "id": "permisos",
+      "label": "Una pregunta de permisos",
+      "steps": [
+        { "nodes": ["pregunta", "busqueda", "ret"], "edges": ["pregunta>busqueda", "busqueda>ret"], "text": "Un pasante pregunta por un expediente de otro equipo. Lo único que se revisa: que **ningún** fragmento de ese expediente llegue a la búsqueda. Una sola fuga y el examen no pasa, sin importar el porcentaje." }
+      ]
+    }
+  ]
+}

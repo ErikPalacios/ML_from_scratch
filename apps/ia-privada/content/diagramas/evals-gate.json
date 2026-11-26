@@ -1,0 +1,88 @@
+{
+  "titulo": "El gate: lo que recorre cada cambio antes de llegar a los abogados",
+  "width": 78,
+  "height": 48,
+  "lanes": [
+    { "id": "noche", "label": "El examen · de noche, con su propia llave", "kind": "offline", "x": 0, "y": 0, "w": 78, "h": 19 },
+    { "id": "decide", "label": "La decisión · reglas escritas antes", "kind": "neutral", "x": 0, "y": 21, "w": 78, "h": 27 }
+  ],
+  "nodes": [
+    {
+      "id": "cambio", "label": "Un cambio", "sub": "modelo, vLLM, prompt…", "badge": "1", "kind": "job",
+      "x": 2, "y": 6, "w": 18, "h": 8,
+      "note": "Cualquier cosa que mueva las respuestas: el modelo, su cuantización, la versión de [[vllm|vLLM]], el prompt, el chunker, el modelo de embeddings, el top-k. Si cambia la salida, pasa por aquí."
+    },
+    {
+      "id": "examen", "label": "Examen completo", "sub": "200 preguntas + juez", "badge": "2", "kind": "job",
+      "x": 30, "y": 6, "w": 18, "h": 8,
+      "note": "Las 200 preguntas con la configuración nueva, calificadas capa por capa. Corre **fuera de horario**: el sistema contesta en ≈ 16.5 min y el juez en ≈ 5.6–8.3 min del servidor completo. En la hora pico no cabe."
+    },
+    {
+      "id": "prod", "label": "Producción", "sub": "el resultado vigente", "kind": "store",
+      "x": 58, "y": 6, "w": 18, "h": 8,
+      "note": "El resultado de la versión que hoy usan los abogados, en **las mismas** 200 preguntas. Es contra lo que se compara: no contra el 85 %, sino contra lo que ya funciona."
+    },
+    {
+      "id": "inv", "label": "Invariantes", "sub": "0 fugas, 0 citas nuevas", "badge": "3", "kind": "service",
+      "x": 2, "y": 25, "w": 18, "h": 8,
+      "note": "Reglas sin estadística: cero fugas en las preguntas de permisos, ninguna cita inventada que no estuviera ya en producción, el formato de la cita sigue siendo válido. Una sola falla detiene el cambio."
+    },
+    {
+      "id": "pareada", "label": "Pareada", "sub": "no inferioridad", "badge": "4", "kind": "service",
+      "x": 30, "y": 25, "w": 18, "h": 8,
+      "note": "La [[prueba-pareada|prueba pareada]] contra producción. Regla de [[no-inferioridad|no inferioridad]]: se detiene si el peor caso razonable (cota de una cola del 95 %) pierde más de 5 puntos, o si el valor observado cae 3 puntos o más."
+    },
+    {
+      "id": "flips", "label": "Leer los flips", "sub": "un abogado y TI", "badge": "5", "kind": "human",
+      "x": 58, "y": 25, "w": 18, "h": 8,
+      "note": "Las preguntas que cambiaron de bien a mal o de mal a bien (los [[flips]]). Con 200 preguntas la estadística solo ve caídas de 6–7 puntos; leer los ≈ 20 que cambian ve lo demás: si todos son contratos en inglés, eso es un hallazgo."
+    },
+    {
+      "id": "alto", "label": "Se detiene", "sub": "con el renglón que falló", "kind": "service",
+      "x": 2, "y": 38, "w": 18, "h": 8,
+      "note": "El cambio no llega a los abogados. Queda escrito qué regla lo detuvo y en qué preguntas, para arreglarlo o descartarlo."
+    },
+    {
+      "id": "sale", "label": "Se despliega", "sub": "y pasa a ser producción", "kind": "edge",
+      "x": 58, "y": 38, "w": 18, "h": 8,
+      "note": "El cambio entra y su resultado se guarda como el nuevo «producción» contra el que se compara el próximo. Así el candado se mueve con el sistema."
+    }
+  ],
+  "edges": [
+    { "from": "cambio", "to": "examen", "kind": "offline", "label": "versión", "fromSide": "r", "toSide": "l" },
+    { "from": "prod", "to": "examen", "kind": "offline", "label": "vigente", "fromSide": "l", "toSide": "r" },
+    { "from": "examen", "to": "inv", "kind": "neutral", "label": "resultado", "fromSide": "b", "toSide": "t", "via": [[39, 20], [11, 20]] },
+    { "from": "inv", "to": "pareada", "kind": "neutral", "label": "pasan", "fromSide": "r", "toSide": "l" },
+    { "from": "pareada", "to": "flips", "kind": "neutral", "label": "pasa", "fromSide": "r", "toSide": "l" },
+    { "from": "inv", "to": "alto", "kind": "monitor", "label": "una falla", "fromSide": "b", "toSide": "t" },
+    { "from": "pareada", "to": "alto", "kind": "monitor", "label": "pierde", "fromSide": "b", "toSide": "r", "via": [[39, 42]] },
+    { "from": "flips", "to": "sale", "kind": "neutral", "label": "nada raro", "fromSide": "b", "toSide": "t" }
+  ],
+  "flows": [
+    {
+      "id": "pasa",
+      "label": "Una actualización de vLLM que pasa",
+      "steps": [
+        { "nodes": ["cambio", "examen", "prod"], "edges": ["cambio>examen", "prod>examen"], "text": "**1 · De noche.** Sale una versión nueva de vLLM. Se corren las 200 preguntas con ella y se juntan con el resultado vigente, pregunta por pregunta." },
+        { "nodes": ["inv"], "edges": ["examen>inv"], "text": "**2 · Invariantes.** Cero fugas en las 20 de permisos; ninguna cita inventada nueva. Pasa." },
+        { "nodes": ["pareada"], "edges": ["inv>pareada"], "text": "**3 · Pareada.** 10 preguntas solo las acertaba la versión vieja y 12 solo la nueva: +1 punto, con cota de abajo de −2.9. Está dentro del margen de 5: pasa." },
+        { "nodes": ["flips", "sale"], "edges": ["pareada>flips", "flips>sale"], "text": "**4 · Leer.** Un abogado lee las 22 que cambiaron: no hay un patrón. Se despliega, y este resultado es el nuevo «producción»." }
+      ]
+    },
+    {
+      "id": "pierde",
+      "label": "Un prompt nuevo que pierde",
+      "steps": [
+        { "nodes": ["cambio", "examen", "inv", "pareada"], "edges": ["cambio>examen", "examen>inv", "inv>pareada"], "text": "Alguien acorta el prompt para ahorrar tokens. Pasa las invariantes, pero 14 preguntas solo las acertaba el viejo y 4 solo el nuevo: −5 puntos." },
+        { "nodes": ["alto"], "edges": ["pareada>alto"], "text": "La cota de abajo es −8.4, peor que el margen de −5, y además cayó más de 3: **se detiene**. Nadie tuvo que discutirlo, porque la regla se escribió antes." }
+      ]
+    },
+    {
+      "id": "fuga",
+      "label": "Un chunker nuevo con una fuga",
+      "steps": [
+        { "nodes": ["cambio", "examen", "inv", "alto"], "edges": ["cambio>examen", "examen>inv", "inv>alto"], "text": "Un chunker nuevo gana 4 puntos, pero en una de las 20 preguntas de permisos llegó un fragmento de un expediente ajeno. **Se detiene** sin mirar el porcentaje: una fuga no se compensa con exactitud." }
+      ]
+    }
+  ]
+}

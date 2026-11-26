@@ -1,0 +1,59 @@
+{
+ "titulo": "¿Le crees al juez?",
+ "intro": "Una abogada y el juez califican **las mismas** respuestas como bien o mal. Aplica la [[kappa-de-cohen|kappa de Cohen]] \\(κ = (p_o − p_e) ÷ (1 − p_e)\\), que descuenta el acuerdo que habría por puro azar. Arranca con el ejemplo del texto: 200 respuestas, 140 y 36 en las que coinciden.",
+ "preajustes": {
+  "label": "Ejemplo (supuestos)",
+  "inicial": 0,
+  "opciones": [
+   { "label": "El del texto: 140, 10, 14, 36", "valores": { "bb": 140, "bm": 10, "mb": 14, "mm": 36 }, "nota": "88 % de acuerdo, κ ≈ 0.67: sustancial, y el juez aprueba de más." },
+   { "label": "Casi todo bien: 186, 6, 6, 2", "valores": { "bb": 186, "bm": 6, "mb": 6, "mm": 2 }, "nota": "94 % de acuerdo y κ ≈ 0.22: el juez casi nunca atrapa las malas." },
+   { "label": "Calibración chica: 21, 2, 2, 5", "valores": { "bb": 21, "bm": 2, "mb": 2, "mm": 5 }, "nota": "Solo 30 respuestas: el intervalo de κ va de ≈ 0.3 a casi 1." },
+   { "label": "Un juez que aprueba todo: 150, 0, 50, 0", "valores": { "bb": 150, "bm": 0, "mb": 50, "mm": 0 }, "nota": "75 % de acuerdo y κ = 0: no aporta nada que no dé el azar." }
+  ]
+ },
+ "entradas": [
+  { "id": "bb", "label": "Las dos dicen bien", "min": 0, "max": 10000, "paso": 1, "valor": 140, "tipo": "numero" },
+  { "id": "bm", "label": "Abogada: bien · juez: mal", "min": 0, "max": 10000, "paso": 1, "valor": 10, "tipo": "numero" },
+  { "id": "mb", "label": "Abogada: mal · juez: bien", "min": 0, "max": 10000, "paso": 1, "valor": 14, "tipo": "numero" },
+  { "id": "mm", "label": "Las dos dicen mal", "min": 0, "max": 10000, "paso": 1, "valor": 36, "tipo": "numero" }
+ ],
+ "calculos": [
+  { "id": "n", "formula": "max(bb + bm + mb + mm, 1)" },
+  { "id": "po", "formula": "(bb + mm) / n" },
+  { "id": "a1", "formula": "(bb + bm) / n" },
+  { "id": "j1", "formula": "(bb + mb) / n" },
+  { "id": "pe", "formula": "a1 * j1 + (1 - a1) * (1 - j1)" },
+  { "id": "k", "formula": "(po - pe) / max(1 - pe, 1e-9)" },
+  { "id": "se", "formula": "sqrt(po * (1 - po) / n) / max(1 - pe, 1e-9)" }
+ ],
+ "salidas": [
+  {
+   "label": "1 · Acuerdo observado, \\(p_o\\)",
+   "formula": "po", "formato": "pct", "decimales": 1, "barra": true,
+   "cuenta": "({{bb|int}} + {{mm|int}}) ÷ {{n|int}} = **{{po|num|3}}**"
+  },
+  {
+   "label": "2 · Acuerdo por azar, \\(p_e\\)",
+   "formula": "pe", "formato": "pct", "decimales": 1, "barra": true,
+   "cuenta": "{{a1|num|3}} × {{j1|num|3}} + {{1 - a1|num|3}} × {{1 - j1|num|3}} = **{{pe|num|3}}** (la abogada aprueba {{100 * a1|num|1}} %, el juez {{100 * j1|num|1}} %)"
+  },
+  {
+   "label": "3 · Kappa de Cohen, \\(κ\\)",
+   "formula": "k", "formato": "num", "decimales": 3,
+   "cuenta": "({{po|num|3}} − {{pe|num|3}}) ÷ (1 − {{pe|num|3}}) = **{{k|num|3}}**; IC del 95 % ≈ {{k - 1.96 * se|num|2}} a {{k + 1.96 * se|num|2}}"
+  },
+  {
+   "label": "4 · De las que la abogada reprueba, ¿cuántas reprueba el juez?",
+   "formula": "mm / max(mb + mm, 1e-9)", "formato": "pct", "decimales": 1, "barra": true,
+   "nota": "si es bajo, el juez deja pasar respuestas malas",
+   "cuenta": "{{mm|int}} ÷ ({{mb|int}} + {{mm|int}}) = **{{100 * mm / max(mb + mm, 1e-9)|num|1}} %**"
+  },
+  {
+   "label": "¿Llega a «sustancial» (κ > 0.60) aun en el peor caso del intervalo?",
+   "formula": "(k - 1.96 * se) - 0.6",
+   "veredicto": { "si": "Sí", "no": "No: falta muestra o el juez no sirve" },
+   "cuenta": "límite de abajo {{k - 1.96 * se|num|2}} contra 0.60"
+  }
+ ],
+ "nota": "La escala de Landis y Koch (1977) llama «sustancial» a 0.61–0.80; es una convención discutida, no una ley. Reporta siempre κ junto con el acuerdo y la salida 4: un acuerdo de 94 % puede esconder un juez que no reprueba nada."
+}

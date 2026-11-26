@@ -1,0 +1,229 @@
+{
+ "terminos": [
+  {
+   "id": "eval",
+   "termino": "Eval (evaluación)",
+   "en": "eval",
+   "corto": "Una prueba que dice con números si un sistema con LLM hace bien su tarea: preguntas, la respuesta esperada y una regla para calificar.",
+   "largo": "Una eval junta tres cosas: un conjunto de casos (el [[golden-set|golden set]]), lo que el sistema contesta a cada uno y una forma de calificar (código, un [[llm-as-judge|LLM como juez]] o una persona). Se evalúa el **sistema completo** como se va a servir: la búsqueda, el modelo cuantizado, el prompt y la versión del motor. Una eval no es un [[benchmark]]: un benchmark es igual para todos los modelos; una eval propia mide tu tarea con tus datos.",
+   "ejemplo": "El examen del despacho: 200 preguntas reales de sus abogados, cada una con su respuesta de referencia y su cita, calificadas capa por capa.",
+   "ver": [
+    "golden-set",
+    "gate-de-calidad"
+   ],
+   "leccion": "evals",
+   "sensei": "aprendio"
+  },
+  {
+   "id": "golden-set",
+   "termino": "Golden set",
+   "en": "golden set",
+   "corto": "El conjunto fijo de preguntas con su respuesta correcta que se guarda y se usa para medir cada versión del sistema, siempre igual.",
+   "largo": "Lo escriben personas que saben la tarea, con casos reales, y no se toca entre versiones: así dos resultados se pueden comparar. Para un LLM con RAG, cada caso trae la pregunta, quién la hace, la [[respuesta-de-referencia|respuesta de referencia]] y dónde está la respuesta (documento y página). Se mantiene fuera del prompt, de los ejemplos y de cualquier ajuste fino: si se cuela, mide memoria y no calidad (la [[contaminacion|contaminación]]).",
+   "analogia": "El examen final que el profesor guarda bajo llave y aplica igual a cada generación. Dónde se rompe: los alumnos cambian cada año; aquí el que cambia es el sistema y el examen se queda, así que con el tiempo deja de parecerse a lo que la gente pregunta y hay que renovarlo con cuidado.",
+   "ejemplo": "Las 200 preguntas del despacho, repartidas en 5 estratos: 110 con respuesta, 30 sin respuesta, 20 de permisos, 20 de resumir y 20 de cláusulas parecidas (propuesta del ejemplo).",
+   "ver": [
+    "estratificar",
+    "respuesta-de-referencia"
+   ],
+   "leccion": "evals",
+   "sensei": "aprendio"
+  },
+  {
+   "id": "estratificar",
+   "termino": "Estratificar",
+   "en": "stratify",
+   "corto": "Repartir las preguntas de un examen en grupos (por tarea, tipo de documento, dificultad) con un número decidido en cada uno, para que ninguno quede fuera por azar.",
+   "largo": "Si se toman 200 preguntas al azar del uso real, las tareas raras pero importantes (las preguntas sin respuesta, las de permisos) casi no aparecen. Estratificar es decidir de antemano cuántas van de cada grupo. Cada estrato chico tiene su propio ruido: con 20 o 30 preguntas su porcentaje no dice nada (un intervalo de más de 20 puntos), así que sirve para leer errores o para reglas de «cero fallas», no para un porcentaje.",
+   "ejemplo": "26 de 30 preguntas bien en el estrato «sin respuesta» es 86.7 %, pero el intervalo de Wilson va de 70.3 % a 94.7 %.",
+   "ver": [
+    "golden-set"
+   ],
+   "leccion": "evals",
+   "sensei": "ruido"
+  },
+  {
+   "id": "respuesta-de-referencia",
+   "termino": "Respuesta de referencia",
+   "en": "reference answer",
+   "corto": "La respuesta que un experto firmaría para una pregunta del examen, con su cita; contra ella se califica lo que contesta el sistema.",
+   "largo": "No tiene que coincidir palabra por palabra: sirve para que una persona o un [[llm-as-judge|juez]] decidan si la respuesta del sistema dice lo mismo. Con referencia, un juez se equivoca mucho menos: en matemáticas, Zheng y otros (2023) vieron que GPT-4 daba por buena una respuesta incorrecta en 14 de 20 casos sin referencia y en 3 de 20 con ella. En una pregunta sin respuesta, la referencia es «no está en los expedientes».",
+   "ejemplo": "Pregunta: «¿El contrato del expediente 4127 permite ceder los derechos?». Referencia: «No sin consentimiento previo y por escrito (cláusula 14, exp. 4127, p. 12)».",
+   "ver": [
+    "golden-set",
+    "rubrica"
+   ],
+   "leccion": "evals"
+  },
+  {
+   "id": "metrica-de-retrieval",
+   "termino": "Métrica de retrieval",
+   "en": "retrieval metric",
+   "corto": "Un número que dice si la búsqueda trajo los fragmentos correctos, antes de que el modelo escriba: por ejemplo, si la página correcta está entre los primeros k (recall@k).",
+   "largo": "Separa la capa de búsqueda de la del modelo. **Recall@k**: de las páginas que contestan la pregunta (las páginas de oro), qué fracción llegó entre los k fragmentos que recibió el modelo. **Precision@k**: de los k fragmentos, cuántos servían. Con una página de oro por pregunta, se calcula con código, sin juez. Si el retrieval falla, el modelo no puede citar la página correcta por bueno que sea.",
+   "ejemplo": "Supuesto: en 200 preguntas con su página de oro, la página llega entre los 5 fragmentos en 184: recall@5 = 92 %. De las 16 que no llegaron, ninguna se puede contestar bien con cita.",
+   "ver": [
+    "fidelidad"
+   ],
+   "leccion": "evals"
+  },
+  {
+   "id": "fidelidad",
+   "termino": "Fidelidad",
+   "en": "faithfulness",
+   "corto": "Que la respuesta diga solo lo que dicen los fragmentos que recibió el modelo, sin agregar nada de su memoria ni inventar.",
+   "largo": "Es distinto de la corrección: una respuesta puede ser fiel a un fragmento equivocado (y estar mal), o correcta por casualidad sin apoyo en los fragmentos (y no ser fiel). RAGAS la define, a noviembre de 2026, como las afirmaciones de la respuesta que se pueden inferir del contexto recuperado entre el total de afirmaciones de la respuesta; un [[llm-as-judge|juez]] extrae las afirmaciones y verifica cada una.",
+   "ejemplo": "La respuesta hace 4 afirmaciones y 3 están en los fragmentos: fidelidad 0.75. La cuarta («el plazo es de 30 días») no aparece en ningún fragmento, aunque sea cierta.",
+   "ver": [
+    "metrica-de-retrieval",
+    "llm-as-judge"
+   ],
+   "leccion": "evals"
+  },
+  {
+   "id": "llm-as-judge",
+   "termino": "LLM como juez",
+   "en": "LLM-as-a-judge",
+   "corto": "Usar un LLM para calificar las respuestas de otro sistema siguiendo una rúbrica, en vez de que una persona las califique una por una.",
+   "largo": "Sirve para lo que el código no puede revisar: si una respuesta abierta dice lo mismo que la referencia, si es fiel a los fragmentos, si un resumen omite algo. Es barato y rápido, pero tiene [[sesgo-del-juez|sesgos]] medidos y no es determinista. Solo se le cree después de medir cuánto concuerda con expertos ([[acuerdo-entre-jueces|acuerdo entre jueces]]). En un sistema privado, el juez también tiene que correr dentro de la red: mandarle las respuestas a un juez de nube saca los expedientes.",
+   "analogia": "Un asistente que revisa exámenes con la hoja de respuestas del profesor. Dónde se rompe: un asistente humano no prefiere la respuesta que va primero ni la más larga, y no califica distinto la misma hoja si se la das dos veces; un LLM sí puede hacer las tres cosas.",
+   "ejemplo": "En el despacho, el mismo Qwen3 32B califica las 200 respuestas contra la referencia y los fragmentos: ≈ 1.26 M tokens de entrada y 40,000 de salida, de 5.6 a 8.3 minutos del servidor completo.",
+   "ver": [
+    "rubrica",
+    "sesgo-del-juez",
+    "acuerdo-entre-jueces"
+   ],
+   "leccion": "evals"
+  },
+  {
+   "id": "rubrica",
+   "termino": "Rúbrica",
+   "en": "rubric",
+   "corto": "La lista escrita de criterios con los que se califica una respuesta, cada uno con lo que cuenta como cumplido; se le da igual al juez y a las personas.",
+   "largo": "Una buena rúbrica parte la calificación en criterios que se contestan sí o no («¿llega a la misma conclusión que la referencia?», «¿cita documento y página?», «¿afirma algo que no está en los fragmentos?»), en vez de pedir «califica del 1 al 10». Una revisión de 2026 sobre respuestas jurídicas abiertas encontró que una rúbrica escrita para la tarea es la palanca más fuerte del acuerdo entre juez y humanos.",
+   "ejemplo": "La rúbrica del despacho para «preguntar»: 1) misma conclusión que la referencia; 2) nada que contradiga los fragmentos; 3) si no está, lo dice. Pasa si cumple las tres.",
+   "ver": [
+    "llm-as-judge",
+    "respuesta-de-referencia"
+   ],
+   "leccion": "evals"
+  },
+  {
+   "id": "sesgo-del-juez",
+   "termino": "Sesgo del juez",
+   "en": "judge bias",
+   "corto": "Una preferencia sistemática de un LLM juez que no tiene que ver con la calidad: por la respuesta que va primero, por la más larga o por la que escribió él mismo.",
+   "largo": "Los medidos: **posición** (Zheng y otros, 2023: con dos respuestas casi iguales en los dos órdenes, GPT-4 dio el mismo veredicto solo 65 % de las veces y Claude-v1 23.8 %), **verbosidad** (preferir la más larga) y **auto-preferencia** (calificar mejor lo propio). Se mitigan intercambiando el orden, calificando una respuesta a la vez contra una referencia y midiendo el acuerdo con personas. Las cifras son de jueces de 2023; para un juez local hay que medirlas.",
+   "ejemplo": "Se le da al juez el par (A, B) y luego (B, A). Si gana A en las dos, gana A; si cambia con el orden, es empate.",
+   "ver": [
+    "llm-as-judge"
+   ],
+   "leccion": "evals"
+  },
+  {
+   "id": "acuerdo-entre-jueces",
+   "termino": "Acuerdo entre jueces",
+   "en": "inter-rater agreement",
+   "corto": "Qué tanto coinciden dos calificadores (dos personas, o una persona y un LLM) sobre las mismas respuestas, descontando lo que coincidirían por azar.",
+   "largo": "Se mide con la [[kappa-de-cohen|kappa de Cohen]] cuando son dos calificadores y categorías como bien o mal. El techo realista no es 1: es lo que concuerdan dos expertos entre sí. En un benchmark jurídico de 2026, tres abogados concordaron con κ = 0.644 y los jueces LLM de frontera, con 0.708 a 0.726. Se reporta con el acuerdo crudo y con qué tanto atrapa el juez las respuestas malas.",
+   "ejemplo": "Una abogada y el juez califican las mismas 200 respuestas: coinciden en 176 (88 %), κ = 0.671.",
+   "ver": [
+    "kappa-de-cohen",
+    "llm-as-judge"
+   ],
+   "leccion": "evals"
+  },
+  {
+   "id": "kappa-de-cohen",
+   "termino": "Kappa de Cohen",
+   "en": "Cohen's kappa",
+   "corto": "Un número de −1 a 1 que mide el acuerdo entre dos calificadores descontando el acuerdo que tendrían por puro azar: 0 es azar, 1 es acuerdo perfecto.",
+   "largo": "Se calcula como \\(κ = (p_o − p_e) ÷ (1 − p_e)\\): \\(p_o\\) es la fracción de casos donde coinciden y \\(p_e\\) la que coincidirían si cada uno calificara al azar con sus propias proporciones. Viene de Cohen (1960). La escala de Landis y Koch (1977) llama «sustancial» a 0.61–0.80, una convención discutida. Cuando casi todo está bien, κ baja aunque el acuerdo crudo sea alto: por eso se reporta junto con él.",
+   "ejemplo": "Con 140 y 36 coincidencias en 200, \\(p_o\\) = 0.880; la abogada aprueba 75 % y el juez 77 %, \\(p_e\\) = 0.75 × 0.77 + 0.25 × 0.23 = 0.635; κ = (0.880 − 0.635) ÷ 0.365 = 0.671.",
+   "ver": [
+    "acuerdo-entre-jueces"
+   ],
+   "leccion": "evals"
+  },
+  {
+   "id": "prueba-pareada",
+   "termino": "Prueba pareada",
+   "en": "paired test",
+   "corto": "Comparar dos sistemas con las mismas preguntas y contar solo las que contestan distinto, en vez de comparar sus dos porcentajes como si fueran exámenes independientes.",
+   "largo": "Si A y B aciertan 165 preguntas en común, esas no dicen nada de cuál es mejor; solo cuentan \\(b\\) (solo A acierta) y \\(c\\) (solo B acierta). La prueba de McNemar (1947) pregunta si \\(b\\) y \\(c\\) son tan distintos que no parecen volados: \\(χ^2 = (|b − c| − 1)^2 ÷ (b + c)\\) con corrección, o la versión exacta con la binomial. El bootstrap pareado remuestrea las preguntas con sus dos resultados. Es mucho más fina cuando los dos sistemas se parecen.",
+   "ejemplo": "A: 170 de 200; B: 182. Con 5 y 17 discrepancias, McNemar da p ≈ 0.02 (se distingue); comparando 85 % y 91 % sueltos, p ≈ 0.064 (no).",
+   "ver": [
+    "no-inferioridad",
+    "regresion"
+   ],
+   "leccion": "evals",
+   "sensei": "ruido"
+  },
+  {
+   "id": "no-inferioridad",
+   "termino": "No inferioridad",
+   "en": "non-inferiority",
+   "corto": "Una regla que no pide demostrar que lo nuevo es mejor, sino que no es peor que lo actual por más de un margen fijado de antemano.",
+   "largo": "Sirve para cambios que se hacen por otra razón (ahorrar memoria, actualizar el motor, un prompt más corto): basta con que no se pierda calidad. Se calcula la cota de abajo de una cola (95 %) de la diferencia pareada y se compara con el margen. Con pocas preguntas, el margen que se puede proteger es grande: con 200 y 10 % de discrepancias, ≈ 5.6 puntos.",
+   "ejemplo": "Un cambio con Δ = +1 punto y \\(SE_Δ\\) = 2.34: cota de abajo 1 − 1.645 × 2.34 = −2.9, dentro de un margen de −5: pasa.",
+   "ver": [
+    "prueba-pareada",
+    "gate-de-calidad"
+   ],
+   "leccion": "evals"
+  },
+  {
+   "id": "regresion",
+   "termino": "Regresión",
+   "en": "regression",
+   "corto": "Que algo que funcionaba deje de funcionar después de un cambio: en un LLM, preguntas que antes salían bien y ahora salen mal.",
+   "largo": "En un sistema con LLM casi todo puede causar una: el modelo, la cuantización, la versión del motor, el prompt, el chunker, el modelo de embeddings, el top-k. Y a veces nada: [[vllm|vLLM]] no garantiza resultados idénticos entre corridas por omisión, así que hay un piso de ruido propio. Se detecta corriendo el examen completo con cada cambio y comparando pareado contra la versión en producción, además de leer los [[flips]].",
+   "ejemplo": "Una versión nueva del motor deja el total igual, pero 9 preguntas de contratos en inglés pasan de bien a mal y 9 de otros tipos de mal a bien: el total no la ve; leer los flips sí.",
+   "ver": [
+    "gate-de-calidad",
+    "prueba-pareada"
+   ],
+   "leccion": "evals"
+  },
+  {
+   "id": "gate-de-calidad",
+   "termino": "Gate de calidad",
+   "en": "quality gate",
+   "corto": "El candado automático por el que pasa cada cambio antes de llegar a los usuarios: corre el examen y lo detiene si rompe una regla escrita antes.",
+   "largo": "Las reglas se escriben antes de ver resultados, para que no haya excusas para aprobar. Una propuesta en dos capas: **invariantes** sin estadística (cero fugas de permisos, ninguna [[cita-inventada|cita inventada]] nueva, formato válido) y **calidad pareada** contra producción con un margen de [[no-inferioridad|no inferioridad]]. Lo que la estadística no ve con pocas preguntas se cubre leyendo las que cambiaron.",
+   "analogia": "La inspección de un avión después de cada reparación, con una lista que no se negocia en la pista. Dónde se rompe: la inspección revisa piezas que se pueden ver; el gate revisa una muestra de 200 preguntas, y lo que no está en la muestra no lo ve.",
+   "ejemplo": "En el despacho: el cambio se detiene si hay una fuga, una cita inventada nueva, si la cota de abajo de Δ pierde más de 5 puntos o si el valor observado cae 3 o más.",
+   "ver": [
+    "regresion",
+    "no-inferioridad"
+   ],
+   "leccion": "evals",
+   "sensei": "aprendio"
+  },
+  {
+   "id": "cita-inventada",
+   "termino": "Cita inventada",
+   "en": "fabricated citation",
+   "corto": "Una cita de la respuesta que no se sostiene: el documento no existe, la página no existe o la página no dice lo que la respuesta le atribuye.",
+   "largo": "Es el error más grave de un asistente jurídico, porque parece verificable y no lo es. Se revisa con código, sin juez: buscar el expediente, buscar la página y confirmar que el texto citado esté ahí. En una pregunta sin respuesta en los expedientes, cualquier cita es inventada. El criterio del despacho permite 4 de 200; con tan pocos eventos, ese número es muy ruidoso.",
+   "ejemplo": "«exp. 4127, p. 13: la pena convencional será del 20 %», cuando la página 13 dice 10 %: inventada.",
+   "ver": [
+    "fidelidad",
+    "gate-de-calidad"
+   ],
+   "leccion": "evals"
+  },
+  {
+   "id": "telemetria",
+   "termino": "Telemetría",
+   "en": "telemetry",
+   "corto": "Los datos de uso que un programa manda por su cuenta a sus autores por internet: qué funciones usaste, cuándo, desde qué dirección.",
+   "largo": "Muchas herramientas de código abierto la traen prendida por omisión para saber cómo se usan. En un sistema privado es un canal de salida que nadie decidió: aunque no mande los textos, manda eventos, nombres de métricas, un identificador y la IP pública. A noviembre de 2026, RAGAS, DeepEval y promptfoo la traen activa y se apaga con una variable de entorno cada una.",
+   "ejemplo": "En el servidor del despacho: `RAGAS_DO_NOT_TRACK=true`, `DEEPEVAL_TELEMETRY_OPT_OUT=1` y `PROMPTFOO_DISABLE_TELEMETRY=1`, y además el firewall no deja salir nada.",
+   "ver": [
+    "llm-as-judge"
+   ],
+   "leccion": "evals"
+  }
+ ]
+}
