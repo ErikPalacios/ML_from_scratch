@@ -11,8 +11,9 @@
 <text class="f-t" x="176" y="120" style="font-size:14px">Cubeta: 19,500 tokens</text>
 <text class="f-s" x="176" y="138" style="font-size:12px">= 3 preguntas de 6,500</text>
 <text class="f-t" x="176" y="166" style="font-size:14px">Cada pregunta cobra</text>
-<text class="f-s" x="176" y="184" style="font-size:12px">6,000 de entrada + 500 de salida</text>
-<text class="f-s" x="176" y="206" style="font-size:12px">pasa si el nivel ≥ 6,500</text>
+<text class="f-s" x="176" y="182" style="font-size:12px">6,000 de entrada</text>
+<text class="f-s" x="176" y="198" style="font-size:12px">+ 500 de salida</text>
+<text class="f-s" x="176" y="218" style="font-size:12px">pasa si el nivel ≥ 6,500</text>
 <text class="f-l" x="14" y="252">CUATRO MOMENTOS DE UNA MAÑANA</text>
 <rect class="f-card" x="10" y="262" width="340" height="198" rx="16"/>
 <text class="f-s" x="26" y="290" style="font-size:12px;font-weight:700">10:00</text>
