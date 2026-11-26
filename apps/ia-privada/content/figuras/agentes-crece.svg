@@ -31,8 +31,8 @@
 <text class="f-s" x="234.8" y="274" style="font-size:12px" text-anchor="end">+ 500 de la tabla = 6,795</text>
 <line class="f-linea" x1="270.0" y1="64" x2="270.0" y2="280" style="stroke-dasharray:4 3;stroke-width:1.5"/>
 <text class="f-s" x="266.0" y="292" text-anchor="end" style="font-size:12px;font-weight:700">tope de contexto: 8,192</text>
-<rect class="f-off" x="24" y="300" width="14" height="12" rx="3"/><text class="f-s" x="44" y="310" style="font-size:12px">reutilizado con prefix caching</text>
-<rect class="f-b" x="210" y="300" width="14" height="12" rx="3"/><text class="f-s" x="230" y="310" style="font-size:12px">calculado de nuevo</text>
+<rect class="f-off" x="24" y="300" width="14" height="12" rx="3"/><text class="f-s" x="44" y="310" style="font-size:12px">reutilizado (caché)</text>
+<rect class="f-b" x="196" y="300" width="14" height="12" rx="3"/><text class="f-s" x="216" y="310" style="font-size:12px">calculado de nuevo</text>
 <text class="f-s" x="24" y="336" style="font-size:12px"><tspan style="font-weight:700">Sin caché:</tspan> 21,840 tokens · ≈ 7.9 s en una L40S</text>
 <text class="f-s" x="24" y="354" style="font-size:12px"><tspan style="font-weight:700">Con caché:</tspan> ≈ 6,480 nuevos · ≈ 2.35 s</text>
 <text class="f-s" x="24" y="372" style="font-size:12px"><tspan style="font-weight:700">Una pregunta de RAG:</tspan> 6,000 tokens · ≈ 2.2 s</text>
