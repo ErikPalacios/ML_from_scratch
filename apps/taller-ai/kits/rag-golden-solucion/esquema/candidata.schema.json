@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dojo.trueml.app/rag/golden/candidata.schema.json",
+  "title": "Pregunta candidata para el golden set",
+  "description": "Lo que escribe un experto: la pregunta, la respuesta de referencia, de dónde sale, quién la hace y de qué tipo es.",
+  "type": "object",
+  "required": ["id", "pregunta", "respuesta", "tipo", "persona", "fuentes", "corpus", "origen", "autor"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {"type": "string", "pattern": "^G-[0-9]{3}$"},
+    "pregunta": {"type": "string", "minLength": 8, "maxLength": 300},
+    "respuesta": {"type": "string", "minLength": 1},
+    "tipo": {"enum": ["directa", "varias", "sin_respuesta", "prohibida"]},
+    "persona": {"type": "string", "pattern": "^[a-z0-9.]+@[a-z0-9.-]+\\.[a-z]+$"},
+    "fuentes": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^(wiki|drive|jira|politicas):[^#\\s]+#[0-9]{3}$"}
+    },
+    "corpus": {"type": "string", "pattern": "^corpus-[0-9]{4}-[0-9]{2}-[0-9]{2}$"},
+    "origen": {"enum": ["experto", "consulta"]},
+    "autor": {"type": "string", "minLength": 1}
+  },
+  "allOf": [
+    {"if": {"properties": {"tipo": {"const": "sin_respuesta"}}, "required": ["tipo"]},
+     "then": {"properties": {"fuentes": {"maxItems": 0}}}},
+    {"if": {"properties": {"tipo": {"enum": ["directa", "prohibida"]}}, "required": ["tipo"]},
+     "then": {"properties": {"fuentes": {"minItems": 1}}}},
+    {"if": {"properties": {"tipo": {"const": "varias"}}, "required": ["tipo"]},
+     "then": {"properties": {"fuentes": {"minItems": 2}}}}
+  ]
+}

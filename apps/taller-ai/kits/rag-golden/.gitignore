@@ -1,0 +1,8 @@
+# lo que crea el mundo y lo que produce tu pipeline
+almacen/
+golden/
+.taller/
+.respaldo/
+.venv/
+__pycache__/
+*.pyc

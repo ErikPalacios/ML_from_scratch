@@ -1,0 +1,13 @@
+# Configuración del golden set. Los pasos de GUION.md dicen cuándo tocar cada línea.
+
+parecidas:
+  umbral: 0.6          # dos preguntas del mismo tipo con similitud de Jaccard ≥ umbral son la misma pregunta
+
+splits:
+  sal: golden-c11      # el texto que se mezcla con el id antes del hash: si cambia, cambian todos los splits
+  test: 75             # de cada 100 ids, cuántos van a test (el examen); el resto, a dev (donde se vale mirar)
+
+cuotas:                # el mínimo de cada tipo, como fracción de las preguntas, para publicar una versión
+  varias: 0.15
+  sin_respuesta: 0.10
+  prohibida: 0.10

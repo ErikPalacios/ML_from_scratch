@@ -1,0 +1,7 @@
+{"autor": "equipo-prompt", "id": "A-01", "pregunta": "¿Cómo abro una devolución para un cliente?", "respuesta": "Desde el detalle del pedido, en «Devolver»."}
+{"autor": "equipo-prompt", "id": "A-02", "pregunta": "¿Qué hago si el pedido no llegó?", "respuesta": "Revisa la guía; si lleva más de 3 días sin movimiento, abre una investigación con la paquetería."}
+{"autor": "equipo-prompt", "id": "A-03", "pregunta": "¿Se puede facturar un pedido del mes pasado?", "respuesta": "Fuera del mes de compra, la factura la emite quien vende."}
+{"autor": "equipo-prompt", "id": "A-04", "pregunta": "¿Cómo escalo un ticket a líderes?", "respuesta": "Etiquétalo con «escalado», resume el caso en tres líneas y avisa en el canal de líderes."}
+{"autor": "equipo-prompt", "id": "A-05", "pregunta": "¿Cuánto cuesta el recargo de zona extendida?", "respuesta": "60 pesos por paquete."}
+{"autor": "equipo-prompt", "id": "A-06", "pregunta": "¿Desde qué monto de compra el envío es gratis?", "respuesta": "En compras desde 599 pesos."}
+{"autor": "equipo-prompt", "id": "A-07", "pregunta": "¿Cuándo interviene el marketplace en una garantía?", "respuesta": "Si quien vende no responde en 5 días hábiles."}
