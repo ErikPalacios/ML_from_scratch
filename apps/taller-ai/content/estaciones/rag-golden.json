@@ -136,7 +136,7 @@
           "cuenta": "37 preguntas con fuentes en el test de golden-v2",
           "valor": "± 11.5 puntos: solo se ven diferencias grandes"
         },
-        "decide": "Un golden de 600 ve diferencias de varios puntos, no de 1. Por eso dos versiones del sistema se comparan con las mismas preguntas (comparación pareada, paso 8), que necesita muchas menos, y por eso no se celebra una «mejora» de 1.4 puntos con 37 preguntas.",
+        "decide": "Un golden de 600 ve diferencias de varios puntos, no de 1. Por eso dos versiones del sistema se comparan con las mismas preguntas (comparación pareada, paso 8), que normalmente necesita muchas menos, y por eso no se celebra una «mejora» de 1.4 puntos con 37 preguntas.",
         "conceptos": [
           "margen",
           "pareada"
@@ -158,7 +158,7 @@
         },
         "taller": {
           "cuenta": "6 prohibidas en test (10 en todo golden-v2)",
-          "valor": "hasta ≈ 50 % (30 % con las 10)"
+          "valor": "hasta ≈ 50 % (30 % con las 10); con n chico la cuenta exacta da un poco menos: 39 % y 26 %"
         },
         "decide": "«Permisos al 100 %» en el golden es necesario, no suficiente: cero fugas en 90 preguntas todavía deja posible una tasa de 3 %. Por eso la estación 3 prueba a cada persona contra cada ACL y la estación 12 vuelve esa prueba un monitoreo que corre solo.",
         "conceptos": [
@@ -166,10 +166,10 @@
           "tipos-pregunta"
         ],
         "comprueba": {
-          "code": "python -c \"\nfor n in (6, 10, 60, 90):\n    print(f'0 fugas en {n:>2} prohibidas: la tasa real puede ser hasta ≈ {3 / n:.1%} (regla de tres, 95 %)')\"",
+          "code": "python -c \"\nfor n in (6, 10, 60, 90):\n    print(f'0 fugas en {n:>2} prohibidas: la tasa real puede ser hasta ≈ {3 / n:.1%} (regla de tres, 95 %) · exacta {1 - 0.05 ** (1 / n):.1%}')\"",
           "nota": "",
           "donde": "mac",
-          "salida": "0 fugas en  6 prohibidas: la tasa real puede ser hasta ≈ 50.0% (regla de tres, 95 %)\n0 fugas en 10 prohibidas: la tasa real puede ser hasta ≈ 30.0% (regla de tres, 95 %)\n0 fugas en 60 prohibidas: la tasa real puede ser hasta ≈ 5.0% (regla de tres, 95 %)\n0 fugas en 90 prohibidas: la tasa real puede ser hasta ≈ 3.3% (regla de tres, 95 %)"
+          "salida": "0 fugas en  6 prohibidas: la tasa real puede ser hasta ≈ 50.0% (regla de tres, 95 %) · exacta 39.3%\n0 fugas en 10 prohibidas: la tasa real puede ser hasta ≈ 30.0% (regla de tres, 95 %) · exacta 25.9%\n0 fugas en 60 prohibidas: la tasa real puede ser hasta ≈ 5.0% (regla de tres, 95 %) · exacta 4.9%\n0 fugas en 90 prohibidas: la tasa real puede ser hasta ≈ 3.3% (regla de tres, 95 %) · exacta 3.3%"
         }
       }
     ]
@@ -190,7 +190,7 @@
       "en": "reference answer, ground truth",
       "def": "La respuesta que un experto da por correcta para una pregunta, escrita con lo que dicen los documentos y nada más.",
       "analogia": "Como la hoja de respuestas del profesor: no es la única forma de contestar bien, pero es contra lo que se compara.",
-      "importa": "La estación 9 compara lo que dice el asistente contra ella (¿dice lo mismo?) y contra sus fuentes (¿todo lo que dice está en los chunks?, que es la faithfulness).",
+      "importa": "La estación 9 compara lo que dice el asistente contra ella (¿dice lo mismo?) y contra los chunks que recibió (¿todo lo que dice está en ellos?, que es la faithfulness).",
       "trampa": "Que la escriba alguien que «se la sabe» sin abrir el documento: una respuesta de referencia que no está en sus fuentes enseña al gate a premiar lo que se inventa."
     },
     {
@@ -227,13 +227,13 @@
       "def": "Un archivo JSON que describe cómo tiene que verse otro JSON: qué campos lleva, de qué tipo, qué valores se valen. La librería jsonschema revisa un documento contra él.",
       "analogia": "Como el formulario de un trámite con sus casillas: si una casilla obligatoria está vacía o dice algo que no se vale, el trámite regresa antes de que alguien lo lea.",
       "importa": "Atrapa los errores de forma (falta la respuesta, un tipo que no existe, una sin respuesta con fuentes) en cuanto llega la candidata, con todos sus errores a la vez.",
-      "trampa": "Usar validate(), que se detiene en el primer error: el experto corrige uno, lo vuelve a mandar y le sale el siguiente. iter_errors() da todos."
+      "trampa": "Usar validate(), que lanza un solo error (el que juzga más importante): el experto corrige uno, lo vuelve a mandar y le sale el siguiente. iter_errors() da todos."
     },
     {
       "id": "casi-iguales",
       "termino": "Preguntas casi iguales",
       "en": "near-duplicates, Jaccard similarity",
-      "def": "Dos preguntas que dicen lo mismo con otras palabras. Se miden con la similitud de Jaccard: palabras en común entre palabras en total, de 0 a 1.",
+      "def": "Dos preguntas que dicen lo mismo con casi las mismas palabras. Se miden con la similitud de Jaccard: palabras en común entre palabras en total, de 0 a 1.",
       "analogia": "Como dos alumnos que entregan la misma tarea con sinónimos: el profesor no las cuenta como dos tareas distintas.",
       "importa": "Una pregunta repetida pesa doble en el promedio: si el sistema la falla, el examen dice que falla el doble. Y si una copia cae en dev y otra en test, lo que se miró en dev se filtra al examen.",
       "trampa": "Subir el umbral hasta que «ya no rechaza nada»: con 0.95 solo se atrapan las idénticas. El umbral sale de mirar pares reales del propio corpus."
@@ -254,7 +254,7 @@
       "def": "Cada pregunta cae en dev o en test según un hash (sha256) de su id: siempre el mismo lado, sin importar el orden ni cuántas haya.",
       "analogia": "Como asignar casilleros por la terminación de tu matrícula: no depende de quién llegó primero, y el año que viene te toca el mismo.",
       "importa": "Las preguntas nuevas se reparten solas y las viejas no se mueven, así que las calificaciones de versiones distintas se pueden comparar.",
-      "trampa": "Cambiar la «sal» o el porcentaje: el hash cambia y una tercera parte del examen se mueve de lado. Por eso armar.py congela el split que ya tenía cada id."
+      "trampa": "Cambiar la «sal» o el porcentaje: el hash cambia y más de un tercio del examen se mueve de lado (37.5 % con 75/25). Por eso armar.py congela el split que ya tenía cada id."
     },
     {
       "id": "contaminacion",
@@ -316,7 +316,7 @@
       "en": "rule of three",
       "def": "Si en n intentos no viste ninguna falla, la tasa real de fallas puede ser hasta ≈ 3/n con 95 % de confianza.",
       "analogia": "Como probar 10 paracaídas y que todos abran: no prueba que nunca fallen; solo que fallan, cuando mucho, ≈ 3 de cada 10.",
-      "importa": "Convierte «cero fugas» en un número honesto: con 6 prohibidas, la tasa real puede llegar a 50 %.",
+      "importa": "Convierte «cero fugas» en un número honesto: con 6 prohibidas, la tasa real puede llegar a ≈ 50 % (la cuenta exacta, 1 − 0.05^(1/n), da 39 %; 3/n es buena con n grande).",
       "trampa": "Leer «0 de 6» como «0 %»."
     },
     {
@@ -398,7 +398,7 @@
     ],
     "sustituciones": [
       {
-        "nube": "El bucket del golden set con Object Lock (o PUT con «If-None-Match: *»)",
+        "nube": "El bucket del golden set: Object Lock y PUT con «If-None-Match: *»",
         "local": "<code>almacen/registro/</code> y <code>subir()</code>, que se niega a sobrescribir",
         "diferencia": "La misma idea: lo publicado no se puede reescribir. En S3 lo hace cumplir el servicio; aquí, una carpeta de solo lectura y una función."
       },
@@ -471,7 +471,7 @@
         "respuesta-referencia",
         "json-schema"
       ],
-      "explica": "Cada candidata es un JSON con <code>id</code> (G- y tres dígitos), <code>pregunta</code>, <code>respuesta</code> (la de referencia), <code>tipo</code>, <code>persona</code> (quién la hace), <code>fuentes</code> (chunk_ids), <code>corpus</code> (con qué versión del corpus la escribió el experto), <code>origen</code> y <code>autor</code>. El esquema dice todo eso: <code>required</code>, el <code>type</code> y el <code>pattern</code> de cada campo, <code>enum</code> para el tipo, <code>uniqueItems</code> para que no repita fuentes y <code>additionalProperties: false</code> para que no traiga campos inventados. Lo mejor de Draft 2020-12 para esto es <code>if</code>/<code>then</code>: si el tipo es sin_respuesta, las fuentes tienen que estar vacías; si es directa o prohibida, al menos una; si es con varias fuentes, al menos dos. <code>estructura()</code> usa <code>Draft202012Validator(...).iter_errors()</code>, que da todos los errores, y <code>check_schema()</code> antes, para que un esquema mal escrito truene en tu cara y no en la del experto.",
+      "explica": "Cada candidata es un JSON con <code>id</code> (G- y tres dígitos), <code>pregunta</code>, <code>respuesta</code> (la de referencia), <code>tipo</code>, <code>persona</code> (quién la hace), <code>fuentes</code> (chunk_ids), <code>corpus</code> (con qué versión del corpus la escribió el experto), <code>origen</code> y <code>autor</code>. El esquema dice todo eso: <code>required</code>, el <code>type</code> y el <code>pattern</code> de cada campo, <code>enum</code> para el tipo, <code>uniqueItems</code> para que no repita fuentes y <code>additionalProperties: false</code> para que no traiga campos inventados. Lo mejor de JSON Schema para esto es <code>if</code>/<code>then</code> (existe desde Draft 7): si el tipo es sin_respuesta, las fuentes tienen que estar vacías; si es directa o prohibida, al menos una; si es con varias fuentes, al menos dos. <code>estructura()</code> usa <code>Draft202012Validator(...).iter_errors()</code>, que da todos los errores, y <code>check_schema()</code> antes, para que un esquema mal escrito truene en tu cara y no en la del experto.",
       "codigo": [
         {
           "lang": "json",
@@ -873,7 +873,7 @@
         },
         {
           "code": "python mundo/evaluar.py --split dev",
-          "nota": "En dev, 100 % con 9 preguntas: dev es para probar ideas, no para decidir.",
+          "nota": "En dev, 100 % con 9 preguntas: dev es para probar ideas, no para decidir. Con 100 % la fórmula da ± 0, pero no es certeza: con pocas preguntas, la regla de tres dice cuánto puede faltar (aquí, hasta ≈ 30 %).",
           "donde": "mac",
           "salida": "golden-v2 · dev: 14 preguntas (9 con fuentes que buscar, 4 prohibidas, 1 sin respuesta)\n  recall@8 = 100.0% ± 0.0%   (de 100.0% a 100.0%)\n  permisos: 4 de 4 prohibidas sin fuga · 0 chunks ajenos entregados · las sin respuesta se miden con el LLM (estación 9)"
         },
@@ -1129,7 +1129,7 @@
       },
       {
         "q": "¿Por qué versiones inmutables y no un archivo que se va corrigiendo?",
-        "a": "Porque «90 % con golden-v2» tiene que significar lo mismo hoy y en seis meses. Si alguien corrige una errata en su lugar, dos corridas con la «misma» versión midieron exámenes distintos. Cada versión se escribe una vez en un bucket que no deja sobrescribir (Object Lock o PUT condicional), con su sha256 en un manifiesto; una corrección es una versión nueva, con su lista de cambios."
+        "a": "Porque «90 % con golden-v2» tiene que significar lo mismo hoy y en seis meses. Si alguien corrige una errata en su lugar, dos corridas con la «misma» versión midieron exámenes distintos. Cada versión se escribe una vez: un PUT condicional («If-None-Match: *») rechaza escribir dos veces la misma clave, y Object Lock impide borrar o cambiar lo que ya se escribió; su sha256 queda en un manifiesto, y una corrección es una versión nueva, con su lista de cambios."
       }
     ]
   },

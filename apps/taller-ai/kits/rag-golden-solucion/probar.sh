@@ -37,7 +37,7 @@ for d in (0.10, 0.05, 0.03):
     print(f'ver {d:.0%} de diferencia entre dos sistemas (cada uno con su examen): ≈ {hacen_falta(p, d):,.0f} preguntas')"
 paso "pc fugas" python -c "
 for n in (6, 10, 60, 90):
-    print(f'0 fugas en {n:>2} prohibidas: la tasa real puede ser hasta ≈ {3 / n:.1%} (regla de tres, 95 %)')"
+    print(f'0 fugas en {n:>2} prohibidas: la tasa real puede ser hasta ≈ {3 / n:.1%} (regla de tres, 95 %) · exacta {1 - 0.05 ** (1 / n):.1%}')"
 paso "pc pares" python -c "
 for nombre, n in (('candidatas del dojo', 79), ('golden de C11', 600), ('un mes de preguntas de C11', 25_000 * 30)):
     print(f'{nombre:<27} {n:>9,} → {n * (n - 1) // 2:>18,} pares')"
