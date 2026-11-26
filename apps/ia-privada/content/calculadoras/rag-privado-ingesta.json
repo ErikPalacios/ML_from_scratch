@@ -1,0 +1,239 @@
+{
+  "titulo": "La ingesta: horas de embeddings contra noches de parsing",
+  "intro": "Aplica \\(t = η_c × F ÷ (2 × P_a)\\), \\(h_e = T_e ÷ (t × G × 3,600)\\) y \\(h_p = P ÷ (v × 3,600)\\), con noches de \\(H\\) horas. Arranca con Qwen3-Embedding-0.6B en una L40S y Tesseract para leer las 1.5 M de páginas del despacho.",
+  "preajustes": [
+    {
+      "label": "Modelo de embeddings (parámetros que calculan)",
+      "inicial": 0,
+      "opciones": [
+        {
+          "label": "Qwen3-Embedding-0.6B",
+          "valores": {
+            "Pa": 440.5
+          },
+          "nota": "596 M en total, menos la tabla de embeddings del vocabulario."
+        },
+        {
+          "label": "Qwen3-Embedding-4B",
+          "valores": {
+            "Pa": 3633.5
+          }
+        },
+        {
+          "label": "Qwen3-Embedding-8B",
+          "valores": {
+            "Pa": 6946.1
+          }
+        },
+        {
+          "label": "bge-m3",
+          "valores": {
+            "Pa": 311.8
+          }
+        },
+        {
+          "label": "granite-embedding-311m-multilingual-r2",
+          "valores": {
+            "Pa": 110.3
+          }
+        },
+        {
+          "label": "EmbeddingGemma 2 (texto)",
+          "valores": {
+            "Pa": 130
+          }
+        }
+      ]
+    },
+    {
+      "label": "GPU (datos de gpus.json)",
+      "datos": "gpus",
+      "inicial": "l40s",
+      "campos": {
+        "F": "fp16_tflops_denso"
+      }
+    },
+    {
+      "label": "Herramienta de parsing (páginas por segundo)",
+      "inicial": 0,
+      "opciones": [
+        {
+          "label": "Tesseract 5 · 2.9 pág/s",
+          "valores": {
+            "v": 2.9
+          },
+          "nota": "Medición de Datalab (el proveedor de Marker) en un servidor que no describe."
+        },
+        {
+          "label": "Docling · 2.1 pág/s",
+          "valores": {
+            "v": 2.1
+          },
+          "nota": "Misma medición de Datalab."
+        },
+        {
+          "label": "Marker sin OCR · 57 pág/s",
+          "valores": {
+            "v": 57
+          },
+          "nota": "Benchmark del propio proveedor; solo PDFs con texto. Revisa la licencia de los pesos."
+        },
+        {
+          "label": "Marker rápido · 23.6 pág/s",
+          "valores": {
+            "v": 23.6
+          },
+          "nota": "Benchmark del propio proveedor."
+        }
+      ]
+    }
+  ],
+  "entradas": [
+    {
+      "id": "Te",
+      "label": "Tokens a embeber, \\(T_e\\), en millones (el despacho: 1,342)",
+      "min": 1,
+      "max": 100000,
+      "paso": 1,
+      "valor": 1342,
+      "tipo": "numero"
+    },
+    {
+      "id": "Pa",
+      "label": "Parámetros que calculan, \\(P_a\\), en millones",
+      "min": 10,
+      "max": 30000,
+      "paso": 0.1,
+      "valor": 440.5,
+      "tipo": "numero"
+    },
+    {
+      "id": "F",
+      "label": "Cómputo pico en FP16 denso, \\(F\\), en TFLOPS (0 si gpus.json no lo publica)",
+      "min": 0,
+      "max": 5000,
+      "paso": 0.01,
+      "valor": 362.05,
+      "tipo": "numero"
+    },
+    {
+      "id": "eta",
+      "label": "Eficiencia, \\(η_c\\) (el despacho: 0.5; la medición de IBM da ≈ 0.21)",
+      "min": 0.05,
+      "max": 0.9,
+      "paso": 0.01,
+      "valor": 0.5
+    },
+    {
+      "id": "G",
+      "label": "GPUs para la ingesta, \\(G\\)",
+      "min": 1,
+      "max": 8,
+      "paso": 1,
+      "valor": 1
+    },
+    {
+      "id": "H",
+      "label": "Horas libres por noche, \\(H\\) (de 19:00 a 9:00: 14)",
+      "min": 1,
+      "max": 24,
+      "paso": 1,
+      "valor": 14
+    },
+    {
+      "id": "P",
+      "label": "Páginas a leer, \\(P\\), en millones",
+      "min": 0.001,
+      "max": 100,
+      "paso": 0.001,
+      "valor": 1.5,
+      "tipo": "numero"
+    },
+    {
+      "id": "v",
+      "label": "Páginas por segundo del parsing, \\(v\\)",
+      "min": 0.1,
+      "max": 200,
+      "paso": 0.1,
+      "valor": 2.9,
+      "tipo": "numero"
+    },
+    {
+      "id": "Td",
+      "label": "Tokens nuevos al día, en millones (supuesto: 40 expedientes ≈ 1.61)",
+      "min": 0,
+      "max": 1000,
+      "paso": 0.01,
+      "valor": 1.61,
+      "tipo": "numero"
+    }
+  ],
+  "calculos": [
+    {
+      "id": "t",
+      "formula": "eta * max(F, 0.01) * 1e12 / (2 * Pa * 1e6)"
+    },
+    {
+      "id": "he",
+      "formula": "Te * 1e6 / (t * G * 3600)"
+    },
+    {
+      "id": "hp",
+      "formula": "P * 1e6 / (v * 3600)"
+    }
+  ],
+  "salidas": [
+    {
+      "label": "Tokens por segundo en una GPU, \\(t\\)",
+      "formula": "t",
+      "formato": "int",
+      "cuenta": "{{eta|corto}} × {{F|corto}} × 10¹² ÷ (2 × {{Pa|corto}} × 10⁶) = **{{t|int}} tokens/s**"
+    },
+    {
+      "label": "Horas de embeddings, \\(h_e\\)",
+      "formula": "he",
+      "formato": "num",
+      "decimales": 1,
+      "barra": false,
+      "cuenta": "{{Te|int}} × 10⁶ ÷ ({{t|int}} × {{G|int}} × 3,600) = **{{he|num|1}} h**"
+    },
+    {
+      "label": "Noches de embeddings",
+      "formula": "he / H",
+      "formato": "num",
+      "decimales": 2,
+      "cuenta": "{{he|num|1}} ÷ {{H|int}} = **{{he / H|num|2}} noches**"
+    },
+    {
+      "label": "Horas de parsing, \\(h_p\\)",
+      "formula": "hp",
+      "formato": "num",
+      "decimales": 1,
+      "cuenta": "{{P|corto}} × 10⁶ ÷ ({{v|corto}} × 3,600) = **{{hp|num|1}} h**"
+    },
+    {
+      "label": "Noches de parsing, \\(n_p\\)",
+      "formula": "hp / H",
+      "formato": "num",
+      "decimales": 1,
+      "cuenta": "{{hp|num|1}} ÷ {{H|int}} = **{{hp / H|num|1}} noches**"
+    },
+    {
+      "label": "¿Qué manda en la ingesta inicial?",
+      "formula": "hp - he",
+      "veredicto": {
+        "si": "Manda el parsing",
+        "no": "Manda el embedding"
+      },
+      "cuenta": "{{hp|num|1}} h de parsing − {{he|num|1}} h de embeddings = {{hp - he|num|1}} h"
+    },
+    {
+      "label": "Lo nuevo de cada día, en segundos de GPU",
+      "formula": "Td * 1e6 / (t * G)",
+      "formato": "num",
+      "decimales": 1,
+      "cuenta": "{{Td|corto}} × 10⁶ ÷ ({{t|int}} × {{G|int}}) = **{{Td * 1e6 / (t * G)|num|1}} s**"
+    }
+  ],
+  "nota": "Prueba: baja \\(η_c\\) a 0.21 y los embeddings pasan de ≈ 1.8 a ≈ 4.3 h; el parsing sigue mandando. Elige Qwen3-Embedding-8B y sube a 3 GPUs: ≈ 9.5 h, todavía una noche. Elige Marker sin OCR: el parsing baja a ≈ 7 h, pero solo sirve para PDFs con texto y sus pesos no son de licencia libre para un despacho."
+}

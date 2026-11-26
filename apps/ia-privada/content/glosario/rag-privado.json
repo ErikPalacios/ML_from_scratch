@@ -1,0 +1,189 @@
+{
+  "terminos": [
+    {
+      "id": "rag",
+      "termino": "RAG",
+      "en": "retrieval-augmented generation",
+      "corto": "Contestar con documentos: primero se buscan los fragmentos que hablan de la pregunta y después se le pide al LLM que conteste solo con ellos y diga de dónde los sacó.",
+      "largo": "Un RAG junta dos sistemas: uno de búsqueda (la [[ingesta]] de noche, los [[chunk|chunks]], el [[modelo-de-embeddings|modelo de embeddings]], la [[vector-db|base de vectores]], la [[busqueda-hibrida|búsqueda híbrida]] y el [[reranker]]) y un LLM que redacta. El modelo no aprende los documentos: los lee en cada pregunta, dentro de su contexto. Por eso la calidad depende primero de la búsqueda: si la página correcta no llega al prompt, el modelo no la puede citar. En un RAG privado todas las piezas corren dentro de la red.",
+      "analogia": "Un abogado que, antes de contestar, pide al archivo las 5 fichas que tocan el tema y redacta con ellas en la mano. Dónde se rompe: el abogado nota cuando una ficha no tiene sentido; el LLM usa lo que le den.",
+      "ejemplo": "En el despacho, cada pregunta busca entre ≈ 1.34 M de chunks de 30,000 expedientes y le da a Qwen3 32B los 5 mejores, ≈ 5,000 de sus ≈ 6,000 tokens de entrada.",
+      "ver": ["ingesta", "chunk", "busqueda-hibrida", "cita"],
+      "leccion": "rag-privado",
+      "sensei": "embeddings"
+    },
+    {
+      "id": "ingesta",
+      "termino": "Ingesta",
+      "en": "ingestion",
+      "corto": "Todo lo que pasa antes de buscar: traer los archivos con sus permisos, sacar su texto (con OCR si son escaneos), partirlo en chunks, calcular sus vectores y guardarlos en el índice.",
+      "largo": "Se hace con conectores de solo lectura, uno por fuente (servidor de archivos, gestor documental, correo). El texto limpio se guarda con la huella sha256 de su contenido, para no reprocesar lo que no cambió ni repetir el [[ocr|OCR]] si se cambia el modelo de embeddings. La ingesta inicial corre de noche, cuando las GPUs no atienden preguntas; después solo se procesa lo nuevo. Su cuello de botella suele ser el parsing de PDFs, no el cálculo de embeddings.",
+      "ejemplo": "En el despacho, embeber los ≈ 1,342 M de tokens toma de 2 a 4 horas en una L40S, pero leer 1.5 M de páginas toma de media noche a ≈ 14 noches según la herramienta.",
+      "ver": ["ocr", "chunk", "acl-por-chunk", "reindexar"],
+      "leccion": "rag-privado"
+    },
+    {
+      "id": "ocr",
+      "termino": "OCR",
+      "en": "optical character recognition",
+      "corto": "Reconocer las letras de una imagen: convertir la foto de una página escaneada en texto que se puede buscar.",
+      "largo": "Un PDF hecho en un procesador de texto ya trae su texto; uno escaneado es una imagen por página y necesita OCR. Es la parte más lenta y más frágil de la [[ingesta]]: sellos, firmas, tablas, columnas y escaneos chuecos generan errores que después nadie ve. Herramientas abiertas a noviembre de 2026: Tesseract (Apache 2.0), OCRmyPDF (MPL 2.0, agrega la capa de texto al PDF conservando las páginas), PaddleOCR y los motores dentro de Docling. Cada página conserva su número para poder citarla.",
+      "ejemplo": "Si el 20 % de las 1.5 M de páginas del despacho fueran escaneos (supuesto), serían 300,000 páginas de OCR: ≈ 29 horas con Tesseract a 2.9 páginas por segundo.",
+      "ver": ["ingesta"],
+      "leccion": "rag-privado"
+    },
+    {
+      "id": "chunk",
+      "termino": "Chunk (fragmento)",
+      "en": "chunk",
+      "corto": "Un pedazo de documento con su propio vector: la unidad que se busca, se reordena y se le da al LLM.",
+      "largo": "Su tamaño lo fijan el prompt (cuántos fragmentos caben), el límite de tokens del [[modelo-de-embeddings|modelo de embeddings]] (lo que pasa de ahí se corta sin aviso) y la estructura del documento. Se parte por secciones, con la ruta de títulos en la primera línea y traslape solo cuando el corte cae a media sección. Los tokens se cuentan con el tokenizador del modelo de embeddings. Viaja con metadatos: expediente, cliente, páginas, [[acl-por-chunk|ACL]], huella del texto y versión del modelo.",
+      "analogia": "Una ficha de archivo: un pedazo con sentido propio y con su referencia escrita arriba. Dónde se rompe: una ficha mal cortada se nota al leerla; un chunk mal cortado solo se nota cuando la respuesta falla.",
+      "ejemplo": "Con chunks de 1,000 tokens y traslape de 100, el despacho tiene ≈ 1.34 M de chunks; 44 de cada 45 cruzan de una página a otra, por eso llevan marcas de página dentro.",
+      "ver": ["ingesta", "cita", "top-k"],
+      "leccion": "rag-privado"
+    },
+    {
+      "id": "acl-por-chunk",
+      "termino": "ACL por chunk",
+      "en": "per-chunk ACL",
+      "corto": "La lista de quién puede ver un documento (su ACL, access control list), copiada en cada uno de sus chunks para que la búsqueda la respete.",
+      "largo": "Se guarda en grupos («equipo-cliente-a»), no en nombres de personas: los grupos de cada persona se resuelven al preguntar, con su identidad del SSO, y quitar a alguien de un grupo no toca el índice. Un documento sin ACL o con ACL rota no se indexa (*fail-closed*). El filtro va dentro de la búsqueda ([[prefiltro]]) y se revisa otra vez antes de armar el prompt; nunca se le encarga al prompt.",
+      "ejemplo": "En Qdrant: `must` con `match any` sobre el campo `acl` (los grupos de la abogada) y `must_not` sobre `cliente_id` (el cliente en conflicto).",
+      "ver": ["prefiltro", "muralla-etica", "chunk"],
+      "leccion": "rag-privado",
+      "sensei": "identidad"
+    },
+    {
+      "id": "muralla-etica",
+      "termino": "Muralla ética",
+      "en": "ethical wall",
+      "corto": "La separación entre equipos de un despacho que impide que quien trabaja un asunto vea los expedientes de un cliente con el que hay conflicto de interés.",
+      "largo": "En un RAG se vuelve dos cosas: una lista de permitidos (los grupos del expediente) y una lista de excluidos (los clientes en conflicto), aplicadas a cada [[chunk]] durante la búsqueda. Es la falla más grave que puede tener el sistema: si la búsqueda la ignora, el fragmento prohibido llega con cita y número de página. Se prueba con preguntas hechas como cada tipo de persona, incluidas preguntas cuya respuesta solo está en un expediente que esa persona no puede ver.",
+      "analogia": "Dos salas de un mismo despacho con la puerta cerrada entre ellas. Dónde se rompe: en una oficina la puerta se ve; en un índice, un filtro mal puesto no se ve hasta que alguien recibe lo que no debía.",
+      "ejemplo": "Una asociada del equipo del cliente A pregunta por penalizaciones; los contratos de la contraparte B, que el despacho atiende en otro asunto, nunca entran a sus candidatos.",
+      "ver": ["acl-por-chunk", "prefiltro"],
+      "leccion": "rag-privado"
+    },
+    {
+      "id": "prefiltro",
+      "termino": "Prefiltro",
+      "en": "pre-filtering",
+      "corto": "Aplicar el filtro (por ejemplo, los permisos) mientras el índice busca, para que solo considere los vectores permitidos; lo contrario, filtrar después, pierde resultados.",
+      "largo": "Con post-filtro el índice trae sus mejores e candidatos de entre todos y después se tiran los prohibidos: quedan, en promedio, e × p (p = la fracción que la persona puede ver). Con prefiltro, el motor recorre el [[indice-hnsw|grafo]] solo por lo permitido. Qdrant, Weaviate, Milvus, OpenSearch y Elasticsearch filtran durante la búsqueda; pgvector post-filtra por omisión y desde la 0.8.0 tiene un escaneo iterativo que sigue buscando hasta juntar k.",
+      "ejemplo": "Con 40 candidatos y una persona que ve el 3 % de los chunks, el post-filtro deja ≈ 1.2; el prefiltro, los 5 que pide el prompt.",
+      "ver": ["acl-por-chunk", "vector-db"],
+      "leccion": "rag-privado",
+      "sensei": "embeddings"
+    },
+    {
+      "id": "modelo-de-embeddings",
+      "termino": "Modelo de embeddings",
+      "en": "embedding model",
+      "corto": "Un modelo que no escribe: lee un texto y devuelve un vector que queda cerca de los vectores de textos con significado parecido.",
+      "largo": "Es mucho más chico que el LLM (de cientos de millones a unos miles de millones de parámetros) y fija el tokenizador, el límite de tokens, las dimensiones y el índice: cambiarlo obliga a [[reindexar]]. Algunos piden una instrucción en la pregunta (Qwen3-Embedding: `Instruct: … Query: …`) y nada en los documentos. Se elige por licencia, contexto y recall@k con preguntas propias; el leaderboard solo sirve para hacer la lista corta. En un RAG privado se sirve dentro, por ejemplo con vLLM en modo pooling.",
+      "ejemplo": "El despacho propone Qwen3-Embedding-0.6B: Apache 2.0, 1,024 dimensiones, 32 K de contexto y 1.19 GB en bf16; se compara con el 4B en el piloto.",
+      "ver": ["vector-db", "reindexar", "rag"],
+      "leccion": "rag-privado",
+      "sensei": "embeddings"
+    },
+    {
+      "id": "vector-db",
+      "termino": "Base de vectores",
+      "en": "vector database",
+      "corto": "Una base de datos que guarda vectores con su texto y sus metadatos, y encuentra en milisegundos los más parecidos a un vector dado, respetando filtros.",
+      "largo": "Por dentro usa un índice aproximado, casi siempre un [[indice-hnsw|HNSW]]. Para un RAG privado importan cinco cosas: que filtre por permisos durante la búsqueda ([[prefiltro]]), que tenga [[bm25|BM25]] para la parte por palabras, su licencia, su memoria y que el equipo la pueda operar. Ejemplos a noviembre de 2026: Qdrant, pgvector (una extensión de PostgreSQL), Milvus, Weaviate, OpenSearch, Elasticsearch, Chroma y LanceDB.",
+      "ejemplo": "El despacho propone Qdrant 1.20.2 en el mismo servidor, con llave de API y TLS; la alternativa es pgvector 0.8.7 con escaneo iterativo.",
+      "ver": ["indice-hnsw", "prefiltro", "busqueda-hibrida"],
+      "leccion": "rag-privado",
+      "sensei": "bases-de-datos"
+    },
+    {
+      "id": "indice-hnsw",
+      "termino": "Índice HNSW",
+      "en": "HNSW index",
+      "corto": "Un grafo con atajos entre vectores parecidos que permite encontrar los más cercanos sin compararlos todos; es el índice que usan casi todas las bases de vectores.",
+      "largo": "Cada vector se conecta con unos m vecinos (16 por omisión) en varias capas; la búsqueda salta de vecino en vecino hacia la pregunta. Su memoria es la de los vectores más la del grafo; Qdrant la calcula como N × d × bytes + N × m × 2 × 4 × 1.2. El grafo pesa ≈ 4 % de un vector float32 de 1,024 dimensiones, y deja de ser despreciable al cuantizar. Sensei lo explica por dentro.",
+      "ejemplo": "El índice del despacho: 1.34 M × 1,024 × 4 ≈ 5.50 GB de vectores + ≈ 0.21 GB de grafo ≈ 5.70 GB, que cabe 67 veces en los 384 GB del servidor.",
+      "ver": ["vector-db"],
+      "leccion": "rag-privado",
+      "sensei": "embeddings"
+    },
+    {
+      "id": "busqueda-hibrida",
+      "termino": "Búsqueda híbrida",
+      "en": "hybrid search",
+      "corto": "Buscar por palabras (BM25) y por significado (vectores) al mismo tiempo, y juntar las dos listas.",
+      "largo": "Cada búsqueda tapa los huecos de la otra: [[bm25|BM25]] encuentra números de cláusula, nombres y siglas exactos; los vectores, sinónimos y paráfrasis. Las listas se juntan por posiciones con [[rrf|RRF]] o normalizando puntajes. En contratos no es opcional. Las dos búsquedas llevan el mismo filtro de permisos.",
+      "ejemplo": "«Cláusula 14.3» la encuentra BM25; «penalización por retraso» cuando el contrato dice «pena convencional por mora», el vector.",
+      "ver": ["bm25", "rrf", "reranker"],
+      "leccion": "rag-privado",
+      "sensei": "embeddings"
+    },
+    {
+      "id": "bm25",
+      "termino": "BM25",
+      "en": "BM25",
+      "corto": "La fórmula clásica de búsqueda por palabras: premia los documentos que tienen las palabras de la pregunta, sobre todo las raras.",
+      "largo": "Usa un índice invertido (qué documentos tienen cada palabra) y pesa cada palabra por lo rara que es en la colección. Es nativa en OpenSearch y Elasticsearch, está en Qdrant desde la 1.20.0, en Milvus y en Weaviate; pgvector no la tiene (el texto completo de PostgreSQL ordena con otra fórmula). Sensei la explica por dentro.",
+      "ejemplo": "Un RFC o un número de expediente en la pregunta casi siempre pone primero, por BM25, al chunk que lo contiene.",
+      "ver": ["busqueda-hibrida", "rrf"],
+      "leccion": "rag-privado",
+      "sensei": "embeddings"
+    },
+    {
+      "id": "rrf",
+      "termino": "RRF",
+      "en": "Reciprocal Rank Fusion",
+      "corto": "Una forma de juntar varias listas ordenadas mirando solo las posiciones: cada lista le da a cada resultado 1 ÷ (k + su posición), y se suman.",
+      "largo": "Sirve porque los puntajes de BM25 y del coseno no se pueden comparar. La constante k decide cuánto pesa estar arriba: con k = 60 (el valor del artículo original, de Elasticsearch y OpenSearch, y el que enseña Sensei) casi todas las posiciones valen igual y gana el acuerdo entre listas; con k = 2 (el valor por omisión de Qdrant) el primer lugar de una lista pesa mucho más. Se ajusta con preguntas propias.",
+      "ejemplo": "El 1.º de BM25 que no aparece en vectores contra uno que es 5.º en las dos: con k = 60 gana el segundo (0.0308 contra 0.0164); con k = 2, el primero (0.333 contra 0.286).",
+      "ver": ["busqueda-hibrida", "bm25"],
+      "leccion": "rag-privado",
+      "sensei": "embeddings"
+    },
+    {
+      "id": "reranker",
+      "termino": "Reranker",
+      "en": "reranker",
+      "corto": "Un modelo que lee la pregunta junto con cada candidato y les pone una calificación nueva, para ordenar mejor los primeros resultados de la búsqueda.",
+      "largo": "Es un *cross-encoder*: más preciso que comparar vectores, porque lee las dos cosas a la vez, y más caro, porque cada candidato es otra lectura completa. Su tiempo es ≈ 2 × parámetros × candidatos × tokens ÷ (η_c × FLOPs de la GPU). Por eso solo reordena decenas de candidatos. En un RAG privado corre dentro, en la misma GPU o en otra; nada de rerankers por API.",
+      "ejemplo": "Qwen3-Reranker-0.6B con 20 candidatos de 1,000 tokens en una L40S: ≈ 97–232 ms, más que los ≈ 150 ms de búsqueda del presupuesto; se paga solo si permite dar 3 fragmentos en vez de 5 (≈ 0.72 s menos de prefill).",
+      "ver": ["busqueda-hibrida", "top-k"],
+      "leccion": "rag-privado",
+      "sensei": "embeddings"
+    },
+    {
+      "id": "top-k",
+      "termino": "Top-k",
+      "en": "top-k",
+      "corto": "Los k primeros resultados de una búsqueda: cuántos candidatos se traen o cuántos fragmentos se le dan al LLM.",
+      "largo": "Hay varios k en un RAG: cuántos trae cada búsqueda, cuántos reordena el [[reranker]] y cuántos llegan al prompt. Más fragmentos dan más probabilidad de que llegue la página correcta, pero más tokens de prefill y más ruido para el modelo. El recall@k (en cuántas preguntas la página correcta llegó entre los k) se mide con el examen.",
+      "ejemplo": "El despacho reordena 20 candidatos y le da al LLM 5 (o 3, si el examen lo permite).",
+      "ver": ["reranker", "chunk"],
+      "leccion": "rag-privado",
+      "sensei": "embeddings"
+    },
+    {
+      "id": "cita",
+      "termino": "Cita",
+      "en": "citation",
+      "corto": "La referencia que acompaña a cada afirmación de la respuesta: qué documento y qué página la dicen.",
+      "largo": "En un RAG la cita no se le pide a la memoria del modelo: el expediente y la página viajan en el [[chunk]] (como metadatos y como marcas de página dentro del texto) y el modelo solo copia la marca que precede a la frase que usa. Después, la aplicación revisa con código que la cita existe y que esa página contiene el texto. Una cita inventada es peor que no citar.",
+      "ejemplo": "«30 días naturales (exp. 4127, p. 12)»: la marca `[p. 12]` venía en el chunk; el criterio del despacho tolera a lo más 4 citas inventadas en 200 preguntas.",
+      "ver": ["chunk", "rag"],
+      "leccion": "rag-privado"
+    },
+    {
+      "id": "reindexar",
+      "termino": "Reindexar",
+      "en": "reindexing",
+      "corto": "Volver a calcular los vectores de todos los chunks y reconstruir el índice; es obligatorio al cambiar el modelo de embeddings, su versión, su instrucción o sus dimensiones.",
+      "largo": "Los vectores de dos modelos viven en espacios distintos y no se mezclan. Si el texto limpio se guardó por su huella, no se repite el parsing ni el OCR; si el tokenizador y el límite no cambian, tampoco los chunks. Se hace al lado (una colección nueva), se corre el examen y solo entonces se cambia el nombre al que apunta la búsqueda: el cambio azul-verde. Cada chunk guarda con qué modelo se calculó su vector.",
+      "ejemplo": "Pasar del Qwen3-Embedding-0.6B al 4B en el despacho: de 15 a 36 horas de una L40S, sin repetir el OCR, con ≈ 11 GB de RAM mientras conviven los dos índices de 1,024 dimensiones (o ≈ 20 GB con el de 2,560).",
+      "ver": ["modelo-de-embeddings", "ingesta"],
+      "leccion": "rag-privado",
+      "sensei": "embeddings"
+    }
+  ]
+}

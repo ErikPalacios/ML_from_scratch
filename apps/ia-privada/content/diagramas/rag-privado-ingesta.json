@@ -1,0 +1,272 @@
+{
+  "titulo": "La ingesta de noche: de los archivos del despacho al índice, máquina por máquina",
+  "width": 78,
+  "height": 66,
+  "lanes": [
+    {
+      "id": "fuentes",
+      "label": "Fuentes · dentro de la red del despacho",
+      "kind": "neutral",
+      "x": 0,
+      "y": 0,
+      "w": 78,
+      "h": 16
+    },
+    {
+      "id": "cpu",
+      "label": "CPU del servidor · de noche",
+      "kind": "offline",
+      "x": 0,
+      "y": 18,
+      "w": 78,
+      "h": 28
+    },
+    {
+      "id": "gpu",
+      "label": "GPU y base de vectores · el mismo servidor",
+      "kind": "offline",
+      "x": 0,
+      "y": 48,
+      "w": 78,
+      "h": 18
+    }
+  ],
+  "nodes": [
+    {
+      "id": "archivos",
+      "label": "Servidor de archivos",
+      "sub": "carpetas por expediente",
+      "badge": "1",
+      "kind": "store",
+      "x": 2,
+      "y": 4,
+      "w": 20,
+      "h": 9,
+      "note": "Donde hoy viven los expedientes, con sus permisos de Windows. Nadie lo mueve ni lo copia fuera: la ingesta lo **lee** desde adentro."
+    },
+    {
+      "id": "dms",
+      "label": "Gestor documental",
+      "sub": "DMS y correo",
+      "kind": "store",
+      "x": 29,
+      "y": 4,
+      "w": 20,
+      "h": 9,
+      "note": "Otras fuentes, si las hay. Cada una con su propio conector y sus propios permisos; una fuente sin permisos legibles no entra."
+    },
+    {
+      "id": "conector",
+      "label": "Conectores",
+      "sub": "solo lectura",
+      "badge": "2",
+      "kind": "job",
+      "x": 2,
+      "y": 22,
+      "w": 20,
+      "h": 9,
+      "note": "Uno por fuente, con una **cuenta de servicio de solo lectura**. Traen el archivo **y su ACL**. Lo que se borró en la fuente se marca como borrado, con un freno: si una noche desaparece de golpe una fracción grande, se detiene y avisa."
+    },
+    {
+      "id": "parsing",
+      "label": "Parsing y OCR",
+      "sub": "la parte lenta",
+      "badge": "3",
+      "kind": "job",
+      "x": 29,
+      "y": 22,
+      "w": 20,
+      "h": 9,
+      "note": "Saca el texto con su estructura y sus páginas; [[ocr|OCR]] solo en los escaneos. Corre en la CPU y es el **cuello de botella** de la ingesta inicial: de media noche a ≈ 14 noches para 1.5 M de páginas, según la herramienta."
+    },
+    {
+      "id": "texto",
+      "label": "Texto limpio",
+      "sub": "guardado por su sha256",
+      "kind": "store",
+      "x": 56,
+      "y": 22,
+      "w": 20,
+      "h": 9,
+      "note": "El texto de cada documento, con su huella. Si el documento no cambió, mañana no se vuelve a leer; si cambia el modelo de embeddings, no se repite el OCR."
+    },
+    {
+      "id": "chunker",
+      "label": "Chunker",
+      "sub": "1,000 tokens + metadatos",
+      "badge": "4",
+      "kind": "job",
+      "x": 56,
+      "y": 35,
+      "w": 20,
+      "h": 9,
+      "note": "Parte por estructura en [[chunk|chunks]] de ≈ 1,000 tokens (contados con el tokenizador del modelo de embeddings), con ruta de títulos, marcas de página y la [[acl-por-chunk|ACL]] del documento en grupos. Sin ACL, el documento no se indexa."
+    },
+    {
+      "id": "emb",
+      "label": "vllm-emb",
+      "sub": "Qwen3-Embedding-0.6B",
+      "badge": "5",
+      "kind": "gpu",
+      "x": 29,
+      "y": 52,
+      "w": 20,
+      "h": 9,
+      "note": "El [[modelo-de-embeddings|modelo de embeddings]] en una L40S libre de noche. ≈ 205 mil tokens por segundo en la cuenta con η_c = 0.5 (≈ 86 mil con 0.21): los ≈ 1,342 M de tokens en 2 a 4 horas."
+    },
+    {
+      "id": "qdrant",
+      "label": "Qdrant",
+      "sub": "índice ≈ 5.7 GB",
+      "badge": "6",
+      "kind": "store",
+      "x": 56,
+      "y": 52,
+      "w": 20,
+      "h": 9,
+      "note": "La [[vector-db|base de vectores]] en el mismo servidor: vectores, texto, metadatos y el índice de BM25. Con llave de API y TLS. Snapshot diario a otro disco."
+    }
+  ],
+  "edges": [
+    {
+      "from": "archivos",
+      "to": "conector",
+      "kind": "offline",
+      "label": "archivo + ACL",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "dms",
+      "to": "conector",
+      "kind": "offline",
+      "fromSide": "b",
+      "toSide": "t",
+      "via": [
+        [
+          39,
+          17
+        ],
+        [
+          12,
+          17
+        ]
+      ]
+    },
+    {
+      "from": "conector",
+      "to": "parsing",
+      "kind": "offline",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "parsing",
+      "to": "texto",
+      "kind": "offline",
+      "label": "texto",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "texto",
+      "to": "chunker",
+      "kind": "offline",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "chunker",
+      "to": "emb",
+      "kind": "offline",
+      "label": "chunks",
+      "fromSide": "l",
+      "toSide": "t",
+      "via": [
+        [
+          39,
+          39.5
+        ]
+      ]
+    },
+    {
+      "from": "emb",
+      "to": "qdrant",
+      "kind": "offline",
+      "label": "vectores",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "chunker",
+      "to": "qdrant",
+      "kind": "async",
+      "fromSide": "b",
+      "toSide": "t"
+    }
+  ],
+  "flows": [
+    {
+      "id": "noche",
+      "label": "Un expediente nuevo, una noche",
+      "steps": [
+        {
+          "nodes": [
+            "archivos",
+            "conector"
+          ],
+          "edges": [
+            "archivos>conector"
+          ],
+          "text": "**1 · Leer.** A las 19:00 arranca la [[ingesta]]. El conector encuentra el expediente 4127, nuevo hoy, y lo trae con su ACL: «equipo-cliente-a, socios». Lo lee con una cuenta que no puede borrar ni cambiar nada."
+        },
+        {
+          "nodes": [
+            "parsing"
+          ],
+          "edges": [
+            "conector>parsing"
+          ],
+          "text": "**2 · Sacar el texto.** Son 50 páginas: 42 vienen de Word y ya traen su texto; 8 son un anexo escaneado y pasan por [[ocr|OCR]]. Las tablas salen fila por fila con su encabezado, y cada línea recuerda su página."
+        },
+        {
+          "nodes": [
+            "texto"
+          ],
+          "edges": [
+            "parsing>texto"
+          ],
+          "text": "**3 · Guardar por su huella.** El texto limpio se guarda con su sha256. Si mañana el conector vuelve a ver el mismo archivo, su huella no cambió y no se vuelve a leer."
+        },
+        {
+          "nodes": [
+            "chunker"
+          ],
+          "edges": [
+            "texto>chunker"
+          ],
+          "text": "**4 · Partir.** El chunker lo parte por cláusulas en 45 [[chunk|chunks]] de hasta 1,000 tokens, con la ruta de títulos arriba, las marcas `[p. 12]` adentro y la ACL del documento copiada en cada uno."
+        },
+        {
+          "nodes": [
+            "emb"
+          ],
+          "edges": [
+            "chunker>emb"
+          ],
+          "text": "**5 · Vectores.** Los 45 chunks van a `vllm-emb` en una L40S que de noche no atiende a nadie: ≈ 45,000 tokens, una fracción de segundo."
+        },
+        {
+          "nodes": [
+            "qdrant"
+          ],
+          "edges": [
+            "emb>qdrant",
+            "chunker>qdrant"
+          ],
+          "text": "**6 · Guardar.** Qdrant recibe cada vector con su texto y sus metadatos (un *upsert*: si el chunk ya existía, se reemplaza). Mañana a las 9:00, la asociada del equipo A ya puede encontrarlo; nadie más."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "titulo": "El índice del despacho: chunks, memoria y RAM",
+  "intro": "Aplica \\(N = T ÷ (c − s)\\) con \\(T\\) = páginas × tokens por página, y la fórmula de memoria de Qdrant \\(M = N × d × b + N × m × 2 × 4 × 1.2\\). Arranca con el caso pesado del despacho y Qwen3-Embedding-0.6B en float32.",
+  "preajustes": [
+    {
+      "label": "Caso",
+      "inicial": 0,
+      "opciones": [
+        { "label": "El despacho, caso pesado", "valores": { "Pg": 1.5, "tp": 805, "c": 1000, "s": 100 }, "nota": "30,000 expedientes × 50 páginas; 805 tokens por página (≈ 500 palabras × 1.61 tokens por palabra, sin medir con el tokenizador real)." },
+        { "label": "El despacho, caso ligero", "valores": { "Pg": 1.5, "tp": 665, "c": 1000, "s": 100 }, "nota": "Con 1.33 tokens por palabra." },
+        { "label": "El despacho con chunks de 400", "valores": { "Pg": 1.5, "tp": 805, "c": 400, "s": 60 }, "nota": "Chunks más chicos: más vectores y un reranker más barato, pero otro diseño de prompt." },
+        { "label": "Una clínica (supuesto)", "valores": { "Pg": 2.4, "tp": 600, "c": 400, "s": 60 }, "nota": "40,000 pacientes × 60 páginas de ≈ 600 tokens." },
+        { "label": "Una fábrica (supuesto)", "valores": { "Pg": 0.6, "tp": 900, "c": 400, "s": 60 }, "nota": "3,000 manuales × 200 páginas de ≈ 900 tokens." }
+      ]
+    },
+    {
+      "label": "Modelo de embeddings",
+      "inicial": 0,
+      "opciones": [
+        { "label": "Qwen3-Embedding-0.6B · 1,024", "valores": { "d": 1024 } },
+        { "label": "Qwen3-Embedding-0.6B recortado a 256", "valores": { "d": 256 }, "nota": "Matryoshka: se recorta y se vuelve a normalizar; hay que medir cuánto recall se pierde." },
+        { "label": "Qwen3-Embedding-4B · 2,560", "valores": { "d": 2560 } },
+        { "label": "Qwen3-Embedding-8B · 4,096", "valores": { "d": 4096 } },
+        { "label": "granite-311m o EmbeddingGemma 2 · 768", "valores": { "d": 768 } }
+      ]
+    }
+  ],
+  "entradas": [
+    { "id": "Pg", "label": "Páginas, en millones", "min": 0.01, "max": 100, "paso": 0.01, "valor": 1.5, "tipo": "numero" },
+    { "id": "tp", "label": "Tokens por página", "min": 100, "max": 2000, "paso": 5, "valor": 805, "tipo": "numero" },
+    { "id": "c", "label": "Tamaño del chunk, \\(c\\), en tokens", "min": 100, "max": 4000, "paso": 50, "valor": 1000 },
+    { "id": "s", "label": "Traslape, \\(s\\), en tokens", "min": 0, "max": 400, "paso": 10, "valor": 100 },
+    { "id": "d", "label": "Dimensiones del vector, \\(d\\)", "min": 64, "max": 8192, "paso": 1, "valor": 1024, "tipo": "numero" },
+    { "id": "b", "label": "Bytes por número, \\(b\\)", "tipo": "opcion", "valor": 4, "opciones": [ { "valor": 4, "label": "float32 · 4" }, { "valor": 2, "label": "float16 · 2" }, { "valor": 1, "label": "int8 · 1" }, { "valor": 0.125, "label": "binario · 1/8" } ] },
+    { "id": "m", "label": "Conexiones del HNSW, \\(m\\) (16 por omisión)", "min": 4, "max": 64, "paso": 1, "valor": 16 },
+    { "id": "R", "label": "RAM del servidor, en GB (Exxact TensorEX 4U: 384)", "min": 8, "max": 4096, "paso": 8, "valor": 384, "tipo": "numero" }
+  ],
+  "calculos": [
+    { "id": "T", "formula": "Pg * 1e6 * tp" },
+    { "id": "N", "formula": "T / max(c - s, 1)" },
+    { "id": "vec", "formula": "N * d * b" },
+    { "id": "gr", "formula": "N * m * 2 * 4 * 1.2" },
+    { "id": "M", "formula": "vec + gr" }
+  ],
+  "salidas": [
+    { "label": "Tokens en total, \\(T\\)", "formula": "T", "formato": "sci", "decimales": 3, "cuenta": "{{Pg|corto}} M páginas × {{tp|int}} tokens = **{{T / 1e6|int}} M de tokens**" },
+    { "label": "Chunks, \\(N\\)", "formula": "N", "formato": "int", "cuenta": "{{T / 1e6|int}} M ÷ ({{c|int}} − {{s|int}}) = **{{N|int}} chunks**" },
+    { "label": "Vectores, \\(N × d × b\\)", "formula": "vec", "formato": "bytes", "barra": true, "cuenta": "{{N|int}} × {{d|int}} × {{b|corto}} B = **{{vec / 1e9|num|2}} GB**" },
+    { "label": "Grafo HNSW", "formula": "gr", "formato": "bytes", "barra": true, "cuenta": "{{N|int}} × {{m|int}} × 2 × 4 B × 1.2 = **{{gr / 1e9|num|2}} GB**" },
+    { "label": "Índice en RAM, \\(M\\)", "formula": "M", "formato": "bytes", "barra": true, "cuenta": "{{vec / 1e9|num|2}} + {{gr / 1e9|num|2}} = **{{M / 1e9|num|2}} GB**" },
+    { "label": "Parte del índice que es grafo", "formula": "gr / M", "formato": "pct", "barra": true, "nota": "crece al cuantizar" },
+    { "label": "Veces que cabe en la RAM", "formula": "R * 1e9 / M", "formato": "x", "decimales": 1, "cuenta": "{{R|int}} GB ÷ {{M / 1e9|num|2}} GB = **{{R * 1e9 / M|num|1}} veces**" },
+    { "label": "¿Cabe dejando la mitad de la RAM libre?", "formula": "R / 2 - M / 1e9", "veredicto": { "si": "Sí, de sobra", "no": "No: cuantiza o reparte" }, "nota": "la otra mitad para el texto, el sistema y lo demás (supuesto)", "cuenta": "{{R|int}} ÷ 2 − {{M / 1e9|num|2}} = {{R / 2 - M / 1e9|num|1}} GB" }
+  ],
+  "nota": "Prueba: con el despacho, cambia a int8 y mira cómo el grafo pasa de ≈ 4 % a ≈ 13 % del índice. Elige Qwen3-Embedding-8B: el índice se cuadruplica y sigue cabiendo de sobra. El texto y los metadatos (≈ 4.5 KB por chunk de 1,000 tokens, supuesto) van aparte, en disco."
+}

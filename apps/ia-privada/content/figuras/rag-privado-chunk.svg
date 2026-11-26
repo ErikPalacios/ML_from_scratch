@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 500" role="img" aria-labelledby="f-rag-privado-chunk-t" class="f-svg" style="max-width:420px">
+<title id="f-rag-privado-chunk-t">Un chunk del despacho por dentro. Arriba, el texto: la primera línea es la ruta de títulos, Contrato de suministro, cláusula 14, 14.3 Penas convencionales; después el texto de la cláusula con una marca de página 12 y, más abajo, una marca de página 13, porque el chunk cruza de página. Abajo, los metadatos que viajan con el chunk: expediente 4127, cliente cl-0215, páginas 12 a 13, ACL con los grupos equipo-cliente-a y socios, la huella sha256 del texto, el modelo Qwen3-Embedding-0.6B con 1,024 dimensiones, y el vector de 1,024 números. El modelo solo lee el texto; los permisos y la página viajan aparte y no los decide el LLM.</title>
+<text class="f-l" x="14" y="24">UN CHUNK DE ≈ 1,000 TOKENS</text>
+<rect class="f-card" x="10" y="36" width="340" height="196" rx="16"/>
+<text class="f-l" x="26" y="60">LO QUE LEE EL MODELO</text>
+<rect class="f-b2" x="24" y="70" width="312" height="40" rx="8"/>
+<text class="f-s" x="34" y="87" style="font-size:12px;font-weight:700">Contrato de suministro › Cláusula 14</text>
+<text class="f-s" x="34" y="102" style="font-size:12px;font-weight:700">› 14.3 Penas convencionales</text>
+<rect class="f-y" x="24" y="120" width="52" height="20" rx="6"/>
+<text class="f-s" x="50" y="135" text-anchor="middle" style="font-size:12px;font-weight:700;fill:var(--ink)">[p. 12]</text>
+<text class="f-s" x="84" y="135" style="font-size:12px">Si EL PROVEEDOR no entrega</text>
+<text class="f-s" x="24" y="155" style="font-size:12px">en el plazo pactado, pagará una pena de 2 %</text>
+<text class="f-s" x="24" y="173" style="font-size:12px">mensual sobre el monto pendiente, hasta…</text>
+<rect class="f-y" x="24" y="184" width="52" height="20" rx="6"/>
+<text class="f-s" x="50" y="199" text-anchor="middle" style="font-size:12px;font-weight:700;fill:var(--ink)">[p. 13]</text>
+<text class="f-s" x="84" y="199" style="font-size:12px">…plazo de 30 días naturales.</text>
+<text class="f-s" x="24" y="222" style="font-size:11px">la página va en el texto: el LLM la copia</text>
+<text class="f-l" x="14" y="262">LO QUE VIAJA CON ÉL (METADATOS)</text>
+<rect class="f-card" x="10" y="274" width="340" height="216" rx="16"/>
+<text class="f-s" x="26" y="300" style="font-size:12px;font-weight:700">expediente</text><text class="f-s" x="132" y="300" style="font-size:12px">4127</text>
+<text class="f-s" x="26" y="322" style="font-size:12px;font-weight:700">cliente_id</text><text class="f-s" x="132" y="322" style="font-size:12px">cl-0215</text>
+<text class="f-s" x="26" y="344" style="font-size:12px;font-weight:700">páginas</text><text class="f-s" x="132" y="344" style="font-size:12px">12 – 13</text>
+<rect class="f-o" x="20" y="354" width="320" height="26" rx="6" style="opacity:.9"/>
+<text class="f-s" x="26" y="372" style="font-size:12px;font-weight:700;fill:var(--ink)">acl</text><text class="f-s" x="132" y="372" style="font-size:12px;fill:var(--ink)">equipo-cliente-a, socios</text>
+<text class="f-s" x="26" y="400" style="font-size:12px;font-weight:700">texto_sha256</text><text class="f-s" x="132" y="400" style="font-size:12px">9f2c…e41a</text>
+<text class="f-s" x="26" y="422" style="font-size:12px;font-weight:700">modelo</text><text class="f-s" x="132" y="422" style="font-size:12px">Qwen3-Embedding-0.6B · 1,024</text>
+<rect class="f-dark" x="20" y="434" width="320" height="44" rx="8"/>
+<text class="f-dark-l" x="30" y="452">VECTOR</text>
+<text class="f-dark-t" x="30" y="470" style="font-size:12px">[0.021, −0.113, 0.047, … 1,024 números]</text>
+</svg>

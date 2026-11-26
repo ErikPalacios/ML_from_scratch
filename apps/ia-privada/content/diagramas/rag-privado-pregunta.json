@@ -1,0 +1,81 @@
+{
+  "titulo": "Una pregunta en vivo: de la abogada a la respuesta con cita, y lo que corre en cada máquina",
+  "width": 78,
+  "height": 62,
+  "lanes": [
+    { "id": "persona", "label": "La persona y su identidad", "kind": "online", "x": 0, "y": 0, "w": 78, "h": 14 },
+    { "id": "cpu", "label": "CPU del servidor · búsqueda y puerta", "kind": "online", "x": 0, "y": 16, "w": 78, "h": 26 },
+    { "id": "gpu", "label": "GPUs L40S · modelos", "kind": "neutral", "x": 0, "y": 44, "w": 78, "h": 18 }
+  ],
+  "nodes": [
+    {
+      "id": "abogada", "label": "Abogada", "sub": "su navegador", "badge": "1", "kind": "client",
+      "x": 2, "y": 3, "w": 18, "h": 8,
+      "note": "Una asociada del equipo del cliente A. Entra con su cuenta de Microsoft y escribe la pregunta."
+    },
+    {
+      "id": "entra", "label": "Entra ID", "sub": "sus grupos", "kind": "external",
+      "x": 58, "y": 3, "w": 18, "h": 8,
+      "note": "De aquí salen los grupos de la persona **al preguntar** (con un caché corto). Por aquí no pasa ningún expediente: solo la identidad."
+    },
+    {
+      "id": "webui", "label": "Open WebUI", "sub": "la interfaz", "kind": "service",
+      "x": 2, "y": 20, "w": 18, "h": 8,
+      "note": "La página de chat. Pasa la pregunta y la identidad de la persona (su `oid`) al servicio de búsqueda; nunca decide permisos."
+    },
+    {
+      "id": "busqueda", "label": "Servicio de búsqueda", "sub": "grupos, filtro, prompt", "badge": "2", "kind": "service",
+      "x": 30, "y": 20, "w": 18, "h": 8,
+      "note": "Un programa del despacho (lo escribe el integrador) que arma el filtro de la [[muralla-etica|muralla ética]] con los grupos de la persona, consulta Qdrant, manda a reordenar, **revisa otra vez la ACL** de los 5 finales y arma el prompt con sus marcas de página."
+    },
+    {
+      "id": "qdrant", "label": "Qdrant", "sub": "BM25 + vectores + ACL", "badge": "4", "kind": "store",
+      "x": 58, "y": 20, "w": 18, "h": 8,
+      "note": "Una sola consulta: búsqueda por [[bm25|BM25]] y por vectores, cada una con el [[prefiltro]] de permisos, fusionadas con [[rrf|RRF]] (k = 2 por omisión en Qdrant). Devuelve los 20 primeros."
+    },
+    {
+      "id": "gateway", "label": "Gateway", "sub": "embeddings y chat-grande", "badge": "3", "kind": "edge",
+      "x": 2, "y": 32, "w": 18, "h": 8,
+      "note": "La misma puerta de siempre: el servicio de búsqueda entra con su clave y pide `embeddings` para la pregunta y, al final, `chat-grande` para la respuesta. Cobra los tokens a la cuota de la abogada."
+    },
+    {
+      "id": "emb", "label": "vllm-emb", "sub": "≈ 2 ms", "kind": "gpu",
+      "x": 2, "y": 48, "w": 18, "h": 8,
+      "note": "Embebe la pregunta, con su instrucción `Instruct: … Query: …`: ≈ 100 tokens, ≈ 2 ms (manda leer los 1.19 GB de pesos)."
+    },
+    {
+      "id": "llm", "label": "Qwen3 32B", "sub": "una de 3 réplicas", "badge": "6", "kind": "gpu",
+      "x": 30, "y": 48, "w": 18, "h": 8,
+      "note": "El LLM ya servido. Recibe ≈ 400 de instrucciones, ≈ 100 de la pregunta y los fragmentos (5, o 3 si el examen lo permite) y escribe la respuesta citando las marcas de página."
+    },
+    {
+      "id": "rerank", "label": "Reranker", "sub": "≈ 97–232 ms", "badge": "5", "kind": "model",
+      "x": 58, "y": 48, "w": 18, "h": 8,
+      "note": "Qwen3-Reranker-0.6B relee la pregunta con cada uno de los 20 candidatos. Es la pieza que rompe el presupuesto de búsqueda de ≈ 150 ms; se queda solo si deja bajar de 5 a 3 fragmentos sin perder calidad."
+    }
+  ],
+  "edges": [
+    { "from": "abogada", "to": "webui", "kind": "online", "label": "pregunta", "fromSide": "b", "toSide": "t" },
+    { "from": "webui", "to": "busqueda", "kind": "online", "label": "+ oid", "fromSide": "r", "toSide": "l" },
+    { "from": "busqueda", "to": "entra", "kind": "neutral", "label": "grupos", "fromSide": "t", "toSide": "b", "via": [[39, 14], [67, 14]] },
+    { "from": "busqueda", "to": "gateway", "kind": "online", "fromSide": "b", "toSide": "r", "via": [[39, 36]] },
+    { "from": "gateway", "to": "emb", "kind": "online", "fromSide": "b", "toSide": "t" },
+    { "from": "gateway", "to": "llm", "kind": "online", "label": "prompt", "fromSide": "b", "toSide": "t", "via": [[11, 44], [39, 44]] },
+    { "from": "busqueda", "to": "qdrant", "kind": "online", "label": "vector + filtro", "fromSide": "r", "toSide": "l" },
+    { "from": "qdrant", "to": "rerank", "kind": "online", "label": "20 candidatos", "fromSide": "b", "toSide": "t" }
+  ],
+  "flows": [
+    {
+      "id": "pregunta",
+      "label": "«¿Qué plazo de penalización firmamos con el proveedor X?»",
+      "steps": [
+        { "nodes": ["abogada", "webui", "busqueda"], "edges": ["abogada>webui", "webui>busqueda"], "text": "**1 · La pregunta y quién la hace.** La asociada escribe la pregunta en Open WebUI, que la pasa al servicio de búsqueda junto con su `oid`, la identidad que dejó el SSO." },
+        { "nodes": ["busqueda", "entra"], "edges": ["busqueda>entra"], "text": "**2 · Sus grupos.** El servicio resuelve sus grupos: «equipo-cliente-a, litigio-civil». Con ellos arma el filtro: `must` sus grupos, `must_not` el cliente en conflicto. La persona nunca escribe su propio filtro." },
+        { "nodes": ["busqueda", "gateway", "emb"], "edges": ["busqueda>gateway", "gateway>emb"], "text": "**3 · La pregunta como vector.** Por el gateway, como `embeddings`: la pregunta con su instrucción se vuelve un vector de 1,024 números en ≈ 2 ms." },
+        { "nodes": ["busqueda", "qdrant"], "edges": ["busqueda>qdrant"], "text": "**4 · Buscar en lo permitido.** Una consulta a Qdrant: BM25 encuentra «proveedor X» y «penalización»; los vectores, «pena convencional por mora». Las dos con el [[prefiltro]], fusionadas con [[rrf|RRF]]: 20 candidatos, todos de expedientes que ella puede ver." },
+        { "nodes": ["qdrant", "rerank", "busqueda"], "edges": ["qdrant>rerank"], "text": "**5 · Reordenar y revisar.** El [[reranker]] relee los 20 con la pregunta y los ordena (de ≈ 97 a 232 ms). El servicio se queda con los primeros y **revisa otra vez su ACL**: si uno no pasa, se tira. Arma el prompt con sus marcas de página." },
+        { "nodes": ["gateway", "llm", "webui", "abogada"], "edges": ["busqueda>gateway", "gateway>llm", "webui>busqueda", "abogada>webui"], "text": "**6 · La respuesta con cita.** Qwen3 32B lee ≈ 6,000 tokens (≈ 2.2 s de prefill sin fila) y escribe: «30 días naturales, cláusula 14.3 (exp. 4127, p. 12)». La aplicación revisa que esa página exista y contenga el texto antes de mostrarla." }
+      ]
+    }
+  ]
+}
