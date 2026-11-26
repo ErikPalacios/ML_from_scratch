@@ -1,0 +1,46 @@
+{
+  "titulo": "¿Caben los agentes? La sobra de la hora pico y la cuota de una persona",
+  "intro": "Aplica \\(H = Q × (1 ÷ u − 1)\\) (las preguntas de RAG que todavía caben en la hora) y \\(A = H ÷ m\\) (los agentes que caben, si cada uno «vale» \\(m\\) preguntas), y compara un agente contra la cuota del chat de una persona (`rpm` y cubeta de tokens). Arranca con el despacho en la hora pico (750 preguntas, uso de 86.8 %) y el agente del socio (6 requests, 22,590 tokens, ≈ 45.4 s), contando el prefill sin caché.",
+  "preajustes": [
+    {
+      "label": "Cuánto «vale» un agente en preguntas de RAG",
+      "inicial": 0,
+      "opciones": [
+        { "label": "Prefill sin caché (resultados de 1,000): 3.64", "valores": { "m": 3.64 }, "nota": "El cuello más estricto: 7.91 s de prefill contra 2.17 s." },
+        { "label": "Prefill sin caché (extractos de 500): 2.39", "valores": { "m": 2.39 }, "nota": "5.19 s de prefill contra 2.17 s." },
+        { "label": "Duración sin caché: 1.67", "valores": { "m": 1.67 }, "nota": "45.4 s de conversación contra 27.2 s." },
+        { "label": "Tokens de salida: 1.5", "valores": { "m": 1.5 }, "nota": "750 tokens escritos contra 500." },
+        { "label": "Prefill con caché: 1.08", "valores": { "m": 1.08 }, "nota": "2.35 s contra 2.17 s: el caso optimista." }
+      ]
+    }
+  ],
+  "entradas": [
+    { "id": "Q", "label": "Preguntas de RAG en la hora, \\(Q\\)", "min": 1, "max": 10000, "paso": 1, "valor": 750, "tipo": "numero" },
+    { "id": "u", "label": "Uso de la capacidad en esa hora, \\(u\\)", "unidad": "%", "min": 5, "max": 99, "paso": 0.1, "valor": 86.8 },
+    { "id": "m", "label": "Preguntas de RAG que «vale» un agente, \\(m\\)", "min": 0.5, "max": 20, "paso": 0.01, "valor": 3.64 },
+    { "id": "f", "label": "Fracción de las preguntas que se vuelven agente", "unidad": "%", "min": 0, "max": 50, "paso": 1, "valor": 10 },
+    { "id": "req", "label": "Requests de un agente (llamadas al modelo)", "min": 1, "max": 30, "paso": 1, "valor": 6 },
+    { "id": "dur", "label": "Duración de un agente", "unidad": "s", "min": 5, "max": 600, "paso": 0.1, "valor": 45.4 },
+    { "id": "tok", "label": "Tokens totales de un agente (entrada + salida)", "min": 1000, "max": 200000, "paso": 10, "valor": 22590, "tipo": "numero" },
+    { "id": "rpm", "label": "Requests por minuto de la cuota del chat", "min": 1, "max": 60, "paso": 1, "valor": 4 },
+    { "id": "cub", "label": "Tamaño de la cubeta de la persona", "unidad": "tokens", "min": 1000, "max": 200000, "paso": 500, "valor": 19500, "tipo": "numero" },
+    { "id": "rec", "label": "Recarga de la cubeta", "unidad": "tokens/min", "min": 10, "max": 20000, "paso": 1, "valor": 936, "tipo": "numero" }
+  ],
+  "calculos": [
+    { "id": "H", "formula": "Q * (100 / u - 1)" },
+    { "id": "A", "formula": "H / m" },
+    { "id": "dem", "formula": "Q * f / 100 * m" },
+    { "id": "arpm", "formula": "req / dur * 60" }
+  ],
+  "salidas": [
+    { "label": "Preguntas de RAG que sobran en la hora, \\(H\\)", "formula": "H", "formato": "num", "decimales": 0, "cuenta": "{{Q|int}} × (1 ÷ {{u / 100|num|3}} − 1) = **{{H|num|0}} preguntas**" },
+    { "label": "Agentes que caben en la sobra, \\(A\\)", "formula": "A", "formato": "num", "decimales": 0, "barra": true, "nota": "por hora", "cuenta": "{{H|num|0}} ÷ {{m|num|2}} = **{{A|num|0}} agentes por hora**" },
+    { "label": "Lo que piden los agentes, en preguntas de RAG", "formula": "dem", "formato": "num", "decimales": 0, "cuenta": "{{Q|int}} × {{f|int}} % × {{m|num|2}} = **{{dem|num|0}} preguntas**" },
+    { "label": "¿Caben en la sobra?", "formula": "H - dem", "veredicto": { "si": "Sí", "no": "No: rebasan la sobra" }, "cuenta": "{{H|num|0}} − {{dem|num|0}} = {{H - dem|num|0}} preguntas" },
+    { "label": "Requests por minuto de un agente", "formula": "arpm", "formato": "num", "decimales": 1, "cuenta": "{{req|int}} ÷ {{dur|num|1}} s × 60 = **{{arpm|num|1}} por minuto**" },
+    { "label": "¿Pasa el `rpm` del chat?", "formula": "rpm - arpm", "veredicto": { "si": "Sí", "no": "No: el gateway lo corta" }, "cuenta": "{{rpm|int}} − {{arpm|num|1}} = {{rpm - arpm|num|1}}" },
+    { "label": "¿Cabe en la cubeta llena?", "formula": "cub - tok", "veredicto": { "si": "Sí", "no": "No: pide más de lo que hay" }, "cuenta": "{{cub|int}} − {{tok|int}} = {{cub - tok|int}} tokens" },
+    { "label": "Minutos para reponer lo que gastó el agente", "formula": "tok / rec", "formato": "num", "decimales": 1, "nota": "sin chat para la persona mientras tanto", "cuenta": "{{tok|int}} ÷ {{rec|int}} = **{{tok / rec|num|1}} min**" }
+  ],
+  "nota": "Prueba: pon una hora promedio (300 preguntas y un uso de 34.7 %: 300 de 864) y mira cuántos agentes caben. Luego pon los números de un agente con extractos de 500 tokens (15,090 tokens, 42.7 s): cabe en la cubeta, pero sigue rebasando el `rpm` de 4. Por eso lleva su propia clave y su propia cuota."
+}

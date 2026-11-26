@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 400" role="img" aria-labelledby="f-agentes-crece-t" class="f-svg" style="max-width:420px">
+<title id="f-agentes-crece-t">La entrada de cada una de las 6 llamadas del agente del despacho, como una escalera de barras: 985, 2,047, 3,109, 4,171, 5,233 y 6,295 tokens. Cada llamada relee todo lo anterior. La parte gris de cada barra es lo que el prefix caching reutiliza de la llamada anterior (0, 960, 1,984, 3,072, 4,160 y 5,184 tokens) y la parte de color es lo nuevo, unos 1,000 por llamada. La última barra suma los 500 tokens de la tabla y queda en 6,795, por debajo del tope de contexto de 8,192 marcado con una línea punteada. Sin caché la GPU calcula 21,840 tokens, unos 7.9 segundos en una L40S; con caché unos 6,480, unos 2.35 segundos; una pregunta de RAG son 6,000 tokens, unos 2.2 segundos.</title>
+<text class="f-l" x="14" y="24">LA ENTRADA DE CADA LLAMADA, EN TOKENS</text>
+<rect class="f-card" x="10" y="34" width="340" height="356" rx="16"/>
+<text class="f-l" x="24" y="58">LLAMADA</text>
+<text class="f-l" x="282" y="58">ENTRADA</text>
+<text class="f-t" x="24" y="85" style="font-size:14px">1</text>
+<rect class="f-b" x="40.0" y="70" width="27.7" height="20" rx="3"/>
+<text class="f-s" x="282" y="85">985</text>
+<text class="f-t" x="24" y="119" style="font-size:14px">2</text>
+<rect class="f-off" x="40" y="104" width="27.0" height="20" rx="3"/>
+<rect class="f-b" x="67.0" y="104" width="30.5" height="20" rx="3"/>
+<text class="f-s" x="282" y="119">2,047</text>
+<text class="f-t" x="24" y="153" style="font-size:14px">3</text>
+<rect class="f-off" x="40" y="138" width="55.7" height="20" rx="3"/>
+<rect class="f-b" x="95.7" y="138" width="31.6" height="20" rx="3"/>
+<text class="f-s" x="282" y="153">3,109</text>
+<text class="f-t" x="24" y="187" style="font-size:14px">4</text>
+<rect class="f-off" x="40" y="172" width="86.2" height="20" rx="3"/>
+<rect class="f-b" x="126.2" y="172" width="30.9" height="20" rx="3"/>
+<text class="f-s" x="282" y="187">4,171</text>
+<text class="f-t" x="24" y="221" style="font-size:14px">5</text>
+<rect class="f-off" x="40" y="206" width="116.8" height="20" rx="3"/>
+<rect class="f-b" x="156.8" y="206" width="30.1" height="20" rx="3"/>
+<text class="f-s" x="282" y="221">5,233</text>
+<text class="f-t" x="24" y="255" style="font-size:14px">6</text>
+<rect class="f-off" x="40" y="240" width="145.5" height="20" rx="3"/>
+<rect class="f-b" x="185.5" y="240" width="31.2" height="20" rx="3"/>
+<text class="f-s" x="282" y="255">6,295</text>
+<rect class="f-linea" x="216.7" y="240" width="14.0" height="20" rx="3" style="fill:none;stroke-dasharray:3 2"/>
+<text class="f-s" x="234.8" y="274" style="font-size:12px" text-anchor="end">+ 500 de la tabla = 6,795</text>
+<line class="f-linea" x1="270.0" y1="64" x2="270.0" y2="280" style="stroke-dasharray:4 3;stroke-width:1.5"/>
+<text class="f-s" x="266.0" y="292" text-anchor="end" style="font-size:12px;font-weight:700">tope de contexto: 8,192</text>
+<rect class="f-off" x="24" y="300" width="14" height="12" rx="3"/><text class="f-s" x="44" y="310" style="font-size:12px">reutilizado con prefix caching</text>
+<rect class="f-b" x="210" y="300" width="14" height="12" rx="3"/><text class="f-s" x="230" y="310" style="font-size:12px">calculado de nuevo</text>
+<text class="f-s" x="24" y="336" style="font-size:12px"><tspan style="font-weight:700">Sin caché:</tspan> 21,840 tokens · ≈ 7.9 s en una L40S</text>
+<text class="f-s" x="24" y="354" style="font-size:12px"><tspan style="font-weight:700">Con caché:</tspan> ≈ 6,480 nuevos · ≈ 2.35 s</text>
+<text class="f-s" x="24" y="372" style="font-size:12px"><tspan style="font-weight:700">Una pregunta de RAG:</tspan> 6,000 tokens · ≈ 2.2 s</text>
+</svg>

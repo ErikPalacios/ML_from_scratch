@@ -1,0 +1,301 @@
+{
+  "titulo": "El bucle del agente: el modelo pide, el programa valida, la tool revisa el permiso",
+  "width": 78,
+  "height": 47,
+  "lanes": [
+    {
+      "id": "pide",
+      "label": "Lo que decide el modelo",
+      "kind": "online",
+      "x": 0,
+      "y": 0,
+      "w": 78,
+      "h": 16
+    },
+    {
+      "id": "decide",
+      "label": "Lo que decide el programa · dentro del servidor del despacho",
+      "kind": "neutral",
+      "x": 0,
+      "y": 18,
+      "w": 78,
+      "h": 29
+    }
+  ],
+  "nodes": [
+    {
+      "id": "abogada",
+      "label": "Abogada",
+      "sub": "Open WebUI · su Id",
+      "badge": "1",
+      "kind": "client",
+      "x": 2,
+      "y": 5,
+      "w": 18,
+      "h": 8,
+      "note": "Pregunta desde la página de chat con su cuenta de Microsoft. Su Id de Entra viaja con la petición por el [[gateway-de-llm|gateway]]: es lo que después usa la tool para revisar el permiso."
+    },
+    {
+      "id": "agente",
+      "label": "Programa del agente",
+      "sub": "el bucle",
+      "badge": "2",
+      "kind": "service",
+      "x": 30,
+      "y": 5,
+      "w": 18,
+      "h": 8,
+      "note": "El [[bucle-de-agente|bucle]]: arma la historia completa, llama al modelo, revisa lo que pide, ejecuta las tools y vuelve a llamar. Lleva los topes: 6 llamadas, ≈ 15,000 tokens y 60 s."
+    },
+    {
+      "id": "modelo",
+      "label": "Qwen3 32B",
+      "sub": "vLLM · parser hermes",
+      "badge": "3",
+      "kind": "model",
+      "x": 58,
+      "y": 5,
+      "w": 18,
+      "h": 8,
+      "note": "Lee todo otra vez (otro [[prefill]]) y decide: o contesta, o devuelve `tool_calls`. El [[tool-call-parser|parser]] `hermes` convierte su `<tool_call>` en JSON. No ejecuta nada."
+    },
+    {
+      "id": "validar",
+      "label": "Validar la llamada",
+      "sub": "esquema · topes",
+      "badge": "4",
+      "kind": "edge",
+      "x": 58,
+      "y": 22,
+      "w": 18,
+      "h": 8,
+      "note": "¿Existe la tool? ¿Los argumentos son JSON válido y cumplen el esquema? ¿El expediente salió de una búsqueda de esta tarea? ¿Quedan pasos y tokens? Si algo falla, no se ejecuta."
+    },
+    {
+      "id": "registro",
+      "label": "Registro",
+      "sub": "sin el texto",
+      "kind": "queue",
+      "x": 58,
+      "y": 37,
+      "w": 18,
+      "h": 8,
+      "note": "Una fila por tool call: quién, qué tool, qué expediente, cuánto devolvió, aceptada o rechazada. 90 días y sin el contenido, como el [[registro-de-auditoria|registro]] del gateway."
+    },
+    {
+      "id": "tool",
+      "label": "leer_pagina",
+      "sub": "revisa la ACL",
+      "badge": "5",
+      "kind": "service",
+      "x": 30,
+      "y": 37,
+      "w": 18,
+      "h": 8,
+      "note": "La [[tool]] recibe el Id de la persona **del programa**, no del modelo, y revisa la ACL antes de leer. Es [[minimo-privilegio|mínimo privilegio]]: si la abogada no puede ver el expediente, la tool tampoco lo devuelve."
+    },
+    {
+      "id": "datos",
+      "label": "Expedientes",
+      "sub": "y su ACL",
+      "kind": "store",
+      "x": 2,
+      "y": 37,
+      "w": 18,
+      "h": 8,
+      "note": "Los 30,000 expedientes y la lista de quién puede ver cada uno. La tool lee con una cuenta que no puede escribir."
+    }
+  ],
+  "edges": [
+    {
+      "from": "abogada",
+      "to": "agente",
+      "kind": "online",
+      "label": "pregunta + Id",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "agente",
+      "to": "modelo",
+      "kind": "online",
+      "label": "historia",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "modelo",
+      "to": "validar",
+      "kind": "online",
+      "label": "tool_calls",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "validar",
+      "to": "tool",
+      "kind": "online",
+      "label": "válida",
+      "fromSide": "l",
+      "toSide": "r",
+      "via": [
+        [
+          53,
+          26
+        ],
+        [
+          53,
+          41
+        ]
+      ]
+    },
+    {
+      "from": "tool",
+      "to": "datos",
+      "kind": "neutral",
+      "label": "Id + ACL",
+      "fromSide": "l",
+      "toSide": "r"
+    },
+    {
+      "from": "tool",
+      "to": "agente",
+      "kind": "online",
+      "label": "role: tool",
+      "fromSide": "t",
+      "toSide": "b"
+    },
+    {
+      "from": "validar",
+      "to": "registro",
+      "kind": "monitor",
+      "label": "cada llamada",
+      "fromSide": "b",
+      "toSide": "t",
+      "dashed": true
+    }
+  ],
+  "flows": [
+    {
+      "id": "normal",
+      "label": "Una vuelta normal",
+      "steps": [
+        {
+          "nodes": [
+            "abogada",
+            "agente"
+          ],
+          "edges": [
+            "abogada>agente"
+          ],
+          "text": "**1 · La pregunta.** El socio pide la tabla de penalizaciones. El programa del agente recibe la pregunta y el Id de quien pregunta."
+        },
+        {
+          "nodes": [
+            "agente",
+            "modelo"
+          ],
+          "edges": [
+            "agente>modelo"
+          ],
+          "text": "**2 · Llamar al modelo.** Con el sistema, la pregunta y las 3 tools: 985 tokens en la primera llamada. En la sexta ya serán ≈ 6,295."
+        },
+        {
+          "nodes": [
+            "modelo",
+            "validar"
+          ],
+          "edges": [
+            "modelo>validar"
+          ],
+          "text": "**3 · El modelo pide.** Devuelve `tool_calls` con `leer_pagina` y sus argumentos en una cadena. El programa la convierte y la revisa contra el esquema."
+        },
+        {
+          "nodes": [
+            "validar",
+            "tool",
+            "datos"
+          ],
+          "edges": [
+            "validar>tool",
+            "tool>datos"
+          ],
+          "text": "**4 · La tool lee con el permiso de la persona.** El EXP-0412 sí está en su ACL: devuelve un extracto de ≈ 500 tokens con expediente y página."
+        },
+        {
+          "nodes": [
+            "tool",
+            "agente",
+            "modelo"
+          ],
+          "edges": [
+            "tool>agente",
+            "agente>modelo"
+          ],
+          "text": "**5 · Otra vuelta.** El resultado entra como mensaje `role: \"tool\"` y el programa vuelve a llamar al modelo con **toda** la historia. Cuando el modelo contesta sin `tool_calls`, esa es la tabla."
+        }
+      ]
+    },
+    {
+      "id": "sin-acceso",
+      "label": "Un expediente que no puede ver",
+      "steps": [
+        {
+          "nodes": [
+            "modelo",
+            "validar"
+          ],
+          "edges": [
+            "modelo>validar"
+          ],
+          "text": "El modelo pide `leer_pagina` del EXP-0977, de un cliente en conflicto con el de la abogada (quizá porque un contrato se lo «ordenó»). El JSON es válido: la validación de formato lo deja pasar."
+        },
+        {
+          "nodes": [
+            "tool",
+            "datos"
+          ],
+          "edges": [
+            "validar>tool",
+            "tool>datos"
+          ],
+          "text": "La tool revisa la ACL con el Id que puso el programa: la abogada no puede ver el EXP-0977. Devuelve `{\"error\": \"sin acceso\"}`. Ningún texto cambia eso."
+        },
+        {
+          "nodes": [
+            "registro"
+          ],
+          "edges": [
+            "validar>registro"
+          ],
+          "text": "Queda la fila de la llamada rechazada. Varias seguidas son una señal para revisar qué leyó el agente antes."
+        }
+      ]
+    },
+    {
+      "id": "vueltas",
+      "label": "El modelo da vueltas",
+      "steps": [
+        {
+          "nodes": [
+            "agente",
+            "modelo",
+            "validar"
+          ],
+          "edges": [
+            "agente>modelo",
+            "modelo>validar"
+          ],
+          "text": "El modelo busca, no le gusta el resultado, busca casi lo mismo. Cada vuelta relee todo: la entrada crece como una escalera."
+        },
+        {
+          "nodes": [
+            "validar"
+          ],
+          "edges": [],
+          "text": "En la llamada 6 se acaba el tope de pasos. El programa no ejecuta nada más y contesta «no terminé, esto encontré». Mejor eso que un ciclo que se come la sobra de la hora pico."
+        }
+      ]
+    }
+  ]
+}

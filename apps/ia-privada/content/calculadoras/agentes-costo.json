@@ -1,0 +1,50 @@
+{
+  "titulo": "Lo que cuesta un agente: la escalera de tokens y el prefill",
+  "intro": "Aplica \\(E_k = T_0 + (k − 1) × Δ\\) (la entrada de cada llamada), \\(E = n × T_0 + Δ × n(n − 1) ÷ 2\\) (la de todas) y \\(t_{pre} = 2 × P × E ÷ (η_c × F)\\) (los segundos de prefill), con \\(Δ\\) = llamada + sobre + resultado. Con [[prefix-caching|prefix caching]] ideal, el prefill de la tarea se parece al de la última llamada, \\(E_n\\). Después revisa el tope de contexto: lo que debe caber es la llamada más grande, \\(E_n + s ≤ C\\). Arranca con el agente del socio del despacho: 6 llamadas, 985 tokens de prompt inicial, resultados de 1,000 tokens (supuesto) y una tabla de 500, en una L40S.",
+  "preajustes": [
+    {
+      "label": "GPU (datos de gpus.json)",
+      "datos": "gpus",
+      "inicial": "l40s",
+      "campos": { "F": "fp16_tflops_denso" }
+    }
+  ],
+  "entradas": [
+    { "id": "n", "label": "Llamadas al modelo en la tarea, \\(n\\) (las rondas de tool + la respuesta final)", "min": 1, "max": 30, "paso": 1, "valor": 6 },
+    { "id": "T0", "label": "Prompt de la primera llamada, \\(T_0\\): instrucciones, pregunta, tools y plantilla", "min": 100, "max": 8000, "paso": 1, "valor": 985, "tipo": "numero" },
+    { "id": "r", "label": "Tokens que devuelve cada tool, \\(r\\)", "min": 50, "max": 8000, "paso": 50, "valor": 1000 },
+    { "id": "c", "label": "Tokens de cada llamada del modelo (nombre y argumentos)", "min": 10, "max": 500, "paso": 1, "valor": 50 },
+    { "id": "sob", "label": "Tokens del sobre de cada resultado (etiquetas de la plantilla)", "min": 0, "max": 100, "paso": 1, "valor": 12 },
+    { "id": "s", "label": "Tokens de la respuesta final, \\(s\\)", "min": 50, "max": 4000, "paso": 50, "valor": 500 },
+    { "id": "C", "label": "Tope de contexto por llamada, \\(C\\) (`--max-model-len`)", "min": 1024, "max": 131072, "paso": 1024, "valor": 8192, "tipo": "numero" },
+    { "id": "P", "label": "Parámetros del modelo, \\(P\\), en miles de millones", "min": 0.5, "max": 1000, "paso": 0.001, "valor": 32.762, "tipo": "numero" },
+    { "id": "F", "label": "Pico FP16/BF16 denso de la GPU, \\(F\\)", "unidad": "TFLOPS", "min": 0, "max": 20000, "paso": 0.01, "valor": 362.05, "tipo": "numero" },
+    { "id": "ec", "label": "Eficiencia del cálculo, \\(η_c\\)", "min": 0.05, "max": 1, "paso": 0.05, "valor": 0.5 },
+    { "id": "v", "label": "Velocidad de escritura por persona", "unidad": "tokens/s", "min": 5, "max": 100, "paso": 1, "valor": 20 },
+    { "id": "Er", "label": "Entrada de una pregunta de RAG, para comparar", "min": 500, "max": 32000, "paso": 100, "valor": 6000, "tipo": "numero" },
+    { "id": "Sr", "label": "Salida de una pregunta de RAG, para comparar", "min": 50, "max": 4000, "paso": 50, "valor": 500, "tipo": "numero" }
+  ],
+  "calculos": [
+    { "id": "D", "formula": "c + sob + r" },
+    { "id": "En", "formula": "T0 + (n - 1) * D" },
+    { "id": "Et", "formula": "n * T0 + D * n * (n - 1) / 2" },
+    { "id": "sal", "formula": "(n - 1) * c + s" },
+    { "id": "spt", "formula": "2 * P * 1e9 / (ec * max(F, 0.01) * 1e12)" },
+    { "id": "pre", "formula": "Et * spt" },
+    { "id": "prec", "formula": "En * spt" },
+    { "id": "prag", "formula": "Er * spt" }
+  ],
+  "salidas": [
+    { "label": "Lo que suma cada paso, \\(Δ\\)", "formula": "D", "formato": "int", "nota": "tokens", "cuenta": "{{c|int}} + {{sob|int}} + {{r|int}} = **{{D|int}} tokens**" },
+    { "label": "Entrada de la última llamada, \\(E_n\\)", "formula": "En", "formato": "int", "nota": "tokens", "cuenta": "{{T0|int}} + ({{n|int}} − 1) × {{D|int}} = **{{En|int}} tokens**" },
+    { "label": "Entrada de todas las llamadas, \\(E\\)", "formula": "Et", "formato": "int", "nota": "tokens", "cuenta": "{{n|int}} × {{T0|int}} + {{D|int}} × {{n * (n - 1) / 2|int}} = **{{Et|int}} tokens**" },
+    { "label": "Tokens totales contra una pregunta de RAG", "formula": "(Et + sal) / (Er + Sr)", "formato": "x", "decimales": 2, "cuenta": "({{Et|int}} + {{sal|int}}) ÷ ({{Er|int}} + {{Sr|int}}) = **{{(Et + sal) / (Er + Sr)|num|2}}×**" },
+    { "label": "Prefill de toda la tarea, sin caché, \\(t_{pre}\\)", "formula": "pre", "formato": "num", "decimales": 2, "nota": "segundos", "barra": true, "cuenta": "{{Et|int}} × {{spt * 1000|num|3}} ms = **{{pre|num|2}} s** ({{pre / prag|num|1}}× el RAG, {{prag|num|2}} s)" },
+    { "label": "Prefill con prefix caching ideal (≈ la última llamada)", "formula": "prec", "formato": "num", "decimales": 2, "nota": "segundos", "barra": true, "cuenta": "{{En|int}} × {{spt * 1000|num|3}} ms = **{{prec|num|2}} s** ({{prec / prag|num|1}}× el RAG)" },
+    { "label": "Espera hasta la primera palabra de la respuesta, sin caché", "formula": "pre + (n - 1) * c / v", "formato": "num", "decimales": 1, "nota": "segundos: los prefills y las llamadas cortas se suman antes", "cuenta": "{{pre|num|2}} + ({{n|int}} − 1) × {{c|int}} ÷ {{v|int}} = **{{pre + (n - 1) * c / v|num|1}} s**" },
+    { "label": "Duración de la tarea sin caché (sin el tiempo de las tools)", "formula": "pre + sal / v", "formato": "num", "decimales": 1, "nota": "segundos", "cuenta": "{{pre|num|2}} + {{sal|int}} ÷ {{v|int}} = **{{pre + sal / v|num|1}} s** (RAG: {{prag + Sr / v|num|1}} s)" },
+    { "label": "¿La última llamada cabe en el contexto?", "formula": "C - En - s", "veredicto": { "si": "Sí, cabe", "no": "No cabe" }, "cuenta": "{{C|int}} − {{En|int}} − {{s|int}} = {{C - En - s|int}} tokens" },
+    { "label": "Llamadas que caben en el contexto, \\(k_{máx}\\)", "formula": "max(floor((C - T0 - s) / D) + 1, 0)", "formato": "int", "cuenta": "⌊({{C|int}} − {{T0|int}} − {{s|int}}) ÷ {{D|int}}⌋ + 1 = **{{max(floor((C - T0 - s) / D) + 1, 0)|int}} llamadas**" }
+  ],
+  "nota": "Prueba: baja los resultados a 500 y mira las llamadas que caben subir de 7 a 12; súbelos a 5,000 (lo que devuelve el RAG) y mira que solo caben 2. Luego sube las llamadas a 10 con resultados de 1,000: el prefill sin caché pasa de ≈ 7.9 a ≈ 20.9 s y la última llamada ya no cabe."
+}
