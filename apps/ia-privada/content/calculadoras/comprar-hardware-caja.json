@@ -24,7 +24,7 @@
   ],
   "entradas": [
     { "id": "n", "label": "Tarjetas, \\(n\\)", "min": 1, "max": 10, "paso": 1, "valor": 3 },
-    { "id": "K", "label": "Precio de cada tarjeta, \\(K\\), en US$ (Exxact cobra US$8,910 por L40S)", "min": 0, "max": 1000000, "paso": 1, "valor": 9005.4, "tipo": "numero" },
+    { "id": "K", "label": "Precio de cada tarjeta, \\(K\\), en US$ (Exxact cobra US$8,910 por L40S)", "min": 0, "max": 1000000, "paso": 1, "valor": 9005, "tipo": "numero" },
     { "id": "M", "label": "VRAM de cada tarjeta", "unidad": "GB", "min": 1, "max": 2000, "paso": 1, "valor": 48, "tipo": "numero" },
     { "id": "Wg", "label": "TDP de cada tarjeta, \\(P_{GPU}\\)", "unidad": "W", "min": 0, "max": 2000, "paso": 1, "valor": 350, "tipo": "numero" },
     { "id": "S", "label": "La caja sin GPUs, \\(S\\), en US$ (chasis, CPUs, RAM, discos y fuentes)", "min": 0, "max": 500000, "paso": 1, "valor": 40461.3, "tipo": "numero" },

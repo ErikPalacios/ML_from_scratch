@@ -26,7 +26,7 @@
    "termino": "Tasa de aceptación",
    "en": "acceptance rate (α)",
    "corto": "La probabilidad de que el modelo grande acepte un token que propuso el borrador. Entre más alta, más tokens salen de cada verificación.",
-   "largo": "Leviathan y otros la llaman α y, suponiendo que cada propuesta se acepta con la misma probabilidad, dan los tokens esperados por ciclo: (1 − α^(γ+1)) ÷ (1 − α), donde γ es cuántos propone el borrador. Depende del borrador, del texto (sube cuando la salida es predecible o copia de la entrada) y de cómo se muestrea. Los servidores suelen reportar la **longitud de aceptación**: los tokens que salen en promedio por verificación, de donde se despeja α.",
+   "largo": "Leviathan y otros la llaman α y, suponiendo que cada propuesta se acepta con la misma probabilidad, dan los tokens esperados por ciclo: (1 − α^(γ+1)) ÷ (1 − α), donde γ es cuántos propone el borrador. Depende del borrador, del texto (sube cuando la salida es predecible o copia de la entrada) y de cómo se muestrea. Los servidores suelen reportar la **longitud de aceptación**: los tokens que salen en promedio por verificación, contando el que el grande siempre pone (vLLM la calcula como 1 + aceptados ÷ ciclos). De ahí se despeja un α equivalente; en la práctica las primeras propuestas se aceptan más seguido que las últimas.",
    "ejemplo": "Con α = 0.6 y γ = 3: (1 − 0.6⁴) ÷ (1 − 0.6) = 0.8704 ÷ 0.4 ≈ 2.18 tokens por ciclo. Con α = 0.8: ≈ 2.95.",
    "ver": ["speculative-decoding", "modelo-borrador"],
    "leccion": "speculative"
@@ -66,7 +66,7 @@
    "termino": "Prompt lookup (n-gram)",
    "en": "prompt lookup decoding, n-gram speculation",
    "corto": "Speculative decoding sin modelo borrador: si los últimos tokens escritos ya aparecen en el prompt, se proponen los que les siguen ahí.",
-   "largo": "Lo popularizó Apoorv Saxena (2023). Es casi gratis (una búsqueda de texto, c ≈ 0) y funciona bien cuando la salida **copia** de la entrada: resúmenes, preguntas sobre un documento, citas, edición de código. Con texto nuevo casi no atina. vLLM lo llama `ngram`, con `prompt_lookup_min` y `prompt_lookup_max` como largos mínimo y máximo del pedazo a buscar.",
+   "largo": "Lo publicó Apoorv Saxena (2023) como repositorio abierto. Es casi gratis (una búsqueda de texto, c ≈ 0) y funciona bien cuando la salida **copia** de la entrada: resúmenes, preguntas sobre un documento, citas, edición de código. Con texto nuevo casi no atina. vLLM lo llama `ngram`, con `prompt_lookup_min` y `prompt_lookup_max` como largos mínimo y máximo del pedazo a buscar.",
    "ejemplo": "El resumen de un expediente cita «la cláusula décima segunda del contrato de arrendamiento»: después de «la cláusula», el prompt ya contiene «décima segunda del contrato…», y esos tokens se proponen. vLLM midió hasta 2.8× con n-gram en resumen de noticias con Llama 3 70B.",
    "ver": ["speculative-decoding", "modelo-borrador"],
    "leccion": "speculative"
@@ -96,7 +96,7 @@
    "termino": "YaRN",
    "en": "YaRN (Yet another RoPE extensioN)",
    "corto": "Un método para estirar el contexto de un modelo con RoPE: deja igual los pares que giran rápido, estira los lentos y ajusta la temperatura de la atención.",
-   "largo": "Peng y otros (2023). Divide los pares de [[rope|RoPE]] según cuántas vueltas dan en el contexto original: los que dan muchas (más de 32 en la propuesta para Llama) no se tocan, los que no dan ni una se estiran por el factor completo, y los de en medio siguen una rampa. Además multiplica la atención por un factor, \\(sqrt{1/t}\\) = 0.1 × ln(s) + 1. Los servidores abiertos lo aplican **estático**: el mismo factor para todos los textos, también los cortos, y eso puede empeorarlos.",
+   "largo": "Peng y otros (2023). Divide los pares de [[rope|RoPE]] según cuántas vueltas dan en el contexto original: los que dan muchas (más de 32 en la propuesta para Llama) no se tocan, los que no dan ni una se estiran por el factor completo, y los de en medio siguen una rampa. Además divide los puntajes de la atención entre una «temperatura» t, con \\(sqrt{1/t}\\) = 0.1 × ln(s) + 1 (≈ 1.139 con s = 4). Los servidores abiertos lo aplican **estático**: el mismo factor para todos los textos, también los cortos, y eso puede empeorarlos.",
    "ejemplo": "Para Qwen3 32B: `\"rope_scaling\": {\"rope_type\": \"yarn\", \"factor\": 4.0, \"original_max_position_embeddings\": 32768}` da 131,072 tokens. Para contextos típicos de ≈ 65,536, la model card recomienda factor 2.",
    "ver": ["rope", "extension-de-contexto"],
    "leccion": "speculative"

@@ -52,7 +52,7 @@
    "y": 4,
    "w": 18,
    "h": 8,
-   "note": "Calculan en FP8 (W8A8) y corren W4A16 con Marlin o Machete. La L40S del despacho está aquí."
+   "note": "Calculan en FP8 (W8A8) y corren W4A16 con Marlin (Ada) o Machete (Hopper). La L40S del despacho está aquí."
   },
   {
    "id": "amp",
@@ -96,7 +96,7 @@
    "y": 20,
    "w": 18,
    "h": 9,
-   "note": "FP8 acelera el [[prefill|prefill]]; W4A16 lee menos bytes en el [[decode|decode]]. En la L40S, con un 32B, gana el INT4: FP8 escribe a ≈ 16.8 tokens/s con una persona. En una H100, FP8 es lo natural."
+   "note": "FP8 acelera el [[prefill|prefill]]; W4A16 lee menos bytes en el [[decode|decode]]. En la L40S, con un 32B, gana el INT4: según la cuenta de las dos fases (derivada, no medida), FP8 escribe a ≈ 16.8 tokens/s con una persona. En una H100, FP8 es lo natural."
   },
   {
    "id": "f416",
@@ -221,7 +221,7 @@
      "edges": [
       "ada>f8"
      ],
-     "text": "Dos candidatos: el AWQ de 19.32 GB y el FP8 de 34.33 GB. La cuenta de las dos fases dice que el FP8 escribe a ≈ 16.8 tokens/s con una persona: menos de 20. Se queda el **INT4 de AWQ**."
+     "text": "Dos candidatos: el AWQ de 19.32 GB y el FP8 de 34.33 GB. La cuenta de las dos fases (derivada, no medida) dice que el FP8 escribe a ≈ 16.8 tokens/s con una persona: menos de 20. Se queda el **INT4 de AWQ**."
     },
     {
      "nodes": [

@@ -102,7 +102,7 @@
    "y": 36,
    "w": 15,
    "h": 8,
-   "note": "Lee el `config.json` (o los metadatos del GGUF), sabe qué formato es y elige un kernel. Al arrancar imprime cuál: es lo primero que conviene leer."
+   "note": "Lee el `config.json` (o los metadatos del GGUF), sabe qué formato es y elige un kernel. Su registro de arranque dice qué método usa (y, en modo detallado, qué kernel): es lo primero que conviene leer."
   },
   {
    "id": "kernel",
@@ -260,7 +260,7 @@
       "servidor>kernel",
       "kernel>gpu"
      ],
-     "text": "Un kernel de W4A16 lee 4 bits por peso, los convierte a FP16 en el chip y multiplica en la L40S. En el decode escribe a ≈ 28.9 tokens/s con una conversación."
+     "text": "Un kernel de W4A16 lee 4 bits por peso, los convierte a FP16 en el chip y multiplica en la L40S. En el decode, la cuenta de las dos fases da ≈ 28.9 tokens/s con una conversación."
     }
    ]
   },

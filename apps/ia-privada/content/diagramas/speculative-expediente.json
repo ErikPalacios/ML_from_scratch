@@ -8,7 +8,7 @@
   ],
   "nodes": [
     { "id": "exp", "label": "Expediente", "sub": "50 págs · ≈ 33–40 mil tokens", "kind": "store", "x": 2, "y": 4, "w": 20, "h": 8,
-      "note": "≈ 50 páginas a ≈ 500 palabras y 1.33–1.61 tokens por palabra: ≈ 33,000–40,000 tokens. Entre 4 y 5 veces el tope de 8,192 que el despacho le puso a cada conversación." },
+      "note": "≈ 50 páginas a ≈ 500 palabras y 1.33–1.61 tokens por palabra (una estimación gruesa: hay que medirlo con el tokenizador del modelo): ≈ 33,000–40,000 tokens. Entre 4 y 5 veces el tope de 8,192 que el despacho le puso a cada conversación." },
     { "id": "tope", "label": "¿Cabe en el tope?", "sub": "8,192 por conversación", "kind": "service", "x": 30, "y": 4, "w": 18, "h": 8,
       "note": "El tope de 8,192 es del **servidor**, no del modelo: el despacho lo eligió para que quepan 8 conversaciones en la memoria. El modelo, Qwen3 32B, lee 32,768 tokens de forma nativa y 131,072 con [[yarn|YaRN]]." },
     { "id": "rag", "label": "RAG", "sub": "si es una pregunta", "kind": "external", "x": 58, "y": 4, "w": 18, "h": 8,

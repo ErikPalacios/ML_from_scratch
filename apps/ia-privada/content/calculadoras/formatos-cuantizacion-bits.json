@@ -268,7 +268,7 @@
    "label": "5 · ¿Caben los pesos en esa GPU?",
    "formula": "libre",
    "veredicto": {
-    "si": "Sí: sobra lugar para el KV cache",
+    "si": "Sí caben; lo que queda es para el KV cache",
     "no": "No caben"
    },
    "nota": "con 10 % de margen y 2 GB de programa; el KV cache, en la [herramienta de VRAM](/herramientas/vram/)",

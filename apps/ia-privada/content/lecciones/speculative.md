@@ -7,7 +7,7 @@ sensei: llms, latencia, numeros-maquina
 ---
 
 :::idea
-En el [[decode|decode]] la GPU tiene cálculo de sobra: lee todos los pesos para escribir **un** token. El [[speculative-decoding|speculative decoding]] aprovecha ese sobrante: algo barato propone los siguientes tokens y el modelo grande los revisa todos en una sola pasada, con una regla que deja la respuesta **igual** que sin el truco. Rinde con pocas conversaciones a la vez y se desvanece cuando el batch ya ocupa el cálculo. La otra mitad de la lección es el contexto largo: un expediente de 50 páginas son ≈ 33–40 mil tokens, cuesta memoria que crece en línea recta y un prefill que crece al cuadrado, y que el modelo lo acepte no quiere decir que lo use bien.
+En el [[decode|decode]] la GPU tiene cálculo de sobra: lee todos los pesos para escribir **un** token. El [[speculative-decoding|speculative decoding]] aprovecha ese sobrante: algo barato propone los siguientes tokens y el modelo grande los revisa todos en una sola pasada, con una regla que deja la respuesta **igual** que sin el truco. Rinde con pocas conversaciones a la vez y se desvanece cuando el batch ya ocupa el cálculo. La otra mitad de la lección es el contexto largo: un expediente de 50 páginas son del orden de 33–40 mil tokens (una estimación gruesa), cuesta memoria que crece en línea recta y un prefill que crece al cuadrado, y que el modelo lo acepte no quiere decir que lo use bien.
 :::
 
 ## Varios tokens por cada lectura de los pesos {Several tokens per read of the weights}
@@ -22,11 +22,11 @@ Tres cosas que se explican a fondo en otro lado y aquí solo se recuerdan:
 
 ### La GPU calcula de más en el prefill y de menos en el decode
 
-Mira lo raro de la situación. En el prefill, el modelo procesa 6,000 tokens en una sola pasada: lee los pesos una vez y hace las cuentas de los 6,000. En el decode, para cada token nuevo lee los mismos pesos y hace las cuentas de **uno**. La diferencia no es que el modelo no pueda calcular varios tokens a la vez: puede, lo hace en el prefill. La diferencia es que en el decode **no sabe todavía** cuáles son los tokens siguientes. Cada uno depende del anterior.
+Mira lo raro. En el prefill, el modelo lee los pesos una vez y hace las cuentas de 6,000 tokens. En el decode, para cada token nuevo lee los mismos pesos y hace las cuentas de **uno**. La diferencia no es que el modelo no pueda calcular varios tokens a la vez: puede, lo hace en el prefill. La diferencia es que en el decode **no sabe todavía** cuáles son los tokens siguientes. Cada uno depende del anterior.
 
 Ahora piensa al revés. Si alguien le diera al modelo grande una **propuesta** de los siguientes 3 tokens, el modelo podría calificarlos todos en una pasada, como un prefill chiquito de 3 tokens. Esa pasada lee los mismos pesos que un paso normal. Si las propuestas son buenas, salen 3 tokens por el precio de uno. Esa es toda la idea del [[speculative-decoding|speculative decoding]] (decodificación especulativa).
 
-Antes de creerla, hay que comprobar que calificar varios tokens de verdad cuesta lo mismo que escribir uno. Se hace con los dos relojes del paso: el de la memoria y el del cálculo.
+Antes de creerla, comprueba que calificar varios tokens cuesta lo mismo que escribir uno, con los dos relojes del paso: el de la memoria y el del cálculo.
 
 :::formula El paso que califica \(k\) tokens por conversación
 t_{mem} = frac{W + b × K}{η_m × B_W}
@@ -143,7 +143,7 @@ aceptados: 0.750   suma de min(p, q): 0.75
 Lo que sale sigue a \(p\), aunque las propuestas vinieron de \(q\), que estaba bastante lejos (70 % contra 50 % en «la»). El borrador malo no ensucia la respuesta: solo baja la aceptación. Aquí se acepta el 75 % de las veces, justo \(sum min(p, q)\) = 0.50 + 0.10 + 0.10 + 0.05.
 
 :::profundo «Dentro de la numérica del hardware»: cuándo sí cambia algo
-La igualdad es matemática. En una GPU, la pasada que verifica 4 tokens no hace las sumas en el mismo orden que 4 pasadas de un token, y con números de punto flotante el orden cambia los últimos dígitos. La documentación de vLLM lo dice: con tamaños de lote distintos puede haber variaciones en los *logprobs*. La de llama.cpp agrega que, con muestreo al azar, los resultados pueden diferir entre CPU, backends y dispositivos aunque fijes la semilla; para igualdad exacta recomienda *greedy*. En la práctica, para el examen del despacho esto pesa lo mismo que cambiar de versión del servidor: nada que se note en la calidad, pero sí en una prueba que compare textos carácter por carácter.
+La igualdad es matemática. En una GPU, la pasada que verifica 4 tokens no hace las sumas en el mismo orden que 4 pasadas de un token, y con números de punto flotante el orden cambia los últimos dígitos. La documentación de vLLM lo dice: con tamaños de lote distintos puede haber variaciones en los *logprobs* (las probabilidades que el modelo le da a cada token). La de llama.cpp agrega que, con muestreo al azar, los resultados pueden diferir entre CPU, bibliotecas de cálculo (*backends*) y dispositivos aunque fijes la semilla; para igualdad exacta recomienda *greedy*. En la práctica, para el examen del despacho esto pesa lo mismo que cambiar de versión del servidor: nada que se note en la calidad, pero sí en una prueba que compare textos carácter por carácter.
 
 Ojo con una excepción que sí cambia la distribución: vLLM ofrece variantes de verificación que **aceptan de más** a cambio de velocidad (la documentación marca su método `fly` como con pérdida). Si las usas, ya no es el mismo modelo y el examen se vuelve a correr.
 :::
@@ -169,22 +169,24 @@ S = frac{E}{γ × c + 1}
 - S: cuántas veces más rápido sale la respuesta que sin borrador
 :::
 
-El denominador de \(S\) esconde el supuesto importante: la verificación de \(γ + 1\) tokens cuesta **un** paso del grande. Es lo que comprobaste con la cuenta de la sección anterior, y lo que deja de valer con un batch grande.
+El denominador de \(S\) esconde el supuesto importante: la verificación de \(γ + 1\) tokens cuesta **un** paso del grande. El paper lo dice así: supone que puede correr las \(γ + 1\) evaluaciones en paralelo sin que crezca el tiempo, porque hay cálculo de sobra, y advierte que sin ese cálculo de sobra el método no ayuda. Es lo que comprobaste con la cuenta de la sección anterior, y lo que deja de valer con un batch grande.
 
 :::cuenta El ejemplo del paper y una estimación para el despacho
 Tokens por ciclo con un buen borrador, \(E\) // \(α\) = 0.8, \(γ\) = 3 | (1 − 0.8⁴) ÷ (1 − 0.8) = 0.5904 ÷ 0.2 | ≈ 2.95
 Lo que dura el ciclo // \(c\) = 0.05 | 3 × 0.05 + 1 | 1.15 pasos
 Aceleración, \(S\) | 2.95 ÷ 1.15 | **≈ 2.57×**
-Tokens por ciclo con un borrador más modesto, \(E\) // \(α\) = 0.6 (supuesto, cerca de lo medido para Qwen3 32B), \(γ\) = 3 | (1 − 0.6⁴) ÷ (1 − 0.6) = 0.8704 ÷ 0.4 | ≈ 2.18
+Tokens por ciclo con un borrador más modesto, \(E\) // \(α\) = 0.6 (la que sale de una medición con Qwen3 32B, abajo), \(γ\) = 3 | (1 − 0.6⁴) ÷ (1 − 0.6) = 0.8704 ÷ 0.4 | ≈ 2.18
 Aceleración, \(S\) | 2.18 ÷ 1.15 | **≈ 1.89×**
 Despacho con una conversación // sin borrador, 1 ÷ 34.7 ms | 28.9 × 1.89 | ≈ 54.6 tokens/s
 = Con una sola conversación, un abogado vería su respuesta escribirse ≈ 1.9 veces más rápido: de ≈ 29 a ≈ 55 tokens por segundo, en la cuenta de techo. Bajar \(α\) de 0.8 a 0.6 se come casi la mitad de la ganancia.
 :::
 
-¿De dónde sale el «cerca de lo medido»? Red Hat publicó un borrador EAGLE-3 para Qwen3 32B y midió su **longitud de aceptación** (los tokens que salen en promedio por verificación) en una prueba de resumen de noticias, con 2 GPUs A100, vLLM y temperatura 0.6. Con \(γ\) = 3 obtuvo 2.15. Si esa longitud es la \(E\) de la fórmula (la tarjeta no lo dice con todas sus letras), basta despejar \(α\): da ≈ 0.59. Por eso la lección usa 0.6.
+¿De dónde sale el 0.6? Red Hat publicó un borrador EAGLE-3 para Qwen3 32B y midió su **longitud de aceptación** en una prueba de resumen de noticias (80 textos de CNN/DailyMail), con 2 GPUs A100, vLLM 0.11 y temperatura 0.6. Con \(γ\) = 3 obtuvo 2.15. La tarjeta no define esa longitud, pero Red Hat, en su artículo sobre EAGLE-3, la describe como los tokens que salen por cada pasada del verificador, y vLLM la calcula como 1 + aceptados ÷ ciclos: cuenta el token que el grande siempre pone. Es la \(E\) de la fórmula. Despejando \(1 + α + α^2 + α^3\) = 2.15 sale \(α\) ≈ 0.59, y la lección redondea a 0.6.
+
+Ojo: la fórmula supone que todas las posiciones se aceptan igual, y en la realidad la primera se acepta más que la tercera (el artículo de Red Hat lo advierte). Con \(γ\) = 1 la tabla da 1.62: la primera propuesta pasa ≈ 62 % de las veces. El 0.59 es un **α equivalente**, el número fijo que reproduce la medición con \(γ\) = 3.
 
 :::figura speculative-aceptacion
-Las barras son lo que midió Red Hat con su EAGLE-3 para Qwen3 32B al subir γ de 1 a 7. Los puntos son la fórmula con α = 0.59. Casi coinciden, y las dos se aplanan: de γ = 3 a γ = 7 apenas se ganan 0.18 tokens por verificación.
+Las barras son lo que midió Red Hat con su EAGLE-3 para Qwen3 32B al subir γ de 1 a 7. Los puntos son la fórmula con α = 0.59. Hasta γ = 3 casi coinciden; de ahí en adelante la medición queda un poco abajo, porque las propuestas lejanas se aceptan menos de lo que supone una α fija. Las dos se aplanan: de γ = 3 a γ = 7 apenas se ganan 0.18 tokens por verificación.
 :::
 
 ### Subir γ ayuda cada vez menos
@@ -243,7 +245,7 @@ El borrador es lo que más cambia de un método a otro. Hay cinco familias, de l
 
 ### Un modelo chico de la misma familia
 
-La forma original: un modelo pequeño que comparte el **tokenizador** con el grande (si no, sus tokens no significan lo mismo y no se pueden comparar). Leviathan y otros usaron versiones chicas de T5 para acelerar T5-XXL. Es fácil de armar, pero el borrador tiene sus propios pesos y su propio [[kv-cache|KV cache]] en la [[vram|VRAM]], y su \(c\) es la proporción de tamaños más el costo de llamarlo. Para Qwen3 32B, un candidato natural sería uno de los Qwen3 chicos; no hay una medición publicada de qué tan bien funciona, y habría que confirmar que el tokenizador es el mismo.
+La forma original: un modelo pequeño que comparte el **tokenizador** con el grande (si no, sus tokens no significan lo mismo y no se pueden comparar). Leviathan y otros usaron T5-small, T5-base y T5-large (de 77 a 800 millones de parámetros) como borradores de T5-XXL; el más chico dio la mayor aceleración en casi todas sus pruebas. Es fácil de armar, pero el borrador tiene sus propios pesos y su propio [[kv-cache|KV cache]] en la [[vram|VRAM]], y su \(c\) es la proporción de tamaños más el costo de llamarlo. Para Qwen3 32B, el candidato natural es uno de los Qwen3 chicos, como el de 0.6 o el de 1.7 mil millones de parámetros: según el informe técnico de Qwen3, toda la familia usa el mismo tokenizador. No encontramos una medición publicada de qué tan bien acierta con el 32B.
 
 ### Cabezas extra: Medusa y EAGLE
 
@@ -252,7 +254,7 @@ En vez de un modelo aparte, se le agregan al grande unas piezas chicas que miran
 - **Medusa** (2024) le pone varias cabezas de decodificación, cada una adivina un token más adelante, y verifica las combinaciones como un árbol. Sus autores reportan más de 2.2× con las cabezas entrenadas sobre el modelo congelado.
 - **[[eagle|EAGLE]]** (Li y otros, 2024) entrena una capa chica que predice sobre las representaciones internas de la penúltima capa (*features*), no sobre tokens, y le pasa al borrador el token del paso siguiente para quitarle dudas. EAGLE-2 arma un árbol de candidatos que cambia según el contexto, usando la confianza del borrador. EAGLE-3 (2025) vuelve a predecir tokens directamente, junta features de varias capas y se entrena simulando cómo se va a usar.
 
-Las dos tienen el mismo precio: hay que **entrenarlas para cada modelo**. Un EAGLE de Llama no sirve para Qwen. Para Qwen3 32B hay al menos dos publicados: el de Red Hat (`RedHatAI/Qwen3-32B-speculator.eagle3`, Apache 2.0, entrenado con conversaciones generales de ShareGPT y UltraChat) y el de AngelSlim de Tencent (`AngelSlim/Qwen3-32B_eagle3`). No se encontró uno oficial de Qwen.
+Las dos tienen el mismo precio: hay que **entrenarlas para cada modelo**. Un EAGLE de Llama no sirve para Qwen. Para Qwen3 32B hay al menos dos publicados: el de Red Hat (`RedHatAI/Qwen3-32B-speculator.eagle3`, Apache 2.0, entrenado con conversaciones generales de ShareGPT y UltraChat) y el de AngelSlim de Tencent (`AngelSlim/Qwen3-32B_eagle3`), los dos con mediciones publicadas. En Hugging Face hay otros de la comunidad, pero a noviembre de 2026 ni Qwen ni NVIDIA publican uno para Qwen3 32B.
 
 ### MTP: el modelo ya trae su borrador
 
@@ -281,7 +283,7 @@ En vLLM todo pasa por una opción, `--speculative-config`, con un JSON. Sus camp
 --speculative-config '{"model":"RedHatAI/Qwen3-32B-speculator.eagle3","num_speculative_tokens":3,"method":"eagle3"}'
 ```
 
-La documentación de vLLM resume la diferencia: los métodos con modelo (EAGLE, MTP, borrador) dan la mayor reducción de latencia, y los simples (n-gram, *suffix decoding*) dan aceleraciones modestas. llama.cpp tiene su propio juego de opciones (`--spec-type` con borrador aparte, EAGLE-3, MTP o varias formas de n-gram); los servidores se comparan a fondo en la lección «Del laptop al servidor».
+La documentación de vLLM resume la diferencia: los métodos con modelo (EAGLE, MTP, borrador) dan la mayor reducción de latencia, y los simples (n-gram, y *suffix decoding*, que busca también en respuestas anteriores) dan aceleraciones modestas. llama.cpp tiene su propio juego de opciones (`--spec-type` con borrador aparte, EAGLE-3, MTP o varias formas de n-gram); los servidores se comparan a fondo en la lección «Del laptop al servidor».
 :::
 
 :::ojo
@@ -292,29 +294,29 @@ Dos cosas que nadie ha medido para el despacho y que hay que medir antes de prom
 
 Toda la cuenta de la aceleración descansa en un supuesto: que verificar \(γ + 1\) tokens cuesta lo mismo que escribir uno, porque sobra cálculo. Con una conversación sobra muchísimo. Con un [[batch|batch]] grande, el cálculo del paso crece con cada conversación y el sobrante se acaba. Cuando ya no sobra, verificar cuesta \(γ + 1\) veces más, y los tokens rechazados son cálculo tirado.
 
-La forma honesta de verlo es meter los dos relojes del paso dentro de la fórmula de la aceleración. Es una extensión de la cuenta de Leviathan, hecha para esta lección.
+La forma honesta de verlo es meter los dos relojes del paso dentro de la fórmula de la aceleración. Esto **no** está en el paper de Leviathan: es un modelo simplificado de esta lección. Supone que el paso dura lo que el mayor de los dos relojes, que \(α\) no cambia con el batch, que todas las conversaciones especulan y que un paso del borrador cuesta \(c\) pasos normales con ese batch. No cuenta la atención extra de verificar, el [[kv-cache|KV cache]] del borrador ni los prefills que comparten la GPU. Da la tendencia y el orden de magnitud; la cifra se mide.
 
-:::formula La aceleración con un batch
+:::formula La aceleración con un batch (modelo simplificado de esta lección)
 t_{1} = max(t_{mem}, t_{cálc}(1))
 t_{ver} = max(t_{mem}, (γ + 1) × t_{cálc}(1))
-S_{real} = frac{E × t_{1}}{t_{ver} + γ × c × t_{1}}
+S_{b} = frac{E × t_{1}}{t_{ver} + γ × c × t_{1}}
 - t_{1}: un paso normal del grande, con \(b\) conversaciones, en segundos
 - t_{ver}: un paso de verificación: los mismos bytes, pero γ + 1 tokens de cálculo por conversación
 - t_{mem}, t_{cálc}(1): los relojes de la memoria y del cálculo de un token, de la primera fórmula
 - E, γ, c: como en la fórmula de Leviathan
-- S_{real}: cuántas veces más rápido sale cada respuesta con ese batch
+- S_{b}: cuántas veces más rápido sale cada respuesta con ese batch, según este modelo
 :::
 
-Si \(t_{ver} = t_{1}\) (la memoria manda en los dos), la fórmula vuelve a ser la de Leviathan. Si el cálculo manda, \(t_{ver}\) crece y \(S_{real}\) cae, y puede bajar de 1: el truco **frena**.
+Si \(t_{ver} = t_{1}\) (la memoria manda en los dos), la fórmula vuelve a ser la de Leviathan. Si el cálculo manda, \(t_{ver}\) crece y \(S_{b}\) cae, y puede bajar de 1: el truco **frena**.
 
-:::cuenta El despacho en la hora pico: 8 conversaciones
-Reloj de la memoria, \(t_{mem}\) // \(b\) = 8, \(K\) = 1.64 GB cada una | (19.32 + 8 × 1.64) GB ÷ 604.8 GB/s | ≈ 53.6 ms
+:::cuenta El peor caso del despacho: las 8 conversaciones de diseño en una sola L40S
+Reloj de la memoria, \(t_{mem}\) // \(b\) = 8 (le caben por memoria), \(K\) = 1.64 GB cada una | (19.32 + 8 × 1.64) GB ÷ 604.8 GB/s | ≈ 53.6 ms
 Cálculo de 1 token por conversación, \(t_{cálc}(1)\) | 8 × 0.36 ms | ≈ 2.9 ms
 Cálculo de la verificación // \(γ\) + 1 = 4 | 4 × 2.9 ms | ≈ 11.6 ms
 Paso de verificación, \(t_{ver}\) | max(53.6, 11.6) | ≈ 53.6 ms
-Aceleración, \(S_{real}\) // \(t_{ver} = t_{1}\): vuelve la de Leviathan con \(α\) = 0.6 | 2.18 × 53.6 ÷ (53.6 + 0.15 × 53.6) | ≈ 1.89×
+Aceleración, \(S_{b}\) // \(t_{ver} = t_{1}\): vuelve la de Leviathan con \(α\) = 0.6 | 2.18 × 53.6 ÷ (53.6 + 0.15 × 53.6) | ≈ 1.89×
 Cada abogado // sin borrador 1 ÷ 53.6 ms = 18.65 | 18.65 × 1.89 | ≈ 35 tokens/s
-= En la cuenta de techo, el truco sobrevive a las 8 conversaciones del despacho: el KV cache de prompts tan largos pesa tanto que la memoria sigue mandando por ≈ 4.6 veces. Es una buena noticia con letra chiquita: esta cuenta no incluye el cálculo de los prefills que comparten la GPU, ni la atención extra de verificar, y nadie ha medido el borrador con el modelo en INT4.
+= En la cuenta de techo, el truco sobrevive aun con las 8 conversaciones de diseño juntas en una GPU: el KV cache de prompts tan largos pesa tanto que la memoria sigue mandando por ≈ 4.6 veces. Es una buena noticia con letra chiquita: esta cuenta no incluye el cálculo de los prefills que comparten la GPU, ni la atención extra de verificar, y nadie ha medido el borrador con el modelo en INT4.
 :::
 
 Ahora un caso donde no sobrevive. Supuesto del ejemplo: **un clasificador de correos** que usa el mismo Qwen3 32B en una L40S, con prompts cortos de ≈ 300 tokens y muchas peticiones a la vez. Con contextos cortos el KV cache casi no pesa, el cálculo crece con cada conversación y alcanza al reloj de la memoria.
@@ -325,18 +327,16 @@ Reloj de la memoria, \(t_{mem}\) // \(b\) = 64 | (19.32 + 64 × 0.079) GB ÷ 604
 Cálculo de 1 token, \(t_{cálc}(1)\) | 64 × 0.36 ms | ≈ 23.2 ms
 Paso normal, \(t_{1}\) | max(40.3, 23.2) | ≈ 40.3 ms
 Paso de verificación, \(t_{ver}\) // 4 tokens por conversación | max(40.3, 4 × 23.2) | ≈ 92.7 ms
-Aceleración, \(S_{real}\) // \(E\) = 2.18, \(c\) = 0.05 | 2.18 × 40.3 ÷ (92.7 + 0.15 × 40.3) | **≈ 0.89×**
+Aceleración, \(S_{b}\) // \(E\) = 2.18, \(c\) = 0.05 | 2.18 × 40.3 ÷ (92.7 + 0.15 × 40.3) | **≈ 0.89×**
 = Con 64 a la vez, el speculative decoding hace cada respuesta ≈ 11 % **más lenta**. Con 32 todavía ayuda (≈ 1.5×); el punto donde se cruza está en ≈ 55 conversaciones. Verificar deja de ser gratis desde ≈ 24, y de ahí la ganancia baja poco a poco.
 :::
 
-### Lo que se ha medido
-
-Las mediciones públicas cuentan la misma historia:
-
-- **vLLM**, en su blog de octubre de 2024: speculative decoding da mejoras grandes con pocas peticiones por segundo, y con muchas «puede introducir pérdidas» porque el cálculo extra frena a un sistema que ya está limitado por cálculo. Sus gráficas muestran respuestas **1.4×** y **1.8× más lentas** con Llama 3 70B en 4 H100 con carga alta. La documentación actual lo resume: ayuda con cargas de pocas a medianas peticiones por segundo, limitadas por memoria, y la ganancia real depende del modelo, el tráfico, el hardware y el muestreo.
-- **EAGLE-3**, en SGLang: con un batch de 64 todavía da **1.38×** de throughput. Menos que con una conversación, pero positivo.
-- **MagicDec** (ICLR 2025) contradice la idea de que solo sirve con batches chicos, con un argumento que ya viste en la cuenta del despacho: con secuencias largas el cuello es el KV cache, no los pesos, y un borrador que lee un KV cache recortado da hasta 2.51× con batches de 32 a 256 (con Llama 3.1 8B). El matiz es importante: es un borrador especial, para secuencias largas.
+:::profundo Lo que se ha medido: la misma historia
+- **vLLM**, en su blog de octubre de 2024: mejoras grandes con pocas peticiones por segundo; con muchas, el cálculo extra frena a un sistema ya limitado por cálculo. Sus gráficas muestran respuestas **1.4×** y **1.8× más lentas** con Llama 3 70B en 4 H100 con carga alta. Su documentación actual lo resume: ayuda con cargas bajas a medianas, limitadas por memoria, y la ganancia depende del modelo, el tráfico, el hardware y el muestreo.
+- **EAGLE-3**, en SGLang: con un batch de 64 todavía da **1.38×** de [[throughput-de-tokens|throughput]] (tokens por segundo de toda la GPU). Menos que con una conversación, pero positivo.
+- **MagicDec** (ICLR 2025) contradice la idea de que solo sirve con batches chicos, con el argumento de la cuenta del despacho: con secuencias largas el cuello es el KV cache, no los pesos, y un borrador que lee un KV cache recortado da hasta 2.51× con batches de 32 a 256 (con Llama 3.1 8B). El matiz es importante: es un borrador especial, para secuencias largas.
 - **TurboSpec** muestra que agregado sin cuidado puede empeorar el servicio, y propone ajustar cuánto se especula según el [[goodput|goodput]]. vLLM ya tiene una opción parecida: la especulación dinámica, que ajusta según la carga.
+:::
 
 :::nota Por qué el despacho cae del lado bueno
 El despacho tiene dos cosas a su favor: prompts largos (el KV cache pesa ≈ 13 GB por paso con 8 conversaciones, dos tercios de los pesos) y poca gente a la vez casi todo el día. 3,000 preguntas en 10 horas son 300 por hora, ≈ 0.083 por segundo; con ≈ 27 s por respuesta, la [[ley-de-little|ley de Little]] da 0.083 × 27 ≈ **2.25 conversaciones a la vez en promedio** en todo el despacho, menos de una por GPU. Solo en la hora pico llegan a ≈ 5.6. La mayor parte del día cada GPU atiende a una conversación o a ninguna: el escenario donde el truco rinde más.
@@ -348,23 +348,23 @@ Una última cosa que el speculative decoding no arregla: el sizing del despacho.
 
 La segunda tarea que pide el despacho es **resumir un expediente completo**. Antes de pensar cómo, hay que saber cuánto mide en tokens.
 
-Un recordatorio de [Transformers y LLMs](https://sensei.trueml.app/llms/): un token es un pedazo de texto (una palabra corta, parte de una larga, un signo). El [[contexto|contexto]] es todo lo que el modelo ve de una vez: instrucciones, documento y lo que lleva escrito. La regla de OpenAI para inglés es ≈ 1.33 tokens por palabra (1 token ≈ ¾ de palabra). En español suelen salir más tokens por palabra: una medición de un mismo pasaje dio 1.61 tokens por palabra con el tokenizador de GPT-4 y 1.34 con el de GPT-5. Es una sola medición de blog, de un solo pasaje, y para el tokenizador de Qwen3 no hay una publicada. La lección usa el rango **1.33 a 1.61**; el número de verdad se saca pasando un expediente real por el tokenizador del modelo.
+Un recordatorio de [Transformers y LLMs](https://sensei.trueml.app/llms/): un token es un pedazo de texto (una palabra corta, parte de una larga, un signo). El [[contexto|contexto]] es todo lo que el modelo ve de una vez: instrucciones, documento y lo que lleva escrito. La regla de OpenAI para inglés es ≈ 1.33 tokens por palabra (1 token ≈ ¾ de palabra). Para español no hay un buen dato público. Lo único a la mano es una medición de blog sobre un solo pasaje de 107 palabras: dio 1.61 tokens por palabra con el tokenizador de GPT-4 y 1.34 con el más nuevo de OpenAI (el de GPT-4o y GPT-5). Para el tokenizador de Qwen3 no encontramos ninguna. Así que la lección usa el rango **≈ 1.3 a 1.6** como estimación gruesa, y todo lo que sale de él (los tokens del expediente, su KV cache, su prefill) es aproximado. El número de verdad se saca en una tarde: pasar una docena de expedientes reales por el tokenizador del modelo y contar.
 
 :::formula Los tokens de un documento
 n = pág × pal × τ
 - pág: las páginas del documento
 - pal: las palabras por página (≈ 500 a espacio sencillo y letra de 12 puntos; ≈ 250 a doble espacio; es una regla aproximada)
-- τ: los tokens por palabra del tokenizador (la letra griega tau; ≈ 1.3–1.6 en español)
+- τ: los tokens por palabra del tokenizador (la letra griega tau; ≈ 1.3–1.6 en español, estimación gruesa)
 - n: los tokens del documento
 :::
 
 :::cuenta Un expediente del despacho
 Palabras // ≈ 50 páginas por expediente (la ficha), 500 por página | 50 × 500 | 25,000 palabras
-Tokens con la regla de inglés, \(n\) // \(τ\) = 1.33 | 25,000 × 1.33 | ≈ 33,250
+Tokens en la parte baja del rango, \(n\) // \(τ\) = 1.33, la regla de inglés (el tokenizador nuevo de OpenAI dio 1.34 en español) | 25,000 × 1.33 | ≈ 33,250
 Tokens con la medición en español más alta, \(n\) // \(τ\) = 1.61 | 25,000 × 1.61 | ≈ 40,250
 Contra el tope de cada conversación // 8,192 tokens | 33,250 ÷ 8,192 a 40,250 ÷ 8,192 | ≈ 4.1 a 4.9 veces
-Contra el contexto nativo de Qwen3 32B // 32,768 tokens | 33,250 y 40,250 contra 32,768 | ninguno cabe
-= Un expediente son **≈ 33–40 mil tokens**: cuatro a cinco veces el tope de una conversación del despacho, y un poco más que lo que el modelo lee de forma nativa. A doble espacio sería la mitad, ≈ 17–20 mil, y sí cabría en el modelo. Para diseñar, la lección usa el caso pesado: ≈ 40,250.
+Contra el contexto nativo de Qwen3 32B // 32,768 tokens | 33,250 y 40,250 contra 32,768 | ninguno cabe, aunque el bajo apenas se pasa
+= A grandes rasgos, un expediente son **≈ 33–40 mil tokens**: cuatro a cinco veces el tope de una conversación del despacho, y un poco más que lo que el modelo lee de forma nativa. Con el número medido podría caber o quedar más lejos: por eso se mide. A doble espacio sería la mitad, ≈ 17–20 mil, y sí cabría en el modelo. Para diseñar, la lección usa el caso pesado: ≈ 40,250.
 :::
 
 ### Dos topes distintos
@@ -374,7 +374,7 @@ En esa cuenta hay dos límites que se confunden seguido:
 - **El tope del servidor**: 8,192 tokens por conversación. Lo eligió el despacho para que en la memoria cupieran 8 conversaciones a la vez. Es una perilla (`--max-model-len` en vLLM) y se puede subir.
 - **El tope del modelo**: lo que el modelo aprendió a leer. Según su model card, Qwen3 32B lee **32,768 tokens de forma nativa**, y está validado hasta **131,072** con un método llamado [[yarn|YaRN]]. Pasarse de ahí no es cuestión de perillas: el modelo nunca vio esas distancias.
 
-Así que el expediente pesado no cabe en ninguno de los dos, por distintas razones. Para meterlo entero, hay que subir el tope del servidor (y pagar la memoria) **y** estirar el contexto del modelo (y pagar algo de calidad). La sección siguiente explica lo segundo; aquí va lo primero.
+El expediente pesado no cabe en ninguno de los dos. Para meterlo entero, hay que subir el tope del servidor (y pagar la memoria) **y** estirar el contexto del modelo (y pagar algo de calidad). La sección siguiente explica lo segundo; aquí va lo primero.
 
 ### Lo que cuesta en memoria: lineal
 
@@ -415,7 +415,7 @@ t_{pre} = frac{2 × P × N + 2 × N^2 × d × L}{η_c × F}
 - t_{pre}: lo que tarda el prefill sin fila, en segundos: el TTFT de esa petición
 :::
 
-La fórmula de la atención es una aproximación hecha para esta lección; no cuenta el softmax ni otros detalles chicos. Una forma de saber que va bien: con los 6,000 tokens de una pregunta normal del despacho da 2.38 s, lo mismo que la herramienta de sizing.
+La fórmula de la atención es una aproximación hecha para esta lección; no cuenta el softmax (la normalización de los puntajes de la atención) ni otros detalles chicos. Una forma de saber que va bien: con los 6,000 tokens de una pregunta normal del despacho da 2.38 s, lo mismo que la herramienta de sizing.
 
 :::cuenta El prefill de un expediente en una L40S
 Tokens del prompt, \(N\) // 40,250 + 400 de instrucciones | 40,250 + 400 | 40,650
@@ -433,9 +433,9 @@ Arranca con el expediente pesado del despacho. Baja τ a 1.33 y mira cómo cambi
 
 ### Lo que les hace a los demás
 
-Un resumen de 24 s de prefill no es una tragedia para quien lo pidió: espera medio minuto por un trabajo que a una persona le toma una hora. El problema es para los demás abogados que comparten esa GPU. Con [[chunked-prefill|chunked prefill]], el servidor reparte el prefill largo en trozos, digamos de 2,048 tokens por paso, y mete el decode de los demás en cada paso. Cada paso con un trozo dura al menos 2 × 32.762 × 10⁹ × 2,048 ÷ 1.81 × 10¹⁴ ≈ **0.74 s**, y en cada paso cada conversación recibe un token: **≈ 1.3 tokens por segundo** durante ≈ 24 s, cuando se les prometieron 20. Sin chunked prefill sería peor: 24 s sin un solo token.
+Para quien pidió el resumen, 24 s de prefill no son una tragedia: espera medio minuto por un trabajo de una hora. El problema es para los demás que comparten esa GPU. Con [[chunked-prefill|chunked prefill]], el servidor reparte el prefill largo en trozos, digamos de 2,048 tokens por paso, y mete el decode de los demás en cada paso. Cada paso con un trozo dura al menos 2 × 32.762 × 10⁹ × 2,048 ÷ 1.81 × 10¹⁴ ≈ **0.74 s**, y en cada paso cada conversación recibe un token: **≈ 1.3 tokens por segundo** durante ≈ 24 s, cuando se les prometieron 20. Sin chunked prefill sería peor: 24 s sin un solo token.
 
-La consecuencia práctica para el despacho no es técnica sino de operación: los resúmenes de expedientes enteros van **en otra fila**, fuera de la hora pico, o en una GPU apartada para ellos. Es la misma lógica de no mezclar una tarea pesada de lotes con el tráfico interactivo.
+La consecuencia práctica para el despacho no es técnica sino de operación: los resúmenes de expedientes enteros van **en otra fila**, fuera de la hora pico, o en una GPU apartada para ellos. No se mezcla una tarea pesada de lotes con el tráfico interactivo.
 
 ## Estirar el contexto: RoPE, interpolación y YaRN {Stretching the context: RoPE, interpolation and YaRN} [extra]
 
@@ -519,7 +519,7 @@ Y da tres advertencias que vale la pena tomarse en serio:
 Para el despacho: el expediente pesado, con instrucciones y resumen, son ≈ 41,150 tokens. Pide factor 2 (hasta 65,536). Lo sensato es un **segundo servidor** (o un segundo proceso en la GPU apartada para lotes) con YaRN factor 2 y tope de 65,536, y dejar el servidor de las preguntas como está: sin YaRN y con su tope de 8,192.
 
 :::profundo El 40,960 del config.json
-Si abres el `config.json` de Qwen3 32B, verás `"max_position_embeddings": 40960`, no 32,768. La model card, en cambio, dice 32,768 nativos y usa ese número como `original_max_position_embeddings` de YaRN. Para planear, quédate con lo que dice la card: es lo que el fabricante validó. El servidor normalmente toma el tope del config si no le das uno, así que conviene fijar `--max-model-len` a mano y no depender del número que trae el archivo. (Alibaba, en su propia API, usa YaRN dinámico, que cambia el factor según el largo; los servidores abiertos, no.)
+Si abres el `config.json` de Qwen3 32B, verás `"max_position_embeddings": 40960`, no 32,768. La model card, en cambio, dice 32,768 nativos y usa ese número como `original_max_position_embeddings` de YaRN. Para planear, quédate con lo que dice la card: es lo que el fabricante validó. vLLM, si no le das `--max-model-len`, toma el tope del config, así que conviene fijar `--max-model-len` a mano y no depender del número que trae el archivo. (Alibaba, en su propia API, usa YaRN dinámico, que cambia el factor según el largo; los servidores abiertos, no.)
 :::
 
 ## Contexto anunciado contra contexto efectivo {Advertised vs effective context}
@@ -607,15 +607,14 @@ Para **preguntar** algo del expediente (no resumirlo entero) hay una tercera ví
 
 ## En la vida real {In real life}
 
-**El despacho.** Qwen3 32B en INT4 de AWQ en 3 L40S, con preguntas de ≈ 6,000 tokens y respuestas de ≈ 500. Casi todo el día hay ≈ 2.25 conversaciones a la vez en todo el despacho, menos de una por GPU: es el escenario donde el speculative decoding rinde. Con un EAGLE-3 de Qwen3 32B y una aceptación como la medida en resumen (\(α\) ≈ 0.6), la cuenta de techo da ≈ 1.9×: de ≈ 29 a ≈ 55 tokens por segundo con una conversación, y la cuenta sobrevive a las 8 de la hora pico porque sus prompts son largos. Las tres decisiones que salen de aquí: (1) **probar** el EAGLE-3 y el n-gram con el modelo en INT4 y con su examen, midiendo la aceptación y la velocidad con el tráfico real, antes de dejarlo prendido; (2) **no contar** con él para el TTFT ni para ahorrar GPUs: siguen siendo 3 L40S; (3) los **resúmenes de expedientes completos** (≈ 33–40 mil tokens) van en un servidor aparte, con YaRN factor 2 y tope de 65,536, en una fila de trabajos fuera de la hora pico, y se comparan contra map-reduce con preguntas de distintas páginas antes de elegir uno.
+**El despacho.** Qwen3 32B en INT4 de AWQ en 3 L40S, con preguntas de ≈ 6,000 tokens y respuestas de ≈ 500. Casi todo el día hay ≈ 2.25 conversaciones a la vez en todo el despacho, menos de una por GPU: es el escenario donde el speculative decoding rinde. Con un EAGLE-3 de Qwen3 32B y una aceptación como la medida en resumen (\(α\) ≈ 0.6), la cuenta de techo da ≈ 1.9×: de ≈ 29 a ≈ 55 tokens por segundo con una conversación, y en el modelo simplificado sobrevive aun con las 8 conversaciones de diseño juntas en una GPU, porque sus prompts son largos. Las tres decisiones que salen de aquí: (1) **probar** el EAGLE-3 y el n-gram con el modelo en INT4 y con su examen, midiendo la aceptación y la velocidad con el tráfico real, antes de dejarlo prendido; (2) **no contar** con él para el TTFT ni para ahorrar GPUs: siguen siendo 3 L40S; (3) los **resúmenes de expedientes completos** (≈ 33–40 mil tokens) van en un servidor aparte, con YaRN factor 2 y tope de 65,536, en una fila de trabajos fuera de la hora pico, y se comparan contra map-reduce con preguntas de distintas páginas antes de elegir uno.
 
 **Un asistente de código para un equipo de desarrollo.** Supuesto del ejemplo: los programadores piden cambios a un archivo que ya está en el prompt, y la respuesta es el archivo casi igual con unas líneas cambiadas. Es el caso ideal del [[prompt-lookup|prompt lookup]]: casi todo lo que el modelo escribe ya está en la entrada, así que las propuestas por n-gram se aceptan en tramos largos sin entrenar ningún borrador. Aquí conviene una \(γ\) más alta, porque cuando atina, atina en serie.
 
-**Una clasificación masiva de correos.** Supuesto del ejemplo: una empresa clasifica cada noche cientos de miles de correos con prompts de ≈ 300 tokens y respuestas de unas cuantas palabras, con el mayor batch posible para terminar rápido. Aquí el speculative decoding estorba: con 64 conversaciones cortas a la vez, verificar ya no es gratis y la cuenta da ≈ 0.89×. Lo que importa en ese trabajo es el throughput total, no la velocidad que ve cada correo, y el batch ya lo da.
+**Una clasificación masiva de correos.** Supuesto del ejemplo: una empresa clasifica cada noche cientos de miles de correos con prompts de ≈ 300 tokens y respuestas de unas cuantas palabras, con el mayor batch posible para terminar rápido. Aquí el speculative decoding estorba: con 64 conversaciones cortas a la vez, verificar ya no es gratis y la cuenta da ≈ 0.89×. Lo que importa en ese trabajo es el [[throughput-de-tokens|throughput]] total, no la velocidad que ve cada correo, y el batch ya lo da.
 
-**Un centro de atención que resume llamadas de una hora.** Supuesto del ejemplo: una llamada de una hora transcrita son ≈ 9,000 palabras, ≈ 12–14 mil tokens con los mismos 1.33–1.61 por palabra. Cabe en los 32,768 nativos de Qwen3 32B sin YaRN, pero los acuerdos de la llamada suelen estar a la mitad, justo donde el modelo atiende peor. Lo que les sirve: poner al final del prompt una instrucción que pida buscar los acuerdos en toda la llamada, y medir con llamadas reales cuántos acuerdos de en medio se pierden.
+**Un centro de atención que resume llamadas de una hora.** Supuesto del ejemplo: una llamada de una hora transcrita son ≈ 9,000 palabras, ≈ 12–14 mil tokens con los mismos 1.33–1.61 por palabra. Cabe en los 32,768 nativos sin YaRN, pero los acuerdos suelen estar a la mitad, donde el modelo atiende peor. Les sirve poner al final del prompt una instrucción que pida buscar los acuerdos en toda la llamada, y medir con llamadas reales cuántos se pierden.
 
-**Fuera de las computadoras: el autocompletar del celular.** El teclado propone la siguiente palabra y tú la aceptas con un toque o escribes la tuya. Cuando escribes algo predecible («nos vemos mañana a las…»), aceptas tres o cuatro seguidas y escribes más rápido; cuando escribes algo nuevo, ignoras las propuestas y no pierdes nada. Esa es la tasa de aceptación. Lo que el teclado no tiene es la garantía: aceptar su propuesta sí cambia lo que escribes, porque tú aceptas «lo que suena bien». El modelo grande solo acepta lo que él habría escrito.
 
 ## Ejercicios {Exercises}
 
@@ -628,15 +627,15 @@ Para **preguntar** algo del expediente (no resumirlo entero) hay una tercera ví
 BF16: 24,150 × 262,144 bytes ≈ **6.33 GB**. FP8 (la mitad, 128 KiB por token): ≈ **3.17 GB**. Con los 21.88 GB libres de una L40S, en BF16 deja ≈ 15.5 GB para las demás, ≈ 9 conversaciones normales de 1.64 GB.
 ? [facil] ¿En cuál de estas tareas esperarías que el prompt lookup ayude más, y en cuál menos? (a) Resumir un contrato. (b) Escribir un correo de felicitación a un cliente. (c) Contestar «¿qué dice la cláusula 7?» con el contrato en el prompt.
 Más en **(c)**: la respuesta copia la cláusula casi palabra por palabra, así que los n-gramas del prompt atinan en tramos largos. Luego **(a)**: un resumen copia nombres, fechas, montos y citas, pero también parafrasea. Menos en **(b)**: el texto es nuevo y casi nada está en el prompt; las propuestas se rechazan y el truco no gana, aunque tampoco cuesta casi nada porque \(c\) ≈ 0.
-? [medio] Red Hat midió una longitud de aceptación de 2.15 con \(γ\) = 3 para su EAGLE-3 de Qwen3 32B. Suponiendo que esa longitud es la \(E\) de la fórmula, ¿qué \(α\) le corresponde? ¿Qué aceleración daría con \(c\) = 0.05?
-Hay que despejar \(α\) de (1 − α⁴) ÷ (1 − α) = 2.15, que es 1 + α + α² + α³ = 2.15. Probando: α = 0.6 da 1 + 0.6 + 0.36 + 0.216 = 2.176, un poco de más; α = 0.59 da 1 + 0.59 + 0.348 + 0.205 ≈ 2.143, un poco de menos. **α ≈ 0.59**. Aceleración: \(S\) = 2.15 ÷ (3 × 0.05 + 1) = 2.15 ÷ 1.15 ≈ **1.87×**.
+? [medio] Red Hat midió una longitud de aceptación de 2.15 con \(γ\) = 3 para su EAGLE-3 de Qwen3 32B. Esa longitud es la \(E\) de la fórmula (vLLM la calcula como 1 + aceptados ÷ ciclos). ¿Qué \(α\) equivalente le corresponde? ¿Qué aceleración daría con \(c\) = 0.05?
+Hay que despejar \(α\) de (1 − α⁴) ÷ (1 − α) = 2.15, que es 1 + α + α² + α³ = 2.15. Probando: α = 0.6 da 1 + 0.6 + 0.36 + 0.216 = 2.176, un poco de más; α = 0.59 da 1 + 0.59 + 0.348 + 0.205 ≈ 2.143, un poco de menos. **α ≈ 0.59**. Aceleración: \(S\) = 2.15 ÷ (3 × 0.05 + 1) = 2.15 ÷ 1.15 ≈ **1.87×**. Es un α equivalente, no el de cada posición: con \(γ\) = 1 la misma tabla da 1.62, o sea que la primera propuesta se acepta ≈ 62 % de las veces y las siguientes, menos.
 ? [medio] En el clasificador de correos (Qwen3 32B en una L40S, prompts de 300 tokens, \(η_m\) = 0.7, \(η_c\) = 0.5), ¿hasta cuántas conversaciones a la vez sigue siendo gratis verificar 4 tokens por conversación?
 Gratis mientras \((γ + 1) × t_{cálc}(1) ≤ t_{mem}\). Memoria: 19.32 GB ÷ 604.8 GB/s ≈ 31.94 ms de pesos más, por conversación, 300 × 262,144 bytes ÷ 604.8 GB/s ≈ 0.130 ms. Cálculo de un token por conversación: ≈ 0.362 ms; cuatro, ≈ 1.448 ms. Condición: 1.448 × \(b\) ≤ 31.94 + 0.130 × \(b\), o sea \(b\) ≤ 31.94 ÷ (1.448 − 0.130) ≈ 24.2. **Hasta 24 conversaciones.** Más allá, verificar empieza a costar, pero la ganancia todavía es positiva hasta ≈ 54; con 55 el truco ya frena.
 ? [medio] El prefill de un expediente de 33,250 tokens (sin instrucciones) en una L40S: ¿cuánto es la parte lineal, cuánto la atención y cuánto tarda (\(η_c\) = 0.5)? ¿Y si el expediente midiera el doble?
 Lineal: 2 × 32.762 × 10⁹ × 33,250 ≈ **2.18 × 10¹⁵**. Atención: 2 × 33,250² × 8,192 × 64 ≈ **1.16 × 10¹⁵**. Total 3.34 × 10¹⁵ ÷ 1.81 × 10¹⁴ ≈ **18.4 s**. Con 66,500 tokens: la lineal se duplica (≈ 4.36 × 10¹⁵) y la atención se cuadruplica (≈ 4.64 × 10¹⁵); total ≈ 9.0 × 10¹⁵ ÷ 1.81 × 10¹⁴ ≈ **49.7 s**, 2.7 veces más por el doble de texto. Ahí la atención ya es más de la mitad.
 ? [medio] En Qwen3 32B (\(θ\) = 1,000,000, \(D\) = 128), ¿cada cuántos tokens da una vuelta el par 36? ¿Cuántas vueltas da en los 32,768 tokens nativos, y qué le haría YaRN con los umbrales del paper (más de 32 vueltas: no se toca; menos de 1: se estira por completo)?
 \(λ_{36} = 2π × θ^{2 × 36/128}\) = 2π × 10^{6 × 0.5625} = 2π × 10^{3.375} ≈ 2π × 2,371 ≈ **14,900 tokens**. Vueltas: 32,768 ÷ 14,900 ≈ **2.2**. Está entre 1 y 32: cae en la **rampa** de YaRN y se estira una parte del factor, no completo.
-? [reto] AngelSlim midió su EAGLE-3 para Qwen3 32B con \(γ\) = 2 y una conversación: pasó de 43.32 a 74.10 tokens por segundo en promedio, con longitudes de aceptación de 2.01, 1.90, 1.86 y 1.86 en cuatro pruebas. Con la fórmula de Leviathan, ¿qué costo efectivo \(c\) del borrador explica ese resultado? ¿Qué te dice?
+? [reto] AngelSlim midió su EAGLE-3 para Qwen3 32B con \(γ\) = 2 y una conversación: pasó de 43.32 a 74.10 tokens por segundo en promedio, con longitudes de aceptación de 2.01, 1.90, 1.86 y 1.86 en cuatro pruebas (medidas con vLLM, que las cuenta como arriba). Con la fórmula de Leviathan, ¿qué costo efectivo \(c\) del borrador explica ese resultado? ¿Qué te dice?
 Aceleración medida: 74.10 ÷ 43.32 ≈ **1.71×**. Longitud promedio: (2.01 + 1.90 + 1.86 + 1.86) ÷ 4 ≈ 1.91 tokens, que hacemos \(E\). De \(S = E ÷ (γ × c + 1)\): γ × c + 1 = 1.91 ÷ 1.71 ≈ 1.115, así que \(c\) ≈ 0.115 ÷ 2 ≈ **0.058**. Te dice dos cosas. Una, que el supuesto de la lección (\(c\) = 0.05) es razonable para un EAGLE-3. Dos, que ese \(c\) «efectivo» junta todo lo que la fórmula no ve: el borrador, la verificación con su atención extra, el programa que arma los ciclos. Es una forma de calibrar la fórmula con una medición, no una medición del borrador solo.
 ? [reto] El despacho debe elegir cómo resumir sus expedientes pesados (≈ 40,250 tokens): una llamada larga con YaRN factor 2 o map-reduce en 8 trozos. Con los números de la lección, arma el argumento para cada lado y di qué medirías para decidir.
 Llamada larga: ≈ 49 s en una L40S (≈ 24 s de prefill), ≈ 10.8 GB de KV para una petición, un servidor aparte con YaRN y tope de 65,536, y el modelo ve todo el expediente junto, así que puede relacionar la página 3 con la 40. Riesgos: lo que está en medio se usa peor, y Qwen3 32B no tiene cifras publicadas de contexto efectivo. Map-reduce: ≈ 56 s, no es más rápido; cada trozo de 5,431 tokens cabe en el servidor de siempre, sin YaRN y sin apartar memoria, y no hay «en medio» largo. Riesgo: pierde las relaciones entre trozos. Qué medir: un juego de expedientes reales con preguntas cuya respuesta está al principio, a la mitad y al final, y otras que exigen **juntar** dos partes lejanas del documento. Si la llamada larga se cae a la mitad, map-reduce gana; si map-reduce se cae en las preguntas que juntan partes, gana la llamada larga. Y en cualquiera de los dos, los resúmenes van en una fila fuera de la hora pico.
@@ -671,7 +670,7 @@ Que los tokens salgan con la misma distribución que daría el modelo grande sol
 ? ¿Cuándo deja de ayudar el speculative decoding?
 Cuando el batch es tan grande que el cálculo ya no sobra: verificar \(γ + 1\) tokens por conversación cuesta \(γ + 1\) veces el cálculo y los rechazados son trabajo tirado. Pasa antes con contextos cortos, porque el KV cache pesa poco y el cálculo alcanza a la memoria.
 ? ¿Cuántos tokens tiene un expediente de 50 páginas y por qué no cabe en el despacho?
-≈ 33–40 mil (50 × 500 palabras × 1.33–1.61). No cabe en el tope de 8,192 del servidor ni en los 32,768 nativos de Qwen3 32B: hay que subir el tope y activar YaRN (factor 2), o partirlo.
+Del orden de 33–40 mil (50 × 500 palabras × 1.33–1.61, una estimación gruesa). No cabe en el tope de 8,192 del servidor ni en los 32,768 nativos de Qwen3 32B: hay que subir el tope y activar YaRN (factor 2), o partirlo.
 ? ¿Qué crece en línea recta y qué al cuadrado con el largo del contexto?
 El KV cache crece en línea recta (256 KiB por token en Qwen3 32B). La atención del prefill crece al cuadrado: en el expediente pesado ya es ≈ 39 % del prefill de ≈ 24 s.
 ? ¿Qué es lost in the middle y cómo lo mide el despacho?

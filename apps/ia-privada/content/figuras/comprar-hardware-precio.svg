@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 394" role="img" aria-labelledby="f-comprar-hardware-precio-t" class="f-svg" style="max-width:420px">
-<title id="f-comprar-hardware-precio-t">Dólares por GB de VRAM con precios de referencia de noviembre de 2026 (gpus.json), de menor a mayor: Mac Studio M5 Ultra · 256 GB, 42 dólares por GB, 1,200 GB/s; Radeon AI PRO R9700 · 32 GB, 59 dólares por GB, 640 GB/s; Radeon PRO W7900 · 48 GB, 83 dólares por GB, 864 GB/s; GeForce RTX 4090 · 24 GB, 142 dólares por GB, 1,008 GB/s; RTX PRO 6000 Blackwell · 96 GB, 171 dólares por GB, 1,792 GB/s; L40S · 48 GB, 188 dólares por GB, 864 GB/s; H100 PCIe · 80 GB, 362 dólares por GB, 2,000 GB/s; H100 NVL · 94 GB, 633 dólares por GB, 3,900 GB/s. Las más baratas por GB tienen poco ancho de banda o poco cálculo; las H100 son las más caras por GB porque se paga ancho de banda y cálculo.</title>
+<title id="f-comprar-hardware-precio-t">Dólares por GB de VRAM con precios de referencia de noviembre de 2026 (gpus.json), de menor a mayor: Mac Studio M5 Ultra · 256 GB, 42 dólares por GB, 1,200 GB/s; Radeon AI PRO R9700 · 32 GB, 59 dólares por GB, 640 GB/s; Radeon PRO W7900 · 48 GB, 83 dólares por GB, 864 GB/s; GeForce RTX 4090 · 24 GB, 142 dólares por GB, 1,008 GB/s; RTX PRO 6000 Workstation · 96 GB, 171 dólares por GB, 1,792 GB/s; L40S · 48 GB, 188 dólares por GB, 864 GB/s; H100 PCIe · 80 GB, 362 dólares por GB, 2,000 GB/s; H100 NVL · 94 GB, 633 dólares por GB, 3,900 GB/s. Las más baratas por GB fallan en otra cifra: las Radeon tienen mucho menos cálculo, y la Mac, un equipo completo con buen ancho de banda, tiene un prefill lento; las H100 son las más caras por GB porque se paga ancho de banda y cálculo.</title>
 <rect class="f-card" x="10" y="10" width="340" height="374" rx="16"/>
 <text class="f-l" x="26" y="36">US$ POR GB DE VRAM · NOV-2026</text>
 <text class="f-s" x="26" y="58">Mac Studio M5 Ultra · 256 GB</text>
@@ -18,7 +18,7 @@
 <rect class="f-y" x="26" y="178" width="44.8" height="14" rx="3"/>
 <text class="f-s" x="76.8" y="190" style="font-weight:700">142</text>
 <text class="f-l" x="334" y="172" text-anchor="end">1,008 GB/s</text>
-<text class="f-s" x="26" y="210">RTX PRO 6000 Blackwell · 96 GB</text>
+<text class="f-s" x="26" y="210">RTX PRO 6000 Workstation · 96 GB</text>
 <rect class="f-g" x="26" y="216" width="54.0" height="14" rx="3"/>
 <text class="f-s" x="86.0" y="228" style="font-weight:700">171</text>
 <text class="f-l" x="334" y="210" text-anchor="end">1,792 GB/s</text>

@@ -11,7 +11,7 @@
     }
   ],
   "entradas": [
-    { "id": "K", "label": "Precio de compra de una tarjeta, \\(K\\), en US$", "min": 0, "max": 1000000, "paso": 1, "valor": 9005.4, "tipo": "numero" },
+    { "id": "K", "label": "Precio de compra de una tarjeta, \\(K\\), en US$", "min": 0, "max": 1000000, "paso": 1, "valor": 9005, "tipo": "numero" },
     { "id": "M", "label": "VRAM de una tarjeta, \\(M\\)", "unidad": "GB", "min": 1, "max": 2000, "paso": 1, "valor": 48, "tipo": "numero" },
     { "id": "B", "label": "Ancho de banda de una tarjeta, \\(B\\)", "unidad": "GB/s", "min": 1, "max": 20000, "paso": 1, "valor": 864, "tipo": "numero" },
     { "id": "F", "label": "Pico FP16 denso de una tarjeta, \\(F\\) (0 = no publicado)", "unidad": "TFLOPS", "min": 0, "max": 20000, "paso": 0.1, "valor": 362.05, "tipo": "numero" },
@@ -55,5 +55,5 @@
     ],
     "nota": "Ordenada por US$ por GB, de la más barata a la más cara. Los precios son de referencia, con fecha y fuente en gpus.json, y no son todos lo mismo: en las SXM (H100 SXM, H200, B200) es un servidor de 8 entre 8; en las Mac y la DGX Spark, el equipo completo. «—» en el prefill: el fabricante no publica el pico de cálculo."
   },
-  "nota": "Prueba: con 144 GB, la Mac Studio de 256 GB sale más barata por GB que cualquier tarjeta, pero no tiene cifra de cálculo publicada. La Radeon AI PRO R9700 es la tarjeta más barata por GB y por GB/s, y su prefill es de ≈ 4 s. Ninguna columna sola decide: la que manda es la cifra que te limita."
+  "nota": "Prueba: con 144 GB, la Mac Studio de 256 GB sale más barata por GB que cualquier tarjeta, pero no tiene cifra de cálculo publicada. La Radeon AI PRO R9700 es la tarjeta más barata por GB y por GB/s, y su prefill es de ≈ 4 s. La RTX PRO 6000 de la lista es la Workstation Edition, la de torre; la Server Edition, la de rack, no tiene precio en gpus.json y trae menos ancho de banda (1,597 GB/s). Ninguna columna sola decide: la que manda es la cifra que te limita."
 }

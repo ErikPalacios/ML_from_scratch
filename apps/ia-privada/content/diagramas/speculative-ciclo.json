@@ -14,7 +14,7 @@
     { "id": "grande", "label": "Modelo grande", "sub": "verifica γ + 1 posiciones", "kind": "gpu", "x": 58, "y": 5, "w": 18, "h": 8,
       "note": "Una sola pasada del modelo grande sobre los γ tokens propuestos, como un [[prefill|prefill]] chiquito: lee los 19.32 GB de pesos **una vez** y saca su probabilidad para cada posición, más una de regalo después de la última. Es la [[verificacion-en-paralelo|verificación en paralelo]]." },
     { "id": "regla", "label": "Regla de aceptación", "sub": "acepta con min(1, p ÷ q)", "kind": "service", "x": 58, "y": 26, "w": 18, "h": 8,
-      "note": "Recorre las propuestas en orden. Cada una se acepta con probabilidad min(1, p ÷ q), donde p es lo que daba el grande y q lo que daba el borrador. En el primer rechazo se detiene y saca un token de la diferencia entre las dos distribuciones. Así la respuesta sale **con la misma distribución** que sin borrador." },
+      "note": "Recorre las propuestas en orden. Cada una se acepta con probabilidad min(1, p ÷ q), donde p es lo que daba el grande y q lo que daba el borrador. En el primer rechazo se detiene y saca un token de lo que el grande quería más que el borrador (max(0, p − q), normalizado). Así la respuesta sale **con la misma distribución** que sin borrador." },
     { "id": "abogada", "label": "Abogada", "sub": "recibe de 1 a γ + 1 tokens", "kind": "client", "x": 30, "y": 26, "w": 18, "h": 8,
       "note": "En cada ciclo le llegan los tokens aceptados más uno que escribe el grande: al menos 1 (si rechaza el primero) y a lo más γ + 1 (si acepta todos). El promedio lo da la [[tasa-de-aceptacion|tasa de aceptación]]." },
     { "id": "recorta", "label": "Recortar el KV", "sub": "tira lo rechazado", "kind": "job", "x": 2, "y": 26, "w": 20, "h": 8,

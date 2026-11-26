@@ -118,7 +118,7 @@
       "en": "system integrator",
       "corto": "La empresa que arma el equipo a tu medida: pone las tarjetas, la RAM y los discos en un chasis, instala sistema y drivers, lo prueba y te da una sola garantía.",
       "largo": "Toma chasis de un [[oem|OEM]] o propios y entrega el equipo funcionando. Su valor para un equipo de TI sin experiencia en GPUs es que el equipo llega probado y que hay un solo teléfono cuando algo falla. Su precio por tarjeta suele ser casi el de la tienda: su margen está en el servidor base.",
-      "ejemplo": "Exxact suma US$8,910 por cada L40S a su servidor 4U de US$40,461.30; la tarjeta suelta cuesta US$9,005.40 (noviembre de 2026).",
+      "ejemplo": "Exxact suma US$8,910 por cada L40S a su servidor 4U de US$40,461.30; la tarjeta suelta cuesta ≈ US$9,005 (gpus.json, noviembre de 2026).",
       "ver": [
         "oem",
         "garantia-de-hardware"
@@ -160,7 +160,7 @@
       "corto": "La plataforma de software de AMD para programar sus GPUs, de código abierto: el equivalente de CUDA para las Instinct y algunas Radeon.",
       "largo": "Funciona, y vLLM corre en ella con las Instinct MI200, MI300 y MI350 y algunas Radeon. Pero cada versión soporta una lista concreta de GPUs y de sistemas operativos, y cambia cada pocos meses. Antes de comprar se revisa la matriz de compatibilidad de la versión que se va a instalar.",
       "analogia": "Una red de cargadores para coches eléctricos: ya cubre las autopistas principales, pero conviene revisar el mapa antes de salir.",
-      "ejemplo": "La Radeon AI PRO R9700 y las Instinct MI300X y MI355X están en la matriz de ROCm de noviembre de 2026.",
+      "ejemplo": "La Radeon AI PRO R9700 y las Instinct MI300X y MI355X están en la matriz de ROCm 10.2.0 (18 de noviembre de 2026).",
       "ver": [
         "cuda",
         "mlx"

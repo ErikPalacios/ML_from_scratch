@@ -1,6 +1,6 @@
 {
  "titulo": "Cuánto acelera el speculative decoding, y si el batch lo deja",
- "intro": "Aplica la fórmula de Leviathan y otros (2023): \\(E = (1 − α^{γ+1}) ÷ (1 − α)\\) tokens por ciclo y \\(S = E ÷ (γ × c + 1)\\) veces. Luego revisa su supuesto, que verificar γ + 1 tokens cueste un paso normal, con el reloj del decode: \\(t_{1} = max(t_{mem}, t_{cálc})\\) y \\(t_{ver} = max(t_{mem}, (γ + 1) × t_{cálc})\\), y da \\(S_{real} = E × t_{1} ÷ (t_{ver} + γ × c × t_{1})\\). Arranca con el despacho: Qwen3 32B en INT4 de AWQ en una L40S, una conversación de ≈ 6,250 tokens, y un borrador con \\(α\\) = 0.6 y \\(c\\) = 0.05 (supuestos parecidos a lo que se midió con EAGLE-3 para Qwen3 32B).",
+ "intro": "Aplica la fórmula de Leviathan y otros (2023): \\(E = (1 − α^{γ+1}) ÷ (1 − α)\\) tokens por ciclo y \\(S = E ÷ (γ × c + 1)\\) veces. Luego revisa su supuesto, que verificar γ + 1 tokens cueste un paso normal, con un modelo simplificado de la lección (no es de Leviathan): los dos relojes del decode, \\(t_{1} = max(t_{mem}, t_{cálc})\\) y \\(t_{ver} = max(t_{mem}, (γ + 1) × t_{cálc})\\), dan \\(S_{b} = E × t_{1} ÷ (t_{ver} + γ × c × t_{1})\\). Arranca con el despacho: Qwen3 32B en INT4 de AWQ en una L40S, una conversación de ≈ 6,250 tokens, y un borrador con \\(α\\) = 0.6 (el α equivalente de una medición de EAGLE-3 con Qwen3 32B) y \\(c\\) = 0.05 (supuesto).",
  "preajustes": [
   {
    "label": "Escenario",
@@ -15,10 +15,10 @@
       "b": 1,
       "T": 6250
      },
-     "nota": "\\(α\\) = 0.6 y \\(c\\) = 0.05 son supuestos: con la longitud de aceptación que Red Hat midió para su EAGLE-3 de Qwen3 32B en resumen (2.15 con γ = 3) sale \\(α\\) ≈ 0.59."
+     "nota": "\\(α\\) = 0.6 sale de la longitud de aceptación que Red Hat midió para su EAGLE-3 de Qwen3 32B en resumen (2.15 con γ = 3): \\(α\\) equivalente ≈ 0.59. \\(c\\) = 0.05 es un supuesto."
     },
     {
-     "label": "El despacho en la hora pico: 8 conversaciones",
+     "label": "El peor caso del despacho: las 8 de diseño en una L40S",
      "valores": {
       "a": 0.6,
       "g": 3,
@@ -26,7 +26,7 @@
       "b": 8,
       "T": 6250
      },
-     "nota": "Con contextos de 6,250 tokens el KV cache pesa tanto que verificar 4 tokens sigue cabiendo en el tiempo de la memoria. La cuenta de techo dice que el truco sobrevive; hay que medirlo."
+     "nota": "Las 8 conversaciones de diseño juntas en una GPU (le caben por memoria). Con contextos de 6,250 tokens el KV cache pesa tanto que verificar 4 tokens sigue cabiendo en el tiempo de la memoria. La cuenta de techo dice que el truco sobrevive; hay que medirlo."
     },
     {
      "label": "Un clasificador de correos: 64 conversaciones cortas",
@@ -245,7 +245,7 @@
    "cuenta": "{{tm * 1000|num|1}} ms de memoria − {{(g + 1) * tc * 1000|num|2}} ms de cálculo = {{(tm - (g + 1) * tc) * 1000|num|1}} ms"
   },
   {
-   "label": "5 · Aceleración con este batch, \\(S_{real}\\)",
+   "label": "5 · Aceleración con este batch, \\(S_{b}\\) (modelo simplificado)",
    "formula": "Sr",
    "formato": "x",
    "decimales": 2,
@@ -269,5 +269,5 @@
    "cuenta": "{{Sr|num|2}} − 1 = {{Sr - 1|num|2}}"
   }
  ],
- "nota": "Prueba: con el despacho, sube γ de 3 a 5 y luego a 10: \\(E\\) apenas crece y el borrador cuesta más. Cambia al clasificador de correos y baja \\(b\\) hasta que vuelva a ayudar (≈ 54). Es una cuenta de techo: no cuenta la atención extra de verificar, ni el KV cache del borrador, ni que \\(α\\) cambie con tus textos. Mídelo con tu tráfico."
+ "nota": "Prueba: con el despacho, sube γ de 3 a 5 y luego a 10: \\(E\\) apenas crece y el borrador cuesta más. Cambia al clasificador de correos y baja \\(b\\) hasta que vuelva a ayudar (≈ 54). Es una cuenta de techo con un modelo simplificado: supone que \\(α\\) no cambia con el batch y que todas las conversaciones especulan, y no cuenta la atención extra de verificar, ni el KV cache del borrador, ni los prefills que comparten la GPU. Mídelo con tu tráfico."
 }

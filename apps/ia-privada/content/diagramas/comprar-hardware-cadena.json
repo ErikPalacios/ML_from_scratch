@@ -31,7 +31,7 @@
     {
       "id": "revendedor", "label": "Revendedor", "sub": "tarjetas sueltas", "kind": "queue",
       "x": 52, "y": 25, "w": 22, "h": 9,
-      "note": "Tiendas y mayoristas: tarjetas y servidores nuevos o reacondicionados, casi siempre sin armar. Una L40S nueva en empaque OEM: US$9,005.40 (gpus.json, noviembre de 2026)."
+      "note": "Tiendas y mayoristas: tarjetas y servidores nuevos o reacondicionados, casi siempre sin armar. Una L40S nueva en empaque OEM: ≈ US$9,005 (gpus.json, noviembre de 2026)."
     },
     {
       "id": "despacho", "label": "El despacho", "sub": "2 personas de TI", "badge": "5", "kind": "client",

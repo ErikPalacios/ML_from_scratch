@@ -13,7 +13,7 @@
   "entradas": [
     { "id": "pg", "label": "Páginas del expediente, \\(pág\\)", "min": 1, "max": 1000, "paso": 1, "valor": 50, "tipo": "numero" },
     { "id": "pw", "label": "Palabras por página, \\(pal\\) (≈ 500 a espacio sencillo, ≈ 250 a doble)", "min": 100, "max": 1000, "paso": 10, "valor": 500 },
-    { "id": "tw", "label": "Tokens por palabra, \\(τ\\) (≈ 1.3–1.6 en español, según el tokenizador)", "min": 1, "max": 2.5, "paso": 0.01, "valor": 1.61 },
+    { "id": "tw", "label": "Tokens por palabra, \\(τ\\) (≈ 1.3–1.6 en español: estimación gruesa, mídelo con tu tokenizador)", "min": 1, "max": 2.5, "paso": 0.01, "valor": 1.61 },
     { "id": "Ti", "label": "Tokens de instrucciones, \\(T_{ins}\\)", "min": 0, "max": 5000, "paso": 50, "valor": 400, "tipo": "numero" },
     { "id": "To", "label": "Tokens del resumen que escribe, \\(T_{sal}\\)", "min": 0, "max": 8000, "paso": 50, "valor": 500, "tipo": "numero" },
     { "id": "tope", "label": "Tope de contexto por conversación del servidor (el despacho: 8,192)", "min": 1024, "max": 262144, "paso": 1024, "valor": 8192, "tipo": "numero" },
@@ -50,5 +50,5 @@
     { "label": "4 · Prefill del expediente, \\(t_{pre}\\) (su TTFT sin fila)", "formula": "tpre * 1000", "formato": "ms", "barra": true, "cuenta": "lineal: 2 × {{P|corto}} mil millones × {{N|int}} = {{lin|sci|2}} · atención: 2 × {{N|int}}² × {{d|int}} × {{L|int}} = {{att|sci|2}} → ({{lin + att|sci|2}}) ÷ ({{ec|corto}} × {{F|corto}} TFLOPS) = **{{tpre|num|1}} s**" },
     { "label": "5 · Parte del prefill que es atención", "formula": "att / (lin + att)", "formato": "pct", "barra": true, "nota": "crece con \\(N\\): al doblar el largo, la atención se multiplica por 4 y lo demás por 2", "cuenta": "{{att|sci|2}} ÷ {{lin + att|sci|2}} = **{{att / (lin + att) * 100|num|1}} %**" }
   ],
-  "nota": "Prueba: baja \\(τ\\) a 1.33 (la regla de inglés) y mira cuánto cambia. Pon 160 páginas (≈ 129 mil tokens): el KV no cabe en una L40S y el prefill pasa de dos minutos. Cambia \\(m\\) a 128 (KV en FP8) y mira cuántas conversaciones más caben junto al expediente. La cuenta de atención es una aproximación: los servidores usan kernels que la hacen sin guardar la matriz entera, pero los FLOPs son los mismos."
+  "nota": "Prueba: baja \\(τ\\) a 1.33 (la regla de inglés) y mira cuánto cambia. Pon 160 páginas (≈ 129 mil tokens): el KV no cabe en una L40S y el prefill pasa de dos minutos. Cambia \\(m\\) a 128 (KV en FP8) y mira cuántas conversaciones más caben junto al expediente. La cuenta de atención es una aproximación: los servidores usan rutinas de GPU (*kernels*) que la hacen sin guardar la matriz entera, pero los FLOPs son los mismos."
 }
