@@ -3,7 +3,7 @@ el dojo. Los usa hacer_entrada.py. Van ya como texto parseado, con la forma que 
 un markdown tal cual (con tablas de barras) y una página de la wiki con «# », «## », «- » y cada fila de tabla
 como «Encabezado: valor; Encabezado: valor».
 
-Sin ellos, el documento más largo del mundo tiene ≈ 300 tokens y todo cabría en un solo chunk: no habría nada que partir.
+Sin ellos, el documento más largo del mundo tiene ≈ 280 tokens y todo cabría en un solo chunk: no habría nada que partir.
 """
 from __future__ import annotations
 

@@ -74,10 +74,10 @@ e = {
 }
 
 e["mapa"] = {
-    "resumen": "La estación 1 dejó el texto limpio de cada documento, guardado por su hash y con su ACL. Pero un buscador no compara preguntas contra documentos enteros: compara contra <b>chunks</b>, pedazos de ≈ 400 <b>tokens</b> (los pedacitos de palabra con los que cuenta un modelo). Esta estación los hace bien: cuenta con el <b>tokenizador del modelo de embeddings</b> de verdad, parte por la <b>estructura</b> (títulos, párrafos, listas, tablas) en vez de cada N caracteres, mete en cada chunk su <b>ruta de títulos</b> para que se entienda solo, repite un poco de texto (<b>traslape</b>) solo donde el corte cae a media sección, y nunca deja un chunk sin la ACL de su documento. Si el texto no cambió, no se vuelve a partir: cada chunk partido de nuevo es un embedding que se vuelve a pagar. La estación 3 usa esa ACL para filtrar y la 5 convierte cada chunk en un vector.",
+    "resumen": "La estación 1 dejó el texto limpio de cada documento, guardado por su hash y con su ACL. Pero un buscador no compara preguntas contra documentos enteros: compara contra <b>chunks</b>, pedazos de ≈ 400 <b>tokens</b> (los pedacitos de palabra con los que cuenta un modelo). Esta estación los hace bien: cuenta con el <b>tokenizador del modelo de embeddings</b> de verdad, parte por la <b>estructura</b> (títulos, párrafos, listas, tablas) en vez de cada N caracteres, mete en cada chunk su <b>ruta de títulos</b> para que se entienda solo, repite un poco de texto (<b>traslape</b>) solo donde el corte cae a media sección, y nunca deja un chunk sin la ACL de su documento. Si el texto no cambió, no se vuelve a partir: cada chunk partido de nuevo es un embedding que se vuelve a pagar. La estación 3 usa esa ACL para filtrar y la 5 convierte cada chunk en un <b>embedding</b>: el vector de números con el que el buscador compara significados.",
     "entra": [
         "el almacén de la estación 1: <code>almacen/texto/&lt;hash&gt;.json</code> con el texto limpio de cada documento y su <code>sha256_texto</code>",
-        "el catálogo: por documento, su título, su URL, su versión, su hash y su ACL como cláusulas; las lápidas de lo borrado",
+        "el catálogo: por documento, su título, su URL, su versión, su hash y su ACL como cláusulas; las lápidas (el registro que queda de un documento borrado)",
         "el modelo de embeddings elegido, multilingual-e5-small: su tokenizador, su límite de 512 tokens y su prefijo «passage: »",
     ],
     "sale": [
@@ -92,7 +92,7 @@ e["mapa"] = {
         {"que": "Chunks", "ref": "≈ 7.5 M (supuesto: ≈ 300 tokens por chunk en promedio)", "taller": "154 chunks, mediana de 60 tokens y el mayor de 396"},
         {"que": "Tamaño", "ref": "≤ 400 tokens por chunk, contados con el tokenizador del modelo de embeddings", "taller": "lo mismo: ≤ 400, con el tokenizador de multilingual-e5-small"},
         {"que": "Cambios al día", "ref": "≈ 1 % de los documentos: ≈ 15,000 que volver a partir", "taller": "el día 2, 12 documentos partidos de nuevo, 4 solo con metadatos nuevos y 2 lápidas"},
-        {"que": "Dónde corre", "ref": "un job después de cada ingestión, en la plataforma de datos", "taller": "<code>python pipeline/chunkear.py</code> en tu Mac, ≈ 1 segundo"},
+        {"que": "Dónde corre", "ref": "un job después de cada ingestión, en la plataforma de datos", "taller": "<code>python pipeline/chunkear.py</code> en tu Mac, en unos segundos"},
     ],
 }
 
@@ -117,7 +117,7 @@ e["precalculos"] = {
          "formula": "fracción que el modelo lee = 512 ÷ tokens del chunk (si pasa de 512); el resto no existe para la búsqueda",
          "ref": {"cuenta": "un chunk de 1,500 tokens con un límite de 512", "valor": "el modelo lee el 34 %"},
          "taller": {"cuenta": "el manual entero, 1,730 tokens el día 2", "valor": "e5 leería el 30 %: las preguntas frecuentes y las sanciones, nunca"},
-         "decide": "El modelo no avisa cuando corta: el embedding sale igual de bonito. Por eso el máximo (400) queda debajo del límite (512) con aire para el prefijo y los tokens especiales, y se cuenta con el tokenizador del modelo, no con una regla de «4 caracteres por token».",
+         "decide": "El modelo no avisa cuando corta: el embedding sale igual de bonito. Por eso el máximo (400) queda con margen debajo del límite (512) —contar() ya incluye el prefijo y los tokens especiales—, y se cuenta con el tokenizador del modelo, no con una regla de «4 caracteres por token».",
          "conceptos": ["limite-modelo", "prefijo"],
          "comprueba": cmd(P("pc corte"), L("pc corte"))},
         {"id": "traslape", "pregunta": "¿Cuánto cuesta el traslape?",
@@ -160,7 +160,7 @@ e["conceptos"] = [
      "trampa": "Contar el chunk sin prefijo ni especiales y quedarse justo en 512: el modelo ve 517 y corta."},
     {"id": "chunk", "termino": "Chunk", "en": "chunk", "def": "Un pedazo de un documento, del tamaño adecuado para buscarlo y para dárselo al LLM como fuente. Es la unidad que se busca, se cita y se filtra por permisos.",
      "analogia": "Como las fichas de un fichero de biblioteca: no buscas en el libro entero, buscas en fichas, y cada ficha dice de qué libro y de qué capítulo viene.",
-     "importa": "Un chunk muy grande diluye su embedding y gasta el contexto del LLM; uno muy chico no se entiende solo. ≈ 400 tokens es el punto que eligió el equipo de C11, y el golden set lo confirma o lo corrige.",
+     "importa": "Un chunk muy grande diluye su embedding y gasta el contexto del LLM; uno muy chico no se entiende solo. ≈ 400 tokens es el punto que eligió el equipo de C11, y el golden set (las preguntas con su respuesta correcta con las que se mide el sistema, estación 4) lo confirma o lo corrige.",
      "trampa": "Elegir el tamaño por intuición y no volver a medirlo. El tamaño del chunk es una decisión que se evalúa como cualquier otra (estación 9)."},
     {"id": "chunking-estructura", "termino": "Chunking por estructura", "en": "structure-aware chunking", "def": "Partir siguiendo la forma del documento: cada sección empieza un chunk, los bloques entran enteros y solo se parte lo que no cabe.",
      "analogia": "Como cortar un pastel por las marcas de las rebanadas y no con una regla cada 5 cm: cada rebanada sale entera, con su decoración.",
@@ -176,7 +176,7 @@ e["conceptos"] = [
      "trampa": "Un traslape fijo en todos los chunks: repite texto en los títulos (donde la ruta ya da el contexto) y en las tablas (donde estorba), y paga ese texto en cada embedding."},
     {"id": "encabezado-tabla", "termino": "Encabezado de tabla", "en": "table header", "def": "La fila que dice qué es cada columna. Si una tabla no cabe en un chunk, se parte por filas y cada pedazo lleva su encabezado.",
      "analogia": "Como las columnas de una hoja de cálculo impresa en varias páginas: si la página 2 no repite los títulos, «119 | 165 | 269» no dice nada.",
-     "importa": "La tabla de tarifas tiene 32 filas y casi 1,000 tokens: no cabe. Partida sin encabezado, el LLM lee números sueltos y contesta con la columna equivocada.",
+     "importa": "La tabla de tarifas tiene 32 filas y ≈ 850 tokens: no cabe. Partida sin encabezado, el LLM lee números sueltos y contesta con la columna equivocada.",
      "trampa": "Cortar a media fila o media tabla porque «el pedazo ya iba lleno»: una tabla que cabe entera en un chunk vacío empieza su propio chunk."},
     {"id": "acl-heredada", "termino": "ACL heredada y fail-closed", "en": "inherited ACL, fail-closed", "def": "Cada chunk lleva la ACL de su documento, tal cual. Un documento sin ACL no se chunkea: si no se sabe quién lo puede leer, no lo lee nadie.",
      "analogia": "Como las fotocopias de un expediente confidencial: cada copia lleva el sello de «confidencial» del original; una copia sin sello no sale del archivo.",
@@ -196,10 +196,10 @@ e["mundo"] = {
     "resumen": "El kit trae lo que dejó la estación 1 del marketplace del caso: el almacén con el <b>texto limpio de 101 documentos ficticios</b> (páginas de una wiki, PDFs y markdown de un Drive, tickets de un Jira y políticas), cada uno con su hash y su ACL, más <b>tres documentos largos</b> que operaciones subió esa semana: un manual del vendedor, una tabla de tarifas de envío con 32 filas y una página de niveles de servicio. Tú escribes el chunking: contar tokens con el tokenizador del modelo de embeddings, encontrar los bloques, partir por estructura con la ruta de títulos y el traslape, llevar la ACL a cada chunk y no volver a partir lo que no cambió. Después pasa un día y ves qué vuelve a partir tu chunking. Sin Docker, sin GPU y sin internet después de bajar el tokenizador.",
     "trae": [
         {"que": "mundo/entrada/", "detalle": "El almacén de la estación 1, como salió de correr su ingestión de verdad: el catálogo del día 1 (20 de noviembre) y del día 2 (21 de noviembre), y el texto de cada documento por su hash. <code>mundo/crear.py</code> lo copia a <code>almacen/</code> y <code>mundo/avanzar.py</code> pasa al día 2."},
-        {"que": "Tres documentos largos", "detalle": "El «Manual del vendedor» (1,724 tokens, con secciones, subsecciones, una tabla de comisiones y unas preguntas frecuentes que no caben en un chunk), las «Tarifas de envío por estado 2026» (una tabla de barras de 32 filas, ≈ 1,000 tokens) y los «Niveles de servicio con paqueterías» (una página de la wiki con una tabla de filas). Sin ellos, el documento más largo tendría ≈ 280 tokens y no habría nada que partir."},
+        {"que": "Tres documentos largos", "detalle": "El «Manual del vendedor» (1,724 tokens, con secciones, subsecciones, una tabla de comisiones y unas preguntas frecuentes que no caben en un chunk), las «Tarifas de envío por estado 2026» (una tabla de barras de 32 filas que sola tiene ≈ 850 tokens) y los «Niveles de servicio con paqueterías» (una página de la wiki con una tabla de filas). Sin ellos, el documento más largo tendría ≈ 280 tokens y no habría nada que partir."},
         {"que": "mundo/tokenizador.py", "detalle": "Baja el tokenizer de <code>intfloat/multilingual-e5-small</code> de un commit fijo de Hugging Face (17 MB, una vez) y comprueba su sha256 antes de guardarlo. Es el modelo de embeddings del dojo: 384 dimensiones, 512 tokens de límite, multilingüe, licencia MIT."},
         {"que": "mundo/referencia.py", "detalle": "La verdad del mundo: qué documentos están vivos hoy con qué texto y qué ACL, dónde están sus tablas y qué ruta de títulos tiene cada línea. La usa <code>verificar.py</code>; no la leas para resolver un paso."},
-        {"que": "verificar.py y romper.py", "detalle": "Los 10 checks de la estación (de <code>mundo</code> a <code>incremental</code>) y las 4 fallas: chunks gigantes, tabla cortada, ACL perdida y hash ignorado."},
+        {"que": "verificar.py y romper.py", "detalle": "Los 10 checks de la estación (de <code>mundo</code> a <code>incremental</code>) y las 6 fallas: chunks gigantes, tabla cortada, ACL perdida, hash ignorado, prefijo perdido y texto truncado."},
     ],
     "tu_pipeline": [
         {"archivo": "pipeline/tokens.py", "hace": "Paso 1: contar tokens como el modelo (prefijo y especiales incluidos)."},
@@ -210,13 +210,13 @@ e["mundo"] = {
         {"archivo": "config.yaml", "hace": "El modelo (tokenizer, prefijo, límite), el chunking (estrategia, objetivo, traslape) y el incremental."},
     ],
     "requisitos": [
-        "Python 3.10 o más nuevo (se probó con 3.14.3) y ≈ 60 MB para el entorno virtual y el tokenizer",
+        "Python 3.10 o más nuevo (se probó con 3.14.3) y ≈ 70 MB para el entorno virtual (≈ 50 MB) y el tokenizer (17 MB)",
         "Internet para el <code>pip install</code> (tokenizers 0.23.3 y pyyaml) y para bajar el tokenizer una vez",
         "La estación 1 ayuda, pero no hace falta: el kit trae su salida",
     ],
     "sustituciones": [
         {"nube": "El almacén de la ingestión en S3", "local": "<code>almacen/</code>, una carpeta", "diferencia": "La misma forma: un JSON de texto por hash y un catálogo. En C11 son ≈ 1.5 M de registros y el job lee solo los que cambiaron desde la última corrida; aquí lee el catálogo entero, que es chico."},
-        {"nube": "El modelo de embeddings que sirve la plataforma", "local": "Solo su tokenizer, en <code>modelo/tokenizer.json</code>", "diferencia": "Para partir no hace falta el modelo, solo su forma de contar. El modelo entero (≈ 470 MB) llega en la estación 5. En C11 el equipo fija la revisión del modelo igual que aquí."},
+        {"nube": "El modelo de embeddings que sirve la plataforma", "local": "Solo su tokenizer, en <code>modelo/tokenizer.json</code>", "diferencia": "Para partir no hace falta el modelo, solo su forma de contar. El modelo entero (su archivo de pesos, ≈ 470 MB) llega en la estación 5. En C11 el equipo fija la revisión del modelo igual que aquí."},
         {"nube": "Un job programado después de cada ingestión", "local": "<code>python pipeline/chunkear.py</code> a mano (y el «job» de romper.py)", "diferencia": "En C11 corre en la plataforma de datos y deja sus cuentas en métricas y alertas; aquí deja un JSON por corrida en <code>chunks/corridas/</code>."},
         {"nube": "Chunks en una tabla o en la cola hacia el índice", "local": "<code>chunks/docs/&lt;doc&gt;.json</code>", "diferencia": "Un archivo por documento hace fácil reemplazar todos sus chunks de un jalón cuando el documento cambia, que es lo que el índice de la estación 5 necesita: borrar los viejos y escribir los nuevos."},
     ],
@@ -227,7 +227,7 @@ e["mundo"] = {
 G = []
 G.append(dict(n=0, id="mundo", titulo="Levantar el mundo", objetivo="El tokenizer bajado y comprobado, y el almacén de la estación 1 del día 1 en <code>almacen/</code>.",
     conceptos=["tokenizador"],
-    explica="Dos cosas antes de escribir código. El <b>tokenizer</b> del modelo de embeddings: <code>mundo/tokenizador.py</code> lo baja de un commit fijo de Hugging Face (no de «main», que puede cambiar mañana) y compara su sha256 con el anotado; si no coincide, no lo guarda. Y el <b>almacén</b> que dejó la estación 1: <code>mundo/crear.py</code> lo copia de <code>mundo/entrada/</code> a <code>almacen/</code>. Tu chunking solo lee <code>almacen/</code> y escribe en <code>chunks/</code>.",
+    explica="Dos cosas antes de escribir código. El <b>tokenizer</b> del modelo de embeddings (el programa que parte el texto en tokens, los pedacitos de palabra que cuenta el modelo; lo ves de cerca en el paso 1): <code>mundo/tokenizador.py</code> lo baja de un commit fijo de Hugging Face (no de «main», que puede cambiar mañana) y compara su sha256 con el anotado; si no coincide, no lo guarda. Y el <b>almacén</b> que dejó la estación 1: <code>mundo/crear.py</code> lo copia de <code>mundo/entrada/</code> a <code>almacen/</code>. Tu chunking solo lee <code>almacen/</code> y escribe en <code>chunks/</code>.",
     codigo=[],
     comandos=[
         cmd("python3 -m venv .venv && source .venv/bin/activate\npip install -r requirements.txt", L("p0 venv"), "Desde aquí, cada terminal nueva necesita <code>source .venv/bin/activate</code>."),
@@ -237,7 +237,7 @@ G.append(dict(n=0, id="mundo", titulo="Levantar el mundo", objetivo="El tokenize
         cmd(f"{V} tokens", L("p0 esqueleto"), "Es lo esperado: <code>pipeline/</code> todavía es el esqueleto. Cada check se pone en verde en su paso."),
     ],
     verifica="<code>verificar.py mundo</code> en verde.",
-    ojo="Si <code>pip install tokenizers</code> tarda, es que está compilando: con Python 3.10 a 3.14 en una Mac hay rueda lista (la 0.23.3 trae cp310-abi3 para arm64 e Intel)."))
+    ojo="Si <code>pip install tokenizers</code> tarda, es que está compilando: con Python 3.10 a 3.14 en una Mac hay un instalador ya compilado (una «rueda»: la 0.23.3 trae una para Python 3.10 o más nuevo, en Apple Silicon e Intel)."))
 G.append(dict(n=1, id="tokens", titulo="Contar como cuenta el modelo", objetivo="<code>contar()</code>: los tokens que ve multilingual-e5-small, con el prefijo «passage: » y los tokens especiales.",
     conceptos=["token", "tokenizador", "limite-modelo", "prefijo"],
     explica="El modelo no lee caracteres: lee <b>tokens</b>, pedazos de palabra de su vocabulario de 250 mil. <code>Tokenizer.from_file()</code> carga ese vocabulario y <code>encode(texto).ids</code> da la lista de tokens. Al pasarle un pedazo de documento, e5 espera «passage: » delante, y el tokenizer agrega <code>&lt;s&gt;</code> al principio y <code>&lt;/s&gt;</code> al final: eso es lo que hay que contar, porque es lo que entra en los 512. <code>tokens_texto()</code> mide un pedazo solo (sin esos 5 fijos), para el traslape.",
@@ -275,7 +275,7 @@ G.append(dict(n=3, id="estructura", titulo="Partir por estructura, con su ruta",
     en_pagina={"precalculos": ["chunks"]}))
 G.append(dict(n=4, id="partir", titulo="Partir lo que no cabe, sin romper tablas", objetivo="Un bloque más grande que un chunk se parte en pedazos: oraciones, ítems o filas. Cada pedazo de tabla lleva su encabezado.",
     conceptos=["encabezado-tabla", "limite-modelo"],
-    explica="La tabla de tarifas tiene ≈ 1,000 tokens: no cabe ni en un chunk vacío. Se parte en sus unidades naturales: una <b>tabla por filas</b> (nunca a media fila), una lista por ítems, un párrafo por oraciones. Cada chunk que recibe filas de una tabla de barras empieza con sus dos líneas de <b>encabezado</b>. Y la regla que evita la mayoría de los cortes feos: una tabla que sí cabe en un chunk vacío nunca se parte; si no cabe en lo que queda del chunk actual, empieza uno nuevo.",
+    explica="La tabla de tarifas tiene ≈ 850 tokens: no cabe ni en un chunk vacío. Se parte en sus unidades naturales: una <b>tabla por filas</b> (nunca a media fila), una lista por ítems, un párrafo por oraciones. Cada chunk que recibe filas de una tabla de barras empieza con sus dos líneas de <b>encabezado</b>. Y la regla que evita la mayoría de los cortes feos: una tabla que sí cabe en un chunk vacío nunca se parte; si no cabe en lo que queda del chunk actual, empieza uno nuevo.",
     codigo=[],
     comandos=[
         cmd(P("p4 tabla"), L("p4 tabla"), "Las tarifas: cada pedazo con la ruta, el encabezado y su separadora, y filas enteras hasta el final."),
@@ -286,7 +286,7 @@ G.append(dict(n=4, id="partir", titulo="Partir lo que no cabe, sin romper tablas
     en_pagina={"precalculos": ["corte"]}))
 G.append(dict(n=5, id="traslape", titulo="Traslape solo donde sirve", objetivo="Cuando un corte cae a media sección, el chunk siguiente empieza con las últimas oraciones del anterior, hasta 60 tokens.",
     conceptos=["traslape"],
-    explica="Las «Preguntas frecuentes» del manual son una sola sección de ≈ 540 tokens: el corte cae entre dos preguntas, sin título que dé contexto. Ahí sirve el <b>traslape</b>: al cerrar el chunk, tomas sus últimas oraciones mientras sumen ≤ 60 tokens (<code>tokens_texto</code>) y las pones como primera línea del siguiente, que anota cuántos tokens repite. En un título no va (la ruta ya da el contexto) y en una tabla tampoco (se repite el encabezado).",
+    explica="Las «Preguntas frecuentes» del manual son una sola sección de ≈ 465 tokens: el corte cae entre dos preguntas, sin título que dé contexto. Ahí sirve el <b>traslape</b>: al cerrar el chunk, tomas sus últimas oraciones mientras sumen ≤ 60 tokens (<code>tokens_texto</code>) y las pones como primera línea del siguiente, que anota cuántos tokens repite. En un título no va (la ruta ya da el contexto) y en una tabla tampoco (se repite el encabezado).",
     codigo=[],
     comandos=[
         cmd(P("p5 traslape"), L("p5 traslape"), "El final del primer chunk de las preguntas frecuentes y el principio del segundo: la respuesta sobre devoluciones con otro producto se repite entera."),
@@ -314,7 +314,7 @@ G.append(dict(n=7, id="incremental", titulo="No volver a partir lo que no cambi�
         cmd("python pipeline/chunkear.py", L("p7 segunda"), "La segunda corrida del día 1: nada que partir."),
         cmd("python mundo/avanzar.py", L("p7 avanzar")),
         cmd("python pipeline/chunkear.py", L("p7 dia2")),
-        cmd(P("p7 corrida"), L("p7 corrida"), "12 con texto o título nuevo, 4 con el mismo texto y otra ACL o versión, y las 2 lápidas."),
+        cmd(P("p7 corrida"), L("p7 corrida"), "12 con texto o título nuevo (4 de ellos, documentos nuevos), 4 con el mismo texto y otra ACL o versión, y las 2 lápidas."),
         cmd(P("p7 ruta"), L("p7 ruta"), "«Lineamientos de fotos» solo cambió de nombre y se volvió a partir: su ruta ya dice el nombre nuevo."),
         cmd(P("p7 acl nueva"), L("p7 acl nueva"), "«Política de viajes» dejó de ser de todo el dominio el día 2, sin cambiar de texto: sus chunks ya traen la ACL nueva."),
         cmd("python pipeline/chunkear.py\n" + V, L("p7 tercera") + "\n" + L("p7 verificar")),
@@ -359,7 +359,7 @@ def falla(id_, titulo, tipo, historia, sintoma, hipotesis, confirma, arreglo, co
 
 e["fallas"] = [
     falla("chunks-gigantes", "«¿Cuánto cuesta mandar a Zacatecas?» ya no encuentra la tabla de tarifas", "config",
-          "Alguien leyó que «más contexto por chunk da mejores respuestas» y subió el tamaño en un PR chiquito. Los chunks se ven bien en el log; las preguntas por los estados del final de la tabla de tarifas dejaron de encontrar nada.",
+          "Alguien leyó que «más contexto por chunk da mejores respuestas» y subió el tamaño en un cambio chiquito (un PR). Los chunks se ven bien en el log; las preguntas por los estados del final de la tabla de tarifas dejaron de encontrar nada.",
           "<code>verificar.py</code> marca <code>tamano</code> (un chunk de 871 tokens, más que los 512 del modelo) y <code>traslape</code> (las preguntas frecuentes ya no tienen corte).",
           ["El manual cambió y perdió esa sección.", "Los chunks pasan del límite del modelo y lo de después no se embebe.", "El tokenizer está contando mal."],
           cmd(f"{V} tamano traslape", F("gig verificar")),
@@ -367,7 +367,7 @@ e["fallas"] = [
           "limite-modelo", "tamano"),
     falla("tabla-cortada", "«¿Cuánto cuesta mandar 3 kg a Sonora?» contesta con la tarifa de otro estado", "config",
           "Para simplificar, alguien cambió el chunking a «ventanas fijas de 1,200 caracteres, como en el tutorial». Todos los chunks miden casi lo mismo y el cambio parecía inofensivo.",
-          "<code>verificar.py</code> marca <code>ruta</code> (chunks sin ruta de títulos), <code>tablas</code> (tablas partidas) y <code>tamano</code>.",
+          "<code>verificar.py</code> marca <code>ruta</code> (chunks sin ruta de títulos), <code>tablas</code> (tablas partidas).",
           ["La tabla de tarifas llegó mal de la ingestión.", "El chunker ya no mira la estructura.", "El LLM confunde columnas."],
           cmd(P("tab ver", PROBARF), F("tab ver"), "Los primeros chunks de las tarifas: empiezan y terminan a media fila."),
           "<code>chunking.estrategia</code> quedó en <code>fija</code>. Vuelve a <code>estructura</code> y <code>python pipeline/chunkear.py</code>. Una tabla partida sin encabezado es un montón de números sueltos: el LLM los va a leer igual, y mal.",
@@ -391,7 +391,7 @@ e["fallas"] = [
           "<code>verificar.py</code> marca <code>tokens</code> (contar() ya no da lo que ve el modelo) y <code>tamano</code> («tokens» no es lo que cuenta el modelo).",
           ["Cambió el tokenizer.", "Cambió cómo se le presenta el texto al modelo.", "El chunker cambió de versión."],
           cmd(f"{V} tokens tamano", F("pre verificar")),
-          "<code>modelo.prefijo</code> quedó vacío. Vuelve a <code>\"passage: \"</code> y <code>python pipeline/chunkear.py</code> (la huella incluye el modelo, así que vuelve a partir todo). e5 se entrenó con «passage: » y «query: »: sin el prefijo, la búsqueda empeora, y cada chunk cuenta menos tokens de los que verá el modelo.",
+          "<code>modelo.prefijo</code> quedó vacío. Vuelve a <code>\"passage: \"</code> y <code>python pipeline/chunkear.py</code> (la huella incluye el modelo, así que vuelve a partir todo). e5 se entrenó con «passage: » y «query: »: sin el prefijo, la búsqueda empeora (su ficha lo dice: «otherwise you will see a performance degradation»), y cada chunk cuenta menos tokens de los que verá el modelo.",
           "prefijo", "tokens"),
     falla("texto-truncado", "El asistente dice que el manual no habla de pagos", "infra",
           "La ingestión estrenó un parser nuevo (v2) y volvió a parsear el «Manual del vendedor». Desde ayer, «¿cuándo me pagan?» no encuentra nada en el manual.",
@@ -415,9 +415,9 @@ e["repaso"] = {
     "memo": "<b>Cuenta con el tokenizador del modelo, parte por la estructura, mete la ruta en el texto y no vuelvas a partir lo que no cambió.</b> El límite del modelo (512) manda sobre el tamaño (400), y el modelo no avisa cuando corta. Cada sección empieza un chunk; las tablas no se parten si caben y, si no, llevan su encabezado; el traslape va solo donde el corte parte una idea. Cada chunk hereda la ACL de su documento, y sin ACL no hay chunk.",
     "trampa": "Un chunking que «funciona» porque todos los chunks miden lo mismo. Las ventanas fijas cortan tablas a media fila y dejan chunks sin contexto; los chunks gigantes se embeben a medias sin ningún error; y un incremental que solo mira el texto deja la ACL vieja cuando el permiso cambia. Nada de eso truena: se ve en las respuestas, días después. Por eso cada regla tiene su check.",
     "entrevista": [
-        {"q": "¿Cómo eliges el tamaño de los chunks?", "a": "Empiezo por el límite del modelo de embeddings (multilingual-e5-small lee 512 tokens) y dejo aire: ≈ 400, contados con su tokenizador y con su prefijo. Después lo decide el golden set: pruebo 256, 400 y 512 y me quedo con el que da mejor recall@8 sin perder faithfulness. Más grande no es más contexto: pasado el límite se corta, y antes de eso el vector promedia temas."},
+        {"q": "¿Cómo eliges el tamaño de los chunks?", "a": "Empiezo por el límite del modelo de embeddings (multilingual-e5-small lee 512 tokens) y dejo aire: ≈ 400, contados con su tokenizador y con su prefijo. Después lo decide el golden set: pruebo 256, 400 y 512 y me quedo con el que da mejor recall@8 (cuántas veces el chunk correcto sale entre los 8 primeros) sin perder faithfulness (que la respuesta diga solo lo que dicen sus fuentes). Más grande no es más contexto: pasado el límite se corta, y antes de eso el vector promedia temas."},
         {"q": "¿Chunks de tamaño fijo o por estructura?", "a": "Por estructura: cada sección empieza un chunk, los bloques entran enteros y solo se parte lo que no cabe, por oraciones, ítems o filas. La ventana fija es más simple, pero corta tablas a media fila y frases a la mitad, y sus chunks no dicen de qué sección vienen."},
-        {"q": "¿Qué haces con una tabla de 1,000 tokens?", "a": "La parto por filas, nunca a media fila, y cada pedazo repite el encabezado y lleva la ruta de títulos. Si la tabla cabe en un chunk vacío, no la parto: empieza su propio chunk."},
+        {"q": "¿Qué haces con una tabla de 850 tokens?", "a": "La parto por filas, nunca a media fila, y cada pedazo repite el encabezado y lleva la ruta de títulos. Si la tabla cabe en un chunk vacío, no la parto: empieza su propio chunk."},
         {"q": "¿Pones traslape?", "a": "Solo donde sirve: cuando un corte cae a media sección, el chunk siguiente empieza con las últimas oraciones del anterior, hasta 60 tokens. En un título no hace falta, porque la ruta da el contexto, y en una tabla estorba. Un traslape fijo del 15 % en todo es 15 % más de embeddings para casi nada."},
         {"q": "Un documento cambia de permisos pero no de texto. ¿Qué pasa con sus chunks?", "a": "Tienen que tomar la ACL nueva aunque no se vuelvan a partir. Mi incremental salta solo si el texto, el título y la huella son los mismos, y aun así compara la ACL: si cambió, la reescribe en cada chunk. Si solo mirara el hash del texto, el chunk seguiría abierto a quien ya no debería verlo."},
     ],
