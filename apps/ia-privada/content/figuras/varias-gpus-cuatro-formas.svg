@@ -1,0 +1,102 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 610" role="img" aria-labelledby="f-varias-gpus-cuatro-formas-t" class="f-svg" style="max-width:420px">
+<title id="f-varias-gpus-cuatro-formas-t">Cuatro formas de usar varias GPUs para servir un LLM. Réplicas: tres GPUs, cada una con el modelo entero de 64 capas; un balanceador reparte las preguntas y las GPUs no se pasan nada. Tensor parallel: dos GPUs, cada una con la mitad de cada una de las 64 capas; en cada capa se juntan dos veces con un all-reduce, 128 veces por token. Pipeline parallel: tres GPUs en fila con las capas 1 a 22, 23 a 43 y 44 a 64; entre una y otra pasa un solo vector por token. Expert parallel: cuatro GPUs con 32 de los 128 expertos de un MoE cada una; cada token viaja con un all-to-all a las GPUs de sus expertos.</title>
+<rect class="f-card" x="10" y="10" width="340" height="590" rx="16"/>
+<text class="f-l" x="28" y="38">1 · RÉPLICAS (DATA PARALLEL)</text>
+<rect class="f-dark" x="120" y="48" width="120" height="24" rx="6"/><text class="f-dark-t" x="180" y="65" text-anchor="middle" style="font-size:13px">balanceador</text>
+<line class="f-flecha" x1="180" y1="72" x2="76" y2="86"/>
+<rect class="f-chip" x="28" y="88" width="96" height="58" rx="6"/>
+<text class="f-l" x="34" y="102">GPU 0</text>
+<rect class="f-b" x="36" y="110" width="80" height="26" rx="4"/>
+<text class="f-s" x="76" y="127" text-anchor="middle" style="font-size:12px;font-weight:700">64 capas</text>
+<line class="f-flecha" x1="180" y1="72" x2="180" y2="86"/>
+<rect class="f-chip" x="132" y="88" width="96" height="58" rx="6"/>
+<text class="f-l" x="138" y="102">GPU 1</text>
+<rect class="f-b" x="140" y="110" width="80" height="26" rx="4"/>
+<text class="f-s" x="180" y="127" text-anchor="middle" style="font-size:12px;font-weight:700">64 capas</text>
+<line class="f-flecha" x1="180" y1="72" x2="284" y2="86"/>
+<rect class="f-chip" x="236" y="88" width="96" height="58" rx="6"/>
+<text class="f-l" x="242" y="102">GPU 2</text>
+<rect class="f-b" x="244" y="110" width="80" height="26" rx="4"/>
+<text class="f-s" x="284" y="127" text-anchor="middle" style="font-size:12px;font-weight:700">64 capas</text>
+<text class="f-s" x="28" y="166" style="font-size:12px">Modelo entero en cada una. No se pasan nada.</text>
+<line x1="28" y1="178" x2="332" y2="178" style="stroke:var(--tm-line);stroke-width:1"/>
+<text class="f-l" x="28" y="208">2 · TENSOR PARALLEL</text>
+<rect class="f-chip" x="28" y="218" width="136" height="70" rx="6"/>
+<text class="f-l" x="34" y="232">GPU 0</text>
+<rect class="f-b" x="38" y="238" width="26" height="40" rx="3"/>
+<rect class="f-b" x="69" y="238" width="26" height="40" rx="3"/>
+<rect class="f-b" x="100" y="238" width="26" height="40" rx="3"/>
+<rect class="f-b" x="131" y="238" width="26" height="40" rx="3"/>
+<text class="f-s" x="96" y="262" text-anchor="middle" style="font-size:12px;font-weight:700;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">½ de cada capa</text>
+<rect class="f-chip" x="196" y="218" width="136" height="70" rx="6"/>
+<text class="f-l" x="202" y="232">GPU 1</text>
+<rect class="f-o" x="206" y="238" width="26" height="40" rx="3"/>
+<rect class="f-o" x="237" y="238" width="26" height="40" rx="3"/>
+<rect class="f-o" x="268" y="238" width="26" height="40" rx="3"/>
+<rect class="f-o" x="299" y="238" width="26" height="40" rx="3"/>
+<text class="f-s" x="264" y="262" text-anchor="middle" style="font-size:12px;font-weight:700;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">½ de cada capa</text>
+<line class="f-flecha" x1="168" y1="253" x2="188" y2="253"/><path class="f-punta" d="M187,248 L187,258 L195,253 Z"/><path class="f-punta" d="M173,248 L173,258 L165,253 Z"/>
+<text class="f-s" x="28" y="308" style="font-size:12px">2 all-reduce por capa: 128 por token.</text>
+<line x1="28" y1="320" x2="332" y2="320" style="stroke:var(--tm-line);stroke-width:1"/>
+<text class="f-l" x="28" y="350">3 · PIPELINE PARALLEL</text>
+<rect class="f-chip" x="28" y="360" width="88" height="58" rx="6"/>
+<text class="f-l" x="34" y="374">GPU 0</text>
+<rect class="f-g" x="33" y="380" width="78" height="28" rx="4"/>
+<text class="f-s" x="72" y="398" text-anchor="middle" style="font-size:12px;font-weight:700">capas 1–22</text>
+<rect class="f-chip" x="132" y="360" width="88" height="58" rx="6"/>
+<text class="f-l" x="138" y="374">GPU 1</text>
+<rect class="f-g" x="137" y="380" width="78" height="28" rx="4"/>
+<text class="f-s" x="176" y="398" text-anchor="middle" style="font-size:12px;font-weight:700">capas 23–43</text>
+<rect class="f-chip" x="236" y="360" width="88" height="58" rx="6"/>
+<text class="f-l" x="242" y="374">GPU 2</text>
+<rect class="f-g" x="241" y="380" width="78" height="28" rx="4"/>
+<text class="f-s" x="280" y="398" text-anchor="middle" style="font-size:12px;font-weight:700">capas 44–64</text>
+<line class="f-flecha" x1="117" y1="389" x2="124" y2="389"/><path class="f-punta" d="M123,384 L123,394 L132,389 Z"/>
+<line class="f-flecha" x1="221" y1="389" x2="228" y2="389"/><path class="f-punta" d="M227,384 L227,394 L236,389 Z"/>
+<text class="f-s" x="28" y="438" style="font-size:12px">En fila. Entre GPUs: 1 vector por token.</text>
+<line x1="28" y1="450" x2="332" y2="450" style="stroke:var(--tm-line);stroke-width:1"/>
+<text class="f-l" x="28" y="480">4 · EXPERT PARALLEL (MoE)</text>
+<rect class="f-chip" x="28" y="490" width="67" height="62" rx="6"/>
+<text class="f-l" x="34" y="504">GPU 0</text>
+<rect class="f-p" x="35" y="510" width="11" height="12" rx="2"/>
+<rect class="f-p" x="49" y="510" width="11" height="12" rx="2"/>
+<rect class="f-p" x="63" y="510" width="11" height="12" rx="2"/>
+<rect class="f-p" x="77" y="510" width="11" height="12" rx="2"/>
+<rect class="f-p" x="35" y="526" width="11" height="12" rx="2"/>
+<rect class="f-p" x="49" y="526" width="11" height="12" rx="2"/>
+<rect class="f-p" x="63" y="526" width="11" height="12" rx="2"/>
+<rect class="f-p" x="77" y="526" width="11" height="12" rx="2"/>
+<rect class="f-chip" x="107" y="490" width="67" height="62" rx="6"/>
+<text class="f-l" x="113" y="504">GPU 1</text>
+<rect class="f-p" x="114" y="510" width="11" height="12" rx="2"/>
+<rect class="f-p" x="128" y="510" width="11" height="12" rx="2"/>
+<rect class="f-p" x="142" y="510" width="11" height="12" rx="2"/>
+<rect class="f-p" x="156" y="510" width="11" height="12" rx="2"/>
+<rect class="f-p" x="114" y="526" width="11" height="12" rx="2"/>
+<rect class="f-p" x="128" y="526" width="11" height="12" rx="2"/>
+<rect class="f-p" x="142" y="526" width="11" height="12" rx="2"/>
+<rect class="f-p" x="156" y="526" width="11" height="12" rx="2"/>
+<rect class="f-chip" x="186" y="490" width="67" height="62" rx="6"/>
+<text class="f-l" x="192" y="504">GPU 2</text>
+<rect class="f-p" x="193" y="510" width="11" height="12" rx="2"/>
+<rect class="f-p" x="207" y="510" width="11" height="12" rx="2"/>
+<rect class="f-p" x="221" y="510" width="11" height="12" rx="2"/>
+<rect class="f-p" x="235" y="510" width="11" height="12" rx="2"/>
+<rect class="f-p" x="193" y="526" width="11" height="12" rx="2"/>
+<rect class="f-p" x="207" y="526" width="11" height="12" rx="2"/>
+<rect class="f-p" x="221" y="526" width="11" height="12" rx="2"/>
+<rect class="f-p" x="235" y="526" width="11" height="12" rx="2"/>
+<rect class="f-chip" x="265" y="490" width="67" height="62" rx="6"/>
+<text class="f-l" x="271" y="504">GPU 3</text>
+<rect class="f-p" x="272" y="510" width="11" height="12" rx="2"/>
+<rect class="f-p" x="286" y="510" width="11" height="12" rx="2"/>
+<rect class="f-p" x="300" y="510" width="11" height="12" rx="2"/>
+<rect class="f-p" x="314" y="510" width="11" height="12" rx="2"/>
+<rect class="f-p" x="272" y="526" width="11" height="12" rx="2"/>
+<rect class="f-p" x="286" y="526" width="11" height="12" rx="2"/>
+<rect class="f-p" x="300" y="526" width="11" height="12" rx="2"/>
+<rect class="f-p" x="314" y="526" width="11" height="12" rx="2"/>
+<path class="f-linea" d="M61,556 C61,570 219,570 219,556" style="fill:none;stroke-width:1.5"/>
+<path class="f-linea" d="M140,556 C140,566 298,566 298,556" style="fill:none;stroke-width:1.5"/>
+<text class="f-s" x="28" y="588" style="font-size:12px">32 de 128 expertos en cada una; all-to-all.</text>
+</svg>

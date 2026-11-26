@@ -60,7 +60,7 @@
    "sensei": ["apis", "balanceo"],
    "lecciones": [
     { "id": "stack-serving", "titulo": "Del laptop al servidor: llama.cpp, Ollama, vLLM, SGLang y TensorRT-LLM", "etapas": ["api"] },
-    { "id": "gateway", "titulo": "Gateway, API compatible con OpenAI y varios modelos", "etapas": ["api", "orquestacion"] }
+    { "id": "gateway", "titulo": "Gateway, API compatible con OpenAI, autenticación y varios modelos", "etapas": ["api", "orquestacion"] }
    ]
   },
   {

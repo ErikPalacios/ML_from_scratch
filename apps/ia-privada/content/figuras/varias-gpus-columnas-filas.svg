@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 470" role="img" aria-labelledby="f-varias-gpus-columnas-filas-t" class="f-svg" style="max-width:420px">
+<title id="f-varias-gpus-columnas-filas-t">El MLP de una capa de Qwen3 32B repartido entre 2 GPUs con tensor parallel. Arriba, el vector x del token, de 5,120 números, llega igual a las dos GPUs. En cada GPU, la primera matriz va partida por columnas: la GPU 0 tiene la mitad izquierda y la GPU 1 la derecha, y cada una calcula 12,800 de los 25,600 números intermedios. La función de en medio se aplica a cada mitad sin comunicación. La segunda matriz va partida por filas: cada GPU multiplica su mitad y obtiene un vector parcial de 5,120 números. Abajo, un all-reduce suma los dos parciales y las dos GPUs se quedan con la salida completa, y lo mismo pasa una vez más en la atención de la capa.</title>
+<rect class="f-card" x="10" y="10" width="340" height="450" rx="16"/>
+<text class="f-l" x="28" y="36">EL MLP DE UNA CAPA, EN 2 GPUS</text>
+<rect class="f-b" x="100" y="48" width="160" height="28" rx="5"/>
+<text class="f-s" x="180" y="67" text-anchor="middle" style="font-size:12px;font-weight:700">x del token · 5,120</text>
+<line class="f-flecha" x1="140" y1="76" x2="100" y2="94"/><line class="f-flecha" x1="220" y1="76" x2="260" y2="94"/>
+<rect class="f-chip" x="28" y="96" width="144" height="250" rx="8"/>
+<text class="f-l" x="36" y="114">GPU 0</text>
+<rect class="f-b" x="38" y="124" width="124" height="44" rx="5"/>
+<text class="f-s" x="100" y="142" text-anchor="middle" style="font-size:12px;font-weight:700">1.ª: por columnas</text>
+<text class="f-s" x="100" y="159" text-anchor="middle" style="font-size:12px">mitad izquierda</text>
+<line class="f-flecha" x1="100" y1="168" x2="100" y2="176"/><path class="f-punta" d="M94,175 L106,175 L100,184 Z"/>
+<rect class="f-card" x="38" y="186" width="124" height="40" rx="5"/>
+<text class="f-s" x="100" y="203" text-anchor="middle" style="font-size:12px">12,800 números</text>
+<text class="f-s" x="100" y="219" text-anchor="middle" style="font-size:12px">función, local</text>
+<line class="f-flecha" x1="100" y1="226" x2="100" y2="234"/><path class="f-punta" d="M94,233 L106,233 L100,242 Z"/>
+<rect class="f-b" x="38" y="244" width="124" height="44" rx="5"/>
+<text class="f-s" x="100" y="262" text-anchor="middle" style="font-size:12px;font-weight:700">2.ª: por filas</text>
+<text class="f-s" x="100" y="279" text-anchor="middle" style="font-size:12px">sus 12,800 filas</text>
+<line class="f-flecha" x1="100" y1="288" x2="100" y2="296"/><path class="f-punta" d="M94,295 L106,295 L100,304 Z"/>
+<rect class="f-card" x="38" y="306" width="124" height="30" rx="5"/>
+<text class="f-s" x="100" y="326" text-anchor="middle" style="font-size:12px">parcial y₀ · 5,120</text>
+<line class="f-flecha" x1="100" y1="346" x2="150" y2="362"/>
+<rect class="f-chip" x="188" y="96" width="144" height="250" rx="8"/>
+<text class="f-l" x="196" y="114">GPU 1</text>
+<rect class="f-o" x="198" y="124" width="124" height="44" rx="5"/>
+<text class="f-s" x="260" y="142" text-anchor="middle" style="font-size:12px;font-weight:700">1.ª: por columnas</text>
+<text class="f-s" x="260" y="159" text-anchor="middle" style="font-size:12px">mitad derecha</text>
+<line class="f-flecha" x1="260" y1="168" x2="260" y2="176"/><path class="f-punta" d="M254,175 L266,175 L260,184 Z"/>
+<rect class="f-card" x="198" y="186" width="124" height="40" rx="5"/>
+<text class="f-s" x="260" y="203" text-anchor="middle" style="font-size:12px">12,800 números</text>
+<text class="f-s" x="260" y="219" text-anchor="middle" style="font-size:12px">función, local</text>
+<line class="f-flecha" x1="260" y1="226" x2="260" y2="234"/><path class="f-punta" d="M254,233 L266,233 L260,242 Z"/>
+<rect class="f-o" x="198" y="244" width="124" height="44" rx="5"/>
+<text class="f-s" x="260" y="262" text-anchor="middle" style="font-size:12px;font-weight:700">2.ª: por filas</text>
+<text class="f-s" x="260" y="279" text-anchor="middle" style="font-size:12px">sus 12,800 filas</text>
+<line class="f-flecha" x1="260" y1="288" x2="260" y2="296"/><path class="f-punta" d="M254,295 L266,295 L260,304 Z"/>
+<rect class="f-card" x="198" y="306" width="124" height="30" rx="5"/>
+<text class="f-s" x="260" y="326" text-anchor="middle" style="font-size:12px">parcial y₁ · 5,120</text>
+<line class="f-flecha" x1="260" y1="346" x2="210" y2="362"/>
+<rect class="f-dark" x="60" y="364" width="240" height="44" rx="8"/>
+<text class="f-dark-l" x="180" y="381" text-anchor="middle">ALL-REDUCE</text>
+<text class="f-dark-t" x="180" y="400" text-anchor="middle" style="font-size:13px">y = y₀ + y₁ en las dos GPUs</text>
+<text class="f-s" x="28" y="430" style="font-size:12px">Otro all-reduce igual, en la atención de la capa:</text>
+<text class="f-s" x="28" y="447" style="font-size:12px">2 por capa, 128 por token en 64 capas.</text>
+</svg>

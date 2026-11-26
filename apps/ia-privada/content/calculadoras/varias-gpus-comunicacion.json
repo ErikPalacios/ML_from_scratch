@@ -1,0 +1,309 @@
+{
+ "titulo": "Lo que se pasan las GPUs en tensor parallel",
+ "intro": "Aplica \\(t_{AR} = 2(n − 1)/n × N ÷ B_{enl} + α\\) a los \\(2 × L\\) [[all-reduce|all-reduce]] de un token, con \\(N = b × h × 2\\) bytes en el [[decode|decode]] y \\(N = T × h × 2\\) en el [[prefill|prefill]]. La compara con lo que cada GPU tarda en leer su parte de la memoria y en hacer su parte del cálculo. Arranca con el despacho: Qwen3 32B en INT4 de AWQ en 2 L40S por PCIe 4.0, una conversación.",
+ "preajustes": [
+  {
+   "label": "Modelo (arquitectura del config.json)",
+   "inicial": 0,
+   "opciones": [
+    {
+     "label": "Qwen3 32B en INT4 de AWQ",
+     "valores": {
+      "h": 5120,
+      "L": 64,
+      "P": 32.762,
+      "W": 19.32,
+      "K": 1.64
+     },
+     "nota": "Hidden de 5,120 y 64 capas (config.json de Qwen). Pesos de 19.32 GB (la herramienta de VRAM) y 1.64 GB de KV por conversación a media respuesta (6,250 tokens × 256 KiB)."
+    },
+    {
+     "label": "Llama 3.3 70B en INT4 de AWQ",
+     "valores": {
+      "h": 8192,
+      "L": 80,
+      "P": 70.554,
+      "W": 39.77,
+      "K": 2.05
+     },
+     "nota": "Hidden de 8,192 y 80 capas (config.json de Meta, leído de una copia pública). Pesos de 39.77 GB y 2.05 GB de KV por conversación a media respuesta (6,250 tokens × 320 KiB)."
+    }
+   ]
+  },
+  {
+   "label": "GPU (datos de gpus.json: ancho de banda de memoria y cálculo)",
+   "datos": "gpus",
+   "inicial": "l40s",
+   "campos": {
+    "B": "ancho_banda_gbs",
+    "F": "fp16_tflops_denso"
+   },
+   "requiere": [
+    "ancho_banda_gbs",
+    "fp16_tflops_denso"
+   ]
+  }
+ ],
+ "entradas": [
+  {
+   "id": "h",
+   "label": "*Hidden size* del modelo, \\(h\\)",
+   "min": 256,
+   "max": 32768,
+   "paso": 1,
+   "valor": 5120,
+   "tipo": "numero"
+  },
+  {
+   "id": "L",
+   "label": "Capas del modelo, \\(L\\)",
+   "min": 1,
+   "max": 200,
+   "paso": 1,
+   "valor": 64,
+   "tipo": "numero"
+  },
+  {
+   "id": "P",
+   "label": "Parámetros, \\(P\\), en miles de millones (para el cálculo del prefill)",
+   "min": 0.5,
+   "max": 2000,
+   "paso": 0.001,
+   "valor": 32.762,
+   "tipo": "numero"
+  },
+  {
+   "id": "W",
+   "label": "Pesos del modelo entero, \\(W\\), en GB",
+   "min": 0.5,
+   "max": 2000,
+   "paso": 0.01,
+   "valor": 19.32,
+   "tipo": "numero"
+  },
+  {
+   "id": "K",
+   "label": "KV cache que lee cada conversación por paso, \\(K\\), en GB (de todo el modelo)",
+   "min": 0,
+   "max": 50,
+   "paso": 0.01,
+   "valor": 1.64,
+   "tipo": "numero"
+  },
+  {
+   "id": "n",
+   "label": "GPUs en tensor parallel, \\(n\\)",
+   "tipo": "opcion",
+   "valor": 2,
+   "opciones": [
+    {
+     "valor": 2,
+     "label": "2"
+    },
+    {
+     "valor": 4,
+     "label": "4"
+    },
+    {
+     "valor": 8,
+     "label": "8"
+    }
+   ]
+  },
+  {
+   "id": "enl",
+   "label": "Enlace entre las GPUs, \\(B_{enl}\\)",
+   "tipo": "opcion",
+   "valor": 31.5,
+   "opciones": [
+    {
+     "valor": 31.5,
+     "label": "PCIe 4.0 x16 · ≈ 31.5 GB/s por dirección (L40S)"
+    },
+    {
+     "valor": 63,
+     "label": "PCIe 5.0 x16 · ≈ 63 GB/s por dirección (RTX PRO 6000)"
+    },
+    {
+     "valor": 300,
+     "label": "NVLink por puente · ≈ 300 GB/s por dirección (H100 NVL)"
+    },
+    {
+     "valor": 450,
+     "label": "NVLink 4 · ≈ 450 GB/s por dirección (H100 SXM)"
+    }
+   ]
+  },
+  {
+   "id": "a",
+   "label": "Latencia fija de cada all-reduce, \\(α\\), en µs (**supuesto**: mídela con `all_reduce_perf`)",
+   "min": 0,
+   "max": 200,
+   "paso": 1,
+   "valor": 10
+  },
+  {
+   "id": "b",
+   "label": "Conversaciones en el paso de decode, \\(b\\)",
+   "min": 1,
+   "max": 256,
+   "paso": 1,
+   "valor": 1
+  },
+  {
+   "id": "T",
+   "label": "Tokens de la pregunta en el prefill, \\(T\\)",
+   "min": 0,
+   "max": 32768,
+   "paso": 100,
+   "valor": 6000
+  },
+  {
+   "id": "B",
+   "label": "Ancho de banda de memoria de cada GPU, \\(B_W\\), en GB/s",
+   "min": 50,
+   "max": 10000,
+   "paso": 1,
+   "valor": 864,
+   "tipo": "numero"
+  },
+  {
+   "id": "F",
+   "label": "Pico de cálculo de cada GPU, \\(F\\), en TFLOPS densos de FP16",
+   "min": 1,
+   "max": 5000,
+   "paso": 0.01,
+   "valor": 362.05,
+   "tipo": "numero"
+  },
+  {
+   "id": "em",
+   "label": "Eficiencia de la memoria, \\(η_m\\) (el despacho supone 0.7)",
+   "min": 0.1,
+   "max": 1,
+   "paso": 0.05,
+   "valor": 0.7
+  },
+  {
+   "id": "ec",
+   "label": "Eficiencia del cálculo, \\(η_c\\) (el despacho supone 0.5)",
+   "min": 0.1,
+   "max": 1,
+   "paso": 0.05,
+   "valor": 0.5
+  }
+ ],
+ "calculos": [
+  {
+   "id": "fac",
+   "formula": "2 * (n - 1) / n"
+  },
+  {
+   "id": "Nd",
+   "formula": "b * h * 2"
+  },
+  {
+   "id": "tbd",
+   "formula": "2 * L * fac * Nd / (enl * 1e9) * 1000"
+  },
+  {
+   "id": "tad",
+   "formula": "2 * L * a / 1000"
+  },
+  {
+   "id": "tcd",
+   "formula": "tbd + tad"
+  },
+  {
+   "id": "tm",
+   "formula": "(W + b * K) / n / (em * B) * 1000"
+  },
+  {
+   "id": "Np",
+   "formula": "T * h * 2"
+  },
+  {
+   "id": "tcp",
+   "formula": "(2 * L * fac * Np / (enl * 1e9) + 2 * L * a * 1e-6) * 1000"
+  },
+  {
+   "id": "tpc",
+   "formula": "2 * P * 1e9 * T / (n * ec * F * 1e12) * 1000"
+  }
+ ],
+ "salidas": [
+  {
+   "label": "Bytes de cada all-reduce en el decode, \\(N\\)",
+   "formula": "Nd",
+   "formato": "bytes",
+   "nota": "\\(b × h × 2\\): un vector de 16 bits por conversación",
+   "cuenta": "{{b|int}} × {{h|int}} × 2 = **{{Nd|int}} bytes**"
+  },
+  {
+   "label": "All-reduce por token",
+   "formula": "2 * L",
+   "formato": "int",
+   "nota": "dos por capa: después de la atención y después del MLP",
+   "cuenta": "2 × {{L|int}} = **{{2 * L|int}}**"
+  },
+  {
+   "label": "Comunicación de un paso de decode, \\(t_{com}\\)",
+   "formula": "tcd",
+   "formato": "ms",
+   "decimales": 2,
+   "barra": true,
+   "cuenta": "bytes: {{2 * L|int}} × {{fac|corto}} × {{Nd|int}} B ÷ {{enl|corto}} GB/s = {{tbd|num|3}} ms; latencia: {{2 * L|int}} × {{a|int}} µs = {{tad|num|2}} ms; total **{{tcd|num|2}} ms**"
+  },
+  {
+   "label": "De eso, la parte de latencia",
+   "formula": "tad / max(tcd, 1e-12)",
+   "formato": "pct",
+   "nota": "con pocas conversaciones, casi toda: el ancho de banda casi no se nota"
+  },
+  {
+   "label": "Lectura de memoria de cada GPU en el paso",
+   "formula": "tm",
+   "formato": "ms",
+   "decimales": 2,
+   "barra": true,
+   "nota": "\\((W + b × K) ÷ n\\) a \\(η_m × B_W\\)",
+   "cuenta": "({{W|corto}} + {{b|int}} × {{K|corto}}) GB ÷ {{n|int}} ÷ ({{em|corto}} × {{B|int}} GB/s) = **{{tm|num|2}} ms**"
+  },
+  {
+   "label": "Parte del paso que es comunicación",
+   "formula": "tcd / (tm + tcd)",
+   "formato": "pct",
+   "barra": true,
+   "nota": "supone que la comunicación no se solapa con la lectura (el peor caso)"
+  },
+  {
+   "label": "Tokens por segundo de cada persona",
+   "formula": "1000 / (tm + tcd)",
+   "formato": "num",
+   "decimales": 1,
+   "cuenta": "1 ÷ ({{tm|num|2}} + {{tcd|num|2}}) ms = **{{1000 / (tm + tcd)|num|1}} tokens/s**"
+  },
+  {
+   "label": "Prefill: cálculo repartido entre las GPUs",
+   "formula": "tpc",
+   "formato": "ms",
+   "barra": true,
+   "cuenta": "2 × {{P|corto}} mil millones × {{T|int}} ÷ ({{n|int}} × {{ec|corto}} × {{F|corto}} TFLOPS) = **{{tpc|ms}}**"
+  },
+  {
+   "label": "Prefill: comunicación",
+   "formula": "tcp",
+   "formato": "ms",
+   "barra": true,
+   "nota": "\\(2 × L\\) all-reduce de \\(T × h × 2\\) bytes cada uno",
+   "cuenta": "{{2 * L|int}} × {{fac|corto}} × {{Np|bytes|1}} ÷ {{enl|corto}} GB/s + latencias = **{{tcp|ms}}**"
+  },
+  {
+   "label": "Prefill completo, sin cola",
+   "formula": "tpc + tcp",
+   "formato": "ms",
+   "cuenta": "{{tpc|ms}} + {{tcp|ms}} = **{{tpc + tcp|ms}}**"
+  }
+ ],
+ "nota": "Con una conversación, la comunicación es ≈ 7 % del paso y casi toda es latencia. Pon el enlace en NVLink 4: el decode casi no cambia, el prefill baja de ≈ 0.25 s de cable a ≈ 0.02 s. Sube \\(b\\) a 32 con PCIe: ahí el ancho de banda empieza a notarse. Pasa a 4 GPUs: el cálculo se parte otra vez a la mitad, pero el cable del prefill crece."
+}

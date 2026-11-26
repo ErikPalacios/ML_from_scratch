@@ -1,0 +1,270 @@
+{
+ "titulo": "Qué forma de paralelismo usar",
+ "width": 78,
+ "height": 56,
+ "lanes": [
+  {
+   "id": "todo",
+   "label": "Preguntas en orden",
+   "kind": "neutral",
+   "x": 0,
+   "y": 0,
+   "w": 78,
+   "h": 56
+  }
+ ],
+ "nodes": [
+  {
+   "id": "q1",
+   "label": "¿Cabe en 1 GPU?",
+   "sub": "pesos + conversaciones",
+   "badge": "1",
+   "kind": "service",
+   "x": 28,
+   "y": 4,
+   "w": 22,
+   "h": 8,
+   "note": "La primera pregunta, siempre: ¿los [[pesos]] y el [[kv-cache|KV cache]] de las conversaciones que necesitas caben en la [[vram|VRAM]] de una GPU, con su margen? Qwen3 32B en INT4 de AWQ en una L40S: sí, 10 de 8,192 tokens. Llama 3.3 70B: no, quedan 1.43 GB."
+  },
+  {
+   "id": "dp",
+   "label": "Réplicas",
+   "sub": "data parallel",
+   "kind": "gpu",
+   "x": 2,
+   "y": 17,
+   "w": 18,
+   "h": 8,
+   "note": "[[replica|Réplicas]]: una copia entera por GPU, sin comunicación, con fallas independientes. La capacidad crece en línea recta. No hacen más rápida una pregunta."
+  },
+  {
+   "id": "q2",
+   "label": "¿Cabe en 1 servidor?",
+   "sub": "todas sus GPUs juntas",
+   "badge": "2",
+   "kind": "service",
+   "x": 28,
+   "y": 17,
+   "w": 22,
+   "h": 8,
+   "note": "Si no cabe en una GPU, ¿cabe repartido entre las GPUs de un solo servidor? Llama 3.3 70B en 2 L40S: sí, con 15 conversaciones."
+  },
+  {
+   "id": "multi",
+   "label": "TP dentro, PP entre",
+   "sub": "varios servidores",
+   "kind": "gpu",
+   "x": 56,
+   "y": 17,
+   "w": 20,
+   "h": 8,
+   "note": "Si no cabe en un servidor: [[tensor-parallel|tensor parallel]] con las GPUs de cada servidor (donde está NVLink) y [[pipeline-parallel|pipeline parallel]] entre servidores (un vector por token por la red). Es la regla de Megatron-LM y la de la documentación de vLLM."
+  },
+  {
+   "id": "q3",
+   "label": "¿n divide las cabezas?",
+   "sub": "¿y hay NVLink?",
+   "badge": "3",
+   "kind": "service",
+   "x": 28,
+   "y": 31,
+   "w": 22,
+   "h": 8,
+   "note": "Tensor parallel pide que el número de GPUs divida las cabezas de atención (64: 2, 4 u 8; nunca 3). Y su costo depende del cable: con NVLink casi no se nota; por PCIe pesa en el [[prefill|prefill]] y con batches grandes."
+  },
+  {
+   "id": "tp",
+   "label": "Tensor parallel",
+   "sub": "más rápido por pregunta",
+   "kind": "gpu",
+   "x": 56,
+   "y": 31,
+   "w": 20,
+   "h": 8,
+   "note": "Reparte el cálculo de cada capa: es la única forma que baja el tiempo de **una** pregunta. Paga dos [[all-reduce|all-reduce]] por capa y por token."
+  },
+  {
+   "id": "pp",
+   "label": "Pipeline parallel",
+   "sub": "reparto disparejo",
+   "kind": "gpu",
+   "x": 28,
+   "y": 45,
+   "w": 22,
+   "h": 8,
+   "note": "Si \\(n\\) no divide las cabezas, o no hay NVLink, la documentación de vLLM sugiere pipeline parallel: capas en fila, comunicación barata. No baja el tiempo de una pregunta; da throughput si hay muchas conversaciones."
+  },
+  {
+   "id": "ep",
+   "label": "Expert parallel",
+   "sub": "si es MoE",
+   "kind": "gpu",
+   "x": 56,
+   "y": 45,
+   "w": 20,
+   "h": 8,
+   "note": "Si el modelo es [[moe|MoE]] y no cabe, los expertos se reparten entre GPUs ([[expert-parallel|expert parallel]]) y la atención va con réplicas o tensor parallel."
+  }
+ ],
+ "edges": [
+  {
+   "from": "q1",
+   "to": "dp",
+   "kind": "neutral",
+   "label": "sí",
+   "fromSide": "l",
+   "toSide": "t",
+   "via": [
+    [
+     11,
+     8
+    ]
+   ]
+  },
+  {
+   "from": "q1",
+   "to": "q2",
+   "kind": "neutral",
+   "label": "no",
+   "fromSide": "b",
+   "toSide": "t"
+  },
+  {
+   "from": "q2",
+   "to": "multi",
+   "kind": "neutral",
+   "label": "no",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "q2",
+   "to": "q3",
+   "kind": "neutral",
+   "label": "sí",
+   "fromSide": "b",
+   "toSide": "t"
+  },
+  {
+   "from": "q3",
+   "to": "tp",
+   "kind": "neutral",
+   "label": "sí",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "q3",
+   "to": "pp",
+   "kind": "neutral",
+   "label": "no",
+   "fromSide": "b",
+   "toSide": "t"
+  },
+  {
+   "from": "tp",
+   "to": "ep",
+   "kind": "async",
+   "dashed": true,
+   "label": "MoE",
+   "fromSide": "b",
+   "toSide": "t"
+  }
+ ],
+ "flows": [
+  {
+   "id": "hoy",
+   "label": "El despacho hoy",
+   "steps": [
+    {
+     "nodes": [
+      "q1"
+     ],
+     "edges": [],
+     "text": "Qwen3 32B en INT4 de AWQ pesa **19.32 GB**. En una L40S de 48 GB, con 10 % de margen y 2 GB de programa, quedan 21.88 GB: **10 conversaciones** de 8,192 tokens. Cabe."
+    },
+    {
+     "nodes": [
+      "q1",
+      "dp"
+     ],
+     "edges": [
+      "q1>dp"
+     ],
+     "text": "Entonces **3 réplicas**, una por L40S, detrás de un balanceador que manda cada conversación siempre a la misma. Tensor parallel de 3 ni siquiera existe con 64 cabezas."
+    }
+   ]
+  },
+  {
+   "id": "setenta",
+   "label": "Si quiere Llama 3.3 70B",
+   "steps": [
+    {
+     "nodes": [
+      "q1"
+     ],
+     "edges": [],
+     "text": "Llama 3.3 70B en INT4 de AWQ pesa **39.77 GB**: en una L40S quedan 1.43 GB, menos que una conversación de 8,192 (2.68 GB). No cabe."
+    },
+    {
+     "nodes": [
+      "q1",
+      "q2"
+     ],
+     "edges": [
+      "q1>q2"
+     ],
+     "text": "En 2 L40S, cada una guarda 19.88 GB de pesos y caben **15 conversaciones**. Cabe en el servidor."
+    },
+    {
+     "nodes": [
+      "q2",
+      "q3"
+     ],
+     "edges": [
+      "q2>q3"
+     ],
+     "text": "2 divide las 64 cabezas. Pero la L40S no tiene NVLink: la documentación de vLLM sugiere pipeline parallel y la cuenta de esta lección dice que tensor parallel baja más el primer token."
+    },
+    {
+     "nodes": [
+      "q3",
+      "tp",
+      "pp"
+     ],
+     "edges": [
+      "q3>tp",
+      "q3>pp"
+     ],
+     "text": "Las dos ramas son razonables, y la decide una **medición**: el primer token en el p95 con la hora pico encima. O se evita la pregunta con una sola tarjeta de 96 GB."
+    }
+   ]
+  },
+  {
+   "id": "lab",
+   "label": "Un laboratorio con 16 GPUs",
+   "steps": [
+    {
+     "nodes": [
+      "q1",
+      "q2"
+     ],
+     "edges": [
+      "q1>q2"
+     ],
+     "text": "Un modelo que no cabe ni en las 8 GPUs de un servidor (supuesto del ejemplo)."
+    },
+    {
+     "nodes": [
+      "q2",
+      "multi"
+     ],
+     "edges": [
+      "q2>multi"
+     ],
+     "text": "Tensor parallel de 8 **dentro** de cada servidor, por NVLink, y pipeline parallel de 2 **entre** los dos, por InfiniBand: entre servidores solo cruza un vector por token."
+    }
+   ]
+  }
+ ]
+}

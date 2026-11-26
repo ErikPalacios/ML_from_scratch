@@ -1,0 +1,320 @@
+{
+ "titulo": "Memoria por GPU con tensor parallel",
+ "intro": "Aplica \\(M_{GPU} = W/n + c × K_{conv}/n + M_{prog}\\), con \\(M_{prog}\\) en **cada** GPU, y cuenta cuántas conversaciones \\(c\\) caben en \\((1 − f) × V\\). Revisa también la regla de las cabezas: \\(n\\) tiene que dividir las cabezas de consulta, y si pasa de los juegos de K y V, vLLM los repite. Arranca con Llama 3.3 70B en INT4 de AWQ en 2 L40S.",
+ "preajustes": [
+  {
+   "label": "Modelo (arquitectura del config.json)",
+   "inicial": 1,
+   "opciones": [
+    {
+     "label": "Qwen3 32B",
+     "valores": {
+      "P": 32.762,
+      "Et": 1.556,
+      "L": 64,
+      "g": 8,
+      "d": 128,
+      "q": 64
+     },
+     "nota": "Alibaba. 64 capas, 64 cabezas de consulta y 8 juegos de K y V de 128 números."
+    },
+    {
+     "label": "Llama 3.3 70B Instruct",
+     "valores": {
+      "P": 70.554,
+      "Et": 2.101,
+      "L": 80,
+      "g": 8,
+      "d": 128,
+      "q": 64
+     },
+     "nota": "Meta (config leído de una copia pública del repositorio oficial). 80 capas, 64 cabezas y 8 juegos de K y V."
+    },
+    {
+     "label": "Qwen3 30B-A3B (MoE)",
+     "valores": {
+      "P": 30.532,
+      "Et": 0.622,
+      "L": 48,
+      "g": 4,
+      "d": 128,
+      "q": 32
+     },
+     "nota": "Alibaba. 48 capas, 32 cabezas y solo 4 juegos de K y V: con 8 GPUs se repetirían."
+    }
+   ]
+  },
+  {
+   "label": "GPU (datos de gpus.json)",
+   "datos": "gpus",
+   "inicial": "l40s",
+   "campos": {
+    "V": "vram_gb"
+   }
+  }
+ ],
+ "entradas": [
+  {
+   "id": "P",
+   "label": "Parámetros del modelo, \\(P\\), en miles de millones",
+   "min": 0.5,
+   "max": 2000,
+   "paso": 0.001,
+   "valor": 70.554,
+   "tipo": "numero"
+  },
+  {
+   "id": "Et",
+   "label": "De ellos, las tablas de tokens, en miles de millones (se quedan en 16 bits)",
+   "min": 0,
+   "max": 50,
+   "paso": 0.001,
+   "valor": 2.101,
+   "tipo": "numero"
+  },
+  {
+   "id": "bits",
+   "label": "Formato de los pesos",
+   "tipo": "opcion",
+   "valor": 4.15625,
+   "opciones": [
+    {
+     "valor": 16,
+     "label": "BF16 o FP16 · 16 bits"
+    },
+    {
+     "valor": 8,
+     "label": "FP8 o INT8 · 8 bits"
+    },
+    {
+     "valor": 4.15625,
+     "label": "INT4 de AWQ, grupos de 128 · ≈ 4.16 bits"
+    }
+   ]
+  },
+  {
+   "id": "L",
+   "label": "Capas, \\(L\\)",
+   "min": 1,
+   "max": 200,
+   "paso": 1,
+   "valor": 80,
+   "tipo": "numero"
+  },
+  {
+   "id": "q",
+   "label": "Cabezas de consulta por capa",
+   "min": 1,
+   "max": 256,
+   "paso": 1,
+   "valor": 64,
+   "tipo": "numero"
+  },
+  {
+   "id": "g",
+   "label": "Juegos de K y V por capa, \\(g\\)",
+   "min": 1,
+   "max": 256,
+   "paso": 1,
+   "valor": 8,
+   "tipo": "numero"
+  },
+  {
+   "id": "d",
+   "label": "Números por cada K o V, \\(d\\)",
+   "min": 16,
+   "max": 512,
+   "paso": 1,
+   "valor": 128,
+   "tipo": "numero"
+  },
+  {
+   "id": "n",
+   "label": "GPUs en tensor parallel, \\(n\\)",
+   "tipo": "opcion",
+   "valor": 2,
+   "opciones": [
+    {
+     "valor": 1,
+     "label": "1 (sin repartir)"
+    },
+    {
+     "valor": 2,
+     "label": "2"
+    },
+    {
+     "valor": 4,
+     "label": "4"
+    },
+    {
+     "valor": 8,
+     "label": "8"
+    },
+    {
+     "valor": 16,
+     "label": "16"
+    }
+   ]
+  },
+  {
+   "id": "V",
+   "label": "VRAM de cada GPU, \\(V\\), en GB",
+   "min": 4,
+   "max": 1000,
+   "paso": 1,
+   "valor": 48,
+   "tipo": "numero"
+  },
+  {
+   "id": "ctx",
+   "label": "Tokens por conversación (el tope de contexto)",
+   "min": 256,
+   "max": 131072,
+   "paso": 256,
+   "valor": 8192,
+   "tipo": "numero"
+  },
+  {
+   "id": "bkv",
+   "label": "Bytes por número del KV cache (2 = BF16, 1 = FP8)",
+   "tipo": "opcion",
+   "valor": 2,
+   "opciones": [
+    {
+     "valor": 2,
+     "label": "2 · BF16"
+    },
+    {
+     "valor": 1,
+     "label": "1 · FP8"
+    }
+   ]
+  },
+  {
+   "id": "prog",
+   "label": "Programa y búferes en **cada** GPU, \\(M_{prog}\\), en GB (2 es optimista con \\(n\\) > 1)",
+   "min": 0,
+   "max": 20,
+   "paso": 0.5,
+   "valor": 2
+  },
+  {
+   "id": "f",
+   "label": "Margen libre, \\(f\\) (0.1 = 10 %)",
+   "min": 0,
+   "max": 0.5,
+   "paso": 0.01,
+   "valor": 0.1
+  }
+ ],
+ "calculos": [
+  {
+   "id": "Wt",
+   "formula": "max(0, P - Et) * bits / 8 + Et * 2"
+  },
+  {
+   "id": "Wg",
+   "formula": "Wt / n"
+  },
+  {
+   "id": "kvt",
+   "formula": "2 * L * g * d * bkv"
+  },
+  {
+   "id": "conv",
+   "formula": "kvt * ctx / 1e9"
+  },
+  {
+   "id": "rep",
+   "formula": "max(1 / n, 1 / g)"
+  },
+  {
+   "id": "convg",
+   "formula": "conv * rep"
+  },
+  {
+   "id": "util",
+   "formula": "V * (1 - f)"
+  },
+  {
+   "id": "libre",
+   "formula": "util - Wg - prog"
+  },
+  {
+   "id": "c",
+   "formula": "max(0, floor(libre / max(convg, 1e-9)))"
+  }
+ ],
+ "salidas": [
+  {
+   "label": "Pesos del modelo entero, \\(W\\)",
+   "formula": "Wt * 1e9",
+   "formato": "bytes",
+   "decimales": 2,
+   "cuenta": "({{P|corto}} − {{Et|corto}}) × {{bits|corto}} ÷ 8 + {{Et|corto}} × 2 = **{{Wt|num|2}} GB**"
+  },
+  {
+   "label": "Pesos en cada GPU, \\(W/n\\)",
+   "formula": "Wg * 1e9",
+   "formato": "bytes",
+   "decimales": 2,
+   "barra": true,
+   "cuenta": "{{Wt|num|2}} ÷ {{n|int}} = **{{Wg|num|2}} GB**"
+  },
+  {
+   "label": "Libre para KV cache en cada GPU",
+   "formula": "libre * 1e9",
+   "formato": "bytes",
+   "decimales": 2,
+   "barra": true,
+   "cuenta": "{{V|int}} × (1 − {{f|corto}}) − {{Wg|num|2}} − {{prog|corto}} = **{{libre|num|2}} GB**"
+  },
+  {
+   "label": "KV de una conversación en cada GPU",
+   "formula": "convg * 1e9",
+   "formato": "bytes",
+   "decimales": 3,
+   "nota": "el de todo el modelo entre \\(n\\), mientras \\(n\\) no pase de \\(g\\)",
+   "cuenta": "2 × {{L|int}} × {{g|int}} × {{d|int}} × {{bkv|int}} B × {{ctx|int}} = {{conv|num|3}} GB; en cada GPU, **{{convg|num|3}} GB**"
+  },
+  {
+   "label": "Conversaciones que caben en la copia, \\(c_{máx}\\)",
+   "formula": "c",
+   "formato": "int",
+   "barra": true,
+   "cuenta": "⌊{{libre|num|2}} ÷ {{convg|num|3}}⌋ = **{{c|int}}**"
+  },
+  {
+   "label": "Conversaciones por cada GPU usada",
+   "formula": "c / n",
+   "formato": "num",
+   "decimales": 1,
+   "nota": "para comparar contra poner réplicas"
+  },
+  {
+   "label": "¿Caben los pesos y al menos una conversación?",
+   "formula": "libre - convg",
+   "veredicto": {
+    "si": "Sí",
+    "no": "No: no cabe ni una"
+   }
+  },
+  {
+   "label": "¿\\(n\\) divide las cabezas de consulta?",
+   "formula": "(q % n == 0) ? 0 : -1",
+   "veredicto": {
+    "si": "Sí: vLLM arranca",
+    "no": "No: vLLM no arranca"
+   }
+  },
+  {
+   "label": "¿Cada GPU tiene sus propios juegos de K y V?",
+   "formula": "(g % n == 0) ? 0 : -1",
+   "veredicto": {
+    "si": "Sí, sin repetir",
+    "no": "No: vLLM los repite y el KV ocupa de más"
+   }
+  }
+ ],
+ "nota": "Con 1 L40S, Llama 3.3 70B deja ≈ 1.4 GB libres: no cabe una conversación de 8,192. Con 2, caben 15; con 4, 46. Cambia a Qwen3 32B: con 1 caben 10, con 2 caben 29 en la copia (14.5 por GPU, más que las 10 de una réplica). Sube \\(M_{prog}\\) a 4 para un cálculo más prudente."
+}

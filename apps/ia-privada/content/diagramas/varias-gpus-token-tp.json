@@ -1,0 +1,239 @@
+{
+ "titulo": "Un token de Qwen3 32B por dos L40S en tensor parallel",
+ "width": 78,
+ "height": 52,
+ "lanes": [
+  {
+   "id": "g0",
+   "label": "GPU 0 · cabezas 0–31",
+   "kind": "online",
+   "x": 0,
+   "y": 0,
+   "w": 78,
+   "h": 17
+  },
+  {
+   "id": "cable",
+   "label": "PCIe 4.0, pasando por la CPU",
+   "kind": "neutral",
+   "x": 0,
+   "y": 18,
+   "w": 78,
+   "h": 15
+  },
+  {
+   "id": "g1",
+   "label": "GPU 1 · cabezas 32–63",
+   "kind": "online",
+   "x": 0,
+   "y": 34,
+   "w": 78,
+   "h": 18
+  }
+ ],
+ "nodes": [
+  {
+   "id": "att0",
+   "label": "Atención",
+   "sub": "32 cabezas",
+   "kind": "gpu",
+   "x": 2,
+   "y": 5,
+   "w": 17,
+   "h": 8,
+   "note": "La GPU 0 calcula la atención de **sus** 32 cabezas con su mitad del [[kv-cache|KV cache]]: 4 de los 8 juegos de K y V. No necesita nada de la otra GPU para esto."
+  },
+  {
+   "id": "att1",
+   "label": "Atención",
+   "sub": "otras 32 cabezas",
+   "kind": "gpu",
+   "x": 2,
+   "y": 39,
+   "w": 17,
+   "h": 8,
+   "note": "La GPU 1 hace lo mismo con las otras 32 cabezas y los otros 4 juegos de K y V, al mismo tiempo."
+  },
+  {
+   "id": "ar1",
+   "label": "All-reduce 1",
+   "sub": "10 KiB por token",
+   "kind": "queue",
+   "x": 23,
+   "y": 21,
+   "w": 16,
+   "h": 8,
+   "note": "Cada GPU termina la atención con un vector **parcial** de 5,120 números. El [[all-reduce|all-reduce]] los suma y las dos se quedan con el total. Con una conversación son 10,240 bytes: ≈ 0.3 µs de PCIe 4.0 más una latencia fija que aquí se supone de 10 µs."
+  },
+  {
+   "id": "mlp0",
+   "label": "MLP",
+   "sub": "½ columnas, ½ filas",
+   "kind": "gpu",
+   "x": 43,
+   "y": 5,
+   "w": 17,
+   "h": 8,
+   "note": "Con la suma en la mano, la GPU 0 multiplica por su mitad de columnas de la primera matriz, aplica la función a sus 12,800 números y multiplica por sus filas de la segunda."
+  },
+  {
+   "id": "mlp1",
+   "label": "MLP",
+   "sub": "la otra mitad",
+   "kind": "gpu",
+   "x": 43,
+   "y": 39,
+   "w": 17,
+   "h": 8,
+   "note": "La GPU 1, con la otra mitad de columnas y de filas. Al final, cada una tiene otra vez un vector parcial de 5,120."
+  },
+  {
+   "id": "ar2",
+   "label": "All-reduce 2",
+   "sub": "otros 10 KiB",
+   "kind": "queue",
+   "x": 62,
+   "y": 21,
+   "w": 15,
+   "h": 8,
+   "note": "El segundo all-reduce de la capa suma los parciales del MLP. Con él termina la capa, y las dos GPUs tienen el mismo *hidden state* para la siguiente."
+  }
+ ],
+ "edges": [
+  {
+   "from": "att0",
+   "to": "ar1",
+   "kind": "online",
+   "fromSide": "r",
+   "toSide": "t"
+  },
+  {
+   "from": "att1",
+   "to": "ar1",
+   "kind": "online",
+   "fromSide": "r",
+   "toSide": "b"
+  },
+  {
+   "from": "ar1",
+   "to": "mlp0",
+   "kind": "online",
+   "fromSide": "t",
+   "toSide": "l",
+   "via": [
+    [
+     31,
+     9
+    ]
+   ]
+  },
+  {
+   "from": "ar1",
+   "to": "mlp1",
+   "kind": "online",
+   "fromSide": "b",
+   "toSide": "l",
+   "via": [
+    [
+     31,
+     43
+    ]
+   ]
+  },
+  {
+   "from": "mlp0",
+   "to": "ar2",
+   "kind": "online",
+   "fromSide": "r",
+   "toSide": "t"
+  },
+  {
+   "from": "mlp1",
+   "to": "ar2",
+   "kind": "online",
+   "fromSide": "r",
+   "toSide": "b"
+  },
+  {
+   "from": "ar2",
+   "to": "att0",
+   "kind": "neutral",
+   "dashed": true,
+   "label": "capa siguiente",
+   "fromSide": "t",
+   "toSide": "t",
+   "via": [
+    [
+     69.5,
+     2
+    ],
+    [
+     10.5,
+     2
+    ]
+   ]
+  }
+ ],
+ "flows": [
+  {
+   "id": "token",
+   "label": "Un token por dos L40S",
+   "steps": [
+    {
+     "nodes": [
+      "att0",
+      "att1"
+     ],
+     "edges": [],
+     "text": "Las dos GPUs reciben el mismo *hidden state* del token y calculan la atención, cada una con **sus 32 cabezas**. Cada una lee solo su mitad de los pesos de la capa: por eso el paso dura la mitad."
+    },
+    {
+     "nodes": [
+      "att0",
+      "att1",
+      "ar1"
+     ],
+     "edges": [
+      "att0>ar1",
+      "att1>ar1"
+     ],
+     "text": "Cada una tiene un vector **parcial**. Se detienen las dos y hacen el primer **all-reduce**: se pasan sus parciales por PCIe, a través de la CPU, y suman."
+    },
+    {
+     "nodes": [
+      "ar1",
+      "mlp0",
+      "mlp1"
+     ],
+     "edges": [
+      "ar1>mlp0",
+      "ar1>mlp1"
+     ],
+     "text": "Con la suma en las dos, cada una hace **su mitad del MLP**: columnas de la primera matriz, la función, filas de la segunda. Sin hablarse."
+    },
+    {
+     "nodes": [
+      "mlp0",
+      "mlp1",
+      "ar2"
+     ],
+     "edges": [
+      "mlp0>ar2",
+      "mlp1>ar2"
+     ],
+     "text": "Otro vector parcial en cada una, otro **all-reduce**. Son dos por capa."
+    },
+    {
+     "nodes": [
+      "ar2",
+      "att0"
+     ],
+     "edges": [
+      "ar2>att0"
+     ],
+     "text": "Y vuelta a empezar en la capa siguiente. Con 64 capas, **128 esperas por token**: ≈ 1.3 ms de comunicación (con 10 µs de latencia supuesta) contra ≈ 17 ms de leer la memoria. En el prefill de 6,000 tokens, cada espera lleva 6,000 vectores y el cable suma ≈ 0.25 s."
+    }
+   ]
+  }
+ ]
+}
