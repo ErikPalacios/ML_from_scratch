@@ -29,8 +29,10 @@ z, zp = 1.96, 0.84                               # 95 % de confianza, 80 % de po
 def margen(p, n): return z * sqrt(p * (1 - p) / n)
 def hacen_falta(p, d): return (z + zp) ** 2 * 2 * p * (1 - p) / d ** 2
 p = 0.85                                         # supuesto: el recall@8 ronda el 85 %
-for n in (45, 450, 600):
+for n in (37, 450, 600):
     print(f'n = {n:>3}: recall {p:.0%} ± {margen(p, n):.1%}')
+n = 450
+print(f'con {n} en cada examen, la diferencia más chica que se distingue ≈ {(z + zp) * sqrt(2 * p * (1 - p) / n):.1%}')
 for d in (0.10, 0.05, 0.03):
     print(f'ver {d:.0%} de diferencia entre dos sistemas (cada uno con su examen): ≈ {hacen_falta(p, d):,.0f} preguntas')"
 paso "pc fugas" python -c "

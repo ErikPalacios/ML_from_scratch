@@ -138,8 +138,8 @@
           "id": "golden",
           "titulo": "Golden set",
           "etapa": "datos",
-          "lista": false,
-          "url": null
+          "lista": true,
+          "url": "https://dojo.trueml.app/rag/golden/"
         },
         {
           "num": 5,
