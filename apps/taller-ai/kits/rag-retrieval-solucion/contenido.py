@@ -158,29 +158,29 @@ con("candidatos", "Candidatos (pool)", "candidates, candidate pool",
     "Todo lo que viene después (la fusión, el reranker) solo puede reordenar el pool: su recall es el techo del retrieval.",
     "Pedir a cada índice los mismos 8 que vas a entregar al final: la fusión y el reranker se quedan sin material para trabajar.")
 con("escalas", "Puntajes en escalas distintas", "score scales",
-    "BM25 da números de 0 a ≈ 20 (depende de cuántas palabras coinciden y qué tan raras son); el coseno de e5 da de ≈ 0.7 a 0.9. No son la misma unidad: un 9 de BM25 no es «más» que un 0.88 de coseno.",
+    "BM25 da números de 0 a ≈ 20; el coseno de e5, de ≈ 0.7 a 0.9. No son la misma unidad: un 9 de BM25 no es «más» que un 0.88 de coseno.",
     "Como sumar una calificación sobre 100 con otra sobre 10: el examen sobre 100 decide solo, aunque el otro sea el más importante.",
     "Es por lo que no se suman los puntajes crudos para fusionar. Se normalizan (con cuidado) o se usa solo el lugar, como RRF.",
     "Normalizar con el máximo de cada lista y creer que ya están en la misma escala: un 1.0 de BM25 en una pregunta con una sola palabra rara no significa lo mismo que en otra.")
 con("rrf", "RRF (Reciprocal Rank Fusion)", "reciprocal rank fusion",
-    "Una forma de juntar varias listas ordenadas en una sola usando solo el lugar de cada chunk: cada chunk suma 1 / (k + su lugar) en cada lista donde aparece, y se ordena por esa suma. El lugar empieza en 1. Lo propusieron Cormack, Clarke y Büttcher en 2009.",
+    "Junta varias listas ordenadas usando solo el lugar: cada chunk suma 1 / (k + su lugar) en cada lista donde aparece (el lugar empieza en 1). Lo propusieron Cormack, Clarke y Büttcher en 2009.",
     "Como una votación de jueces donde cada uno entrega su orden: no importa qué tan alto calificó cada juez, solo en qué lugar puso a cada quien. Quien sale bien con todos gana.",
     "No necesita que BM25 y los vectores estén en la misma escala, no tiene nada que entrenar y premia lo que aparece en las dos listas: justo lo que hace el híbrido.",
     "Olvidar que el lugar empieza en 1 (con 0, el primero vale 1/k) o desempatar al azar: el top-8 cambia entre corridas. Aquí los empates van por chunk_id.")
 con("rrf-k", "La constante k de RRF", "rank constant",
-    "El número que se suma al lugar en 1 / (k + lugar). Con k = 60 (el del artículo original y el que traen por defecto Elasticsearch y OpenSearch), el lugar 1 vale 0.0164 y el 30 vale 0.0111: casi parejo. Con k = 1, el 1 vale 0.5 y el 30, 0.032.",
+    "El k de 1 / (k + lugar). Con k = 60 (el del artículo original y el de fábrica en Elasticsearch y OpenSearch), el lugar 1 vale 0.0164 y el 30, 0.0111. Con k = 1: 0.5 y 0.032.",
     "Como el volumen del primer lugar: con k chica, el primero de cada lista grita y los demás susurran; con k grande, todos hablan a un volumen parecido y gana quien suena en las dos listas.",
     "Decide si la fusión confía más en el primer lugar de cada buscador o en el acuerdo entre los dos. Se puede afinar, pero 60 funciona bien en muchos casos.",
     "Afinar k con 9 preguntas de dev y mover el número porque «salió mejor»: con tan pocas, todas las k empatan (aquí empatan) y cualquier diferencia es ruido.")
 con("reranker", "Reranker", "reranker",
-    "Un segundo modelo que reordena los candidatos de la fusión: lee la pregunta y cada pasaje y les da un puntaje de qué tan bien contesta ese pasaje esa pregunta. Es más fino que los buscadores, y más caro: una pasada del modelo por cada par.",
+    "Un segundo modelo que reordena los candidatos de la fusión: lee la pregunta y cada pasaje y da qué tan bien lo contesta. Más fino que los buscadores y más caro: una pasada por par.",
     "Como la entrevista después de la lista larga: es cara, así que no se le hace a los cientos de solicitudes, solo a los 20 que pasaron el primer filtro, y ahí se decide de verdad.",
     "Mejora el orden: pone la fuente en los primeros lugares. Eso importa porque el LLM lee mejor lo que va arriba y porque el contexto tiene tope.",
     "Pasarle el corpus entero (151 aquí sería tolerable; 7.5 M en C11, imposible) o pasarle tan pocos que no puede rescatar nada.")
 con("cross-encoder", "Cross-encoder", "cross-encoder (contra bi-encoder)",
-    "Un transformer que recibe la pregunta y el pasaje <b>juntos</b> en una sola entrada (<code>&lt;s&gt; pregunta &lt;/s&gt;&lt;/s&gt; pasaje &lt;/s&gt;</code>) y da un número (un logit: más alto, más relevante). El modelo de embeddings de la estación 5 es un <b>bi-encoder</b>: hace un vector de la pregunta y otro del pasaje por separado, y luego se comparan. El del dojo, mmarco-mMiniLMv2-L12-H384-v1: 12 capas de 384, entrenado con mMARCO (MS MARCO traducido a 14 idiomas, con español).",
+    "Un transformer que lee pregunta y pasaje juntos, en una entrada, y da un logit (más alto, más relevante). El de embeddings es un bi-encoder: un vector de cada uno, por separado.",
     "El bi-encoder es comparar dos fichas resumen hechas por separado; el cross-encoder es leer la pregunta y el pasaje uno junto al otro, palabra por palabra.",
-    "Como cada palabra de la pregunta «ve» cada palabra del pasaje, distingue cosas que un vector resumen pierde (quién hace qué, una negación, un plazo). A cambio, no se puede precalcular: cada par es una pasada.",
+    "El del dojo, mmarco-mMiniLMv2-L12-H384-v1, tiene 12 capas de 384 y se entrenó con mMARCO (MS MARCO, búsquedas reales de Bing, traducido por máquina a 13 idiomas, con español). Como cada palabra de la pregunta «ve» cada palabra del pasaje, distingue cosas que un vector resumen pierde (quién hace qué, una negación, un plazo). A cambio, no se puede precalcular: cada par es una pasada.",
     "Leer el logit como probabilidad: 5.9 no es «59 %». Sirve para ordenar los candidatos de una misma pregunta, no para comparar entre preguntas.")
 con("cuantizado", "Modelo cuantizado (int8)", "quantization, int8",
     "Guardar los pesos del modelo con enteros de 8 bits en vez de números de 32 bits. El reranker del dojo pesa 119 MB en int8 contra 471 MB en float32: casi 4 veces menos, y corre más rápido en CPU.",
@@ -193,17 +193,17 @@ con("rerank-n", "Cuántos lee el reranker (rerank_n)", "rerank depth",
     "Con rerank_n = k, el reranker solo reordena los mismos 8 y el recall@8 es por fuerza el de la fusión. Tiene que leer más de los que salen, y cada par de más cuesta milisegundos.",
     "Bajarlo para ganar latencia sin medir qué se pierde. Es una perilla de costo contra calidad, y se decide con dev.")
 con("prefiltro", "Filtrar antes de elegir", "pre-filtering",
-    "Aplicar los permisos dentro de cada búsqueda, antes de quedarse con los 30 mejores: se eligen los 30 mejores <b>entre los que la persona ve</b>. Lo contrario, el post-filtro, elige 30 entre todos y después quita lo prohibido. Es la regla de la estación 3.",
+    "Aplicar los permisos dentro de cada búsqueda: se eligen los 30 mejores entre los que la persona ve. El post-filtro elige 30 entre todos y luego quita lo prohibido. Es la regla de la estación 3.",
     "Como buscar en la parte de la biblioteca a la que tienes acceso, en vez de traer 30 libros de todos los estantes y regresar en la puerta los que no puedes sacar.",
     "Con post-filtro nadie recibe algo prohibido, pero a quien ve poco le llegan 2 o 3 chunks en vez de 8: el LLM contesta con menos contexto justo a esas personas.",
     "Que el post-filtro venga por defecto en el ejemplo de la documentación de una base vectorial. Se revisa con las personas que menos ven.")
 con("recall-k", "recall@k", "recall at k",
-    "De las fuentes de una pregunta (las que anotó el golden set), la fracción que llega al top-k; luego, el promedio sobre las preguntas. Aquí k = 8, los que recibe el LLM. Solo tiene sentido con preguntas que tienen fuentes que buscar: directas y con varias fuentes.",
+    "De las fuentes de una pregunta, la fracción que llega al top-k; luego el promedio. Aquí k = 8. Solo con preguntas que tienen fuentes que buscar: directas y con varias fuentes.",
     "Como revisar si en la bolsa del súper venía todo lo de la lista: no importa en qué orden, importa que esté.",
     "Es la métrica del gate de la rama: si la fuente no llega al top-8, la respuesta no se puede citar.",
     "Meter las preguntas sin respuesta (no tienen fuentes) o las prohibidas (su fuente es justo lo que no debe llegar): cuentan como 0 y el recall baja sin que nada haya empeorado.")
 con("orden", "recall@3 y MRR", "recall@3, mean reciprocal rank",
-    "Dos medidas del <b>orden</b>, no solo de si llegó. recall@3 es el recall con los 3 primeros. MRR (mean reciprocal rank) es el promedio de 1 / (lugar de la primera fuente): 1 si va primera, 0.5 si va segunda, 0 si no llega.",
+    "Dos medidas del orden. recall@3: el recall con los 3 primeros. MRR (mean reciprocal rank): el promedio de 1 / (lugar de la primera fuente); 1 si va primera, 0 si no llega.",
     "Si recall@8 dice que en la bolsa venía todo, MRR dice si lo que más necesitabas venía hasta arriba o hasta el fondo.",
     "Es donde se ve el reranker cuando el recall@8 ya está en el techo: en el dojo, fusión y fusión + reranker dan los dos 100 % de recall@8, pero recall@3 pasa de " + R["fusion"]["r3"] + " % a " + R["completo"]["r3"] + " %.",
     "Optimizar solo el MRR: puede subir poniendo una fuente arriba y sacando otra del top-8. Se miran juntos.")
@@ -218,7 +218,7 @@ con("dev-test", "Afinar con dev, reportar con test", "dev/test split",
     "Si eliges con las mismas preguntas con que mides, eliges justo lo que le fue bien a esas preguntas, y el número sale optimista.",
     "Medir con dev porque «ya estaba corrido», o afinar con test porque dev es chico. Si dev no alcanza para decidir, la respuesta es más preguntas, no usar test.")
 con("margen", "Margen y tamaño de muestra", "margin of error, sample size",
-    "El margen al 95 % del recall es 1.96 × desviación estándar ÷ √n (estación 4). Para comparar dos modos, la mejora tiene que ser más grande que el ruido de los dos: con n preguntas y un recall de ≈ 90 %, la mejora más chica que se distingue es ≈ 2.8 × √(2 × 0.9 × 0.1 ÷ n).",
+    "El margen al 95 % es 1.96 × desviación estándar ÷ √n (estación 4). Para comparar dos modos, la mejora tiene que pasar el ruido: con recall ≈ 90 %, ≈ 2.8 × √(2 × 0.9 × 0.1 ÷ n).",
     "Como una encuesta de 37 personas: si un candidato saca 2 puntos más, no sabes si de verdad va ganando.",
     "Decide cuánto puedes creerle a «el reranker subió el recall 1.4 puntos»: con 37 preguntas, nada; con 600, todavía no; con miles, sí.",
     "Reportar 100.0 % ± 0.0 % como si fuera certeza: el margen da 0 porque todas dieron 1, no porque se sepa con precisión.")
@@ -286,7 +286,7 @@ G.append(dict(n=1, id="fusion", titulo="Juntar dos listas", objetivo="<code>fusi
     ],
     verifica="<code>verificar.py fusion</code> en verde: los puntajes de RRF con k = 60 y k = 1, la suma cruda, el ValueError, y tu Recuperador fusionando por RRF (lo da el paso 2).",
     ojo="El check fusion también llama a tu <code>Recuperador</code>, que escribes en el paso 2: hasta entonces se queda en rojo en esa parte. Si quieres ver solo lo de este paso, corre <code>python pipeline/fusion.py</code>.",
-    en_pagina={"conceptos": ["escalas", "rrf", "rrf-k"], "precalculos": ["rrf"]}))
+    en_pagina={"conceptos": ["retrieval", "escalas", "rrf", "rrf-k"], "precalculos": ["rrf"]}))
 
 G.append(dict(n=2, id="candidatos", titulo="Candidatos con permisos", objetivo="<code>Recuperador</code> en <code>recuperar.py</code>: pedirle 30 candidatos a cada índice con el filtro de permisos antes de elegir, fusionarlos con RRF y quedarse con los 8 primeros.",
     conceptos=["candidatos", "prefiltro"],

@@ -43,6 +43,6 @@
   "max_tokens": 512,
   "salida": "un logit por par (pregunta, pasaje): más alto = más relevante",
   "cuantizado": "int8 (dinámico)",
-  "idiomas": "14 (los de mMARCO, con español), sobre XLM-RoBERTa"
+  "idiomas": "14 (los de mMARCO: el inglés y 13 traducciones, con español), sobre XLM-RoBERTa"
  }
 }

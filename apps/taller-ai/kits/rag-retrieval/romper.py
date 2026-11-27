@@ -134,7 +134,7 @@ FALLAS = {
     "rerank-pocos": dict(
         tipo="config", titulo="El reranker «ya no ayuda»: fusión y fusión + reranker dan el mismo recall@8", aplicar=rerank_pocos,
         historia="El reranker era lo más lento del retrieval, así que alguien le pasó solo los 8 primeros de la fusión: «son los que van a salir de todos modos».",
-        explica="config.yaml quedó con retrieval.rerank_n: 8. Si el reranker solo lee los 8 que ya iban a salir, puede cambiar su orden pero no puede traer nada de más abajo: el recall@8 de fusión + reranker es, por fuerza, el de la fusión sola. Bajó la latencia (≈ 60 ms en vez de ≈ 370 ms en el p50), pero el reranker ya no rescata nada. Se ve con python verificar.py rerank. " + MEDIR + " El reranker necesita más candidatos que k: ese es su trabajo, subir lo que la fusión dejó abajo."),
+        explica="config.yaml quedó con retrieval.rerank_n: 8. Si el reranker solo lee los 8 que ya iban a salir, puede cambiar su orden pero no puede traer nada de más abajo: el recall@8 de fusión + reranker es, por fuerza, el de la fusión sola. La latencia del modo completo baja casi a la mitad, pero el reranker ya no rescata nada. Se ve con python verificar.py rerank. " + MEDIR + " El reranker necesita más candidatos que k: ese es su trabajo, subir lo que la fusión dejó abajo."),
     "medicion-mezclada": dict(
         tipo="config", titulo="El recall@8 del reporte cayó a ≈ 73 % en los cuatro modos a la vez", aplicar=medicion_mezclada,
         historia="Para que «la muestra sea más grande», alguien puso todos los tipos de pregunta en la medición y corrió el script viejo del reporte.",
