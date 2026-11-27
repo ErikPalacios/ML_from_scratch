@@ -154,8 +154,8 @@
           "id": "retrieval",
           "titulo": "Retrieval y reranker",
           "etapa": "modelo",
-          "lista": false,
-          "url": null
+          "lista": true,
+          "url": "https://dojo.trueml.app/rag/retrieval/"
         },
         {
           "num": 7,
