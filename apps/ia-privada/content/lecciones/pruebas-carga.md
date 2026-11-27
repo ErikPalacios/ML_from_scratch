@@ -338,7 +338,7 @@ Una [[prueba-de-resistencia|prueba de resistencia]] (*soak test*) sostiene la ca
 - **Calor**: una GPU caliente baja su reloj para protegerse (*thermal throttling*). Una [[tarjeta-pasiva|tarjeta pasiva]] (sin ventilador propio) como la L40S depende de que el servidor y el cuarto la enfríen; en la nube eso lo cuida el proveedor, en el cuarto del despacho no. Por eso se repite con el servidor comprado, en su cuarto.
 - **Registros que se llenan**: el del gateway, los chats de Open WebUI.
 
-Basta con anotar el p95 por hora: si la hora 7 sale peor que la 1 con la misma tasa, algo se está gastando. Cómo vigilar temperatura y memoria es tema de «Observabilidad de GPUs e inferencia».
+Basta con anotar el p95 por hora: si la hora 7 sale peor que la 1 con la misma tasa, algo se está gastando. Cómo vigilar temperatura y memoria es tema de «[Observabilidad de GPUs e inferencia](/observabilidad/)».
 
 ### Que el generador no sea el cuello de botella
 
@@ -602,7 +602,7 @@ La comparación que decide la compra se hace con **las mismas condiciones** en l
 - TTFT p95 y TPOT p95 a 0.21/s, con su intervalo.
 - **Goodput**: las peticiones por segundo que cumplen las dos promesas (`--goodput ttft:2000 tpot:50`), no los tokens/s máximos.
 - Potencia promedio (W) durante la prueba.
-- Y, con la cotización, cuánto cuesta cada petición que cumple. Ese número, y no el «2×», es el que va a la propuesta (la lección «Cotizar, proponer y dar soporte» de la siguiente fase).
+- Y, con la cotización, cuánto cuesta cada petición que cumple. Ese número, y no el «2×», es el que va a la propuesta (la lección «[Cotizar, proponer y dar soporte](/cotizar/)»).
 
 ## Errores comunes {Common mistakes}
 
@@ -651,8 +651,8 @@ Mínimo: ⌈log(0.025) ÷ log(0.99)⌉ = **368** (la misma cifra de GuideLLM). C
 
 - **[Demostrar que el modelo abierto sirve](/evals/)** es la otra mitad del piloto: una prueba de carga dice si el servidor contesta **a tiempo**; el [[eval|examen]] de 200 preguntas, si contesta **bien**. Las dos usan la misma idea de muestra, ruido e intervalo.
 - **[RAG privado: embeddings y vector DB locales](/rag-privado/)** y **[Agentes, tools y guardrails](/agentes/)** cambian el perfil de carga: la búsqueda agrega su tiempo antes del prefill, y un [[agente|agente]] hace varias llamadas al modelo por pregunta. Cada cambio del perfil pide rehacer el dataset de carga.
-- **«Observabilidad de GPUs e inferencia»**, en la siguiente fase, convierte las métricas de esta prueba en tableros que corren todo el día: los mismos relojes, medidos en producción, y la temperatura y la memoria que la prueba de resistencia vigila.
-- **«TCO: API, nube o servidor propio»** y **«Cotizar, proponer y dar soporte»** usan el goodput medido y el costo por petición que cumple para decidir y escribir la propuesta.
+- **«[Observabilidad de GPUs e inferencia](/observabilidad/)»** convierte las métricas de esta prueba en tableros que corren todo el día: los mismos relojes, medidos en producción, y la temperatura y la memoria que la prueba de resistencia vigila.
+- **«[TCO: API, nube o servidor propio](/costo-total/)»** y **«[Cotizar, proponer y dar soporte](/cotizar/)»** usan el goodput medido y el costo por petición que cumple para decidir y escribir la propuesta.
 - De esta app: [Concurrencia](/concurrencia/) tiene la curva y el codo; [De requisitos a hardware](/requisitos-hardware/), la simulación del TTFT con cola que esta prueba reemplaza; [Gateway, API compatible con OpenAI, autenticación y varios modelos](/gateway/), la cuota y el reparto que la prueba atraviesa.
 - En Sensei: [Promedios, medianas y percentiles](https://sensei.trueml.app/percentiles/), [Qué tan rápido y cuánto: latencia y throughput](https://sensei.trueml.app/latencia/) y [Ruido, muestras y pruebas A/B](https://sensei.trueml.app/ruido/).
 

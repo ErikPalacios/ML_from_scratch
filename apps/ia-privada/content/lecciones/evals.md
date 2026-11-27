@@ -428,7 +428,7 @@ defaultTest:
 ```
 :::
 
-Y la segunda parte, la que no depende de leer bien cada documentación: el servidor que corre el examen **no tiene salida a internet**. Si una variable se olvida, la llamada falla en vez de salir. Cómo se cierran esas puertas es tema de la lección «Seguridad: aislamiento, sin internet y actualizaciones».
+Y la segunda parte, la que no depende de leer bien cada documentación: el servidor que corre el examen **no tiene salida a internet**. Si una variable se olvida, la llamada falla en vez de salir. Cómo se cierran esas puertas es tema de la lección «[Seguridad: aislamiento, sin internet y actualizaciones](/seguridad/)».
 
 :::ojo No está probado de punta a punta
 Que DeepEval y promptfoo hablen con un modelo local está documentado; que RAGAS lo haga contra el gateway con un cliente de OpenAI apuntando a otra dirección lo permite su documentación, pero no lo vimos correr. Las tres usan prompts de juez en inglés: cómo califican español jurídico no está medido. Por eso la calibración contra abogados no es opcional, y una herramienta se adopta después de correrla en el piloto.
@@ -719,7 +719,7 @@ Que el κ de 0.72 es parecido al de Legal Research Bench (0.708–0.726), medido
 - **[RAG privado: embeddings y vector DB locales](/rag-privado/)** construye la búsqueda que aquí se califica en la capa de retrieval, y la muralla de permisos que prueban las 20 preguntas de permisos.
 - **[Agentes, tools y guardrails](/agentes/)** usa este mismo examen para aceptar un [[agente|agente]]: con más pasos, más formas de fallar y la misma regla de cero fugas.
 - **[Formatos de cuantización en la práctica](/formatos-cuantizacion/)** tiene el caso del gate que más se repite: el modelo cuantizado contra el original, con sus flips.
-- **«Seguridad: aislamiento, sin internet y actualizaciones»** cierra la salida a internet de la máquina del examen y es la que dispara el gate en cada actualización; **«Observabilidad de GPUs e inferencia»** mide en producción lo que el examen mide antes.
+- **«[Seguridad: aislamiento, sin internet y actualizaciones](/seguridad/)»** cierra la salida a internet de la máquina del examen y es la que dispara el gate en cada actualización; **«[Observabilidad de GPUs e inferencia](/observabilidad/)»** mide en producción lo que el examen mide antes.
 - En Sensei: [¿Aprendió de verdad?](https://sensei.trueml.app/aprendio/) tiene el golden set, la matriz de confusión y el gate en general; [Ruido, muestras y pruebas A/B](https://sensei.trueml.app/ruido/), el error estándar, los intervalos, el A/B y la intuición de McNemar.
 
 ## Palabras que vas a oír {Words you'll hear}

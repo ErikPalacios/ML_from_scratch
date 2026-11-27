@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 460" role="img" aria-labelledby="f-seguridad-fabrica-t" class="f-svg" style="max-width:420px">
+<title id="f-seguridad-fabrica-t">Seis piezas del despacho, cómo vienen de fábrica y cómo quedan. vLLM 0.34.0 escucha en todas las interfaces en el puerto 8000 y su /metrics no pide llave; en el despacho se publica solo en la IP de la zona de modelos y solo entra LiteLLM. Qdrant 1.20.2 escucha en todas las interfaces, sin llave y con telemetría; queda con llave de administración y de solo lectura, TLS y sin telemetría. Prometheus sin su archivo de configuración web no pide autenticación; vive en la zona de gestión. La imagen de Open WebUI 0.13.5 corre como root; se endurece y lleva OFFLINE_MODE. LiteLLM 1.111.0 baja un archivo de GitHub al arrancar; lleva LITELLM_OFFLINE_MODE. Docker con -p 8000:8000 se salta las reglas de ufw; se publica en una sola IP y decide el firewall de la red.</title>
+<text class="f-l" x="14" y="22">DE FÁBRICA · EN EL DESPACHO</text>
+<rect class="f-card" x="10" y="34" width="340" height="62" rx="12"/>
+<text class="f-s" x="24" y="54" style="font-weight:700">vLLM 0.34.0</text>
+<rect class="f-o" x="24" y="62" width="6" height="12" rx="2"/>
+<text class="f-s" x="38" y="72" style="font-size:12px">escucha en 0.0.0.0:8000; /metrics sin llave</text>
+<rect class="f-g" x="24" y="78" width="6" height="12" rx="2"/>
+<text class="f-s" x="38" y="88" style="font-size:12px">en la IP de la zona; solo entra LiteLLM</text>
+<rect class="f-card" x="10" y="104" width="340" height="62" rx="12"/>
+<text class="f-s" x="24" y="124" style="font-weight:700">Qdrant 1.20.2</text>
+<rect class="f-o" x="24" y="132" width="6" height="12" rx="2"/>
+<text class="f-s" x="38" y="142" style="font-size:12px">todas las interfaces, sin llave, telemetría</text>
+<rect class="f-g" x="24" y="148" width="6" height="12" rx="2"/>
+<text class="f-s" x="38" y="158" style="font-size:12px">llave y solo lectura, TLS, sin telemetría</text>
+<rect class="f-card" x="10" y="174" width="340" height="62" rx="12"/>
+<text class="f-s" x="24" y="194" style="font-weight:700">Prometheus</text>
+<rect class="f-o" x="24" y="202" width="6" height="12" rx="2"/>
+<text class="f-s" x="38" y="212" style="font-size:12px">sin --web.config.file no pide nada</text>
+<rect class="f-g" x="24" y="218" width="6" height="12" rx="2"/>
+<text class="f-s" x="38" y="228" style="font-size:12px">en gestión: la oficina no llega</text>
+<rect class="f-card" x="10" y="244" width="340" height="62" rx="12"/>
+<text class="f-s" x="24" y="264" style="font-weight:700">Open WebUI 0.13.5</text>
+<rect class="f-o" x="24" y="272" width="6" height="12" rx="2"/>
+<text class="f-s" x="38" y="282" style="font-size:12px">su imagen corre como root</text>
+<rect class="f-g" x="24" y="288" width="6" height="12" rx="2"/>
+<text class="f-s" x="38" y="298" style="font-size:12px">endurecida, con OFFLINE_MODE=true</text>
+<rect class="f-card" x="10" y="314" width="340" height="62" rx="12"/>
+<text class="f-s" x="24" y="334" style="font-weight:700">LiteLLM 1.111.0</text>
+<rect class="f-o" x="24" y="342" width="6" height="12" rx="2"/>
+<text class="f-s" x="38" y="352" style="font-size:12px">baja un archivo de GitHub al arrancar</text>
+<rect class="f-g" x="24" y="358" width="6" height="12" rx="2"/>
+<text class="f-s" x="38" y="368" style="font-size:12px">LITELLM_OFFLINE_MODE=true</text>
+<rect class="f-card" x="10" y="384" width="340" height="62" rx="12"/>
+<text class="f-s" x="24" y="404" style="font-weight:700">Docker</text>
+<rect class="f-o" x="24" y="412" width="6" height="12" rx="2"/>
+<text class="f-s" x="38" y="422" style="font-size:12px">-p 8000:8000 se salta las reglas de ufw</text>
+<rect class="f-g" x="24" y="428" width="6" height="12" rx="2"/>
+<text class="f-s" x="38" y="438" style="font-size:12px">-p 10.0.30.10:8000:8000 y firewall de red</text>
+</svg>

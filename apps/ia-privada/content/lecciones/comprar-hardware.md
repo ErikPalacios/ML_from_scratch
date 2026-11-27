@@ -402,7 +402,7 @@ Las preguntas que el despacho debe hacer, por escrito, antes de comprar:
 2. ¿Las GPUs las cubre el integrador o hay que reclamarle al fabricante?
 3. ¿Mandan la pieza antes (*cross-ship*) o hay que enviar la descompuesta primero?
 4. ¿Hay técnico en sitio en la Ciudad de México, o el equipo viaja?
-5. ¿La garantía sigue vigente si el equipo se importa? (La importación y la aduana las ve la lección «Cotizar, proponer y dar soporte».)
+5. ¿La garantía sigue vigente si el equipo se importa? (La importación y la aduana las ve la lección «[Cotizar, proponer y dar soporte](/cotizar/)».)
 
 ### El tiempo de entrega
 
@@ -437,7 +437,7 @@ La decisión, con sus razones:
 5. **Garantía de piezas por escrito.** Al menos 3 años de piezas en las GPUs y las fuentes, o un contrato que lo cubra, y una fuente y un ventilador de repuesto en el cuarto.
 6. **La licencia de software, opcional.** NVIDIA AI Enterprise cuesta US$18,000 por GPU por 5 años; el despacho puede empezar con el software de código abierto y comprarla si necesita soporte del fabricante.
 
-Lo que falta para cerrar la compra ya no es de esta lección: si el cuarto de TI aguanta la potencia y el calor del servidor (lección «[El cuarto: energía, enfriamiento y red](/el-cuarto/)»), cuánto cuesta al año con luz, personas y depreciación ([[tco|TCO]], en la herramienta [API, nube o servidor propio](/herramientas/tco/)), y cómo se cotiza, se importa y se le da soporte («Cotizar, proponer y dar soporte»).
+Lo que falta para cerrar la compra ya no es de esta lección: si el cuarto de TI aguanta la potencia y el calor del servidor (lección «[El cuarto: energía, enfriamiento y red](/el-cuarto/)»), cuánto cuesta al año con luz, personas y depreciación ([[tco|TCO]], en la herramienta [API, nube o servidor propio](/herramientas/tco/)), y cómo se cotiza, se importa y se le da soporte («[Cotizar, proponer y dar soporte](/cotizar/)»).
 
 ## Errores comunes {Common mistakes}
 
@@ -493,8 +493,8 @@ PRO 6000: ⌈8 ÷ 7⌉ = **2 tarjetas**, y con la Server Edition ⌈8 ÷ 6⌉ = 
 - **«[El cuarto: energía, enfriamiento y red](/el-cuarto/)»**, la siguiente lección de este módulo, toma el servidor que elegiste aquí y pregunta si el cuarto de TI del despacho lo aguanta: los watts se vuelven amperes, BTU por hora y toneladas de aire acondicionado, y la red se vuelve cables.
 - **«[De requisitos a hardware](/requisitos-hardware/)»** hace el sizing completo, del que aquí solo se usó el resultado, con picos, colas y márgenes.
 - **«[Varias GPUs: tensor y pipeline parallel](/varias-gpus/)»** explica qué pasa cuando un modelo no cabe en una tarjeta y se reparte entre varias, y por qué ahí NVLink pesa tanto.
-- **«TCO: API, nube o servidor propio»** convierte el precio del servidor en un costo mensual con luz, personas y depreciación; mientras tanto, la herramienta [API, nube o servidor propio](/herramientas/tco/) ya hace la cuenta.
-- **«Cotizar, proponer y dar soporte»** ve la importación, la aduana y cómo se le presenta todo esto a un cliente.
+- **«[TCO: API, nube o servidor propio](/costo-total/)»** convierte el precio del servidor en un costo mensual con luz, personas y depreciación; mientras tanto, la herramienta [API, nube o servidor propio](/herramientas/tco/) ya hace la cuenta.
+- **«[Cotizar, proponer y dar soporte](/cotizar/)»** ve la importación, la aduana y cómo se le presenta todo esto a un cliente.
 - En Sensei: [CPU y GPU](https://sensei.trueml.app/cpu-gpu/) tiene la memoria HBM, PCIe, NVLink, CUDA y el driver por dentro; [Máquinas, GPUs y cómo se cobran](https://sensei.trueml.app/maquinas/), la otra mitad de la decisión: rentar en vez de comprar.
 
 ## Palabras que vas a oír {Words you'll hear}

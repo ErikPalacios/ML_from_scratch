@@ -1,0 +1,81 @@
+{
+  "titulo": "Dónde se cruza el servidor propio con cada opción (las preguntas del despacho)",
+  "width": 78,
+  "height": 50,
+  "lanes": [
+    { "id": "api", "label": "Pagar por token", "kind": "neutral", "x": 0, "y": 0, "w": 25, "h": 50 },
+    { "id": "propio", "label": "Comprar", "kind": "online", "x": 26, "y": 0, "w": 26, "h": 50 },
+    { "id": "renta", "label": "Rentar GPUs", "kind": "offline", "x": 53, "y": 0, "w": 25, "h": 50 }
+  ],
+  "nodes": [
+    {
+      "id": "qwen", "label": "Qwen3 32B", "sub": "US$41 · EE. UU.", "kind": "external",
+      "x": 2, "y": 7, "w": 18, "h": 9,
+      "note": "El **mismo modelo** del despacho, servido por un tercero (DeepInfra, 2026-11-25). Es la comparación justa en calidad. Los expedientes salen del país: por eso no es opción."
+    },
+    {
+      "id": "kimi", "label": "Kimi K3", "sub": "US$1,851 · México", "kind": "external",
+      "x": 2, "y": 22, "w": 18, "h": 9,
+      "note": "El único modelo abierto de los que ofrece Bedrock en su región de México (lista de precios del 2026-11-25), con el precio regional, que no saca los datos del país. Es **otro modelo**: habría que pasarlo por el examen."
+    },
+    {
+      "id": "sonnet", "label": "Sonnet 5.5", "sub": "US$1,122 · cerrado", "kind": "external",
+      "x": 2, "y": 37, "w": 18, "h": 9,
+      "note": "Un modelo cerrado de primera, solo de referencia: la privacidad lo descarta igual que a la API abierta."
+    },
+    {
+      "id": "hoy", "label": "El despacho", "sub": "66 mil preguntas/mes", "kind": "client",
+      "x": 30, "y": 4, "w": 18, "h": 9,
+      "note": "200 personas × 15 preguntas × 22 días. Con ese uso, el servidor trabaja ≈ 35 % de lo que puede en horario."
+    },
+    {
+      "id": "propio", "label": "Propio, 3 L40S", "sub": "US$2,746 al mes", "kind": "gpu",
+      "x": 30, "y": 21, "w": 18, "h": 9,
+      "note": "Depreciación + luz + personas. Casi no cambia con el uso: hasta su capacidad, cuesta lo mismo con 10 mil preguntas que con 190 mil."
+    },
+    {
+      "id": "tope", "label": "Su capacidad", "sub": "190 mil en horario", "kind": "monitor",
+      "x": 30, "y": 38, "w": 18, "h": 9,
+      "note": "7,200 tokens de salida por minuto ÷ 500 = 864 preguntas por hora, 10 h × 22 días. Pasando de ahí hace falta otro servidor: el costo da un escalón."
+    },
+    {
+      "id": "runpod", "label": "3 L40S, 24/7", "sub": "US$2,830 · RunPod", "kind": "external",
+      "x": 58, "y": 7, "w": 18, "h": 9,
+      "note": "Las mismas 3 L40S, dedicadas, a US$1.09 la hora en un neocloud de EE. UU. (página del 2026-11-12), más 40 horas de TI al mes. Casi empata con comprar. Los datos salen del país."
+    },
+    {
+      "id": "runpod4", "label": "4 L40S, 24/7", "sub": "US$3,625 · RunPod", "kind": "external",
+      "x": 58, "y": 22, "w": 18, "h": 9,
+      "note": "Con la cuarta L40S que piden las 8 conversaciones de diseño. Contra el propio también de 4 (≈ US$91,694 de compra con UPS y obra), la compra se paga en ≈ 33 meses: antes que con 3, porque cada GPU rentada de más cuesta ≈ US$796 al mes y comprada, ≈ US$8,910 una vez."
+    },
+    {
+      "id": "azure", "label": "8 H200, México", "sub": "US$33,904 · Azure", "kind": "external",
+      "x": 58, "y": 37, "w": 18, "h": 9,
+      "note": "La única máquina con GPUs para LLMs de este tamaño en una nube grande con región en México, a noviembre de 2026: 8 H200 juntas, aquí con la reserva de 3 años (precio de lista; no dice si hay capacidad). Es ≈ 12 veces el propio, para un trabajo que cabe en 3 tarjetas."
+    }
+  ],
+  "edges": [
+    { "from": "qwen", "to": "propio", "kind": "neutral", "label": "nunca", "fromSide": "r", "toSide": "l" },
+    { "from": "kimi", "to": "propio", "kind": "neutral", "label": "98 mil", "fromSide": "r", "toSide": "l" },
+    { "from": "sonnet", "to": "propio", "kind": "neutral", "label": "161 mil", "fromSide": "r", "toSide": "l" },
+    { "from": "hoy", "to": "propio", "kind": "online", "label": "uso de hoy" },
+    { "from": "propio", "to": "tope", "kind": "monitor", "label": "hasta" },
+    { "from": "runpod", "to": "propio", "kind": "offline", "label": "mes 42", "fromSide": "l", "toSide": "r" },
+    { "from": "runpod4", "to": "propio", "kind": "offline", "label": "mes 33", "fromSide": "l", "toSide": "r" },
+    { "from": "azure", "to": "propio", "kind": "offline", "label": "mes 2.5", "fromSide": "l", "toSide": "r" }
+  ],
+  "flows": [
+    {
+      "id": "cruces",
+      "label": "Contra qué se compara y dónde cruza",
+      "steps": [
+        { "nodes": ["hoy", "propio"], "edges": ["hoy>propio"], "text": "**El punto de partida.** 66 mil preguntas al mes y un servidor de ≈ US$2,746 al mes que cuesta casi lo mismo con cualquier uso." },
+        { "nodes": ["qwen", "propio"], "edges": ["qwen>propio"], "text": "**Contra el mismo modelo por API: nunca.** US$41 al mes no paga ni la luz y las personas del propio (≈ US$820). Haría falta ≈ 67 veces el uso, y para eso, de 7 a 23 servidores." },
+        { "nodes": ["kimi", "sonnet", "propio"], "edges": ["kimi>propio", "sonnet>propio"], "text": "**Contra modelos caros: sí cruza.** Con Kimi K3 en México, a ≈ 98 mil preguntas al mes; con Sonnet 5.5, a ≈ 161.5 mil. El despacho está a la izquierda de los dos." },
+        { "nodes": ["runpod", "runpod4", "propio"], "edges": ["runpod>propio", "runpod4>propio"], "text": "**Contra rentar lo mismo: en meses.** La compra se paga con lo que ahorras de renta en ≈ 42 meses con 3 L40S, o ≈ 33 con 4 contra 4, sin descontar. Con una tasa de descuento, más tarde." },
+        { "nodes": ["azure", "propio"], "edges": ["azure>propio"], "text": "**Contra la nube en México: en semanas.** 8 H200 rentadas cuestan tanto que la compra se paga en ≈ 2.5 meses. No es una opción real: es la prueba de que en México no hay GPU de nube a la medida del despacho." },
+        { "nodes": ["propio", "tope"], "edges": ["propio>tope"], "text": "**El tope.** Todos los cruces valen mientras el uso quepa en ≈ 190 mil preguntas al mes en horario. Arriba, el propio da un escalón." }
+      ]
+    }
+  ]
+}

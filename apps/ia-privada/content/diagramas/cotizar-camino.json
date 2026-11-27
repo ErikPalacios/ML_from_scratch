@@ -1,0 +1,51 @@
+{
+  "titulo": "De la primera reunión al soporte: el camino de una venta de IA privada",
+  "width": 78, "height": 60,
+  "lanes": [
+    { "id": "vender", "label": "Vender", "kind": "neutral", "x": 0, "y": 0, "w": 78, "h": 18 },
+    { "id": "probar", "label": "Probar con datos reales", "kind": "online", "x": 0, "y": 20, "w": 78, "h": 18 },
+    { "id": "operar", "label": "Comprar, instalar y operar", "kind": "offline", "x": 0, "y": 40, "w": 78, "h": 20 }
+  ],
+  "nodes": [
+    { "id": "desc", "label": "Descubrimiento", "sub": "el problema y el criterio", "badge": "1", "kind": "human", "x": 2, "y": 6, "w": 20, "h": 9,
+      "note": "Reuniones con el socio, con TI y con abogados. Sale la hoja de [[descubrimiento]] y un [[criterio-de-aceptacion|criterio de aceptación]] firmado: lo que la propuesta va a prometer." },
+    { "id": "prop", "label": "Propuesta", "sub": "alcance, precio, opciones", "badge": "2", "kind": "store", "x": 29, "y": 6, "w": 20, "h": 9,
+      "note": "La [[propuesta]]: el [[alcance]] y lo que no incluye, los [[entregable|entregables]], el calendario de 8 semanas, el precio del piloto y tres opciones de hardware." },
+    { "id": "contrato", "label": "Contrato", "sub": "servicios y datos", "badge": "3", "kind": "store", "x": 56, "y": 6, "w": 20, "h": 9,
+      "note": "El [[contrato-de-servicios|contrato]]: confidencialidad, propiedad de lo construido, tú como [[encargado-de-datos|persona encargada]] y la nube del piloto como subencargada." },
+    { "id": "piloto", "label": "Piloto", "sub": "GPU rentada, sem. 2–7", "badge": "4", "kind": "gpu", "x": 56, "y": 25, "w": 20, "h": 9,
+      "note": "Ocho semanas con 20 abogados en una GPU rentada. Se mide la calidad con el examen y la velocidad con la [[prueba-de-carga|prueba de carga]]." },
+    { "id": "acepta", "label": "Aceptación", "sub": "examen, permisos, carga", "badge": "5", "kind": "job", "x": 29, "y": 25, "w": 20, "h": 9,
+      "note": "¿≥ 170 de 200 con cita correcta, ≤ 4 citas inventadas, 0 fugas, TTFT y TPOT en su p95? Con el informe entregado se paga el último hito, y con lo medido se elige la opción de hardware." },
+    { "id": "compra", "label": "Compra e importación", "sub": "integrador, aduana", "badge": "6", "kind": "external", "x": 2, "y": 25, "w": 20, "h": 9,
+      "note": "El despacho le compra directo al [[integrador]]. Si se importa, su [[agente-aduanal|agente aduanal]] hace el [[pedimento]]. Mientras llega el equipo, el piloto puede seguir en la GPU rentada." },
+    { "id": "instala", "label": "Instalación", "sub": "en el cuarto del despacho", "badge": "7", "kind": "job", "x": 2, "y": 46, "w": 20, "h": 9,
+      "note": "El servidor entra al cuarto, se monta el stack del piloto, se corre otra vez el examen y una prueba de carga corta en el equipo propio, y se capacita al TI." },
+    { "id": "soporte", "label": "Soporte", "sub": "iguala y SLA", "badge": "8", "kind": "monitor", "x": 29, "y": 46, "w": 20, "h": 9,
+      "note": "La [[iguala]] de cada mes con su [[sla|SLA]]: revisión del [[tablero|tablero]], la actualización mensual con el gate, un incidente y el reporte." }
+  ],
+  "edges": [
+    { "from": "desc", "to": "prop", "kind": "neutral", "label": "criterio" },
+    { "from": "prop", "to": "contrato", "kind": "neutral", "label": "firma" },
+    { "from": "contrato", "to": "piloto", "kind": "online", "label": "anticipo" },
+    { "from": "piloto", "to": "acepta", "kind": "online", "label": "medido" },
+    { "from": "acepta", "to": "compra", "kind": "online", "label": "opción" },
+    { "from": "compra", "to": "instala", "kind": "offline", "label": "llega" },
+    { "from": "instala", "to": "soporte", "kind": "offline", "label": "entrega" },
+    { "from": "soporte", "to": "acepta", "kind": "monitor", "dashed": true, "label": "cada cambio", "fromSide": "t", "toSide": "b" }
+  ],
+  "flows": [
+    { "id": "despacho", "label": "La venta del despacho",
+      "steps": [
+        { "nodes": ["desc"], "edges": [], "text": "**Semana 1.** Se cierra el descubrimiento: 200 personas, 15 preguntas al día, TTFT ≤ 2 s en el p95 y el examen de 200 como criterio." },
+        { "nodes": ["desc", "prop"], "edges": ["desc>prop"], "text": "**La propuesta.** Piloto de ≈ US$27,600 + IVA en tres pagos, con lo que no incluye por escrito y tres opciones: 3 L40S, 4 L40S o 2 Server Edition." },
+        { "nodes": ["prop", "contrato"], "edges": ["prop>contrato"], "text": "**El contrato.** Confidencialidad, qué se cede y qué se licencia, y las obligaciones de persona encargada. El anticipo de 30 % arranca el trabajo." },
+        { "nodes": ["contrato", "piloto"], "edges": ["contrato>piloto"], "text": "**El piloto.** La GPU rentada de la semana 2 a la 7, con la nube nombrada como subencargada." },
+        { "nodes": ["piloto", "acepta"], "edges": ["piloto>acepta"], "text": "**La aceptación.** Con el examen y la prueba de carga, el despacho decide entre las tres opciones con números medidos, no con cuentas." },
+        { "nodes": ["acepta", "compra"], "edges": ["acepta>compra"], "text": "**La compra.** El despacho compra al integrador, con dos cotizaciones: puesta en México o importada. Importar agrega ≈ 7 % y el IVA por financiar." },
+        { "nodes": ["compra", "instala"], "edges": ["compra>instala"], "text": "**La instalación.** El servidor llega al cuarto; se repite el examen en el equipo propio y se capacita al TI de 2 personas." },
+        { "nodes": ["instala", "soporte"], "edges": ["instala>soporte"], "text": "**El soporte.** Empieza la iguala de ≈ US$2,165 al mes con un SLA de 99 % en horario hábil." },
+        { "nodes": ["soporte", "acepta"], "edges": ["soporte>acepta"], "text": "**Cada cambio vuelve a la aceptación.** Una versión nueva de vLLM o del modelo pasa otra vez por el examen y el gate antes de llegar a los abogados." }
+      ] }
+  ]
+}

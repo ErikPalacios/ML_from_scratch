@@ -1,0 +1,77 @@
+{
+  "titulo": "El costo por pregunta, en pesos",
+  "intro": "Aplica \\(c_q = C ÷ Q\\) a las tres opciones, todas en pesos al tipo de cambio \\(T\\): el servidor propio, \\(C_P = [(K_t + U + O ÷ T − v_r × K_t) ÷ V] × T + L + h_P × w\\); la renta, \\(C_R = G × c × h × T + h_R × w\\); y la API, \\(C_A = (M_e × p_e + M_s × p_s) × T + h_A × w\\). La GPU y la API salen de los archivos de datos, con su fecha y su fuente; lo demás es la ficha del despacho y los supuestos de la lección. Ojo: la tarjeta se toma a su precio suelto (L40S US$9,005), US$95 más que lo que el integrador suma por cada una. La API lleva sus 8 horas de TI: por eso la salida 5 da ≈ 21 veces y no las ≈ 67 de la lección, que compara solo los tokens (pon \\(h_A\\) en 0 para verlas).",
+  "preajustes": [
+    {
+      "label": "GPU que compras o rentas (gpus.json, las que tienen precio de compra y de renta)",
+      "datos": "gpus",
+      "inicial": "l40s",
+      "requiere": ["compra_usd", "renta_min_usd_hora"],
+      "campos": { "K": "compra_usd", "c": "renta_min_usd_hora" }
+    },
+    {
+      "label": "API por token (precios con fecha y fuente)",
+      "datos": "apis",
+      "inicial": "deepinfra-qwen3-32b",
+      "campos": { "pe": "usd_millon_entrada", "ps": "usd_millon_salida" }
+    }
+  ],
+  "entradas": [
+    { "id": "Q", "label": "Preguntas al mes, \\(Q\\)", "min": 1000, "max": 5000000, "paso": 1000, "valor": 66000, "tipo": "numero" },
+    { "id": "Np", "label": "Tokens de entrada por pregunta, \\(N_p\\)", "min": 100, "max": 100000, "paso": 100, "valor": 6000, "tipo": "numero" },
+    { "id": "No", "label": "Tokens de salida por respuesta, \\(N_o\\)", "min": 50, "max": 8000, "paso": 50, "valor": 500, "tipo": "numero" },
+    { "id": "T", "label": "Tipo de cambio, \\(T\\), en pesos por dólar (FIX del 26-nov-2026)", "min": 12, "max": 30, "paso": 0.01, "valor": 19.7203, "tipo": "numero" },
+    { "id": "G", "label": "GPUs, \\(G\\)", "min": 1, "max": 8, "paso": 1, "valor": 3 },
+    { "id": "K", "label": "Compra de cada GPU, en US$", "min": 0, "max": 100000, "paso": 1, "valor": 9005, "tipo": "numero" },
+    { "id": "S", "label": "Resto del servidor, en US$ (Exxact 4U sin GPUs: 40,461.30)", "min": 0, "max": 200000, "paso": 0.1, "valor": 40461.3, "tipo": "numero" },
+    { "id": "U", "label": "UPS, \\(U\\), en US$ (supuesto)", "min": 0, "max": 50000, "paso": 100, "valor": 9000, "tipo": "numero" },
+    { "id": "O", "label": "Obra eléctrica y aire, \\(O\\), en pesos (supuesto)", "min": 0, "max": 2000000, "paso": 1000, "valor": 130000, "tipo": "numero" },
+    { "id": "V", "label": "Vida útil, \\(V\\)", "unidad": "meses", "min": 12, "max": 72, "paso": 6, "valor": 36 },
+    { "id": "vr", "label": "Reventa al final, \\(v_r\\), como parte del servidor (supuesto)", "min": 0, "max": 0.8, "paso": 0.05, "valor": 0.2 },
+    { "id": "L", "label": "Luz al mes, \\(L\\), en pesos (la cuenta de la ficha: GDBT, PUE 2.0)", "min": 0, "max": 100000, "paso": 25, "valor": 4825, "tipo": "numero" },
+    { "id": "w", "label": "Costo de una hora de TI, \\(w\\), en pesos (sueldo × 1.35 ÷ 173.3; supuesto)", "min": 0, "max": 2000, "paso": 0.1, "valor": 218.1, "tipo": "numero" },
+    { "id": "hP", "label": "Horas de TI al mes con el propio, \\(h_P\\)", "unidad": "h", "min": 0, "max": 400, "paso": 2, "valor": 52 },
+    { "id": "c", "label": "Renta de cada GPU, \\(c\\), en US$ por hora", "min": 0, "max": 50, "paso": 0.01, "valor": 1.09, "tipo": "numero" },
+    { "id": "h", "label": "Horas rentadas al mes, \\(h\\) (730 = todo el mes)", "unidad": "h", "min": 0, "max": 730, "paso": 10, "valor": 730 },
+    { "id": "hR", "label": "Horas de TI al mes con la renta, \\(h_R\\)", "unidad": "h", "min": 0, "max": 400, "paso": 2, "valor": 40 },
+    { "id": "pe", "label": "API: US$ por millón de tokens de entrada, \\(p_e\\)", "min": 0, "max": 100, "paso": 0.01, "valor": 0.08, "tipo": "numero" },
+    { "id": "ps", "label": "API: US$ por millón de tokens de salida, \\(p_s\\)", "min": 0, "max": 200, "paso": 0.01, "valor": 0.28, "tipo": "numero" },
+    { "id": "hA", "label": "Horas de TI al mes con la API, \\(h_A\\)", "unidad": "h", "min": 0, "max": 400, "paso": 2, "valor": 8 },
+    { "id": "conv", "label": "Conversaciones por GPU a ≥ 20 tokens/s (L40S: 2, la ficha)", "min": 1, "max": 16, "paso": 1, "valor": 2 },
+    { "id": "hu", "label": "Horas de uso al mes (10 h × 22 días = 220; 24/7 = 730)", "unidad": "h", "min": 10, "max": 730, "paso": 10, "valor": 220 }
+  ],
+  "calculos": [
+    { "id": "Kt", "formula": "G * K + S" },
+    { "id": "capex", "formula": "Kt + U + O / T" },
+    { "id": "dep", "formula": "(capex - vr * Kt) / V" },
+    { "id": "CP", "formula": "dep * T + L + hP * w" },
+    { "id": "CR", "formula": "G * c * h * T + hR * w" },
+    { "id": "Me", "formula": "Q * Np / 1e6" },
+    { "id": "Ms", "formula": "Q * No / 1e6" },
+    { "id": "CA", "formula": "(Me * pe + Ms * ps) * T + hA * w" },
+    { "id": "cap", "formula": "G * conv * 20 * 3600 / No * hu" }
+  ],
+  "salidas": [
+    { "label": "1 · Propio al mes, \\(C_P\\) (pesos)", "formula": "CP", "formato": "int", "barra": true,
+      "nota": "depreciación en pesos + luz + personas",
+      "cuenta": "compra US${{capex|int}} (servidor US${{Kt|int}} + UPS + obra); depreciación ({{capex|int}} − {{vr|corto}} × {{Kt|int}}) ÷ {{V|int}} = US${{dep|int}} × {{T|corto|2}} = ${{dep * T|int}}; + luz ${{L|int}} + {{hP|int}} h × ${{w|corto}} = **${{CP|int}}**" },
+    { "label": "2 · Renta al mes, \\(C_R\\) (pesos)", "formula": "CR", "formato": "int", "barra": true,
+      "nota": "las GPUs dedicadas, fuera del país",
+      "cuenta": "{{G|int}} × US${{c|corto}} × {{h|int}} h × {{T|corto|2}} = ${{G * c * h * T|int}}; + {{hR|int}} h × ${{w|corto}} = **${{CR|int}}**" },
+    { "label": "3 · API al mes, \\(C_A\\) (pesos)", "formula": "CA", "formato": "int", "barra": true,
+      "nota": "los tokens del mes, más un poco de TI",
+      "cuenta": "({{Me|num|1}} M × US${{pe|corto}} + {{Ms|num|1}} M × US${{ps|corto}}) × {{T|corto|2}} = ${{(Me * pe + Ms * ps) * T|int}}; + {{hA|int}} h × ${{w|corto}} = **${{CA|int}}**" },
+    { "label": "4 · Pesos por pregunta: propio · renta · API", "formula": "CP / Q", "formato": "num", "decimales": 3,
+      "nota": "\\(c_q = C ÷ Q\\)",
+      "cuenta": "propio **${{CP / Q|num|3}}** · renta **${{CR / Q|num|3}}** · API **${{CA / Q|num|3}}** por pregunta" },
+    { "label": "5 · El propio cuesta, por pregunta, estas veces la API", "formula": "CA > 0 ? CP / CA : 1 / 0", "formato": "x", "decimales": 1, "sin_valor": "API gratis",
+      "cuenta": "{{CP|int}} ÷ {{CA|int}} = **{{CA > 0 ? CP / CA : 1 / 0|num|1}}×**" },
+    { "label": "6 · Utilización del servidor, \\(u = Q ÷ Q_{max}\\)", "formula": "Q / cap", "formato": "pct", "barra": true,
+      "nota": "más de 100 %: no cabe; hace falta otro servidor",
+      "cuenta": "\\(Q_{max}\\) = {{G|int}} × {{conv|int}} × 20 tokens/s × 3,600 ÷ {{No|int}} × {{hu|int}} h = {{cap|int}} preguntas; {{Q|int}} ÷ {{cap|int}} = **{{Q / cap * 100|num|1}} %**" },
+    { "label": "7 · El propio por pregunta, si se llenara", "formula": "CP / cap", "formato": "num", "decimales": 3,
+      "nota": "pesos; el mismo costo del mes entre \\(Q_{max}\\)",
+      "cuenta": "{{CP|int}} ÷ {{cap|int}} = **${{CP / cap|num|3}}** por pregunta, contra ${{CA / Q|num|3}} de la API" }
+  ],
+  "nota": "Prueba: sube las preguntas al mes de 66,000 a 190,000. El propio baja por pregunta casi 3 veces y la API no se mueve: la API cobra por pregunta, el propio por mes. Luego elige Claude Sonnet 5.5 en la lista de APIs y busca el uso en que el propio se vuelve más barato. Lo que no cuenta: que con la API pública los expedientes salen de la red, que es la razón del proyecto."
+}

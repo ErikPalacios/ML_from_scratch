@@ -1,0 +1,40 @@
+{
+  "titulo": "El precio de una hora, del piloto y de la iguala",
+  "intro": "El costo anual cargado \\(C_a = (12 S + 15/30 S + 12/30 S × 0.25) × (1 + c)\\), el costo de la hora \\(c_h = C_a ÷ (52 × 40 × u)\\) y su precio \\(p_h = c_h ÷ (1 − m)\\). El piloto es \\(H × p_h × (1 + r)\\); la iguala, las horas del mes por \\(p_h\\). Todos los valores iniciales son **supuestos del ejemplo** del despacho: pon los tuyos.",
+  "entradas": [
+    { "id": "S", "label": "Sueldo bruto mensual, \\(S\\), en pesos", "min": 10000, "max": 300000, "paso": 1000, "valor": 90000, "tipo": "numero" },
+    { "id": "c", "label": "Cargas del patrón, \\(c\\), en % (supuesto: IMSS, Infonavit, retiro, nómina)", "min": 0, "max": 60, "paso": 1, "valor": 25 },
+    { "id": "u", "label": "Tasa facturable, \\(u\\), en % de las 40 horas semanales", "min": 20, "max": 100, "paso": 1, "valor": 65 },
+    { "id": "m", "label": "Margen sobre el precio, \\(m\\), en %", "min": 0, "max": 80, "paso": 1, "valor": 40 },
+    { "id": "H", "label": "Horas del proyecto, \\(H\\) (piloto del despacho: 266)", "min": 1, "max": 2000, "paso": 1, "valor": 266, "tipo": "numero" },
+    { "id": "r", "label": "Colchón de riesgo, \\(r\\), en %", "min": 0, "max": 50, "paso": 1, "valor": 15 },
+    { "id": "hi", "label": "Horas de la iguala al mes (despacho: 24)", "min": 0, "max": 200, "paso": 1, "valor": 24 },
+    { "id": "tc", "label": "Tipo de cambio, en pesos por dólar (Banxico, para pagos del 26-nov-2026)", "min": 10, "max": 40, "paso": 0.0001, "valor": 19.3668, "tipo": "numero" }
+  ],
+  "calculos": [
+    { "id": "anual", "formula": "12 * S + S / 30 * 15 + S / 30 * 12 * 0.25" },
+    { "id": "Ca", "formula": "anual * (1 + c / 100)" },
+    { "id": "hf", "formula": "52 * 40 * u / 100" },
+    { "id": "ch", "formula": "Ca / hf" },
+    { "id": "ph", "formula": "ch / (1 - m / 100)" },
+    { "id": "pp", "formula": "H * ph * (1 + r / 100)" },
+    { "id": "pi", "formula": "hi * ph" }
+  ],
+  "salidas": [
+    { "label": "1 · Costo anual cargado, \\(C_a\\), en pesos", "formula": "Ca", "formato": "int",
+      "cuenta": "${{anual|int}} × (1 + {{c|corto}} %) = **${{Ca|int}}**" },
+    { "label": "2 · Horas cobrables al año", "formula": "hf", "formato": "int",
+      "cuenta": "52 × 40 × {{u|corto}} % = **{{hf|int}} h**" },
+    { "label": "3 · Costo de la hora, \\(c_h\\), en pesos", "formula": "ch", "formato": "int",
+      "cuenta": "${{Ca|int}} ÷ {{hf|int}} h = **${{ch|int}}** ≈ US${{ch / tc|num|1}}" },
+    { "label": "4 · Precio de la hora, \\(p_h\\), en pesos", "formula": "ph", "formato": "int",
+      "cuenta": "${{ch|int}} ÷ (1 − {{m|corto}} %) = **${{ph|int}}** ≈ US${{ph / tc|num|1}}" },
+    { "label": "5 · Precio del proyecto, en dólares, antes de IVA", "formula": "pp / tc", "formato": "int", "barra": true,
+      "cuenta": "{{H|int}} h × ${{ph|int}} × (1 + {{r|corto}} %) = ${{pp|int}} ÷ {{tc|corto|4}} = **US${{pp / tc|int}}**" },
+    { "label": "6 · Iguala al mes, en dólares, antes de IVA", "formula": "pi / tc", "formato": "int", "barra": true,
+      "cuenta": "{{hi|int}} h × ${{ph|int}} = ${{pi|int}} ÷ {{tc|corto|4}} = **US${{pi / tc|int}}**" },
+    { "label": "Sobreprecio equivalente al margen", "formula": "ph / ch - 1", "formato": "pct", "decimales": 0,
+      "nota": "Lo que hay que sumarle al costo para tener ese margen: \\(1 ÷ (1 − m) − 1\\)." }
+  ],
+  "nota": "Con los supuestos del despacho sale ≈ US$27,600 el piloto y ≈ US$2,165 la iguala. Baja la tasa facturable a 50 %: la hora sube ≈ 30 %, sin que nadie trabaje distinto. Pon el margen en 0: es lo que cuesta, sin ganar nada."
+}

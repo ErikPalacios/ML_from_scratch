@@ -1,0 +1,49 @@
+{
+  "titulo": "La traza de una pregunta lenta de las 12:30",
+  "width": 78,
+  "height": 50,
+  "lanes": [
+    { "id": "pregunta", "label": "La pregunta · martes 12:30", "kind": "online", "x": 0, "y": 0, "w": 78, "h": 34 },
+    { "id": "tramos", "label": "Los tramos · sin el texto", "kind": "monitor", "x": 0, "y": 36, "w": 78, "h": 14 }
+  ],
+  "nodes": [
+    { "id": "abogada", "label": "Abogada", "sub": "en Open WebUI", "badge": "1", "kind": "client", "x": 2, "y": 6, "w": 16, "h": 8,
+      "note": "Una abogada hace una pregunta sobre un expediente. El reloj que le importa es el [[ttft|tiempo al primer token]]: la promesa es ≤ 2 s en el p95." },
+    { "id": "owui", "label": "Open WebUI", "sub": "orquesta el RAG", "badge": "2", "kind": "service", "x": 22, "y": 6, "w": 16, "h": 8,
+      "note": "Recibe la pregunta, pide la búsqueda y arma el prompt de ≈ 6,000 tokens. Puede mandar sus tramos por OpenTelemetry, pero viene apagado (`ENABLE_OTEL=False`): el tramo de la búsqueda solo existe si se prende o si la orquestación lo emite." },
+    { "id": "busq", "label": "Búsqueda", "sub": "≈ 150 ms", "badge": "3", "kind": "store", "x": 44, "y": 6, "w": 16, "h": 8,
+      "note": "Embeber la pregunta (≈ 2 ms) y buscar con el filtro de permisos en Qdrant: ≈ 150 ms, el supuesto del [[presupuesto-de-latencia|presupuesto]]. Si se queda el [[reranker]], agrega ≈ 97 a 232 ms más." },
+    { "id": "gw", "label": "LiteLLM", "sub": "≈ 20 ms con la red", "badge": "4", "kind": "edge", "x": 22, "y": 22, "w": 16, "h": 8,
+      "note": "El [[gateway-de-llm|gateway]] autentica, cuenta la cuota y manda la pregunta a una réplica. Su `litellm_overhead_latency_metric` dice cuánto agrega él solo. Ninguna métrica de LiteLLM incluye la búsqueda: corrió antes." },
+    { "id": "vllm", "label": "vLLM · réplica 2", "sub": "1.88 s + 2.38 s", "badge": "5", "kind": "gpu", "x": 44, "y": 22, "w": 16, "h": 8,
+      "note": "La réplica está terminando el prefill de otra pregunta que llegó 0.5 s antes; le faltan 1.88 s. Luego hace el de esta: 2.38 s en una L40S. Su tramo trae `gen_ai.latency.time_in_queue` y `gen_ai.latency.time_to_first_token`, sin el texto." },
+    { "id": "col", "label": "Colector", "sub": "OpenTelemetry", "badge": "6", "kind": "monitor", "x": 44, "y": 39, "w": 16, "h": 8,
+      "note": "El OpenTelemetry Collector junta los tramos que le mandan las piezas, por su identificador de traza, y guarda una muestra unos días. Con el contenido (*opt-in*) apagado y comprobado con la pregunta marcador." },
+    { "id": "traza", "label": "La traza", "sub": "4.43 s al 1.er token", "badge": "7", "kind": "store", "x": 62, "y": 39, "w": 16, "h": 8,
+      "note": "La [[traza]] completa: 0.020 s de red y gateway, 0.150 s de búsqueda, 1.88 s de espera y 2.38 s de prefill. Contra el presupuesto de 2 s, todo el exceso está dentro de vLLM." }
+  ],
+  "edges": [
+    { "from": "abogada", "to": "owui", "kind": "online", "label": "pregunta", "fromSide": "r", "toSide": "l" },
+    { "from": "owui", "to": "busq", "kind": "online", "label": "consulta", "fromSide": "r", "toSide": "l" },
+    { "from": "owui", "to": "gw", "kind": "online", "label": "prompt", "fromSide": "b", "toSide": "t" },
+    { "from": "gw", "to": "vllm", "kind": "online", "fromSide": "r", "toSide": "l" },
+    { "from": "vllm", "to": "abogada", "kind": "online", "label": "primer token", "fromSide": "r", "toSide": "t", "via": [[66, 26], [66, 2], [10, 2]] },
+    { "from": "gw", "to": "col", "kind": "monitor", "label": "tramo", "fromSide": "b", "toSide": "l", "dashed": true, "via": [[30, 43]] },
+    { "from": "vllm", "to": "col", "kind": "monitor", "fromSide": "b", "toSide": "t", "dashed": true },
+    { "from": "col", "to": "traza", "kind": "monitor", "fromSide": "r", "toSide": "l" }
+  ],
+  "flows": [
+    {
+      "id": "lenta",
+      "label": "Dónde se fueron los 4.43 s",
+      "steps": [
+        { "nodes": ["abogada", "owui"], "edges": ["abogada>owui"], "text": "**0 s · La pregunta.** La abogada pregunta a las 12:30:00. Si la orquestación tiene OpenTelemetry prendido, aquí nace el identificador de traza que las piezas se pasan de mano en mano." },
+        { "nodes": ["owui", "busq"], "edges": ["owui>busq"], "text": "**0.15 s · La búsqueda.** Embeber la pregunta y buscar en Qdrant con su filtro de permisos: ≈ 150 ms, dentro de su presupuesto. Salen 5 fragmentos." },
+        { "nodes": ["owui", "gw"], "edges": ["owui>gw"], "text": "**0.17 s · El gateway.** Open WebUI arma el prompt de ≈ 6,000 tokens y lo manda a LiteLLM, que lo autentica y lo reparte: ≈ 20 ms con la red." },
+        { "nodes": ["gw", "vllm"], "edges": ["gw>vllm"], "text": "**0.17 a 2.05 s · La espera.** La réplica 2 está terminando el prefill de una pregunta que llegó medio segundo antes: le faltan 1.88 s. Nada está roto; la GPU está ocupada." },
+        { "nodes": ["vllm", "abogada"], "edges": ["vllm>abogada"], "text": "**2.05 a 4.43 s · El prefill.** La GPU lee los 6,000 tokens de esta pregunta: 2.38 s en una L40S. A los 4.43 s sale el primer token." },
+        { "nodes": ["gw", "vllm", "col", "traza"], "edges": ["gw>col", "vllm>col", "col>traza"], "text": "**Después · La traza.** Los tramos llegan al colector y se juntan: 0.17 s fuera del motor y 4.26 s dentro. La respuesta para el abogado: el servidor está al límite que la ficha ya conocía de la L40S, no descompuesto." }
+      ]
+    }
+  ]
+}

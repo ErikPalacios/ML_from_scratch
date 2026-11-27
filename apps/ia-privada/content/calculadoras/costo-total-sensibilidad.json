@@ -1,0 +1,65 @@
+{
+  "titulo": "La sensibilidad: mueve un supuesto",
+  "intro": "Elige un supuesto y muévelo un porcentaje \\(x\\) (los demás se quedan en la base). La calculadora rehace el propio al mes, \\(P = (K + U + O ÷ T − v_r × K) ÷ V + (L + h_P × w) ÷ T\\), la renta de las mismas GPUs prendidas todo el mes, \\(R = G × c × 730 + h_R × w ÷ T\\), y los meses en que la compra se paga con lo que ahorras de renta, \\(m^{*} = K_{total} ÷ (R − O_{mes})\\). Todo en dólares, como la tabla de la lección. La GPU sale de gpus.json (precio suelto de la tarjeta), así que la base da ≈ −77 en vez de −83.",
+  "preajustes": [
+    {
+      "label": "GPU (datos de gpus.json, las que tienen precio de compra y de renta)",
+      "datos": "gpus",
+      "inicial": "l40s",
+      "requiere": ["compra_usd", "renta_min_usd_hora"],
+      "campos": { "Kg": "compra_usd", "c0": "renta_min_usd_hora" }
+    }
+  ],
+  "entradas": [
+    { "id": "sel", "label": "El supuesto que mueves", "tipo": "opcion", "valor": 1, "opciones": [
+      { "valor": 1, "label": "Vida útil, V (base 36 meses)" },
+      { "valor": 2, "label": "Reventa, v_r (base 20 %)" },
+      { "valor": 3, "label": "Horas de TI del propio (base 52 al mes)" },
+      { "valor": 4, "label": "Precio del hardware (servidor y GPUs)" },
+      { "valor": 5, "label": "Luz (base $4,825 al mes)" },
+      { "valor": 6, "label": "Tipo de cambio (base 19.7203)" },
+      { "valor": 7, "label": "Renta por GPU-hora (base: la de gpus.json)" }
+    ] },
+    { "id": "x", "label": "Cuánto lo mueves, \\(x\\) (−50 % a +50 %)", "unidad": "%", "min": -50, "max": 50, "paso": 1, "valor": -33 },
+    { "id": "G", "label": "GPUs, \\(G\\)", "min": 1, "max": 8, "paso": 1, "valor": 3 },
+    { "id": "Kg", "label": "Compra de cada GPU, en US$", "min": 0, "max": 100000, "paso": 1, "valor": 9005, "tipo": "numero" },
+    { "id": "S", "label": "Resto del servidor, en US$", "min": 0, "max": 200000, "paso": 0.1, "valor": 40461.3, "tipo": "numero" },
+    { "id": "c0", "label": "Renta de cada GPU, en US$ por hora", "min": 0.01, "max": 50, "paso": 0.01, "valor": 1.09, "tipo": "numero" }
+  ],
+  "calculos": [
+    { "id": "f", "formula": "1 + x / 100" },
+    { "id": "V", "formula": "36 * (sel == 1 ? f : 1)" },
+    { "id": "vr", "formula": "min(0.2 * (sel == 2 ? f : 1), 0.95)" },
+    { "id": "hP", "formula": "52 * (sel == 3 ? f : 1)" },
+    { "id": "hw", "formula": "sel == 4 ? f : 1" },
+    { "id": "L", "formula": "4825 * (sel == 5 ? f : 1)" },
+    { "id": "T", "formula": "19.7203 * (sel == 6 ? f : 1)" },
+    { "id": "c", "formula": "c0 * (sel == 7 ? f : 1)" },
+    { "id": "K", "formula": "(G * Kg + S) * hw" },
+    { "id": "Ktot", "formula": "K + 9000 + 130000 / T" },
+    { "id": "Om", "formula": "(L + hP * 218.1) / T" },
+    { "id": "P", "formula": "(Ktot - vr * K) / V + Om" },
+    { "id": "R", "formula": "G * c * 730 + 40 * 218.1 / T" },
+    { "id": "K0", "formula": "G * Kg + S" },
+    { "id": "P0", "formula": "(K0 + 9000 + 130000 / 19.7203 - 0.2 * K0) / 36 + (4825 + 52 * 218.1) / 19.7203" },
+    { "id": "R0", "formula": "G * c0 * 730 + 40 * 218.1 / 19.7203" },
+    { "id": "m", "formula": "R - Om > 0 ? Ktot / (R - Om) : 1 / 0" }
+  ],
+  "salidas": [
+    { "label": "Propio al mes, equivalente, \\(P\\) (US$)", "formula": "P", "formato": "int", "barra": true,
+      "cuenta": "({{Ktot|int}} − {{vr|corto|2}} × {{K|int}}) ÷ {{V|corto|1}} meses + {{Om|int}} de luz y TI = **US${{P|int}}** (base US${{P0|int}})" },
+    { "label": "Renta 24/7 al mes, \\(R\\) (US$)", "formula": "R", "formato": "int", "barra": true,
+      "cuenta": "{{G|int}} × US${{c|corto|3}} × 730 h + 40 h de TI = **US${{R|int}}** (base US${{R0|int}})" },
+    { "label": "Diferencia propio − renta (US$ al mes; negativa = comprar sale más barato)", "formula": "P - R", "formato": "int",
+      "cuenta": "{{P|int}} − {{R|int}} = **{{P - R|int}}**; en la base, {{P0 - R0|int}}" },
+    { "label": "Cuánto se movió la diferencia contra la base (US$ al mes)", "formula": "(P - R) - (P0 - R0)", "formato": "int",
+      "nota": "es una barra del tornado: hazlo con −x y con +x" },
+    { "label": "Meses para pagar la compra con lo que ahorras de renta, \\(m^{*}\\)", "formula": "m", "formato": "num", "decimales": 1, "sin_valor": "Nunca",
+      "nota": "sin descontar y sin la reventa",
+      "cuenta": "{{Ktot|int}} ÷ ({{R|int}} − {{Om|int}}) = **{{m|num|1}} meses**" },
+    { "label": "¿Se paga antes de que termine su vida útil?", "formula": "V - m",
+      "veredicto": { "si": "Sí", "no": "No" },
+      "cuenta": "vida útil {{V|corto|1}} meses contra {{m|num|1}} meses para pagarse" }
+  ],
+  "nota": "Haz el tornado a mano: mueve cada supuesto a −20 % y a +20 % y anota la diferencia. La vida útil, la reventa y las horas de TI mueven la cuenta mucho más que la luz o el dólar. Con la vida útil en la base, la compra tarda ≈ 41 meses en pagarse contra la renta: más que los 36 de su vida contable."
+}

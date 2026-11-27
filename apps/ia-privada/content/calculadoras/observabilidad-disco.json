@@ -1,0 +1,41 @@
+{
+  "titulo": "El disco de Prometheus",
+  "intro": "Aplica \\(D = S × (86,400 ÷ Δ) × d × b\\), la fórmula de la documentación de Prometheus 3.16.0, con \\(S\\) = las series del despacho sin LiteLLM más las de los histogramas de LiteLLM (\\(h ×\\) series por histograma × combinaciones de etiquetas). Arranca con la propuesta: LiteLLM recortado al modelo, 15 s, 90 días y 2 bytes por muestra.",
+  "preajustes": {
+    "label": "Escenario",
+    "inicial": 0,
+    "opciones": [
+      { "label": "Propuesta: LiteLLM recortado al modelo", "valores": { "s0": 2943, "h": 6, "sh": 20, "et": 3, "dt": 15, "d": 90, "b": 2 }, "nota": "3,303 series: ≈ 3.4 GB en 90 días a 2 bytes por muestra." },
+      { "label": "LiteLLM con una etiqueta por persona (200)", "valores": { "s0": 2943, "h": 6, "sh": 20, "et": 200, "dt": 15, "d": 90, "b": 2 }, "nota": "26,943 series: casi 10 veces el disco. Pasa si cada abogada trae su clave o si se prende el gasto por persona en Prometheus." },
+      { "label": "Sin LiteLLM, scrape cada 30 s", "valores": { "s0": 2943, "h": 0, "sh": 20, "et": 3, "dt": 30, "d": 90, "b": 2 }, "nota": "El intervalo de dcgm-exporter: la mitad de muestras, la mitad de disco." },
+      { "label": "La retención por omisión (15 días)", "valores": { "s0": 2943, "h": 6, "sh": 20, "et": 3, "dt": 15, "d": 15, "b": 2 }, "nota": "Lo que Prometheus guarda si nadie le dice otra cosa: no alcanza para «¿qué pasó el mes pasado?»." }
+    ]
+  },
+  "entradas": [
+    { "id": "s0", "label": "Series sin LiteLLM (vLLM, GPUs, node_exporter), \\(S_0\\)", "min": 0, "max": 1000000, "paso": 1, "valor": 2943, "tipo": "numero" },
+    { "id": "h", "label": "Histogramas de LiteLLM, \\(h\\)", "min": 0, "max": 50, "paso": 1, "valor": 6 },
+    { "id": "sh", "label": "Series por histograma (bordes + +Inf + _sum + _count)", "min": 1, "max": 100, "paso": 1, "valor": 20 },
+    { "id": "et", "label": "Combinaciones de etiquetas por histograma (3 = un modelo cada una; 200 = una por persona)", "min": 1, "max": 5000, "paso": 1, "valor": 3, "tipo": "numero" },
+    { "id": "dt", "label": "Intervalo de scrape, \\(Δ\\)", "min": 1, "max": 300, "paso": 1, "valor": 15, "unidad": "s" },
+    { "id": "d", "label": "Días de retención, \\(d\\)", "min": 1, "max": 730, "paso": 1, "valor": 90, "unidad": "días" },
+    { "id": "b", "label": "Bytes por muestra, \\(b\\) (1 a 2 según la documentación)", "min": 1, "max": 2, "paso": 0.1, "valor": 2 }
+  ],
+  "calculos": [
+    { "id": "sl", "formula": "h * sh * et" },
+    { "id": "s", "formula": "s0 + sl" },
+    { "id": "m", "formula": "86400 / dt * d" }
+  ],
+  "salidas": [
+    { "label": "Series en total, \\(S\\)", "formula": "s", "formato": "int",
+      "cuenta": "{{s0|int}} + {{h|int}} × {{sh|int}} × {{et|int}} = {{s0|int}} + {{sl|int}} = **{{s|int}}**" },
+    { "label": "Parte que pone LiteLLM", "formula": "sl / max(s, 1e-9)", "formato": "pct", "barra": true,
+      "cuenta": "{{sl|int}} ÷ {{s|int}}" },
+    { "label": "Muestras por serie en la retención", "formula": "m", "formato": "int",
+      "cuenta": "86,400 ÷ {{dt|int}} s × {{d|int}} días = **{{m|int}}**" },
+    { "label": "Muestras por segundo que entran", "formula": "s / dt", "formato": "num", "decimales": 0,
+      "cuenta": "{{s|int}} ÷ {{dt|int}} s = {{s / dt|num|0}} muestras/s" },
+    { "label": "Disco, \\(D\\)", "formula": "s * m * b", "formato": "bytes", "barra": true,
+      "cuenta": "{{s|int}} × {{m|int}} × {{b|corto}} B = **{{s * m * b / 1e9|num|2}} GB** (a 1 B por muestra, {{s * m / 1e9|num|2}} GB)" }
+  ],
+  "nota": "El diario de cambios (WAL) y la compactación hacen que el disco rebase un rato la cuenta: deja margen. Mueve las combinaciones de etiquetas de 3 a 200 y mira cómo LiteLLM pasa de ser una parte chica del disco a casi todo."
+}

@@ -629,7 +629,7 @@ Memoria: la documentación dice que el contexto se multiplica por las peticiones
 - **[Gateway, API compatible con OpenAI, autenticación y varios modelos](/gateway/)**, la siguiente, pone delante de las tres copias lo que el motor no hace: la cuenta de cada abogado, las cuotas en tokens, el reparto entre copias y modelos, y el registro de quién preguntó qué; y explica a fondo la API que aquí solo usaste.
 - **[Varias GPUs: tensor y pipeline parallel](/varias-gpus/)** explica por qué el despacho pone una copia por GPU y qué cambia en el comando de vLLM cuando el modelo no cabe en una.
 - **[De requisitos a hardware](/requisitos-hardware/)** dice cuántas conversaciones aguanta cada GPU a la velocidad que se pide, el número contra el que se compara `--max-num-seqs`.
-- **«[Pruebas de carga y benchmarks honestos](/pruebas-carga/)»** enseña a comparar dos motores en tu GPU sin engañarte; **«Observabilidad de GPUs e inferencia»**, a leer las métricas que vLLM publica en producción.
+- **«[Pruebas de carga y benchmarks honestos](/pruebas-carga/)»** enseña a comparar dos motores en tu GPU sin engañarte; **«[Observabilidad de GPUs e inferencia](/observabilidad/)»**, a leer las métricas que vLLM publica en producción.
 - Si te quedaron dudas de lo que esta lección dio por sabido: [Batching continuo y PagedAttention](/batching/) y [Formatos de cuantización en la práctica](/formatos-cuantizacion/) aquí; en Sensei, [APIs: REST, JSON, gRPC y streaming](https://sensei.trueml.app/apis/), [Balanceadores, proxies y gateways](https://sensei.trueml.app/balanceo/) y [Empaquetado con Docker](https://sensei.trueml.app/e07-empaquetado/).
 
 ## Palabras que vas a oír {Words you'll hear}

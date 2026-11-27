@@ -1,0 +1,79 @@
+{
+  "titulo": "De dónde sale el TCO de 3 años del despacho (3 L40S, US$ y su peso)",
+  "width": 78,
+  "height": 82,
+  "lanes": [
+    { "id": "piezas", "label": "Las piezas, sumadas en 36 meses", "kind": "neutral", "x": 0, "y": 0, "w": 46, "h": 82 },
+    { "id": "total", "label": "El costo total", "kind": "online", "x": 48, "y": 0, "w": 30, "h": 82 }
+  ],
+  "nodes": [
+    {
+      "id": "servidor", "label": "Servidor y 3 L40S", "sub": "US$67,191 · 51 %", "badge": "1", "kind": "gpu",
+      "x": 4, "y": 6, "w": 30, "h": 8,
+      "note": "El Exxact 4U con 2 EPYC 9124, 384 GB de RAM y 3 L40S, en el configurador del 2026-11-25. Es más de la mitad del total y es la pieza que se paga **en dólares, el día de la compra**. Su garantía limitada de 3 años es para el hardware de marca Exxact; si cubre las tarjetas, por confirmar."
+    },
+    {
+      "id": "ups", "label": "UPS de 6 kVA", "sub": "US$9,000 · 7 %", "badge": "2", "kind": "service",
+      "x": 4, "y": 16.5, "w": 30, "h": 8,
+      "note": "El [[ups|UPS]] de doble conversión del plan del cuarto. Precios vistos de US$8,428 a US$9,684 en tiendas de EE. UU. (fuente secundaria): se usa US$9,000 como supuesto. Su batería tiene su propia garantía, de 2 años."
+    },
+    {
+      "id": "cuarto", "label": "Obra y aire", "sub": "MXN 130,000 · 5 %", "badge": "3", "kind": "job",
+      "x": 4, "y": 27, "w": 30, "h": 8,
+      "note": "Los 2 circuitos dedicados de 220 V (≈ MXN 60,000) y los 2 minisplits de 2 toneladas instalados (≈ MXN 70,000). **Son supuestos**: nadie cotizó la obra. Al tipo de cambio de trabajo, ≈ US$6,592."
+    },
+    {
+      "id": "luz", "label": "Luz, 36 meses", "sub": "MXN 173,700 · 7 %", "badge": "4", "kind": "service",
+      "x": 4, "y": 37.5, "w": 30, "h": 8,
+      "note": "36 × ≈ MXN 4,825 al mes, la cuenta con la tarifa GDBT de CFE y un [[pue|PUE]] de 2.0. Se paga **en pesos**, cada mes. Es ≈ US$8,808: menos que el UPS."
+    },
+    {
+      "id": "personas", "label": "Personas, 36 meses", "sub": "52 h al mes · 16 %", "badge": "5", "kind": "human",
+      "x": 4, "y": 48, "w": 30, "h": 8,
+      "note": "12 horas a la semana del TI para operar, observar, actualizar y atender fallas, a ≈ MXN 218 la hora con prestaciones (supuesto). Son ≈ MXN 408 mil en 3 años, ≈ US$20,705: **más del doble que la luz**."
+    },
+    {
+      "id": "comunes", "label": "Piloto, carga, examen", "sub": "US$18,302 · 14 %", "badge": "6", "kind": "job",
+      "x": 4, "y": 58.5, "w": 30, "h": 8,
+      "note": "Lo que cuesta **decidir**: la GPU rentada del piloto (6 semanas, ≈ US$1,099), la prueba de carga (≈ US$504) y las ≈ 167 horas de abogado del examen (≈ US$16,700, supuesto de US$100 la hora). Se paga igual con cualquier opción."
+    },
+    {
+      "id": "reventa", "label": "Reventa al mes 36", "sub": "−US$13,438 · −10 %", "badge": "7", "kind": "store",
+      "x": 4, "y": 69, "w": 30, "h": 8,
+      "note": "El 20 % del servidor que se recupera al venderlo. Resta. Es un **supuesto**, no un precio: lo que valga una L40S en 2029 nadie lo sabe hoy."
+    },
+    {
+      "id": "tco", "label": "TCO de 3 años", "sub": "US$117,161", "kind": "model",
+      "x": 52, "y": 34, "w": 22, "h": 9,
+      "note": "≈ MXN 2.31 millones al tipo de cambio del 26 de noviembre de 2026. Repartido en 36 meses, ≈ US$3,254 al mes; sin lo de decidir (pieza 6), ≈ US$2,746."
+    },
+    {
+      "id": "mes", "label": "Al mes", "sub": "US$2,746 sin la pieza 6", "kind": "monitor",
+      "x": 52, "y": 54, "w": 22, "h": 9,
+      "note": "El número que se compara con la API y con la renta: depreciación ≈ US$1,926 + luz ≈ US$245 + personas ≈ US$575. Es ≈ MXN 54,154 al mes y ≈ MXN 0.82 por pregunta."
+    }
+  ],
+  "edges": [
+    { "from": "servidor", "to": "tco", "kind": "online", "fromSide": "r", "toSide": "l" },
+    { "from": "ups", "to": "tco", "kind": "online", "fromSide": "r", "toSide": "l" },
+    { "from": "cuarto", "to": "tco", "kind": "online", "fromSide": "r", "toSide": "l" },
+    { "from": "luz", "to": "tco", "kind": "neutral", "fromSide": "r", "toSide": "l" },
+    { "from": "personas", "to": "tco", "kind": "neutral", "fromSide": "r", "toSide": "l" },
+    { "from": "comunes", "to": "tco", "kind": "async", "dashed": true, "fromSide": "r", "toSide": "l" },
+    { "from": "reventa", "to": "tco", "kind": "monitor", "fromSide": "r", "toSide": "l" },
+    { "from": "tco", "to": "mes", "kind": "online", "label": "÷ 36" }
+  ],
+  "flows": [
+    {
+      "id": "suma",
+      "label": "Sumar el TCO, pieza por pieza",
+      "steps": [
+        { "nodes": ["servidor", "ups", "cuarto"], "edges": ["servidor>tco", "ups>tco", "cuarto>tco"], "text": "**Lo que se paga al comprar.** Servidor, UPS y obra: ≈ US$82,783, el 63 % de todo. Se paga una vez y, casi todo, en dólares." },
+        { "nodes": ["luz", "personas"], "edges": ["luz>tco", "personas>tco"], "text": "**Lo que se paga cada mes.** Luz y personas: ≈ US$820 al mes, ≈ US$29,513 en 36 meses. En pesos. Las personas pesan más del doble que la luz." },
+        { "nodes": ["comunes"], "edges": ["comunes>tco"], "text": "**Lo que cuesta decidir.** Piloto, prueba de carga y examen: ≈ US$18,302. Se paga con cualquier opción, así que no cambia cuál gana; sí cambia cuánto cuesta el proyecto." },
+        { "nodes": ["reventa"], "edges": ["reventa>tco"], "text": "**Lo que se recupera.** La reventa resta ≈ US$13,438 al final. Es el supuesto más incierto de la lista." },
+        { "nodes": ["tco", "mes"], "edges": ["tco>mes"], "text": "**El total.** ≈ US$117,161 (≈ MXN 2.31 M) en 3 años; ≈ US$2,746 al mes sin lo de decidir. Ese es el número que se pone junto a la API (US$41) y a la renta (US$2,830)." }
+      ]
+    }
+  ]
+}

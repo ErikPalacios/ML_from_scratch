@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 330" role="img" aria-labelledby="f-seguridad-cooldown-t" class="f-svg" style="max-width:420px">
+<title id="f-seguridad-cooldown-t">Línea de tiempo de 0 a 72 horas desde que se publica una versión. Las versiones comprometidas de LiteLLM en 2026 estuvieron publicadas muy poco: en marzo, 1.82.7 y 1.82.8 unos 40 minutos en PyPI; en octubre, 1.107.0 una hora y 44 minutos en PyPI y sus imágenes de Docker dos horas y 34 minutos. Son astillas al inicio de la línea. La espera de la puente, de 72 horas, ocupa la línea completa: cuando deja bajar la versión, las comprometidas ya llevaban casi tres días retiradas.</title>
+<text class="f-l" x="14" y="20">HORAS DESDE QUE SE PUBLICA LA VERSIÓN</text>
+<text class="f-l" x="30" y="44">MARZO · LITELLM 1.82.7 Y 1.82.8 EN PYPI</text>
+<rect class="f-off" x="30" y="52" width="300" height="16" rx="3" style="opacity:0.35"/>
+<rect class="f-o" x="30.0" y="52" width="3" height="16" rx="2"/>
+<text class="f-s" x="40.8" y="65" style="font-size:12px;font-weight:700">≈ 40 min, y la retiran</text>
+<text class="f-l" x="30" y="96">OCTUBRE · LITELLM 1.107.0 EN PYPI</text>
+<rect class="f-off" x="30" y="104" width="300" height="16" rx="3" style="opacity:0.35"/>
+<rect class="f-o" x="30.0" y="104" width="7.2" height="16" rx="2"/>
+<text class="f-s" x="45.2" y="117" style="font-size:12px;font-weight:700">≈ 1 h 44 min, y la retiran</text>
+<text class="f-l" x="30" y="148">OCTUBRE · SUS IMÁGENES DE DOCKER</text>
+<rect class="f-off" x="30" y="156" width="300" height="16" rx="3" style="opacity:0.35"/>
+<rect class="f-o" x="30.5" y="156" width="10.7" height="16" rx="2"/>
+<text class="f-s" x="49.2" y="169" style="font-size:12px;font-weight:700">≈ 2 h 34 min, y la retiran</text>
+<text class="f-l" x="30" y="200">LA ESPERA DE LA PUENTE</text>
+<rect class="f-off" x="30" y="208" width="300" height="16" rx="3" style="opacity:0.35"/>
+<rect class="f-g" x="30.0" y="208" width="300.0" height="16" rx="2"/>
+<text class="f-s" x="38" y="221" style="font-size:12px;font-weight:700">tres días sin bajar nada nuevo</text>
+<line class="f-linea" x1="30.0" y1="244" x2="30.0" y2="250"/>
+<text class="f-l" x="30.0" y="262" text-anchor="middle">0 h</text>
+<line class="f-linea" x1="130.0" y1="244" x2="130.0" y2="250"/>
+<text class="f-l" x="130.0" y="262" text-anchor="middle">24 h</text>
+<line class="f-linea" x1="230.0" y1="244" x2="230.0" y2="250"/>
+<text class="f-l" x="230.0" y="262" text-anchor="middle">48 h</text>
+<line class="f-linea" x1="330.0" y1="244" x2="330.0" y2="250"/>
+<text class="f-l" x="330.0" y="262" text-anchor="middle">72 h</text>
+<line class="f-linea" x1="30" y1="247" x2="330" y2="247"/>
+<rect class="f-dark" x="10" y="276" width="340" height="44" rx="12"/>
+<text class="f-dark-t" x="24" y="295" style="font-size:13px">A las 72 h la puente ya puede bajarla:</text>
+<text class="f-dark-t" x="24" y="311" style="font-size:13px">las dos comprometidas llevaban días fuera.</text>
+</svg>

@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 410" role="img" aria-labelledby="f-costo-total-tornado-t" class="f-svg" style="max-width:420px">
+<title id="f-costo-total-tornado-t">Gráfica de tornado: cuánto cambia la diferencia al mes entre el servidor propio del despacho y rentar las mismas 3 L40S prendidas todo el mes, en dólares, cuando se mueve un supuesto a la vez a un valor bajo y a uno alto. La base es −83: el propio sale 83 dólares al mes más barato. Ordenados de mayor a menor rango: la vida útil de 24 o 60 meses mueve la diferencia de +880 a −854; la reventa de 0 % o 50 %, de +290 a −643; las horas de TI del propio, 104 o 26 al mes, de +492 a −371; el precio del hardware 15 % arriba o abajo, de +141 a −307; las personas al doble o a la mitad en las dos opciones, de +49 a −150; la luz 25 % arriba o abajo, de −22 a −145; el dólar a 17.75 o a 21.69 pesos, de −21 a −134. Las tres primeras pesan de 7 a 15 veces más que la luz o el tipo de cambio.</title>
+<rect class="f-card" x="10" y="10" width="340" height="390" rx="16"/>
+<text class="f-l" x="26" y="36">QUÉ SUPUESTO MUEVE MÁS LA CUENTA</text>
+<text class="f-l" x="26" y="54">PROPIO − RENTA 24/7 · US$ AL MES</text>
+<line x1="185" y1="80" x2="185" y2="352" style="stroke:var(--tm-ink3);stroke-width:1.5"/>
+<line x1="172.1" y1="70" x2="172.1" y2="352" style="stroke:var(--tm-ink3);stroke-width:1.5;stroke-dasharray:4 4"/>
+<text class="f-s" x="168.1" y="76" text-anchor="end" style="font-size:12px">base: −83</text>
+<text class="f-s" x="26" y="100" style="font-size:12px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">Vida útil: 24 / 60 meses</text>
+<text class="f-s" x="340" y="100" text-anchor="end" style="font-size:12px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round;font-weight:700">+880 · −854</text>
+<rect class="f-b" x="52.6" y="106" width="119.5" height="14" rx="2"/>
+<rect class="f-o" x="172.1" y="106" width="149.3" height="14" rx="2"/>
+<text class="f-s" x="26" y="138" style="font-size:12px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">Reventa: 0 / 50 %</text>
+<text class="f-s" x="340" y="138" text-anchor="end" style="font-size:12px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round;font-weight:700">+290 · −643</text>
+<rect class="f-b" x="85.3" y="144" width="86.8" height="14" rx="2"/>
+<rect class="f-o" x="172.1" y="144" width="57.8" height="14" rx="2"/>
+<text class="f-s" x="26" y="176" style="font-size:12px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">Horas de TI del propio: 104 / 26</text>
+<text class="f-s" x="340" y="176" text-anchor="end" style="font-size:12px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round;font-weight:700">+492 · −371</text>
+<rect class="f-b" x="127.5" y="182" width="44.6" height="14" rx="2"/>
+<rect class="f-o" x="172.1" y="182" width="89.1" height="14" rx="2"/>
+<text class="f-s" x="26" y="214" style="font-size:12px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">Precio del hardware: +15 / −15 %</text>
+<text class="f-s" x="340" y="214" text-anchor="end" style="font-size:12px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round;font-weight:700">+141 · −307</text>
+<rect class="f-b" x="137.4" y="220" width="34.7" height="14" rx="2"/>
+<rect class="f-o" x="172.1" y="220" width="34.7" height="14" rx="2"/>
+<text class="f-s" x="26" y="252" style="font-size:12px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">Personas (las dos): ×2 / ×0.5</text>
+<text class="f-s" x="340" y="252" text-anchor="end" style="font-size:12px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round;font-weight:700">+49 · −150</text>
+<rect class="f-b" x="161.8" y="258" width="10.4" height="14" rx="2"/>
+<rect class="f-o" x="172.1" y="258" width="20.5" height="14" rx="2"/>
+<text class="f-s" x="26" y="290" style="font-size:12px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">Luz: +25 / −25 %</text>
+<text class="f-s" x="340" y="290" text-anchor="end" style="font-size:12px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round;font-weight:700">−22 · −145</text>
+<rect class="f-b" x="162.5" y="296" width="9.6" height="14" rx="2"/>
+<rect class="f-o" x="172.1" y="296" width="9.5" height="14" rx="2"/>
+<text class="f-s" x="26" y="328" style="font-size:12px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">Dólar: 17.75 / 21.69 pesos</text>
+<text class="f-s" x="340" y="328" text-anchor="end" style="font-size:12px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round;font-weight:700">−21 · −134</text>
+<rect class="f-b" x="164.2" y="334" width="7.9" height="14" rx="2"/>
+<rect class="f-o" x="172.1" y="334" width="9.6" height="14" rx="2"/>
+<line x1="30" y1="352" x2="340" y2="352" style="stroke:var(--tm-line);stroke-width:1"/>
+<text class="f-s" x="30" y="368" style="font-size:12px">−1,000</text>
+<text class="f-s" x="185" y="368" text-anchor="middle" style="font-size:12px">0 = empatan</text>
+<text class="f-s" x="340" y="368" text-anchor="end" style="font-size:12px">+1,000</text>
+<text class="f-s" x="26" y="388" style="font-size:12px">← más barato comprar</text>
+<text class="f-s" x="340" y="388" text-anchor="end" style="font-size:12px">más barato rentar →</text>
+</svg>

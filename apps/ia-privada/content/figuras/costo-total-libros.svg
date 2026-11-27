@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 400" role="img" aria-labelledby="f-costo-total-libros-t" class="f-svg" style="max-width:420px">
+<title id="f-costo-total-libros-t">Tres maneras de repartir en el tiempo el servidor del despacho de US$67,191 (Exxact con 3 L40S). A lo ancho, los meses de 0 a 40; a lo alto, lo que vale el servidor en los libros, de 0 a 70,000 dólares. La depreciación lineal baja en línea recta hasta US$13,438 al mes 36, el 20 % de reventa supuesto. La acelerada de saldo doble baja a US$22,397 al terminar el año 1 y a US$13,438 al terminar el año 2, y ahí se queda. La deducción fiscal de la LISR, 30 % al año, baja un poco más rápido que la lineal porque no resta reventa: queda en US$6,719 al mes 36 y llega a cero en el año 4. Un punto aparte marca el mercado de hoy: una L40S de 2023 se vende usada en ≈ 84 % del precio de una nueva en bulk (fuente secundaria), mucho arriba de lo que dicen las tres líneas.</title>
+<rect class="f-card" x="10" y="10" width="340" height="380" rx="16"/>
+<text class="f-l" x="26" y="36">LO QUE VALE EL SERVIDOR EN LOS LIBROS</text>
+<text class="f-l" x="26" y="54">US$ · EXXACT CON 3 L40S</text>
+<line x1="56" y1="250" x2="340" y2="250" style="stroke:var(--tm-line);stroke-width:1"/>
+<line x1="56" y1="195.7" x2="340" y2="195.7" style="stroke:var(--tm-line);stroke-width:1"/>
+<line x1="56" y1="141.4" x2="340" y2="141.4" style="stroke:var(--tm-line);stroke-width:1"/>
+<line x1="56" y1="87.1" x2="340" y2="87.1" style="stroke:var(--tm-line);stroke-width:1"/>
+<line x1="141.2" y1="62" x2="141.2" y2="250" style="stroke:var(--tm-line);stroke-width:1"/>
+<line x1="226.4" y1="62" x2="226.4" y2="250" style="stroke:var(--tm-line);stroke-width:1"/>
+<line x1="311.6" y1="62" x2="311.6" y2="250" style="stroke:var(--tm-line);stroke-width:1"/>
+<text class="f-s" x="50" y="254" text-anchor="end" style="font-size:12px">0</text>
+<text class="f-s" x="50" y="199.7" text-anchor="end" style="font-size:12px">20k</text>
+<text class="f-s" x="50" y="145.4" text-anchor="end" style="font-size:12px">40k</text>
+<text class="f-s" x="50" y="91.1" text-anchor="end" style="font-size:12px">60k</text>
+<text class="f-s" x="56" y="268" text-anchor="middle" style="font-size:12px">0</text>
+<text class="f-s" x="141.2" y="268" text-anchor="middle" style="font-size:12px">12</text>
+<text class="f-s" x="226.4" y="268" text-anchor="middle" style="font-size:12px">24</text>
+<text class="f-s" x="311.6" y="268" text-anchor="middle" style="font-size:12px">36</text>
+<text class="f-s" x="198" y="284" text-anchor="middle" style="font-size:12px">meses desde la compra</text>
+<polyline points="56,67.6 141.2,67.6 141.2,189.2 226.4,189.2 226.4,213.5 311.6,213.5" style="fill:none;stroke:var(--o);stroke-width:3;stroke-linejoin:round"/>
+<polyline points="56,67.6 311.6,231.8 340,250" style="fill:none;stroke:var(--g);stroke-width:3;stroke-dasharray:7 5;stroke-linejoin:round"/>
+<polyline points="56,67.6 311.6,213.5" style="fill:none;stroke:var(--b);stroke-width:3"/>
+<circle cx="311.6" cy="213.5" r="6" style="fill:var(--b);stroke:var(--blk);stroke-width:2"/>
+<text class="f-s" x="300" y="244" text-anchor="end" style="font-size:12px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">reventa supuesta: 20 %</text>
+<circle cx="311.6" cy="96.8" r="7" style="fill:var(--blk);stroke:var(--p);stroke-width:3"/>
+<text class="f-s" x="300" y="113" text-anchor="end" style="font-size:12px;font-weight:700;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">L40S de 2023, usada hoy:</text>
+<text class="f-s" x="300" y="128" text-anchor="end" style="font-size:12px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">≈ 84 % de una nueva</text>
+<line x1="26" y1="308" x2="50" y2="308" style="stroke:var(--b);stroke-width:3"/>
+<text class="f-s" x="58" y="312" style="font-size:12px">Lineal: 17,918 al año los 3 años</text>
+<line x1="26" y1="330" x2="50" y2="330" style="stroke:var(--o);stroke-width:3"/>
+<text class="f-s" x="58" y="334" style="font-size:12px">Acelerada: 44,794 · 8,959 · 0</text>
+<line x1="26" y1="352" x2="50" y2="352" style="stroke:var(--g);stroke-width:3;stroke-dasharray:7 5"/>
+<text class="f-s" x="58" y="356" style="font-size:12px">Fiscal (LISR, 30 %): 20,157 al año</text>
+<text class="f-s" x="58" y="374" style="font-size:12px">y los 6,719 que faltan, en el año 4</text>
+</svg>

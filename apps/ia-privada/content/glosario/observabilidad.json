@@ -1,0 +1,169 @@
+{ "terminos": [
+  {
+    "id": "observabilidad",
+    "termino": "Observabilidad",
+    "en": "observability",
+    "corto": "Poder saber qué pasa dentro de un sistema, y por qué, mirando los números, registros y trazas que publica, sin tener que abrirlo ni adivinar.",
+    "largo": "Se apoya en tres maneras de mirar: [[metrica|métricas]] (números que cambian con el tiempo), registros (una línea por evento) y [[traza|trazas]] (el camino de una petición por todas las piezas). El monitoreo vigila lo que ya sabes que puede fallar, con [[alerta|alertas]]; la observabilidad es tener guardados los datos para contestar también lo que no sabías que ibas a preguntar. En un servidor de LLMs propio incluye la GPU (calor, reloj, errores), el motor (fila y memoria), la búsqueda, el gateway y la carga, y excluye a propósito el texto de las preguntas.",
+    "analogia": "El tablero de un coche más el escáner del taller: el tablero trae pocas cosas para manejar; el escáner lee cientos de números cuando algo falla. Dónde se rompe: el coche trae su escáner de fábrica; en un servidor, cada pieza publica a su manera y alguien tiene que juntarlo todo.",
+    "ejemplo": "Con observabilidad, el TI del despacho sabe a las 12:24 que la réplica 2 dejó de contestar, antes de que un abogado escriba «está lentísimo» a las 12:30.",
+    "ver": ["metrica", "traza", "tablero", "alerta"],
+    "leccion": "observabilidad",
+    "sensei": "e12-monitoreo"
+  },
+  {
+    "id": "metrica",
+    "termino": "Métrica",
+    "en": "metric",
+    "corto": "Un número con nombre que un programa mantiene mientras trabaja, con unas etiquetas que dicen de qué es: cuántas preguntas esperan, cuántos tokens lleva, cuánto tardó cada una.",
+    "largo": "Hay tres tipos: el contador (solo sube desde que arrancó el programa; se usa por cuánto sube por segundo), el gauge (sube y baja, una foto del momento) y el [[histograma]] (cuenta cuántas mediciones cayeron debajo de cada borde). Cada combinación de nombre y etiquetas es una [[serie-de-tiempo|serie de tiempo]]. Los programas las publican como texto en una dirección `/metrics` y [[prometheus|Prometheus]] pasa a leerlas.",
+    "ejemplo": "`vllm:num_requests_waiting{model_name=\"qwen3-32b\"} 0`: el gauge de la fila del motor, con su etiqueta de modelo, en este momento vale 0.",
+    "ver": ["serie-de-tiempo", "histograma", "exporter", "cardinalidad"],
+    "leccion": "observabilidad",
+    "sensei": "e11-request"
+  },
+  {
+    "id": "serie-de-tiempo",
+    "termino": "Serie de tiempo",
+    "en": "time series",
+    "corto": "La lista de parejas (hora, valor) de una métrica con un juego fijo de etiquetas: por ejemplo, la fila de la réplica 2, anotada cada 15 segundos.",
+    "largo": "Una misma métrica con valores de etiqueta distintos da series distintas: tres réplicas son tres series de `vllm:num_requests_waiting`. Un histograma da una serie por cada borde, más `_sum` y `_count`. Lo que cuesta guardar en [[prometheus|Prometheus]] depende de cuántas series hay, cada cuánto se anotan y cuántos días se guardan; por eso la [[cardinalidad]] importa.",
+    "ejemplo": "A 15 s, una serie guarda 5,760 valores al día y 518,400 en 90 días; el despacho guarda ≈ 2,943 series.",
+    "ver": ["metrica", "cardinalidad", "prometheus"],
+    "leccion": "observabilidad",
+    "sensei": "e11-request"
+  },
+  {
+    "id": "prometheus",
+    "termino": "Prometheus",
+    "en": "Prometheus",
+    "corto": "Una base de datos de series de tiempo, abierta, que cada cierto intervalo visita el `/metrics` de cada pieza, guarda los valores con su hora y revisa las reglas de alerta.",
+    "largo": "Ir a leer se llama *scrape*; el intervalo por omisión es de 1 minuto (el despacho usa 15 s). Guarda en el disco local, de 1 a 2 bytes por muestra en promedio, y por omisión borra lo de más de 15 días. Marca sola cada pieza que no contesta, con la serie `up` en 0. Sus consultas se escriben en PromQL; `histogram_quantile` saca percentiles de un [[histograma]]. Las alertas que se cumplen las manda a Alertmanager, que avisa por correo. Licencia Apache 2.0 (3.16.0 a noviembre de 2026).",
+    "analogia": "El enfermero que recorre los cuartos cada 15 minutos y anota los signos vitales. Dónde se rompe: lo que sube y baja entre dos visitas no queda anotado, salvo que el programa lo cuente con un contador, que sí tiene memoria.",
+    "ejemplo": "`sum(up{job=\"vllm-chat\"}) < 3`: la regla del despacho que se cumple cuando una de las tres réplicas dejó de contestar (o las tres: `up` vale 0 para cada una que no contesta).",
+    "ver": ["metrica", "exporter", "alerta", "tablero"],
+    "leccion": "observabilidad",
+    "sensei": "e11-request"
+  },
+  {
+    "id": "exporter",
+    "termino": "Exporter",
+    "en": "exporter",
+    "corto": "Un programa chico que lee el estado de algo que no publica sus propias métricas (una GPU, un disco, una red) y lo traduce a un `/metrics` que Prometheus entiende.",
+    "largo": "vLLM, LiteLLM y Qdrant publican su `/metrics` solos; la GPU y el sistema operativo no. Para eso están `dcgm-exporter` (GPUs de NVIDIA, puerto 9400) y `node_exporter` (CPU, memoria, discos y red de la máquina). Qué publica un exporter se configura: en `dcgm-exporter`, un CSV dice qué métricas van prendidas, y algunas útiles vienen apagadas.",
+    "ejemplo": "`curl localhost:9400/metrics` en el servidor del despacho muestra lo que `dcgm-exporter` publica de las tres L40S: potencia, temperatura, reloj, memoria y errores.",
+    "ver": ["dcgm", "prometheus", "metrica"],
+    "leccion": "observabilidad"
+  },
+  {
+    "id": "dcgm",
+    "termino": "DCGM",
+    "en": "Data Center GPU Manager",
+    "corto": "El programa de NVIDIA que lee el estado de las GPUs de un servidor (uso, memoria, potencia, temperatura, relojes, errores); su exporter lo publica para Prometheus.",
+    "largo": "Además de lo básico, DCGM tiene métricas de perfilado que miden adentro del chip: [[sm-activo|SM activo]], DRAM activa y tensor activo, que dicen mucho más que la [[utilizacion-gpu|utilización de GPU]]. Piden privilegios y algunas no se pueden leer juntas: DCGM las alterna por muestreo. Cuenta también los segundos de [[throttling]], los [[error-xid|errores XID]], las filas de memoria remapeadas y los reintentos de PCIe. A noviembre de 2026, `dcgm-exporter` 4.9.0 (con DCGM 4.7.0) renombró sus métricas y cambió unidades: `DCGM_FI_DEV_GPU_UTIL` (0–100) es ahora `DCGM_FI_DEV_GPU_UTIL_RATIO` (0–1).",
+    "ejemplo": "`DCGM_FI_DEV_BOARD_POWER_WATTS{gpu=\"1\"} 228`: la potencia de la segunda L40S, contra sus 350 W de TDP (valor ilustrativo).",
+    "ver": ["exporter", "sm-activo", "throttling", "error-xid"],
+    "leccion": "observabilidad",
+    "sensei": "cpu-gpu"
+  },
+  {
+    "id": "utilizacion-gpu",
+    "termino": "Utilización de GPU",
+    "en": "GPU utilization",
+    "corto": "El «GPU-Util» de nvidia-smi: la parte del tiempo de la última muestra en que al menos un kernel estaba corriendo. Mide si hubo trabajo, no cuánto del chip trabajó.",
+    "largo": "Un kernel chiquito que nunca para la deja en 100 % con casi todo el chip vacío. En un servidor de LLMs con batching continuo marca ≈ 100 % mientras haya una sola conversación, así que no distingue una persona de ocho. Sirve para ver si vale 0 con preguntas llegando (la réplica no trabaja). Para ver carga se usan el [[sm-activo|SM activo]], la DRAM activa, la potencia y el reloj. En `dcgm-exporter` 4.9.0 es `DCGM_FI_DEV_GPU_UTIL_RATIO`, de 0 a 1.",
+    "analogia": "Un vigilante que anota cada minuto si había al menos un coche en un estacionamiento de 40 lugares. Dónde se rompe: un kernel puede usar uno o todos los bloques del chip, y un coche siempre usa un lugar; la idea, «hubo algo» no es «estuvo lleno», se queda.",
+    "ejemplo": "Una réplica del despacho a las 9:05 con una conversación y otra en la hora pico con ocho marcan las dos ≈ 100 %.",
+    "ver": ["sm-activo", "dcgm"],
+    "leccion": "observabilidad",
+    "sensei": "cpu-gpu"
+  },
+  {
+    "id": "sm-activo",
+    "termino": "SM activo",
+    "en": "SM activity",
+    "corto": "La fracción del tiempo en que cada bloque de cómputo de la GPU (SM) tenía al menos un grupo de hilos asignado, promediada sobre todos. Dice cuánto del chip está ocupado, no solo si hubo trabajo.",
+    "largo": "Es una métrica de perfilado de [[dcgm|DCGM]]: `DCGM_FI_PROF_SM_UTIL_RATIO` en `dcgm-exporter` 4.9.0 (antes `DCGM_FI_PROF_SM_ACTIVE`), apagada por omisión. NVIDIA dice que 0.8 o más es necesario, pero no suficiente, para un uso eficaz, y que menos de 0.5 probablemente es un uso ineficaz. «Activo» incluye hilos esperando datos de memoria: no es lo mismo que «calculando». En un LLM se lee junto a la DRAM activa (el [[decode]] vive de leer memoria) y al tensor activo (el [[prefill]] es cálculo).",
+    "ejemplo": "Con la misma carga de la prueba de carga, si el SM activo de una réplica baja de su línea base y su reloj también, esa tarjeta se está frenando.",
+    "ver": ["utilizacion-gpu", "dcgm", "throttling"],
+    "leccion": "observabilidad",
+    "sensei": "cpu-gpu"
+  },
+  {
+    "id": "histograma",
+    "termino": "Histograma (de Prometheus)",
+    "en": "histogram",
+    "corto": "Una métrica que, en vez de guardar cada medición, cuenta cuántas cayeron debajo de cada borde fijo (0.5 s, 1 s, 2 s…). De esos conteos sale un percentil aproximado.",
+    "largo": "Publica una serie por borde (`le`, de *less or equal*), con conteos acumulados, más `+Inf`, `_sum` y `_count`. `histogram_quantile(0.95, …)` busca el bucket donde cae el lugar 95 % y adivina la posición dentro de él suponiendo que sus mediciones se reparten parejo; lo único garantizado es que el percentil verdadero está entre los dos bordes. Por eso los bordes tienen que rodear la promesa: los de fábrica del TTFT de vLLM 0.34.0 saltan de 1.0 a 2.5 s, y con ellos un p95 de 1.1 s y uno de 2.4 s se reportan igual. Se cambian con `--custom-histogram-buckets`.",
+    "analogia": "Las filas de una escuela por estatura: sabes cuántos niños miden menos de 1.20 m y cuántos menos de 1.30 m, no la estatura de cada uno. Dónde se rompe: con niños puedes medir otra vez; con el histograma, lo que pasó entre dos bordes ya no se recupera.",
+    "ejemplo": "125 preguntas en 10 minutos, 112 debajo de 2.0 s y 121 debajo de 2.5 s: el p95 (lugar 118.75) sale 2.0 + 0.5 × 6.75 ÷ 9 = 2.375 s.",
+    "ver": ["metrica", "serie-de-tiempo", "intervalo-del-percentil"],
+    "leccion": "observabilidad",
+    "sensei": "percentiles"
+  },
+  {
+    "id": "cardinalidad",
+    "termino": "Cardinalidad",
+    "en": "cardinality",
+    "corto": "Cuántas series distintas produce una métrica: una por cada combinación de valores de sus etiquetas. Poner al usuario como etiqueta la multiplica por el número de usuarios.",
+    "largo": "Cada serie se guarda, se consulta y ocupa memoria en [[prometheus|Prometheus]]. La guía de Prometheus pide no usar como etiqueta nada con muchos valores posibles (usuarios, correos, identificadores) y mantener cada métrica debajo de 10 series. Para lo que es por persona está el registro: una fila por pregunta, con quién la hizo. A noviembre de 2026, los histogramas de LiteLLM traen etiquetas de clave, de usuario y de persona final; con una sola clave y el gasto por persona apagado casi no pesan, y se quitan de antemano con `prometheus_exclude_labels`.",
+    "ejemplo": "Un histograma de LiteLLM con 20 series, si llevara a las 200 personas como etiqueta, daría 4,000; seis así suman 24,000 series y multiplican casi por 10 el disco de Prometheus del despacho.",
+    "ver": ["serie-de-tiempo", "metrica", "registro-de-auditoria"],
+    "leccion": "observabilidad",
+    "sensei": "e11-request"
+  },
+  {
+    "id": "tablero",
+    "termino": "Tablero",
+    "en": "dashboard",
+    "corto": "Una página con varias gráficas, cada una con una consulta a la base de métricas, ordenadas para contestar rápido «¿está bien?» y «¿dónde está el problema?».",
+    "largo": "Un buen tablero tiene pocos paneles y un orden de lectura: arriba lo que siente el usuario (tráfico, latencia, errores), en medio lo que hace el servicio y abajo lo que lo explica (hardware, dependencias). Cada panel lleva su línea de umbral. En el despacho se dibuja con Grafana (AGPL-3.0, con su telemetría apagada) sobre [[prometheus|Prometheus]]. No sustituye a las [[alerta|alertas]]: nadie mira un tablero a las 3:00.",
+    "ejemplo": "El tablero del despacho: 8 paneles, de las preguntas por minuto y el TTFT p95 hasta la GPU, la búsqueda, las réplicas vivas y el disco.",
+    "ver": ["alerta", "prometheus", "observabilidad"],
+    "leccion": "observabilidad",
+    "sensei": "e12-monitoreo"
+  },
+  {
+    "id": "alerta",
+    "termino": "Alerta",
+    "en": "alert",
+    "corto": "Una regla que se revisa sola cada minuto y, cuando se cumple durante cierto tiempo, le avisa a una persona con lo que tiene que hacer.",
+    "largo": "En [[prometheus|Prometheus]], una regla de alerta tiene su condición en PromQL, un `for` (cuánto tiene que durar antes de avisar) y, opcional, un `keep_firing_for` (cuánto se queda prendida después, para que no parpadee). Alertmanager la manda por correo o a otro destino. Una alerta buena es accionable y rara: una que se prende todos los días se aprende a ignorar. Cada una lleva su runbook: las instrucciones de qué hacer.",
+    "ejemplo": "La alerta 4 del despacho: si en 2 minutos hay menos de 3 réplicas vivas, correo urgente («ahora») al TI, con tres líneas: revisar el log, reiniciar una vez, reportar con el XID.",
+    "ver": ["tablero", "prometheus", "slo"],
+    "leccion": "observabilidad",
+    "sensei": "e12-monitoreo"
+  },
+  {
+    "id": "error-xid",
+    "termino": "Error XID",
+    "en": "XID error",
+    "corto": "Un mensaje del driver de NVIDIA, con un número, que dice que algo grave le pasó a una GPU: un programa que falló en ella, memoria con error, o la tarjeta que dejó de contestar en el bus.",
+    "largo": "Aparece en el log del kernel de Linux (`dmesg`) con la dirección PCI de la tarjeta y su código; [[dcgm|DCGM]] publica el último código y un contador. Hay decenas de códigos y no se memorizan: NVIDIA publica un catálogo con la acción para cada uno (reiniciar la aplicación, reiniciar la GPU, llamar a soporte). El procedimiento: copiar el mensaje completo con su hora, el modelo de GPU y la versión del driver, y seguir el catálogo.",
+    "ejemplo": "`NVRM: Xid (PCI:0000:5a:00): 79, GPU has fallen off the bus.`: la tarjeta dejó de responder; la réplica que vivía en ella cae y la alerta de réplica caída se prende.",
+    "ver": ["dcgm", "throttling"],
+    "leccion": "observabilidad"
+  },
+  {
+    "id": "throttling",
+    "termino": "Throttling (de la GPU)",
+    "en": "clock throttling",
+    "corto": "Cuando la GPU baja su reloj para protegerse, por calor, por potencia o por otra razón. Calcula más lento, sin ningún error: la respuesta solo tarda más.",
+    "largo": "NVIDIA ahora lo llama «eventos de reloj» (*clock events*). [[dcgm|DCGM]] cuenta los segundos que la tarjeta pasó frenada por cada razón (por ejemplo `DCGM_FI_DEV_GPU_THERMAL_THROTTLE_SECONDS_TOTAL` por calor), en contadores opcionales que hay que prender, y publica cuántos grados faltan para el umbral de freno (`DCGM_FI_DEV_GPU_TEMP_MARGIN_CELSIUS`). Si el de calor sube en horas de oficina, la causa suele estar en el cuarto: el aire, el flujo por el frente del rack.",
+    "analogia": "Un corredor que baja el ritmo cuando siente que se sobrecalienta: llega, pero más tarde. Dónde se rompe: el corredor avisa que está cansado; la GPU no deja error, solo un contador que alguien tiene que mirar.",
+    "ejemplo": "En una fábrica con el servidor junto a la línea de producción, las respuestas tardan más a las 15:00 que a las 7:00 con la misma carga, y los segundos de throttling por calor suben en la tarde.",
+    "ver": ["dcgm", "sm-activo", "carga-termica"],
+    "leccion": "observabilidad"
+  },
+  {
+    "id": "traza",
+    "termino": "Traza",
+    "en": "trace",
+    "corto": "El registro de una sola petición a su paso por todas las piezas, como una lista de tramos con su pieza, su inicio y su duración, unidos por un mismo identificador.",
+    "largo": "Cada tramo (*span*) lo deja la pieza que hizo ese trabajo; el identificador de traza viaja de pieza en pieza para juntarlos después. Las métricas dicen que el p95 subió; la traza dice dónde se fueron los segundos de una pregunta concreta, contra el [[presupuesto-de-latencia|presupuesto de latencia]]. Se mandan con OpenTelemetry a un colector. vLLM 0.34.0 las manda con `--otlp-traces-endpoint`, con tiempos y conteos y sin el texto; en las convenciones de OpenTelemetry para IA generativa, los atributos con el contenido son opt-in, y en el despacho se quedan apagados.",
+    "ejemplo": "Una pregunta de las 12:30: 20 ms de red y gateway, 150 ms de búsqueda, 1.88 s esperando el prefill de otra pregunta y 2.38 s de su propio prefill: 4.43 s al primer token.",
+    "ver": ["observabilidad", "presupuesto-de-latencia", "telemetria"],
+    "leccion": "observabilidad",
+    "sensei": "e11-request"
+  }
+]}

@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 344" role="img" aria-labelledby="f-observabilidad-memoria-t" class="f-svg" style="max-width:420px">
+<title id="f-observabilidad-memoria-t">Dos números de memoria para una réplica del despacho. Arriba, lo que ve DCGM en una L40S de 48 GB: los pesos de Qwen3 32B AWQ, unos 19.3 GB, el programa, unos 2 GB, y el resto reservado por vLLM para el KV cache desde que arranca, así que la tarjeta se ve casi llena con una pregunta o con ocho. Abajo, lo que ve vLLM: qué parte de su KV cache ocupan las conversaciones, con el pool de la ficha de 8 por 8,192 tokens. En la hora pico, una réplica promedio con 1.9 conversaciones ocupa cerca de 19 por ciento; con las 8 del tope, de 6,500 tokens, cerca de 79 por ciento, debajo de la línea de alerta de 90 por ciento.</title>
+<rect class="f-card" x="10" y="10" width="340" height="140" rx="14"/>
+<text class="f-l" x="24" y="34">LO QUE VE DCGM · LA TARJETA, 48 GB</text>
+<text class="f-s" x="155" y="62" text-anchor="middle" style="font-size:12px">programa ≈ 2 GB</text>
+<line class="f-linea" x1="155" y1="66" x2="155" y2="72"/>
+<rect class="f-b" x="20" y="74" width="129" height="28" rx="3"/>
+<rect class="f-p" x="149" y="74" width="13" height="28"/>
+<rect class="f-y" x="162" y="74" width="173" height="28"/>
+<rect class="f-off" x="335" y="74" width="5" height="28"/>
+<text class="f-s" x="20" y="120" style="font-size:12px;font-weight:700">pesos ≈ 19.3 GB</text>
+<text class="f-s" x="340" y="120" text-anchor="end" style="font-size:12px;font-weight:700">KV cache reservado al arrancar</text>
+<text class="f-t" x="24" y="140" style="font-size:13px">Casi llena con 1 pregunta o con 8</text>
+<rect class="f-card" x="10" y="162" width="340" height="176" rx="14"/>
+<text class="f-l" x="24" y="186">LO QUE VE vLLM · KV CACHE OCUPADO</text>
+<text class="f-s" x="24" y="210" style="font-size:12px">Hora pico, réplica promedio: 1.9 conversaciones</text>
+<rect class="f-off" x="24" y="216" width="290" height="18" rx="3"/>
+<rect class="f-g" x="24" y="216" width="54" height="18" rx="3"/>
+<text class="f-s" x="84" y="230" style="font-size:12px;font-weight:700">≈ 19 %</text>
+<text class="f-s" x="24" y="256" style="font-size:12px">El tope: 8 conversaciones de 6,500 tokens</text>
+<rect class="f-off" x="24" y="262" width="290" height="18" rx="3"/>
+<rect class="f-y" x="24" y="262" width="230" height="18" rx="3"/>
+<text class="f-s" x="246" y="276" text-anchor="end" style="font-size:12px;font-weight:700;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">≈ 79 %</text>
+<line class="f-linea" x1="285" y1="214" x2="285" y2="286" style="stroke:var(--o);stroke-width:2;stroke-dasharray:4 3"/>
+<text class="f-s" x="314" y="300" text-anchor="end" style="font-size:12px;font-weight:700;fill:var(--o)">alerta de 90 %</text>
+<text class="f-s" x="24" y="316" style="font-size:12px">pool de la ficha: 8 × 8,192 tokens (17.18 GB);</text>
+<text class="f-s" x="24" y="331" style="font-size:12px">el real lo imprime vLLM al arrancar</text>
+</svg>

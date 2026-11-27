@@ -1,0 +1,33 @@
+{
+  "titulo": "La ventana del parche: ¿a qué hora queda instalado?",
+  "intro": "Aplica \\(T = max(t_0 + Σ d_j, V) + n × t_r\\): la hora del aviso más lo que tarda cada paso antes de producción, la espera hasta que abre la ventana (si no se puede instalar en horario de oficina) y las réplicas una tras otra. Arranca con el viernes del despacho: aviso a las 16:00, pasos de 0.5 + 1 + 1 + 0.75 + 0.5 h (supuestos, salvo el examen con su juez, ≈ 25 min de la ficha), ventana a las 19:00 y 3 réplicas de 15 min. Las horas van en decimales: 16.5 = 16:30.",
+  "entradas": [
+    { "id": "t0", "label": "Hora del aviso, \\(t_0\\) (24 h, en decimales)", "min": 0, "max": 23.75, "paso": 0.25, "valor": 16, "unidad": "h" },
+    { "id": "d1", "label": "Leer el aviso y decidir, \\(d_1\\)", "min": 0, "max": 4, "paso": 0.25, "valor": 0.5, "unidad": "h" },
+    { "id": "d2", "label": "Bajar en la puente, verificar y escanear, \\(d_2\\)", "min": 0, "max": 8, "paso": 0.25, "valor": 1, "unidad": "h" },
+    { "id": "d3", "label": "Subir al registro local y armar staging, \\(d_3\\)", "min": 0, "max": 8, "paso": 0.25, "valor": 1, "unidad": "h" },
+    { "id": "d4", "label": "Examen, juez y leer los flips, \\(d_4\\)", "min": 0, "max": 4, "paso": 0.25, "valor": 0.75, "unidad": "h" },
+    { "id": "d5", "label": "Prueba de humo con carga, \\(d_5\\)", "min": 0, "max": 4, "paso": 0.25, "valor": 0.5, "unidad": "h" },
+    { "id": "V", "label": "Hora en que abre la ventana, \\(V\\)", "min": 0, "max": 23.75, "paso": 0.25, "valor": 19, "unidad": "h" },
+    { "id": "of", "label": "¿Se puede instalar en horario de oficina? (1 = sí, con N+1; 0 = esperar la ventana)", "min": 0, "max": 1, "paso": 1, "valor": 0 },
+    { "id": "n", "label": "Réplicas, \\(n\\)", "min": 1, "max": 8, "paso": 1, "valor": 3 },
+    { "id": "tr", "label": "Minutos por réplica: drenar, reiniciar y probar, \\(t_r\\)", "min": 1, "max": 60, "paso": 1, "valor": 15, "unidad": "min" }
+  ],
+  "calculos": [
+    { "id": "suma", "formula": "d1 + d2 + d3 + d4 + d5" },
+    { "id": "listo", "formula": "t0 + suma" },
+    { "id": "inicio", "formula": "of >= 1 ? listo : max(listo, V)" },
+    { "id": "fin", "formula": "inicio + n * tr / 60" },
+    { "id": "hl", "formula": "floor(listo % 24) + floor((listo - floor(listo)) * 60 + 1e-6) / 100" },
+    { "id": "hf", "formula": "floor(fin % 24) + floor((fin - floor(fin)) * 60 + 1e-6) / 100" }
+  ],
+  "salidas": [
+    { "label": "Pasos antes de producción, \\(Σ d_j\\)", "formula": "suma", "formato": "num", "decimales": 2, "nota": "horas", "cuenta": "{{d1|corto}} + {{d2|corto}} + {{d3|corto}} + {{d4|corto}} + {{d5|corto}} = **{{suma|num|2}} h**" },
+    { "label": "Listo para producción (hh.mm)", "formula": "hl", "formato": "num", "decimales": 2, "cuenta": "{{t0|corto}} + {{suma|corto}} = {{listo|num|2}} h → **{{hl|num|2}}**" },
+    { "label": "Queda instalado (hh.mm)", "formula": "hf", "formato": "num", "decimales": 2, "cuenta": "max({{listo|num|2}}, ventana) + {{n|int}} × {{tr|int}} min = {{fin|num|2}} h → **{{hf|num|2}}**" },
+    { "label": "Días después del aviso", "formula": "floor(fin / 24)", "formato": "int", "nota": "0 = el mismo día" },
+    { "label": "Horas desde el aviso hasta instalado", "formula": "fin - t0", "formato": "num", "decimales": 2, "barra": true, "cuenta": "{{fin|num|2}} − {{t0|corto}} = **{{fin - t0|num|2}} h**" },
+    { "label": "¿Se instala fuera del horario de 9:00 a 19:00?", "formula": "(inicio % 24) >= 19 || (inicio % 24) < 9 ? 1 : -1", "veredicto": { "si": "Sí: nadie lo nota", "no": "No: en horario de oficina (pide N+1)" } }
+  ],
+  "nota": "Prueba: pon el aviso a las 10:00. Con «0», espera la ventana y queda a las 19.45 (19:45). Cambia a «1» con 4 réplicas: queda a las 14.45, y solo porque la cuarta L40S existe (con ella, una réplica fuera alcanza aun en la hora pico; con 3, no). Si el aviso es grave y alcanzable, nada de esto va primero: se mitiga en minutos y el reloj corre igual."
+}

@@ -1,0 +1,60 @@
+{
+  "titulo": "El camino de una actualización, del aviso al servidor",
+  "width": 78,
+  "height": 68,
+  "lanes": [
+    { "id": "fuera", "label": "Fuera del despacho: con internet", "kind": "offline", "x": 0, "y": 0, "w": 78, "h": 14 },
+    { "id": "gestion", "label": "Dentro: inventario y registro", "kind": "monitor", "x": 0, "y": 18, "w": 78, "h": 14 },
+    { "id": "prueba", "label": "Dentro: la prueba", "kind": "neutral", "x": 0, "y": 36, "w": 78, "h": 14 },
+    { "id": "prod", "label": "Producción", "kind": "online", "x": 0, "y": 54, "w": 78, "h": 14 }
+  ],
+  "nodes": [
+    { "id": "aviso", "label": "Aviso", "sub": "GHSA, NVIDIA, Ubuntu, KEV", "kind": "external", "x": 1, "y": 3, "w": 18, "h": 8,
+      "note": "Los boletines a los que el despacho está suscrito: los avisos de GitHub de vLLM, LiteLLM, Open WebUI y Qdrant; los de NVIDIA (solo en GitHub desde octubre de 2026); los de Ubuntu; y el [[kev|catálogo KEV]] de CISA." },
+    { "id": "puente", "label": "Máquina puente", "sub": "verifica y espera", "kind": "job", "x": 30, "y": 3, "w": 18, "h": 8,
+      "note": "Baja por digest o por hash, verifica la firma (cosign se apoya en la infraestructura pública de Sigstore, por eso aquí), escanea contra las CVEs y aplica la espera de tres días salvo urgencia. Guarda cada versión con su manifiesto." },
+    { "id": "fuentes", "label": "Fuentes públicas", "sub": "GHCR, Docker Hub, HF", "kind": "external", "x": 58, "y": 3, "w": 19, "h": 8,
+      "note": "Donde publican sus autores. Nada del despacho les habla salvo la puente. Una firma válida de aquí dice quién armó el archivo, no que sea seguro: LiteLLM 1.107.0 la tenía." },
+    { "id": "inventario", "label": "Inventario", "sub": "versión y digest", "kind": "store", "x": 1, "y": 21, "w": 18, "h": 8,
+      "note": "Cada pieza con su versión exacta y su digest. Aquí se contestan las tres preguntas: ¿lo tengo?, ¿es alcanzable?, ¿está explotado? Sin inventario, un aviso no se puede evaluar." },
+    { "id": "registro", "label": "Registro local", "sub": "guarda el digest anterior", "kind": "store", "x": 30, "y": 21, "w": 18, "h": 8,
+      "note": "Recibe solo lo que la puente ya verificó. Como el digest de ayer sigue aquí, regresar es cuestión de un minuto." },
+    { "id": "staging", "label": "Staging", "sub": "la cuarta L40S o una réplica", "kind": "gpu", "x": 30, "y": 39, "w": 18, "h": 8,
+      "note": "Una copia de producción con la versión nueva, en la cuarta L40S si se compró o en una de las tres réplicas sacada de la rotación fuera de la hora pico (la GPU rentada del piloto ya se devolvió). Aquí se ve también qué intenta salir (el firewall en «negar y registrar»)." },
+    { "id": "gate", "label": "Gate", "sub": "examen, juez y humo", "kind": "monitor", "x": 58, "y": 39, "w": 19, "h": 8,
+      "note": "El [[gate-de-calidad|gate]] de [Evals](/evals/): 0 fugas en las 20 de permisos, 0 citas inventadas nuevas, la prueba pareada contra producción y se leen los flips. Examen y juez ≈ 25 min. Más una prueba de humo con carga." },
+    { "id": "mitigar", "label": "Mitigar ya", "sub": "cerrar la ruta o apagar", "kind": "job", "x": 1, "y": 57, "w": 18, "h": 8,
+      "note": "Solo si el aviso es grave, **alcanzable** y explotado: cerrar la ruta en el firewall o apagar la pieza afectada en minutos. El parche sigue su camino, más rápido, sin la espera de tres días." },
+    { "id": "replicas", "label": "3 réplicas", "sub": "una a la vez, en la ventana", "kind": "gpu", "x": 58, "y": 57, "w": 19, "h": 8,
+      "note": "Se drena una réplica (≈ 27 s), se reinicia con el digest nuevo, se prueba y se regresa. Con 3 L40S, fuera de la hora pico; con 4, a cualquier hora." }
+  ],
+  "edges": [
+    { "from": "aviso", "to": "inventario", "kind": "neutral", "label": "¿lo tengo?", "fromSide": "b", "toSide": "t" },
+    { "from": "inventario", "to": "puente", "kind": "offline", "label": "traer", "fromSide": "r", "toSide": "l", "via": [[24, 25], [24, 7]] },
+    { "from": "fuentes", "to": "puente", "kind": "offline", "label": "digest", "fromSide": "l", "toSide": "r" },
+    { "from": "puente", "to": "registro", "kind": "offline", "label": "empuja", "fromSide": "b", "toSide": "t" },
+    { "from": "registro", "to": "staging", "kind": "offline", "label": "nuevo", "fromSide": "b", "toSide": "t" },
+    { "from": "staging", "to": "gate", "kind": "monitor", "label": "examen", "fromSide": "r", "toSide": "l" },
+    { "from": "gate", "to": "replicas", "kind": "online", "label": "pasa", "fromSide": "b", "toSide": "t" },
+    { "from": "inventario", "to": "mitigar", "kind": "async", "label": "grave y alcanzable", "fromSide": "b", "toSide": "t", "dashed": true },
+    { "from": "replicas", "to": "registro", "kind": "async", "label": "regreso", "fromSide": "l", "toSide": "r", "dashed": true, "via": [[52, 61], [52, 37], [51, 37], [51, 25]] }
+  ],
+  "flows": [
+    { "id": "normal", "label": "El ciclo mensual", "steps": [
+      { "nodes": ["aviso", "inventario"], "edges": ["aviso>inventario"], "text": "Sale vLLM 0.35 (o un aviso medio). El inventario dice que el despacho corre la 0.34.0 y que el aviso no es alcanzable desde la oficina: va al ciclo del mes." },
+      { "nodes": ["inventario", "puente", "fuentes"], "edges": ["inventario>puente", "fuentes>puente"], "text": "Pasados **tres días** desde su publicación, la puente la baja por digest, verifica la firma y la escanea." },
+      { "nodes": ["puente", "registro", "staging"], "edges": ["puente>registro", "registro>staging"], "text": "La empuja al registro local y se levanta en staging con la configuración de producción." },
+      { "nodes": ["staging", "gate"], "edges": ["staging>gate"], "text": "Corre el examen de 200 con su juez y la prueba de humo. Se leen todos los flips." },
+      { "nodes": ["gate", "replicas"], "edges": ["gate>replicas"], "text": "Pasa: en la ventana, una réplica a la vez. El digest nuevo va al inventario." }
+    ] },
+    { "id": "urgente", "label": "Grave y alcanzable", "steps": [
+      { "nodes": ["aviso", "inventario"], "edges": ["aviso>inventario"], "text": "Un aviso de Open WebUI: alto, explotado, toma de cuenta por OAuth. Open WebUI lo tocan las 200 laptops: **alcanzable**." },
+      { "nodes": ["inventario", "mitigar"], "edges": ["inventario>mitigar"], "text": "Primero se mitiga en minutos: la opción que dé el aviso, o limitar Open WebUI unas horas. Nada sale; los abogados esperan." },
+      { "nodes": ["puente", "registro", "staging", "gate", "replicas"], "edges": ["inventario>puente", "puente>registro", "registro>staging", "staging>gate", "gate>replicas"], "text": "El parche hace el mismo camino **sin** la espera de tres días, y se instala ese día." }
+    ] },
+    { "id": "mal", "label": "El que sale mal", "steps": [
+      { "nodes": ["staging", "gate"], "edges": ["staging>gate"], "text": "La versión nueva cambia un valor por omisión y el examen pierde 4 puntos con dos citas inventadas nuevas: el gate la **detiene** en staging. Producción ni se enteró." },
+      { "nodes": ["replicas", "registro"], "edges": ["replicas>registro"], "text": "Si algo falla ya en producción (la réplica no arranca), se regresa al **digest anterior**, que sigue en el registro local." }
+    ] }
+  ]
+}

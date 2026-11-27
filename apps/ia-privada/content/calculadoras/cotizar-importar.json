@@ -1,0 +1,47 @@
+{
+  "titulo": "Traer el servidor: el costo puesto en el despacho",
+  "intro": "El valor en aduana \\(V = (P + F + s P) × T\\), el arancel \\(I = a V\\), el DTA \\(D\\) (0.8 % de \\(V\\) o $461.61 fijos con origen T-MEC acreditado), el IVA \\(0.16 (V + I + D)\\) y el total \\(C = V + I + D + IVA + H + O\\). Flete, seguro, honorarios y maniobras son **supuestos**; arancel, DTA e IVA, las tasas vigentes a noviembre de 2026. Orientación: confírmalo con tu agente aduanal.",
+  "preajustes": [
+    { "label": "Cotización del servidor (ficha del despacho, Exxact, 25-nov-2026)", "inicial": 0, "opciones": [
+      { "label": "A · 3 L40S, cuarta ranura libre", "valores": { "P": 67191.3 }, "nota": "US$67,191.30 en el configurador de Exxact, sin impuestos." },
+      { "label": "B · 4 L40S, con repuesto (N+1)", "valores": { "P": 76101.3 }, "nota": "US$76,101.30 en el mismo configurador: la opción A con la cuarta ranura ocupada." }
+    ] }
+  ],
+  "entradas": [
+    { "id": "P", "label": "Precio de la factura, \\(P\\), en US$", "min": 1000, "max": 500000, "paso": 0.01, "valor": 67191.3, "tipo": "numero" },
+    { "id": "F", "label": "Flete y embalaje, \\(F\\), en US$ (supuesto; 0 si la cotización es DAP)", "min": 0, "max": 20000, "paso": 50, "valor": 2500, "tipo": "numero" },
+    { "id": "s", "label": "Seguro, \\(s\\), en % del precio (supuesto)", "min": 0, "max": 3, "paso": 0.1, "valor": 0.5 },
+    { "id": "a", "label": "Arancel, \\(a\\), en % (8471.50.01 y 8473.30.04: exentas)", "min": 0, "max": 50, "paso": 1, "valor": 0 },
+    { "id": "dt", "label": "DTA", "tipo": "opcion", "valor": 1, "opciones": [
+      { "valor": 1, "label": "8 al millar (0.8 %) del valor" },
+      { "valor": 0, "label": "Cuota fija de $461.61 (origen T-MEC acreditado)" } ] },
+    { "id": "T", "label": "Tipo de cambio, \\(T\\), en pesos por dólar", "min": 10, "max": 40, "paso": 0.0001, "valor": 19.3668, "tipo": "numero" },
+    { "id": "Hn", "label": "Honorarios del agente aduanal, \\(H\\), en pesos (supuesto)", "min": 0, "max": 100000, "paso": 500, "valor": 12000, "tipo": "numero" },
+    { "id": "O", "label": "Maniobras, almacenaje y flete en México, \\(O\\), en pesos (supuesto)", "min": 0, "max": 100000, "paso": 500, "valor": 15000, "tipo": "numero" }
+  ],
+  "calculos": [
+    { "id": "Vu", "formula": "P + F + s / 100 * P" },
+    { "id": "V", "formula": "Vu * T" },
+    { "id": "I", "formula": "a / 100 * V" },
+    { "id": "D", "formula": "dt * 0.008 * V + (1 - dt) * 461.61" },
+    { "id": "IVA", "formula": "0.16 * (V + I + D)" },
+    { "id": "C", "formula": "V + I + D + IVA + Hn + O" }
+  ],
+  "salidas": [
+    { "label": "1 · Valor en aduana, \\(V\\), en pesos", "formula": "V", "formato": "int",
+      "cuenta": "(US${{P|corto|2}} + {{F|int}} + {{s|corto}} % × {{P|corto|2}}) × {{T|corto|4}} = US${{Vu|num|2}} × {{T|corto|4}} = **${{V|int}}**" },
+    { "label": "2 · Arancel, \\(I\\)", "formula": "I", "formato": "int",
+      "cuenta": "{{a|corto}} % × ${{V|int}} = **${{I|int}}**" },
+    { "label": "3 · DTA, \\(D\\)", "formula": "D", "formato": "int",
+      "cuenta": "**${{D|int}}**" },
+    { "label": "4 · IVA de importación (se acredita)", "formula": "IVA", "formato": "int",
+      "cuenta": "16 % × (${{V|int}} + {{I|int}} + {{D|int}}) = **${{IVA|int}}**" },
+    { "label": "5 · Total puesto, \\(C\\), con IVA", "formula": "C", "formato": "int", "barra": true,
+      "cuenta": "${{V|int}} + {{I|int}} + {{D|int}} + {{IVA|int}} + {{Hn|int}} + {{O|int}} = **${{C|int}}**" },
+    { "label": "6 · Sin el IVA, en pesos", "formula": "C - IVA", "formato": "int", "barra": true,
+      "cuenta": "${{C|int}} − {{IVA|int}} = **${{C - IVA|int}}** ≈ US${{(C - IVA) / T|int}}" },
+    { "label": "Lo que agrega importar, sobre el precio", "formula": "(C - IVA) / (P * T) - 1", "formato": "pct", "decimales": 1,
+      "nota": "Sin el IVA, contra la factura en pesos." }
+  ],
+  "nota": "Con los supuestos del despacho, importar agrega ≈ 7.1 % y deja ≈ $219 mil de IVA por financiar. Cambia el DTA a la cuota fija: ≈ $10 mil menos. Sube el arancel a 15 % para ver lo que costaría una mala clasificación."
+}

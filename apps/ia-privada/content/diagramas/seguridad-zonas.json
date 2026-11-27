@@ -1,0 +1,75 @@
+{
+  "titulo": "Las zonas del despacho y quién puede hablar con quién",
+  "width": 78,
+  "height": 87,
+  "lanes": [
+    { "id": "oficina", "label": "Oficina: las laptops", "kind": "online", "x": 0, "y": 0, "w": 52, "h": 12 },
+    { "id": "servicio", "label": "Servicio: solo Open WebUI sale", "kind": "online", "x": 0, "y": 14, "w": 78, "h": 30 },
+    { "id": "modelos", "label": "Modelos", "kind": "offline", "x": 0, "y": 46, "w": 78, "h": 12 },
+    { "id": "gestion", "label": "Gestión: solo alertas salen", "kind": "monitor", "x": 0, "y": 62, "w": 78, "h": 12 }
+  ],
+  "nodes": [
+    { "id": "abogados", "label": "Las laptops", "sub": "200 personas", "kind": "client", "x": 30, "y": 2, "w": 18, "h": 8,
+      "note": "Las 200 personas del despacho. Desde su VLAN **solo** alcanzan a Open WebUI por el puerto 443. No ven a LiteLLM, ni a vLLM, ni a Qdrant, ni al BMC: si una laptop se infecta, el malware no encuentra esos puertos." },
+    { "id": "microsoft", "label": "Microsoft Entra", "sub": "login y graph, :443", "kind": "external", "x": 58, "y": 2, "w": 19, "h": 8,
+      "note": "`login.microsoftonline.com` (token y llaves para verificar firmas) y `graph.microsoft.com` (la foto y, si se configura, los grupos). Es una de las dos salidas a internet del despacho, y solo desde la máquina de Open WebUI; la otra es el correo de las [[alerta|alertas]], desde Alertmanager en gestión, también a Microsoft. Como sus IPs cambian, la regla va por nombre, con un firewall que filtre por dominio." },
+    { "id": "webui", "label": "Open WebUI", "sub": "el chat, con SSO", "kind": "service", "x": 30, "y": 16, "w": 18, "h": 8,
+      "note": "Lo que tocan todas las laptops: la pieza más expuesta. Por eso sus avisos van en el ciclo más corto. Corre como root de fábrica: la imagen se arma en la puente con otro usuario (UID y GID distintos de 0). `OFFLINE_MODE=true` para que no baje nada por su cuenta." },
+    { "id": "busqueda", "label": "Búsqueda", "sub": "con el agente y el examen", "kind": "service", "x": 30, "y": 32, "w": 18, "h": 8,
+      "note": "El servicio de búsqueda arma el prompt con la identidad de quien pregunta (la ACL de [RAG privado](/rag-privado/)). En la misma zona viven el servidor MCP del agente y la máquina del examen, que **no** salen a internet." },
+    { "id": "litellm", "label": "LiteLLM", "sub": ":4000, solo /v1", "kind": "edge", "x": 1, "y": 32, "w": 18, "h": 8,
+      "note": "El [[gateway-de-llm|gateway]]: claves, cuotas y el registro de una fila por pregunta. Alcanzable solo desde la zona de servicio. `LITELLM_OFFLINE_MODE=true` para que no baje su catálogo de GitHub al arrancar." },
+    { "id": "vllm", "label": "vLLM × 3", "sub": "sin ruta a internet", "kind": "gpu", "x": 1, "y": 48, "w": 18, "h": 8,
+      "note": "Las 3 réplicas de Qwen3 32B, en los puertos 8000 y siguientes, alcanzables solo desde LiteLLM. Cada puerto se publica **en la IP de la zona**, no en `0.0.0.0`, y el firewall solo deja entrar desde LiteLLM (y `/metrics` desde [[prometheus|Prometheus]]). El servidor **no tiene puerta de enlace**: no conoce ningún camino a internet." },
+    { "id": "qdrant", "label": "Qdrant", "sub": ":6333, con llave", "kind": "store", "x": 30, "y": 48, "w": 18, "h": 8,
+      "note": "La base de vectores: de fábrica escucha en todas las interfaces y sin llave. Aquí lleva llave de administración, **llave de solo lectura** para la búsqueda, TLS, telemetría apagada, y su puerto solo se alcanza desde la búsqueda y la ingesta." },
+    { "id": "emb", "label": "Embeddings y reranker", "sub": "procesos de vLLM", "kind": "model", "x": 58, "y": 48, "w": 19, "h": 8,
+      "note": "Qwen3-Embedding-0.6B (puerto 8001, por el gateway) y Qwen3-Reranker-0.6B (lo llama la búsqueda directo). Mismas reglas que vLLM: IP de la zona, sin salida." },
+    { "id": "admin", "label": "Admin", "sub": "por VPN", "kind": "human", "x": 1, "y": 64, "w": 17, "h": 8,
+      "note": "Las 2 personas de TI entran a la red de gestión por VPN (o desde una máquina dentro de ella) para llegar al BMC y al SSH de cada servidor. Nadie llega a gestión desde la oficina." },
+    { "id": "prom", "label": "Prometheus", "sub": "lee /metrics", "kind": "monitor", "x": 21, "y": 64, "w": 17, "h": 8,
+      "note": "Sin `--web.config.file`, [[prometheus|Prometheus]] no tiene ninguna autenticación: por eso vive en gestión. Es la única pieza que puede leer el `/metrics` de vLLM, que no lleva llave. A su lado, Alertmanager manda las [[alerta|alertas]] por el correo de Microsoft 365: la segunda salida a internet, con nombres de métricas y nunca texto de una pregunta. Qué mide, en [Observabilidad](/observabilidad/)." },
+    { "id": "bmc", "label": "BMC", "sub": "la consola del servidor", "kind": "monitor", "x": 41, "y": 64, "w": 17, "h": 8,
+      "note": "El [[bmc|BMC]] controla el servidor por debajo del sistema operativo. VLAN de gestión sin internet, contraseña propia el primer día y firmware al día ([El cuarto](/el-cuarto/))." },
+    { "id": "registro", "label": "Registro local", "sub": "y Tang", "kind": "store", "x": 60, "y": 64, "w": 17, "h": 8,
+      "note": "El [[registro-de-contenedores|registro de contenedores]] guarda las imágenes ya verificadas, por [[digest]]. Al lado, el servidor Tang que desbloquea los discos cifrados, en otra máquina que el servidor de GPUs." },
+    { "id": "internet", "label": "Internet", "sub": "solo la VPN entra", "kind": "external", "x": 1, "y": 78, "w": 17, "h": 8,
+      "note": "De internet hacia el despacho solo entra la VPN de administración. Nada publicado: ni Open WebUI, ni el BMC. Y hacia internet, nada sale de modelos; de gestión, solo el correo de las [[alerta|alertas]]." },
+    { "id": "puente", "label": "Máquina puente", "sub": "VLAN propia, con internet", "kind": "job", "x": 60, "y": 78, "w": 17, "h": 8,
+      "note": "La [[maquina-puente|máquina puente]]: baja, verifica la firma, escanea, espera tres días y **empuja** al registro. Su única regla hacia adentro: registro, puerto 443." }
+  ],
+  "edges": [
+    { "from": "abogados", "to": "webui", "kind": "online", "label": ":443", "fromSide": "b", "toSide": "t" },
+    { "from": "webui", "to": "microsoft", "kind": "async", "label": "SSO", "fromSide": "r", "toSide": "l", "via": [[53, 20], [53, 6]] },
+    { "from": "webui", "to": "busqueda", "kind": "online", "label": "pregunta", "fromSide": "b", "toSide": "t" },
+    { "from": "busqueda", "to": "litellm", "kind": "online", "label": "prompt", "fromSide": "l", "toSide": "r" },
+    { "from": "litellm", "to": "vllm", "kind": "online", "label": "/v1", "fromSide": "b", "toSide": "t" },
+    { "from": "busqueda", "to": "qdrant", "kind": "online", "label": "filtro", "fromSide": "b", "toSide": "t" },
+    { "from": "busqueda", "to": "emb", "kind": "online", "label": "reranker", "fromSide": "r", "toSide": "t", "via": [[67.5, 36]] },
+    { "from": "prom", "to": "vllm", "kind": "monitor", "label": "/metrics", "fromSide": "t", "toSide": "b", "dashed": true, "via": [[29.5, 60], [10, 60]] },
+    { "from": "registro", "to": "emb", "kind": "offline", "label": "imágenes", "fromSide": "t", "toSide": "b" },
+    { "from": "puente", "to": "registro", "kind": "offline", "label": "empuja", "fromSide": "t", "toSide": "b" },
+    { "from": "internet", "to": "admin", "kind": "monitor", "label": "VPN", "fromSide": "t", "toSide": "b" }
+  ],
+  "flows": [
+    { "id": "pregunta", "label": "Una pregunta", "steps": [
+      { "nodes": ["abogados", "webui"], "edges": ["abogados>webui"], "text": "Una abogada escribe en Open WebUI desde su laptop. Es lo **único** que su laptop alcanza: el puerto 443 de la zona de servicio." },
+      { "nodes": ["webui", "busqueda", "qdrant", "emb"], "edges": ["webui>busqueda", "busqueda>qdrant", "busqueda>emb"], "text": "La búsqueda usa su identidad para filtrar en Qdrant (con su llave de solo lectura) y reordenar con el reranker." },
+      { "nodes": ["busqueda", "litellm", "vllm"], "edges": ["busqueda>litellm", "litellm>vllm"], "text": "El prompt va al gateway, que lo manda a una de las 3 réplicas. El puerto de vLLM solo acepta conexiones **desde la IP de LiteLLM**." }
+    ] },
+    { "id": "sso", "label": "Un inicio de sesión", "steps": [
+      { "nodes": ["abogados", "webui"], "edges": ["abogados>webui"], "text": "La abogada entra con su cuenta de Microsoft. Su **navegador** va a Microsoft y vuelve con un código." },
+      { "nodes": ["webui", "microsoft"], "edges": ["webui>microsoft"], "text": "El servidor de Open WebUI cambia el código por un token con `login.microsoftonline.com`. Junto con el correo de las [[alerta|alertas]], es la única conexión a internet del despacho, y sale de la zona de servicio, **no** de la de modelos." }
+    ] },
+    { "id": "noche", "label": "Una noche de mantenimiento", "steps": [
+      { "nodes": ["puente", "registro"], "edges": ["puente>registro"], "text": "Por la tarde, la puente bajó la imagen nueva por digest, verificó su firma, la escaneó y la **empujó** al registro local." },
+      { "nodes": ["internet", "admin", "bmc"], "edges": ["internet>admin"], "text": "Una persona de TI entra por VPN a la red de gestión. Desde ahí llega al SSH del servidor y, si hace falta, al BMC." },
+      { "nodes": ["registro", "emb", "vllm"], "edges": ["registro>emb"], "text": "El servidor de modelos baja la imagen del registro (no de internet) y se reinicia una réplica a la vez." },
+      { "nodes": ["prom", "vllm"], "edges": ["prom>vllm"], "text": "[[prometheus|Prometheus]] confirma por `/metrics` que la réplica volvió sana antes de pasar a la siguiente." }
+    ] },
+    { "id": "nunca", "label": "Lo que no debe pasar nunca", "steps": [
+      { "nodes": ["vllm", "internet"], "edges": [], "text": "Un contrato envenenado convence al modelo de mandar datos a una dirección de internet. No hay camino: el firewall niega la salida y el servidor ni siquiera tiene puerta de enlace." },
+      { "nodes": ["abogados", "qdrant", "vllm"], "edges": [], "text": "Una laptop infectada busca puertos abiertos. Desde la oficina no ve a Qdrant ni a vLLM: sus fallas no son alcanzables desde ahí." }
+    ] }
+  ]
+}

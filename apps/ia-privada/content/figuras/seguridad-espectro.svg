@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 450" role="img" aria-labelledby="f-seguridad-espectro-t" class="f-svg" style="max-width:420px">
+<title id="f-seguridad-espectro-t">Cuatro grados de separación. Uno, conectado: la oficina normal, donde entra y sale todo por el router. Dos, sin salida: el despacho; el servidor de modelos solo habla con el gateway y no abre nada hacia afuera, y solo el gateway va a Microsoft para el inicio de sesión. Tres, air gap: una dependencia de gobierno; ningún cable a otra red, todo cruza en un disco a mano con dos personas. Cuatro, air gap con diodo: los datos salen en un solo sentido y por ese cable no puede entrar nada.</title>
+<text class="f-l" x="14" y="20">DE MÁS CONECTADO A MENOS</text>
+<rect class="f-card" x="10" y="30" width="340" height="96" rx="14"/>
+<text class="f-t" x="24" y="54">1 · Conectado</text>
+<text class="f-l" x="24" y="72">LA OFICINA NORMAL</text>
+<rect class="f-dark" x="24" y="86" width="40" height="26" rx="6"/>
+<text class="f-dark-l" x="44.0" y="103" text-anchor="middle">LLM</text>
+<rect class="f-chip" x="108" y="86" width="46" height="26" rx="6"/>
+<text class="f-l" x="131.0" y="103" text-anchor="middle">FUERA</text>
+<line class="f-flecha" x1="64" y1="99" x2="102" y2="99"/>
+<path class="f-punta" d="M101,94 L101,104 L108,99 Z"/>
+<path class="f-punta" d="M71,94 L71,104 L64,99 Z"/>
+<text class="f-s" x="172" y="86" style="font-size:12px">entra y sale todo por</text>
+<text class="f-s" x="172" y="102" style="font-size:12px">el router de siempre</text>
+<rect class="f-chip" x="10" y="134" width="340" height="96" rx="14"/>
+<text class="f-t" x="24" y="158">2 · Sin salida</text>
+<text class="f-l" x="24" y="176">EL DESPACHO</text>
+<rect class="f-dark" x="24" y="190" width="36" height="26" rx="6"/>
+<text class="f-dark-l" x="42.0" y="207" text-anchor="middle">LLM</text>
+<rect class="f-b2" x="70" y="190" width="30" height="26" rx="6"/>
+<text class="f-l" x="85.0" y="207" text-anchor="middle">GW</text>
+<rect class="f-chip" x="110" y="190" width="44" height="26" rx="6"/>
+<text class="f-l" x="132.0" y="207" text-anchor="middle">FUERA</text>
+<line class="f-flecha" x1="60" y1="203" x2="70" y2="203"/>
+<line class="f-flecha" x1="100" y1="203" x2="104" y2="203"/>
+<path class="f-punta" d="M103,198 L103,208 L110,203 Z"/>
+<text class="f-s" x="172" y="190" style="font-size:12px">el servidor de modelos no</text>
+<text class="f-s" x="172" y="206" style="font-size:12px">abre nada hacia afuera;</text>
+<text class="f-s" x="172" y="222" style="font-size:12px">el login, solo a Microsoft</text>
+<rect class="f-card" x="10" y="238" width="340" height="96" rx="14"/>
+<text class="f-t" x="24" y="262">3 · Air gap</text>
+<text class="f-l" x="24" y="280">UNA DEPENDENCIA DE GOBIERNO</text>
+<rect class="f-dark" x="24" y="294" width="40" height="26" rx="6"/>
+<text class="f-dark-l" x="44.0" y="311" text-anchor="middle">LLM</text>
+<rect class="f-chip" x="108" y="294" width="46" height="26" rx="6"/>
+<text class="f-l" x="131.0" y="311" text-anchor="middle">FUERA</text>
+<rect class="f-y" x="76" y="298" width="20" height="18" rx="3"/>
+<text class="f-l" x="86" y="329" text-anchor="middle">DISCO</text>
+<text class="f-s" x="172" y="294" style="font-size:12px">ningún cable a otra red:</text>
+<text class="f-s" x="172" y="310" style="font-size:12px">todo cruza en un disco,</text>
+<text class="f-s" x="172" y="326" style="font-size:12px">a mano y con dos personas</text>
+<rect class="f-card" x="10" y="342" width="340" height="96" rx="14"/>
+<text class="f-t" x="24" y="366">4 · Air gap con diodo</text>
+<text class="f-l" x="24" y="384">SI HAY QUE SACAR DATOS</text>
+<rect class="f-dark" x="24" y="398" width="40" height="26" rx="6"/>
+<text class="f-dark-l" x="44.0" y="415" text-anchor="middle">LLM</text>
+<rect class="f-chip" x="108" y="398" width="46" height="26" rx="6"/>
+<text class="f-l" x="131.0" y="415" text-anchor="middle">FUERA</text>
+<line class="f-flecha" x1="64" y1="411" x2="78" y2="411"/>
+<path class="f-g" d="M78,403 L78,419 L92,411 Z"/>
+<line class="f-linea" x1="93" y1="403" x2="93" y2="419" style="stroke-width:2"/>
+<line class="f-flecha" x1="93" y1="411" x2="102" y2="411"/>
+<path class="f-punta" d="M101,406 L101,416 L108,411 Z"/>
+<text class="f-s" x="172" y="398" style="font-size:12px">los datos salen en un solo</text>
+<text class="f-s" x="172" y="414" style="font-size:12px">sentido; por ese cable</text>
+<text class="f-s" x="172" y="430" style="font-size:12px">no puede entrar nada</text>
+</svg>

@@ -1,0 +1,53 @@
+{
+  "titulo": "El viaje del servidor: de la bodega del vendedor al cuarto del despacho",
+  "width": 78, "height": 60,
+  "lanes": [
+    { "id": "eu", "label": "En Estados Unidos", "kind": "neutral", "x": 0, "y": 0, "w": 78, "h": 18 },
+    { "id": "frontera", "label": "La aduana mexicana", "kind": "monitor", "x": 0, "y": 20, "w": 78, "h": 18 },
+    { "id": "mx", "label": "En México", "kind": "offline", "x": 0, "y": 40, "w": 78, "h": 20 }
+  ],
+  "nodes": [
+    { "id": "vendedor", "label": "Vendedor", "sub": "arma y factura", "badge": "1", "kind": "external", "x": 2, "y": 6, "w": 20, "h": 9,
+      "note": "Exxact u otro integrador en Estados Unidos: arma y prueba el servidor y emite la factura. Hace su propio análisis de controles de exportación y puede pedir una declaración de usuario final." },
+    { "id": "flete", "label": "Flete internacional", "sub": "aéreo o terrestre", "badge": "2", "kind": "queue", "x": 29, "y": 6, "w": 20, "h": 9,
+      "note": "Con [[incoterm|EXW]] lo paga y lo arriesga el comprador; con DAP o DDP, el vendedor. Si lo paga el comprador, el flete y el seguro se suman al [[valor-en-aduana|valor en aduana]]." },
+    { "id": "aduana", "label": "Aduana de entrada", "sub": "pedimento y pago", "badge": "3", "kind": "edge", "x": 29, "y": 25, "w": 20, "h": 9,
+      "note": "Se presenta el [[pedimento]] pagado: [[arancel]] (0 para 8471.50.01), [[dta|DTA]] e IVA de 16 %. Puede tocar reconocimiento (revisión física), que agrega días." },
+    { "id": "agente", "label": "Agente aduanal", "sub": "clasifica y transmite", "badge": "4", "kind": "human", "x": 2, "y": 25, "w": 20, "h": 9,
+      "note": "El [[agente-aduanal|agente aduanal]] elige la fracción, arma y transmite el pedimento y coordina el cruce. Pídele presupuesto por escrito, con días." },
+    { "id": "importador", "label": "Importador", "sub": "el despacho, en el padrón", "badge": "5", "kind": "client", "x": 56, "y": 25, "w": 20, "h": 9,
+      "note": "Quien aparece en los papeles y paga: inscrito en el Padrón de Importadores, con RFC y al corriente. Conviene que sea el despacho o un integrador mexicano, no el consultor." },
+    { "id": "nacional", "label": "Almacén y flete", "sub": "maniobras en México", "badge": "6", "kind": "queue", "x": 2, "y": 46, "w": 20, "h": 9,
+      "note": "Maniobras y almacenaje en la aduana, y el camión hasta la Ciudad de México. Con DAP al despacho, el camión es del vendedor; las maniobras de la aduana y la descarga, del comprador." },
+    { "id": "cuarto", "label": "Cuarto de TI", "sub": "9 m², con UPS", "badge": "7", "kind": "gpu", "x": 29, "y": 46, "w": 20, "h": 9,
+      "note": "El servidor llega al cuarto que preparó la lección «El cuarto»: dos circuitos de 20 A, UPS y aire. Ahí empieza la garantía de verdad." },
+    { "id": "arranque", "label": "Puesta en marcha", "sub": "el integrador", "badge": "8", "kind": "job", "x": 56, "y": 46, "w": 20, "h": 9,
+      "note": "Se instala el stack del piloto y se corren el examen y una prueba de carga en el equipo propio antes de dárselo a los abogados." }
+  ],
+  "edges": [
+    { "from": "vendedor", "to": "flete", "kind": "offline", "label": "embarque" },
+    { "from": "flete", "to": "aduana", "kind": "offline", "label": "llega" },
+    { "from": "agente", "to": "aduana", "kind": "neutral", "label": "pedimento" },
+    { "from": "importador", "to": "aduana", "kind": "monitor", "label": "paga", "dashed": true },
+    { "from": "aduana", "to": "nacional", "kind": "offline", "label": "libera", "fromSide": "b", "toSide": "t", "via": [[39, 40], [12, 40]] },
+    { "from": "nacional", "to": "cuarto", "kind": "offline", "label": "entrega" },
+    { "from": "cuarto", "to": "arranque", "kind": "online", "label": "instala" }
+  ],
+  "flows": [
+    { "id": "dap", "label": "Importar con DAP",
+      "steps": [
+        { "nodes": ["vendedor"], "edges": [], "text": "**La factura.** El servidor de 3 L40S (US$67,191.30 en el configurador) más el flete y el seguro, cotizado «DAP Ciudad de México, Incoterms® 2020»: el vendedor mete el viaje en el precio." },
+        { "nodes": ["vendedor", "flete"], "edges": ["vendedor>flete"], "text": "**El viaje lo paga el vendedor.** Con DAP, flete y riesgo son suyos hasta el lugar acordado." },
+        { "nodes": ["flete", "aduana", "agente"], "edges": ["flete>aduana", "agente>aduana"], "text": "**La aduana es del comprador.** El agente del despacho clasifica el servidor en 8471.50.01 y transmite el pedimento." },
+        { "nodes": ["importador", "aduana"], "edges": ["importador>aduana"], "text": "**El despacho paga.** Arancel 0, DTA ≈ $10,850 (o $461.61 con origen T-MEC) e IVA ≈ $219 mil, que después acredita." },
+        { "nodes": ["aduana", "nacional", "cuarto"], "edges": ["aduana>nacional", "nacional>cuarto"], "text": "**Hasta el cuarto.** Maniobras y almacenaje en la aduana (del despacho), el camión hasta la oficina (del vendedor, con DAP) y la descarga (del despacho)." },
+        { "nodes": ["cuarto", "arranque"], "edges": ["cuarto>arranque"], "text": "**Puesta en marcha.** Con flete, seguro, DTA, agente y maniobras, ≈ 7 % sobre el precio de configurador, sin el IVA." }
+      ] },
+    { "id": "mexico", "label": "Comprarlo en México",
+      "steps": [
+        { "nodes": ["vendedor", "flete", "aduana", "agente"], "edges": [], "text": "**Todo esto es del integrador mexicano.** Él importa con su padrón y su agente, y carga los costos en su precio." },
+        { "nodes": ["nacional", "cuarto"], "edges": ["nacional>cuarto"], "text": "**El despacho recibe una factura en pesos** y una garantía local. Se compara su precio contra la cuenta de importar." },
+        { "nodes": ["cuarto", "arranque"], "edges": ["cuarto>arranque"], "text": "**Misma puesta en marcha.** Lo que cambia es quién responde por la aduana y por la pieza de reemplazo que también tiene que cruzar." }
+      ] }
+  ]
+}

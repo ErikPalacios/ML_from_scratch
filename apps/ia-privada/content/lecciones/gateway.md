@@ -727,7 +727,7 @@ Que «por si acaso» no es una finalidad: la ley pide que el tratamiento sea el 
 - **[Varias GPUs: tensor y pipeline parallel](/varias-gpus/)** explica por qué el despacho pone tres copias detrás de un nombre en vez de un modelo partido entre tres GPUs, y cuándo cambiaría.
 - **[De requisitos a hardware](/requisitos-hardware/)** es de donde sale la capacidad que se reparte en las cuotas, y por qué el TTFT del p95 con fila es mayor que el de una pregunta sola.
 - **«[RAG privado: embeddings y vector DB locales](/rag-privado/)»** usa el modelo `embeddings` de este gateway y resuelve lo que el SSO no resuelve: que la búsqueda respete qué expedientes puede ver cada persona.
-- **«Seguridad: aislamiento, sin internet y actualizaciones»** cierra las puertas de red que aquí solo se mencionan, y **«Observabilidad de GPUs e inferencia»** usa la fila del registro y el `/metrics` de vLLM.
+- **«[Seguridad: aislamiento, sin internet y actualizaciones](/seguridad/)»** cierra las puertas de red que aquí solo se mencionan, y **«[Observabilidad de GPUs e inferencia](/observabilidad/)»** usa la fila del registro y el `/metrics` de vLLM.
 - En Sensei: [Balanceadores, proxies y gateways](https://sensei.trueml.app/balanceo/) tiene el token bucket por dentro; [Autenticación y permisos](https://sensei.trueml.app/identidad/), OIDC y los JWT; [Datos personales y la ley](https://sensei.trueml.app/privacidad/), la ley que pesa sobre el registro; y [Timeouts, reintentos e idempotencia](https://sensei.trueml.app/fallas-red/), por qué un reintento mal puesto tumba un servidor.
 
 ## Palabras que vas a oír {Words you'll hear}

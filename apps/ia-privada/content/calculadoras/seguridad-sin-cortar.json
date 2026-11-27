@@ -1,0 +1,34 @@
+{
+  "titulo": "Actualizar sin cortar: ¿alcanzan las réplicas que quedan?",
+  "intro": "Aplica \\(Q_k = (n − k) × c × 3600 ÷ W\\): las preguntas por hora que sostienen las réplicas que quedan con \\(k\\) fuera, y las compara con la hora pico y con una hora normal. Arranca con el despacho: 3 L40S, 2 conversaciones a ≥ 20 tokens/s por L40S, 27 s por respuesta, 750 preguntas en la hora pico y 250 en una hora normal (supuesto: las otras 9 horas reparten las 2,250 que quedan del día).",
+  "preajustes": [{ "label": "Configuración", "inicial": 0, "opciones": [
+    { "label": "3 × L40S (la del despacho)", "valores": { "n": 3, "c": 2 }, "nota": "2 conversaciones a ≥ 20 tokens/s por L40S (ficha del despacho, «holgura»)." },
+    { "label": "4 × L40S (N+1, la cuarta ranura)", "valores": { "n": 4, "c": 2 }, "nota": "El repuesto de la ficha: con una fuera quedan las 3 de siempre." },
+    { "label": "2 × RTX PRO 6000 Server Edition", "valores": { "n": 2, "c": 6 }, "nota": "≈ 6 conversaciones por tarjeta con la herramienta de sizing (ficha, «compra»): una cuenta, no una medición." }
+  ] }],
+  "entradas": [
+    { "id": "n", "label": "Réplicas en total, \\(n\\)", "min": 1, "max": 8, "paso": 1, "valor": 3 },
+    { "id": "k", "label": "Réplicas fuera (actualizándose o descompuestas), \\(k\\)", "min": 0, "max": 4, "paso": 1, "valor": 1 },
+    { "id": "c", "label": "Conversaciones por réplica a la velocidad pedida, \\(c\\)", "min": 1, "max": 12, "paso": 1, "valor": 2 },
+    { "id": "W", "label": "Duración de una respuesta, \\(W\\)", "min": 10, "max": 60, "paso": 1, "valor": 27, "unidad": "s" },
+    { "id": "pico", "label": "Preguntas en la hora pico", "min": 0, "max": 3000, "paso": 10, "valor": 750, "tipo": "numero" },
+    { "id": "normal", "label": "Preguntas en una hora normal (supuesto)", "min": 0, "max": 3000, "paso": 10, "valor": 250, "tipo": "numero" }
+  ],
+  "calculos": [
+    { "id": "r", "formula": "max(n - k, 0)" },
+    { "id": "conv", "formula": "r * c" },
+    { "id": "Q", "formula": "conv * 3600 / W" },
+    { "id": "npico", "formula": "pico / 3600 * W" },
+    { "id": "nnormal", "formula": "normal / 3600 * W" }
+  ],
+  "salidas": [
+    { "label": "Réplicas que quedan, \\(n − k\\)", "formula": "r", "formato": "int", "cuenta": "{{n|int}} − {{k|int}} = **{{r|int}}**" },
+    { "label": "Conversaciones a la vez que atienden", "formula": "conv", "formato": "int", "cuenta": "{{r|int}} × {{c|int}} = **{{conv|int}} conversaciones**" },
+    { "label": "Preguntas por hora que sostienen, \\(Q_k\\)", "formula": "Q", "formato": "int", "barra": true, "cuenta": "{{conv|int}} × 3,600 ÷ {{W|int}} s = **{{Q|int}} preguntas/h**" },
+    { "label": "Conversaciones que pide la hora pico (Little)", "formula": "npico", "formato": "num", "decimales": 2, "cuenta": "{{pico|int}} ÷ 3,600 × {{W|int}} s = **{{npico|num|2}}**" },
+    { "label": "¿Alcanza en la hora pico?", "formula": "Q - pico", "veredicto": { "si": "Sí: se puede parchar a esa hora", "no": "No: espera a otra hora" }, "cuenta": "{{Q|int}} − {{pico|int}} = {{Q - pico|int}} preguntas/h" },
+    { "label": "¿Alcanza en una hora normal?", "formula": "Q - normal", "veredicto": { "si": "Sí", "no": "No: solo de noche" }, "cuenta": "{{Q|int}} − {{normal|int}} = {{Q - normal|int}} preguntas/h ({{nnormal|num|2}} conversaciones contra {{conv|int}})" },
+    { "label": "Holgura en la hora pico", "formula": "Q / max(pico, 1e-9)", "formato": "x", "decimales": 2, "nota": "menos de 1×: la fila crece", "cuenta": "{{Q|int}} ÷ {{pico|int}} = **{{Q / max(pico, 1e-9)|num|2}}×**" }
+  ],
+  "nota": "Prueba: con 3 L40S y una fuera, el pico no alcanza (533 contra 750) y una hora normal sí. Cambia a 4 × L40S: con una fuera quedan 800 y se puede parchar a cualquier hora. Con 2 Server Edition y una fuera también alcanza (≈ 800), pero sin ningún repuesto mientras dura."
+}

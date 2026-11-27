@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 300" role="img" aria-labelledby="f-cotizar-falla-t" class="f-svg" style="max-width:420px">
+<title id="f-cotizar-falla-t">Qué queda cuando falla una tarjeta, contado en lugares: conversaciones a por lo menos 20 tokens por segundo, contra las 5.7 a la vez de la hora pico. Opción A, 3 L40S con 2 lugares cada una: falla una y quedan 4, menos que 5.7, servicio degradado en el pico. Opción B, 4 L40S: falla una y quedan 6, más que 5.7, el mismo servicio. Opción C, 2 RTX PRO 6000 Server Edition con unos 6 lugares cada una: falla una y queda una con unos 6, en el filo y sin holgura.</title>
+<rect class="f-card" x="10" y="10" width="340" height="280" rx="16"/>
+<text class="f-l" x="26" y="36">FALLA UNA TARJETA · LUGARES QUE QUEDAN</text>
+<text class="f-s" x="26" y="62" style="font-weight:700">A · 3 L40S</text>
+<rect class="f-off" x="26" y="72" width="38" height="30" rx="6"/>
+<rect class="f-off" x="31" y="81" width="12" height="12" rx="3"/>
+<rect class="f-off" x="47" y="81" width="12" height="12" rx="3"/>
+<line class="f-linea" x1="30" y1="76" x2="60" y2="98" style="stroke-width:2"/>
+<line class="f-linea" x1="60" y1="76" x2="30" y2="98" style="stroke-width:2"/>
+<rect class="f-chip" x="70" y="72" width="38" height="30" rx="6"/>
+<rect class="f-g" x="75" y="81" width="12" height="12" rx="3"/>
+<rect class="f-g" x="91" y="81" width="12" height="12" rx="3"/>
+<rect class="f-chip" x="114" y="72" width="38" height="30" rx="6"/>
+<rect class="f-g" x="119" y="81" width="12" height="12" rx="3"/>
+<rect class="f-g" x="135" y="81" width="12" height="12" rx="3"/>
+<text class="f-t" x="208" y="86">Quedan 4</text>
+<text class="f-s" x="208" y="104">4 &lt; 5.7: degradado</text>
+<text class="f-s" x="26" y="134" style="font-weight:700">B · 4 L40S (N+1)</text>
+<rect class="f-off" x="26" y="144" width="38" height="30" rx="6"/>
+<rect class="f-off" x="31" y="153" width="12" height="12" rx="3"/>
+<rect class="f-off" x="47" y="153" width="12" height="12" rx="3"/>
+<line class="f-linea" x1="30" y1="148" x2="60" y2="170" style="stroke-width:2"/>
+<line class="f-linea" x1="60" y1="148" x2="30" y2="170" style="stroke-width:2"/>
+<rect class="f-chip" x="70" y="144" width="38" height="30" rx="6"/>
+<rect class="f-g" x="75" y="153" width="12" height="12" rx="3"/>
+<rect class="f-g" x="91" y="153" width="12" height="12" rx="3"/>
+<rect class="f-chip" x="114" y="144" width="38" height="30" rx="6"/>
+<rect class="f-g" x="119" y="153" width="12" height="12" rx="3"/>
+<rect class="f-g" x="135" y="153" width="12" height="12" rx="3"/>
+<rect class="f-chip" x="158" y="144" width="38" height="30" rx="6"/>
+<rect class="f-g" x="163" y="153" width="12" height="12" rx="3"/>
+<rect class="f-g" x="179" y="153" width="12" height="12" rx="3"/>
+<text class="f-t" x="208" y="158">Quedan 6</text>
+<text class="f-s" x="208" y="176">6 ≥ 5.7: igual</text>
+<text class="f-s" x="26" y="206" style="font-weight:700">C · 2 RTX PRO 6000 Server Edition</text>
+<rect class="f-off" x="26" y="216" width="66" height="30" rx="6"/>
+<line class="f-linea" x1="30" y1="220" x2="88" y2="242" style="stroke-width:2"/><line class="f-linea" x1="88" y1="220" x2="30" y2="242" style="stroke-width:2"/>
+<rect class="f-g" x="100" y="216" width="66" height="30" rx="6"/>
+<text class="f-s" x="133" y="236" text-anchor="middle" style="font-weight:700">≈ 6</text>
+<text class="f-t" x="208" y="230">Queda ≈ 6</text>
+<text class="f-s" x="208" y="248">en el filo</text>
+<text class="f-s" x="26" y="276" style="font-size:12px">Pico ≈ 5.7 a la vez · cada L40S, 2 lugares</text>
+</svg>

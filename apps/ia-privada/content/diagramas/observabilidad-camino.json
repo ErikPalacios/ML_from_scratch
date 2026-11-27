@@ -1,0 +1,63 @@
+{
+  "titulo": "El camino de un número: de cada pieza al correo del TI",
+  "width": 78,
+  "height": 68,
+  "lanes": [
+    { "id": "publica", "label": "Lo que publica cada pieza · su /metrics", "kind": "online", "x": 0, "y": 0, "w": 78, "h": 16 },
+    { "id": "junta", "label": "Lo que junta, dibuja y avisa · en el mismo servidor", "kind": "monitor", "x": 0, "y": 18, "w": 78, "h": 34 },
+    { "id": "personas", "label": "Las personas", "kind": "neutral", "x": 0, "y": 54, "w": 78, "h": 14 }
+  ],
+  "nodes": [
+    { "id": "dcgm", "label": "dcgm-exporter", "sub": "3 L40S · :9400", "badge": "1", "kind": "gpu", "x": 0, "y": 5, "w": 14, "h": 8,
+      "note": "El [[exporter]] de NVIDIA lee las tres L40S con [[dcgm|DCGM]] cada 30 s: potencia, temperatura, reloj, memoria, [[sm-activo|SM activo]], segundos de [[throttling]] y [[error-xid|errores XID]]. En la 4.9.0 los nombres son nuevos (`…_RATIO`, `…_BYTES`, `…_CELSIUS`), y algunas métricas útiles hay que prenderlas en su CSV." },
+    { "id": "vllm", "label": "vLLM × 5", "sub": "3 chat + 2 más", "badge": "2", "kind": "model", "x": 16, "y": 5, "w": 14, "h": 8,
+      "note": "Cada proceso de [[vllm|vLLM]] 0.34.0 publica su `/metrics` en el puerto de su API: la fila, las conversaciones en curso, el KV cache, las [[preemption|preemptions]] y los histogramas de TTFT y entre tokens. Las tres réplicas de chat-grande, el de embeddings y el del reranker: ≈ 373 series cada uno." },
+    { "id": "litellm", "label": "LiteLLM", "sub": "/metrics con clave", "badge": "3", "kind": "edge", "x": 32, "y": 5, "w": 14, "h": 8,
+      "note": "El gateway publica sus métricas si se prende su callback de Prometheus (gratis, MIT). Desde la 1.85.0 pide una clave: Prometheus usa una propia, sin cuota de modelos. Se le quitan de antemano las etiquetas de persona (`prometheus_exclude_labels`): con una clave por abogada o el gasto por persona prendido, la [[cardinalidad]] se multiplicaría por 200." },
+    { "id": "qdrant", "label": "Qdrant", "sub": ":6333", "badge": "4", "kind": "store", "x": 48, "y": 5, "w": 14, "h": 8,
+      "note": "La base de vectores publica cuánto tardan sus respuestas, cuántos chunks tiene la colección y lo que falta por indexar. Su archivo de configuración trae la telemetría hacia afuera prendida: en el despacho, `telemetry_disabled: true`." },
+    { "id": "node", "label": "node_exporter", "sub": "CPU · disco · red", "badge": "5", "kind": "service", "x": 64, "y": 5, "w": 14, "h": 8,
+      "note": "El exporter de la máquina: CPU, memoria del sistema, discos y red. De aquí sale la alerta del disco del registro y del de Prometheus. Es el que más series pone (≈ 1,000, un supuesto)." },
+    { "id": "prom", "label": "Prometheus", "sub": "scrape 15 s · 90 días", "badge": "6", "kind": "store", "x": 29, "y": 24, "w": 20, "h": 9,
+      "note": "[[prometheus|Prometheus]] 3.16.0 visita cada `/metrics` cada 15 s, guarda cada valor con su hora 90 días (por omisión serían 15) y anota `up = 0` si una pieza no contesta. Cada minuto revisa las reglas de [[alerta|alerta]]. Unos GB de disco en 90 días." },
+    { "id": "grafana", "label": "Grafana", "sub": "el tablero de 8 paneles", "badge": "7", "kind": "monitor", "x": 6, "y": 40, "w": 20, "h": 9,
+      "note": "Dibuja el [[tablero]] con consultas a Prometheus. Licencia AGPL-3.0. Trae prendidos sus reportes de uso, la búsqueda de versiones y las instantáneas externas: en el despacho se apagan." },
+    { "id": "alert", "label": "Alertmanager", "sub": "correo interno", "badge": "8", "kind": "monitor", "x": 52, "y": 40, "w": 20, "h": 9,
+      "note": "Recibe las alertas que se cumplen, las agrupa y las manda por correo al servidor de correo interno (sin receptores de internet). Seis alertas, tres de nivel «ahora»." },
+    { "id": "ti", "label": "El TI", "sub": "2 personas", "badge": "9", "kind": "human", "x": 29, "y": 57, "w": 20, "h": 8,
+      "note": "Dos personas que saben de redes y Windows y nunca operaron una GPU. Miran el tablero cada mañana y reciben el correo con las tres líneas de qué hacer, más la tabla de los cinco sospechosos pegada junto al rack." }
+  ],
+  "edges": [
+    { "from": "dcgm", "to": "prom", "kind": "monitor", "fromSide": "b", "toSide": "l", "via": [[7, 28.5]] },
+    { "from": "vllm", "to": "prom", "kind": "monitor", "fromSide": "b", "toSide": "t", "via": [[23, 20], [35, 20]] },
+    { "from": "litellm", "to": "prom", "kind": "monitor", "label": "scrape 15 s", "fromSide": "b", "toSide": "t" },
+    { "from": "qdrant", "to": "prom", "kind": "monitor", "fromSide": "b", "toSide": "t", "via": [[55, 20], [43, 20]] },
+    { "from": "node", "to": "prom", "kind": "monitor", "fromSide": "b", "toSide": "r", "via": [[71, 28.5]] },
+    { "from": "prom", "to": "grafana", "kind": "neutral", "label": "consultas", "fromSide": "b", "toSide": "r", "via": [[35, 44.5]] },
+    { "from": "prom", "to": "alert", "kind": "neutral", "label": "reglas", "fromSide": "b", "toSide": "l", "via": [[43, 44.5]] },
+    { "from": "grafana", "to": "ti", "kind": "neutral", "label": "cada mañana", "fromSide": "b", "toSide": "l", "via": [[16, 61]] },
+    { "from": "alert", "to": "ti", "kind": "neutral", "label": "correo", "fromSide": "b", "toSide": "r", "via": [[62, 61]] }
+  ],
+  "flows": [
+    {
+      "id": "calor",
+      "label": "Una GPU que se calienta",
+      "steps": [
+        { "nodes": ["dcgm"], "edges": [], "text": "**1 · La GPU publica.** A las 15:10, la L40S 3 marca 4 grados menos de margen que su línea base, y su contador de segundos de [[throttling]] por calor empieza a subir. `dcgm-exporter` lo pone en su `/metrics`." },
+        { "nodes": ["dcgm", "prom"], "edges": ["dcgm>prom"], "text": "**2 · Prometheus lo lee.** Cada 15 s pasa a leer y guarda los valores con su hora. Como el exporter lee la GPU cada 30 s, la mitad de las lecturas repiten el valor anterior: no se pierde nada." },
+        { "nodes": ["prom", "alert"], "edges": ["prom>alert"], "text": "**3 · La regla se cumple.** La alerta 5 pide que los segundos de throttling por calor suban durante 5 minutos. A las 15:16 se cumple y pasa a Alertmanager." },
+        { "nodes": ["alert", "ti"], "edges": ["alert>ti"], "text": "**4 · El correo.** El TI recibe «GPU 3: throttling por calor» con sus tres líneas: revisar el minisplit, la temperatura del sensor del frente del rack, y anotar la hora." },
+        { "nodes": ["grafana", "ti"], "edges": ["grafana>ti", "prom>grafana"], "text": "**5 · El tablero confirma.** En el panel de la GPU, el reloj de la tarjeta 3 bajó y su DRAM activa también, con la misma carga que las otras dos. Es el cuarto, no el modelo." }
+      ]
+    },
+    {
+      "id": "replica",
+      "label": "Una réplica que deja de contestar",
+      "steps": [
+        { "nodes": ["vllm", "prom"], "edges": ["vllm>prom"], "text": "**1 · Nadie contesta.** A las 12:22 la réplica 2 deja de responder. Prometheus intenta leer su `/metrics` y no puede: anota `up = 0` para esa réplica, sin que nadie le avise." },
+        { "nodes": ["prom", "alert"], "edges": ["prom>alert"], "text": "**2 · Dos minutos.** La alerta 4 (menos de 3 réplicas vivas durante 2 minutos) se cumple a las 12:24 y pasa a Alertmanager con nivel «ahora»." },
+        { "nodes": ["alert", "ti"], "edges": ["alert>ti"], "text": "**3 · Antes de la queja.** El TI recibe el correo a las 12:24, seis minutos antes de que un abogado escriba «está lentísimo». Revisa el log, busca un XID con `dmesg` y reinicia la réplica una vez." }
+      ]
+    }
+  ]
+}

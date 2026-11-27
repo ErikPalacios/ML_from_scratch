@@ -600,7 +600,7 @@ Condición: activar el escaneo iterativo (`hnsw.iterative_scan`) para que el fil
 - **[Agentes, tools y guardrails](/agentes/)** usa esta búsqueda como herramienta de un [[agente|agente]], con los permisos de quien pregunta, y explica por qué [[inyeccion-indirecta|un fragmento recuperado es una entrada en la que no se puede confiar]].
 - **[Pruebas de carga y benchmarks honestos](/pruebas-carga/)** mide el TTFT con la búsqueda y el reranker incluidos, que es lo que siente la abogada.
 - **[De requisitos a hardware](/requisitos-hardware/)** es de donde salen el presupuesto de 150 ms y la fila de la hora pico; **[Gateway](/gateway/)**, el nombre `embeddings` que esta lección llena.
-- **«Seguridad: aislamiento, sin internet y actualizaciones»** cierra las puertas de red de Qdrant y de los servidores de modelos, y **«Observabilidad de GPUs e inferencia»** vigila cuánto tarda cada pieza en producción.
+- **«[Seguridad: aislamiento, sin internet y actualizaciones](/seguridad/)»** cierra las puertas de red de Qdrant y de los servidores de modelos, y **«[Observabilidad de GPUs e inferencia](/observabilidad/)»** vigila cuánto tarda cada pieza en producción.
 - En Sensei: [Embeddings](https://sensei.trueml.app/embeddings/) tiene el coseno, HNSW, BM25 y RRF por dentro; [Bases de datos](https://sensei.trueml.app/bases-de-datos/), los índices y el upsert que usa la ingesta; [Autenticación y permisos](https://sensei.trueml.app/identidad/), roles, grupos y por qué un permiso se revisa del lado del servidor.
 
 ## Palabras que vas a oír {Words you'll hear}

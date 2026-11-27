@@ -1,0 +1,273 @@
+{
+  "titulo": "El p95 desde un histograma",
+  "intro": "Aplica \\(r = q × N\\) (el lugar buscado) y \\(p = b_{ant} + (b − b_{ant}) × (r − c_{ant}) ÷ (c − c_{ant})\\) (la interpolación de `histogram_quantile`), con cuatro bordes y sus conteos **acumulados** de una ventana. Arranca con la ventana de 10 minutos de la lección: 125 preguntas con los bordes propios del despacho.",
+  "preajustes": {
+    "label": "Ventana de ejemplo",
+    "inicial": 0,
+    "opciones": [
+      {
+        "label": "La ventana de la lección (bordes propios)",
+        "valores": {
+          "qq": 95,
+          "e1": 1.0,
+          "e2": 1.5,
+          "e3": 2.0,
+          "e4": 2.5,
+          "c1": 3,
+          "c2": 70,
+          "c3": 112,
+          "c4": 121,
+          "n": 125,
+          "obj": 2
+        },
+        "nota": "Los conteos de la cuenta de la lección: el p95 cae en (2.0, 2.5] y sale 2.375 s."
+      },
+      {
+        "label": "Todas en 1.9 s, bordes de fábrica de vLLM 0.34.0",
+        "valores": {
+          "qq": 95,
+          "e1": 0.75,
+          "e2": 1.0,
+          "e3": 2.5,
+          "e4": 5.0,
+          "c1": 0,
+          "c2": 0,
+          "c3": 125,
+          "c4": 125,
+          "n": 125,
+          "obj": 2
+        },
+        "nota": "Las 125 cumplen la promesa, pero sin borde en 2.0 la interpolación da 2.425 s: la alerta se prendería."
+      },
+      {
+        "label": "Todas en 1.9 s, bordes propios",
+        "valores": {
+          "qq": 95,
+          "e1": 1.0,
+          "e2": 1.5,
+          "e3": 2.0,
+          "e4": 2.5,
+          "c1": 0,
+          "c2": 0,
+          "c3": 125,
+          "c4": 125,
+          "n": 125,
+          "obj": 2
+        },
+        "nota": "Con un borde en 2.0, las mismas preguntas dan 1.975 s: cumple."
+      },
+      {
+        "label": "Todas en 2.4 s, bordes propios",
+        "valores": {
+          "qq": 95,
+          "e1": 1.0,
+          "e2": 1.5,
+          "e3": 2.0,
+          "e4": 2.5,
+          "c1": 0,
+          "c2": 0,
+          "c3": 0,
+          "c4": 125,
+          "n": 125,
+          "obj": 2
+        },
+        "nota": "El prefill solo de una L40S: 2.475 s, no cumple, y ahora el histograma sí lo distingue."
+      },
+      {
+        "label": "Más de 5 % arriba del último borde",
+        "valores": {
+          "qq": 95,
+          "e1": 1.0,
+          "e2": 1.5,
+          "e3": 2.0,
+          "e4": 2.5,
+          "c1": 3,
+          "c2": 70,
+          "c3": 100,
+          "c4": 110,
+          "n": 125,
+          "obj": 2
+        },
+        "nota": "El lugar 118.75 cae en +Inf: Prometheus devuelve el último borde, 2.5 s, aunque el p95 verdadero puede ser 10 s."
+      }
+    ]
+  },
+  "entradas": [
+    {
+      "id": "qq",
+      "label": "Percentil, \\(q\\) (95 = el p95)",
+      "min": 50,
+      "max": 99.9,
+      "paso": 0.1,
+      "valor": 95
+    },
+    {
+      "id": "e1",
+      "label": "Borde 1, en s",
+      "min": 0.05,
+      "max": 60,
+      "paso": 0.05,
+      "valor": 1.0,
+      "tipo": "numero"
+    },
+    {
+      "id": "c1",
+      "label": "Conteo acumulado ≤ borde 1",
+      "min": 0,
+      "max": 100000,
+      "paso": 1,
+      "valor": 3,
+      "tipo": "numero"
+    },
+    {
+      "id": "e2",
+      "label": "Borde 2, en s",
+      "min": 0.05,
+      "max": 60,
+      "paso": 0.05,
+      "valor": 1.5,
+      "tipo": "numero"
+    },
+    {
+      "id": "c2",
+      "label": "Conteo acumulado ≤ borde 2",
+      "min": 0,
+      "max": 100000,
+      "paso": 1,
+      "valor": 70,
+      "tipo": "numero"
+    },
+    {
+      "id": "e3",
+      "label": "Borde 3, en s",
+      "min": 0.05,
+      "max": 60,
+      "paso": 0.05,
+      "valor": 2.0,
+      "tipo": "numero"
+    },
+    {
+      "id": "c3",
+      "label": "Conteo acumulado ≤ borde 3",
+      "min": 0,
+      "max": 100000,
+      "paso": 1,
+      "valor": 112,
+      "tipo": "numero"
+    },
+    {
+      "id": "e4",
+      "label": "Borde 4, en s",
+      "min": 0.05,
+      "max": 60,
+      "paso": 0.05,
+      "valor": 2.5,
+      "tipo": "numero"
+    },
+    {
+      "id": "c4",
+      "label": "Conteo acumulado ≤ borde 4",
+      "min": 0,
+      "max": 100000,
+      "paso": 1,
+      "valor": 121,
+      "tipo": "numero"
+    },
+    {
+      "id": "n",
+      "label": "Preguntas en la ventana, \\(N\\) (el bucket +Inf)",
+      "min": 1,
+      "max": 100000,
+      "paso": 1,
+      "valor": 125,
+      "tipo": "numero"
+    },
+    {
+      "id": "obj",
+      "label": "Promesa, en s",
+      "min": 0.1,
+      "max": 30,
+      "paso": 0.1,
+      "valor": 2,
+      "unidad": "s"
+    }
+  ],
+  "calculos": [
+    {
+      "id": "q",
+      "formula": "qq / 100"
+    },
+    {
+      "id": "r",
+      "formula": "q * n"
+    },
+    {
+      "id": "k",
+      "formula": "r <= c1 ? 1 : (r <= c2 ? 2 : (r <= c3 ? 3 : (r <= c4 ? 4 : 5)))"
+    },
+    {
+      "id": "bl",
+      "formula": "k == 1 ? 0 : (k == 2 ? e1 : (k == 3 ? e2 : (k == 4 ? e3 : e4)))"
+    },
+    {
+      "id": "bh",
+      "formula": "k == 1 ? e1 : (k == 2 ? e2 : (k == 3 ? e3 : e4))"
+    },
+    {
+      "id": "cl",
+      "formula": "k == 1 ? 0 : (k == 2 ? c1 : (k == 3 ? c2 : (k == 4 ? c3 : c4)))"
+    },
+    {
+      "id": "ch",
+      "formula": "k == 1 ? c1 : (k == 2 ? c2 : (k == 3 ? c3 : (k == 4 ? c4 : n)))"
+    },
+    {
+      "id": "p",
+      "formula": "k == 5 ? e4 : bl + (bh - bl) * (r - cl) / max(ch - cl, 1e-9)"
+    }
+  ],
+  "salidas": [
+    {
+      "label": "Lugar buscado, \\(r\\)",
+      "formula": "r",
+      "formato": "num",
+      "decimales": 2,
+      "cuenta": "{{q|corto|3}} × {{n|int}} = **{{r|num|2}}**"
+    },
+    {
+      "label": "Bucket donde cae: borde de abajo, \\(b_{ant}\\)",
+      "formula": "bl",
+      "formato": "num",
+      "decimales": 2,
+      "nota": "en s; con el bucket +Inf es el último borde",
+      "cuenta": "primer conteo ≥ {{r|num|2}}: bucket {{k|int}} de 5 (el 5 es +Inf) · de {{bl|corto}} s a {{bh|corto}} s"
+    },
+    {
+      "label": "Ancho de la duda: lo que el histograma no sabe",
+      "formula": "bh - bl",
+      "formato": "num",
+      "decimales": 2,
+      "nota": "en s; el percentil verdadero está en algún lugar de ese bucket (0 si cae en +Inf: ahí no hay techo)",
+      "cuenta": "{{bh|corto}} − {{bl|corto}} = {{bh - bl|num|2}} s"
+    },
+    {
+      "label": "Percentil estimado, \\(p\\)",
+      "formula": "p",
+      "formato": "num",
+      "decimales": 3,
+      "barra": true,
+      "nota": "en s, como lo da histogram_quantile",
+      "cuenta": "{{bl|corto}} + ({{bh|corto}} − {{bl|corto}}) × ({{r|num|2}} − {{cl|int}}) ÷ ({{ch|int}} − {{cl|int}}) = **{{p|num|3}} s**"
+    },
+    {
+      "label": "¿Cumple la promesa?",
+      "formula": "obj - p",
+      "veredicto": {
+        "si": "Sí: el estimado no pasa de la promesa",
+        "no": "No: la alerta se prendería"
+      },
+      "cuenta": "{{obj|corto}} − {{p|num|3}} = {{obj - p|num|3}} s"
+    }
+  ],
+  "nota": "Los conteos son acumulados y deben crecer de un borde al siguiente. Prueba los dos preajustes de «todas en 1.9 s»: las mismas preguntas pasan o reprueban según dónde están los bordes. Y el último: cuando más del 5 % queda arriba del borde mayor, el p95 que reporta Prometheus es ese borde, por grande que sea la cola."
+}

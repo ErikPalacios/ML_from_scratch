@@ -67,7 +67,7 @@ La lección práctica: prohibir sin dar una alternativa casi nunca funciona. Una
 
 ### 5. El costo predecible
 
-Una API cobra por token: si el uso se duplica, la factura se duplica. Un servidor propio cuesta casi lo mismo si se usa poco o mucho. Para una empresa con uso alto y parejo, eso puede salir más barato y, sobre todo, más fácil de presupuestar. En [Qué es la nube](https://sensei.trueml.app/nube/) viste esta decisión como comprar o rentar (CapEx contra OpEx); [[tco|la cuenta completa]], con [[depreciacion|depreciación]] y [[punto-de-equilibrio|punto de equilibrio]], es tema de la lección «TCO: API, nube o servidor propio».
+Una API cobra por token: si el uso se duplica, la factura se duplica. Un servidor propio cuesta casi lo mismo si se usa poco o mucho. Para una empresa con uso alto y parejo, eso puede salir más barato y, sobre todo, más fácil de presupuestar. En [Qué es la nube](https://sensei.trueml.app/nube/) viste esta decisión como comprar o rentar (CapEx contra OpEx); [[tco|la cuenta completa]], con [[depreciacion|depreciación]] y [[punto-de-equilibrio|punto de equilibrio]], es tema de la lección «[TCO: API, nube o servidor propio](/costo-total/)».
 
 ### Cuándo NO conviene
 
@@ -331,7 +331,7 @@ El [[tiempo-de-entrega|tiempo de entrega]] (*lead time*) es lo que pasa entre pe
 No hay una cifra oficial única. Circulan números de muchas semanas para las GPUs más nuevas que ningún fabricante ha confirmado. Lo honesto con un cliente es esto: **pueden ser semanas o meses; pregunta al proveedor y pide la fecha por escrito.** Y planear para eso: si el piloto termina y el equipo no ha llegado, la GPU rentada sigue mientras tanto.
 
 :::nota Lo que viene después
-La compra de verdad tiene más decisiones: workstation o servidor de rack, NVIDIA, AMD o Apple, dónde se pone, cuánta luz y aire acondicionado pide, cómo se importa a México. Son las lecciones «[Comprar hardware: de la workstation al rack](/comprar-hardware/)», «[El cuarto: energía, enfriamiento y red](/el-cuarto/)», «TCO: API, nube o servidor propio» y «Cotizar, proponer y dar soporte».
+La compra de verdad tiene más decisiones: workstation o servidor de rack, NVIDIA, AMD o Apple, dónde se pone, cuánta luz y aire acondicionado pide, cómo se importa a México. Son las lecciones «[Comprar hardware: de la workstation al rack](/comprar-hardware/)», «[El cuarto: energía, enfriamiento y red](/el-cuarto/)», «[TCO: API, nube o servidor propio](/costo-total/)» y «[Cotizar, proponer y dar soporte](/cotizar/)».
 :::
 
 ## Despliegue: el stack en capas {Deployment: the layered stack}
@@ -344,7 +344,7 @@ Las seis capas del despacho, con la lección donde se ve cada una a fondo.
 
 **1 · Hardware.** El servidor con sus GPUs (el candidato de hoy: L40S de 48 GB, 3 según el sizing completo), su CPU, su RAM, su disco y su red. Si el cuarto se calienta o falla la luz, todo lo de arriba se cae. Lecciones: «[Comprar hardware: de la workstation al rack](/comprar-hardware/)» y «[El cuarto: energía, enfriamiento y red](/el-cuarto/)».
 
-**2 · Sistema y drivers.** Linux, el driver de NVIDIA (el programa que deja al sistema operativo hablar con la GPU) y CUDA (la plataforma con que los programas usan la GPU), y casi siempre contenedores: paquetes que llevan un programa con todo lo que necesita, para que corra igual en cualquier máquina. Es la capa más frágil en actualizaciones: basta un driver que no corresponda con la versión de CUDA que espera el servidor de inferencia para que no arranque nada. Para el TI del despacho, que sabe de Windows, es la capa más nueva. Lección: «Seguridad: aislamiento, sin internet y actualizaciones».
+**2 · Sistema y drivers.** Linux, el driver de NVIDIA (el programa que deja al sistema operativo hablar con la GPU) y CUDA (la plataforma con que los programas usan la GPU), y casi siempre contenedores: paquetes que llevan un programa con todo lo que necesita, para que corra igual en cualquier máquina. Es la capa más frágil en actualizaciones: basta un driver que no corresponda con la versión de CUDA que espera el servidor de inferencia para que no arranque nada. Para el TI del despacho, que sabe de Windows, es la capa más nueva. Lección: «[Seguridad: aislamiento, sin internet y actualizaciones](/seguridad/)».
 
 **3 · Servidor de inferencia.** *Inferencia* es usar un modelo ya entrenado para contestar. El servidor de inferencia es el programa que carga el modelo en la GPU y atiende a muchas conversaciones a la vez, [[batch|juntándolas]] para aprovechar la GPU. Es el corazón técnico: decide cuántas caben y qué tan rápido va cada una. Lecciones: «[Batching continuo y PagedAttention](/batching/)» y «[Del laptop al servidor: llama.cpp, Ollama, vLLM, SGLang y TensorRT-LLM](/stack-serving/)».
 
@@ -352,7 +352,7 @@ Las seis capas del despacho, con la lección donde se ve cada una a fondo.
 
 **5 · La aplicación con [[rag|RAG]].** Lo que el abogado usa: busca en los 30,000 expedientes los fragmentos que hablan de su pregunta, se los pasa al modelo y muestra la respuesta con su cita. Aquí se gana o se pierde la calidad: si la búsqueda no encuentra la página correcta, el mejor modelo del mundo no la puede citar. Lección: «[RAG privado: embeddings y vector DB locales](/rag-privado/)».
 
-**6 · Usuarios.** 200 abogados y asistentes, con su cuenta del despacho y sus permisos. Ojo con esto: no todos pueden ver todos los expedientes. Si la búsqueda no respeta los permisos, el sistema le enseña a un asistente un expediente que no le toca. Lección: «Seguridad: aislamiento, sin internet y actualizaciones».
+**6 · Usuarios.** 200 abogados y asistentes, con su cuenta del despacho y sus permisos. Ojo con esto: no todos pueden ver todos los expedientes. Si la búsqueda no respeta los permisos, el sistema le enseña a un asistente un expediente que no le toca. Lección: «Seguridad: aislamiento, sin internet y actualizaciones» para la red y los accesos, y «[RAG privado](/rag-privado/)» para los permisos dentro de la búsqueda.
 
 :::analogia Un edificio de oficinas
 Cimientos (hardware), estructura e instalaciones (sistema y drivers), el elevador que mueve a todos (servidor de inferencia), la recepción que pide gafete (API y gateway), las oficinas donde se trabaja (la aplicación) y la gente con su gafete (usuarios).
@@ -391,9 +391,9 @@ Las dos pruebas se hacen **en el hardware de verdad**, o en uno igual. Una prueb
 
 El día 1 se instala. El [[operacion|día 2]] son todos los demás, y suele costar más horas que la instalación. La operación responde: ¿cómo sigue funcionando mañana, el mes que entra y dentro de un año?
 
-**Monitoreo.** Medir todo el tiempo lo que el criterio promete: [[ttft|tiempo al primer token]], velocidad, errores, cuántas conversaciones hay a la vez, memoria y temperatura de la GPU. Y algo que la máquina no mide sola: si las respuestas siguen siendo buenas (por ejemplo, un botón de «esta cita está mal» que los abogados aprieten). Lección: «Observabilidad de GPUs e inferencia».
+**Monitoreo.** Medir todo el tiempo lo que el criterio promete: [[ttft|tiempo al primer token]], velocidad, errores, cuántas conversaciones hay a la vez, memoria y temperatura de la GPU. Y algo que la máquina no mide sola: si las respuestas siguen siendo buenas (por ejemplo, un botón de «esta cita está mal» que los abogados aprieten). Lección: «[Observabilidad de GPUs e inferencia](/observabilidad/)».
 
-**Actualizaciones.** Del modelo (sale Qwen nuevo), del servidor de inferencia (versión nueva, a veces con valores por omisión distintos), de los drivers y del sistema. Cada una se prueba primero contra el examen de 200 preguntas y la [[prueba-de-carga|prueba de carga]]: esa es la flecha de regreso a evals del diagrama. Lección: «Seguridad: aislamiento, sin internet y actualizaciones».
+**Actualizaciones.** Del modelo (sale Qwen nuevo), del servidor de inferencia (versión nueva, a veces con valores por omisión distintos), de los drivers y del sistema. Cada una se prueba primero contra el examen de 200 preguntas y la [[prueba-de-carga|prueba de carga]]: esa es la flecha de regreso a evals del diagrama. Lección: «[Seguridad: aislamiento, sin internet y actualizaciones](/seguridad/)».
 
 **Respaldos.** De lo que costaría rehacer: el índice de búsqueda de los expedientes, la configuración del servidor, el archivo exacto del modelo que pasó el examen (con su huella, un código corto que cambia si cambia un solo byte del archivo, para saber que es el mismo), el examen y los registros de quién preguntó qué, que en un despacho pueden importar.
 
@@ -401,7 +401,7 @@ El día 1 se instala. El [[operacion|día 2]] son todos los demás, y suele cost
 
 - **Un manual** con los casos comunes: el servidor no arranca, la GPU se llenó, todo va lento. Paso por paso, para alguien que no es experto.
 - **Capacitación** antes de entregar, no después del primer incidente.
-- **Alguien a quién llamar**: un contrato de soporte con quien instaló, con tiempos de respuesta por escrito. Cómo se cotiza y se promete eso es la lección «Cotizar, proponer y dar soporte».
+- **Alguien a quién llamar**: un contrato de soporte con quien instaló, con tiempos de respuesta por escrito. Cómo se cotiza y se promete eso es la lección «[Cotizar, proponer y dar soporte](/cotizar/)».
 
 ¿Y qué pasa mientras está caído? Que los abogados trabajen como antes de tener el sistema. Lo que no puede pasar es que, por la prisa, regresen a pegar contratos en un chatbot público: el plan de operación debe decirlo.
 
@@ -588,8 +588,8 @@ Las lecciones de esta app, en orden, y qué toma cada una de esta:
 - **«[Del laptop al servidor](/stack-serving/)»** y **«[Gateway, API compatible con OpenAI, autenticación y varios modelos](/gateway/)»**: las capas 3 y 4 del despliegue.
 - **«[RAG privado: embeddings y vector DB locales](/rag-privado/)»** y **«[Agentes, tools y guardrails](/agentes/)»**: la capa 5, donde se gana la calidad.
 - **«[Demostrar que el modelo abierto sirve](/evals/)»** y **«[Pruebas de carga y benchmarks honestos](/pruebas-carga/)»**: las dos mitades de las evals.
-- **«Observabilidad de GPUs e inferencia»** y **«Seguridad: aislamiento, sin internet y actualizaciones»**: el día 2.
-- **«TCO: API, nube o servidor propio»** y **«Cotizar, proponer y dar soporte»**: el costo de verdad y cómo se vende.
+- **«[Observabilidad de GPUs e inferencia](/observabilidad/)»** y **«[Seguridad: aislamiento, sin internet y actualizaciones](/seguridad/)»**: el día 2.
+- **«[TCO: API, nube o servidor propio](/costo-total/)»** y **«[Cotizar, proponer y dar soporte](/cotizar/)»**: el costo de verdad y cómo se vende.
 
 Las herramientas que acompañan el recorrido: [¿Cabe en la GPU?](/herramientas/vram/), [Qué tan rápido contesta](/herramientas/velocidad/), [Cuántas GPUs hacen falta](/herramientas/sizing/), [API, nube o servidor propio](/herramientas/tco/) y el [Catálogo de hardware](/herramientas/catalogo/) ya están listas.
 

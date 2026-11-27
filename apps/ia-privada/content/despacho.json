@@ -206,7 +206,7 @@
       "id": "compra",
       "dato": "Compra, decisión de la lección",
       "valor": "servidor de rack 2U o 4U, certificado por NVIDIA y armado por un integrador, con al menos 4 ranuras PCIe de doble ancho; cotizar dos configuraciones: 3 × L40S (US$67,191.30 en el configurador de Exxact, 2026-11-25, con la cuarta ranura libre) y 2 × RTX PRO 6000 Blackwell Server Edition; el piloto decide",
-      "nota": "Lección «Comprar hardware: de la workstation al rack». No cambia el hecho «sizing» (3 × L40S; 4 para las 8 de diseño): agrega una segunda cotización. Con la herramienta de sizing la Server Edition (1,597 GB/s, ≈ 500 TFLOPS en FP16 denso, derivado) da ≈ 6 conversaciones por tarjeta y TTFT ≈ 1.7 s, que cumple el objetivo de 2 s que la L40S no cumple; es una cuenta, no una medición con el modelo del despacho. El precio de la Server Edition no está publicado (el de US$16,399 en gpus.json es de la Workstation): se cotiza. Supuesto: la Server Edition a 600 W tiene las cifras de la Workstation (no verificado). Con 4 L40S el servidor sale en US$76,101.30."
+      "nota": "Lección «Comprar hardware: de la workstation al rack». No cambia el hecho «sizing» (3 × L40S; 4 para las 8 de diseño): agrega una segunda cotización. Con la herramienta de sizing la Server Edition (1,597 GB/s, ≈ 500 TFLOPS en FP16 denso, derivado) da ≈ 6 conversaciones por tarjeta y TTFT ≈ 1.7 s, que cumple el objetivo de 2 s que la L40S no cumple; es una cuenta, no una medición con el modelo del despacho. La Server Edition no tiene precio de lista (el de US$16,399 en gpus.json es de la Workstation): se cotiza; tiendas de EE. UU. anuncian la tarjeta suelta en ≈ US$12–14 mil (fuente secundaria, 2026-11-26). Supuesto: la Server Edition a 600 W tiene las cifras de la Workstation (no verificado). Con 4 L40S el servidor sale en US$76,101.30."
     },
     {
       "id": "cuarto_ti",
@@ -229,7 +229,7 @@
     {
       "id": "costo_luz",
       "dato": "Costo de la luz del servidor",
-      "valor": "≈ $4,825 al mes (≈ $4,800 antes de IVA, sin el cargo fijo), ≈ 7 centavos por pregunta",
+      "valor": "≈ $4,825 al mes, antes de IVA y sin el cargo fijo (energía ≈ $3,045 + demanda ≈ $1,780), ≈ 7 centavos por pregunta",
       "nota": "Cuenta de la lección «El cuarto»: 22 días hábiles al mes (supuesto) = 220 horas de uso (10 h × 22) y 510 de reposo; energía del servidor ≈ 784 kWh; PUE del cuarto = 2.0 (supuesto, informe del Laboratorio Nacional Lawrence Berkeley de 2016 para un clóset de servidores) → ≈ 1,568 kWh; energía ≈ $3,045 + demanda ≈ $1,780 (1.64 kW × 2.0 × $542.70). 3,000 preguntas al día × 22 = 66,000 al mes. Con PDBT serían ≈ $5,591. La demanda se aproxima con el consumo del servidor y su aire en horas de oficina; el recibo real depende de toda la oficina."
     },
     {
@@ -261,7 +261,7 @@
       "id": "n_mas_1",
       "dato": "Repuesto (N+1)",
       "valor": "4 L40S; con la alternativa, 2 RTX PRO 6000 Server Edition",
-      "nota": "Con 4 L40S, si una falla, las 3 que quedan dan 3 × 2 = 6 ≥ 5.7. Con 2 Server Edition, una sola atiende el promedio (≈ 6 conversaciones por tarjeta)."
+      "nota": "Con 4 L40S, si una falla, las 3 que quedan dan 3 × 2 = 6 ≥ 5.7. Con 2 Server Edition, una sola atiende el promedio (≈ 6 conversaciones por tarjeta). Con 2 Server Edition, una sola atiende el promedio y no el pico: es N+1 del promedio (≈ 6 lugares contra ≈ 5.7), «en el filo», con toda la fila de prefill en una GPU; su TTFT con una sola tarjeta no se ha medido."
     },
     {
       "id": "paralelismo",
@@ -279,7 +279,7 @@
       "id": "prototipo",
       "dato": "Prototipo del equipo de TI",
       "valor": "el TI probó qwen3:32b en Ollama en una laptop; contestó bien a una persona",
-      "nota": "No da números de hardware de la laptop. Muestra que el modelo entiende los contratos, no que el servidor aguante a 200 personas ni la calidad del AWQ que se va a servir (lección «Del laptop al servidor»)."
+      "nota": "No da números de hardware de la laptop. Muestra que el modelo entiende los contratos, no que el servidor aguante a 200 personas ni la calidad del AWQ que se va a servir (lección «Del laptop al servidor»). Al terminar el piloto, el TI apaga y desinstala Ollama de la laptop (la base de NIST registró 42 CVEs que mencionan Ollama entre 2025 y noviembre de 2026, conteo por palabra clave)."
     },
     {
       "id": "motor",
@@ -323,7 +323,7 @@
       "id": "retencion_registro",
       "dato": "Retención del registro del gateway",
       "valor": "90 días, una fila por pregunta sin el texto",
-      "nota": "Decisión del despacho, no un plazo legal."
+      "nota": "Decisión del despacho, no un plazo legal. Son 270,000 filas en 90 días (3,000 preguntas × 90), ≈ 276 MB a 1 KB por fila (supuesto de la lección «Observabilidad de GPUs e inferencia»)."
     },
     {
       "id": "modelos_gateway",
@@ -444,6 +444,147 @@
       "dato": "Criterio de velocidad",
       "valor": "pasa si TTFT p95 ≤ 2 s en la abierta a 0.21/s y TPOT p95 ≤ 50 ms con 8 a la vez, sin 5xx ni 429 y con la tasa pedida; cada percentil con su intervalo y sus peticiones",
       "nota": "Con el dataset de ± 30 % y las instrucciones en el cache, el goodput esperado de 3 L40S a ttft:2000 tpot:50 es ≈ 0.06/s (≈ 29 % de las 0.21), no 0 (con largos fijos sí daría 0): la L40S no cumple, como dice la ficha."
+    },
+    {
+      "id": "observabilidad_stack",
+      "dato": "Observabilidad: piezas y versiones",
+      "valor": "Prometheus 3.16.0 (scrape cada 15 s, retención 90 días, job «vllm-chat», en la zona de gestión); dcgm-exporter 4.9.0 (DCGM 4.7.0, puerto 9400, lee cada 30 s) con SM activo, margen de temperatura y throttling prendidos y, opcional, DCGM_EXP_XID_ERRORS_TOTAL; node_exporter 1.13.1; Grafana 13.3.2 con reporting_enabled, check_for_updates, check_for_plugin_updates y las instantáneas externas apagados; Alertmanager 0.35.1 por el correo de Microsoft 365; vLLM con --custom-histogram-buckets '{\"time_to_first_token\": [0.25, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 7.5, 10.0, 20.0, 40.0]}'; LiteLLM con callbacks [\"prometheus\"], una clave propia para Prometheus y prometheus_exclude_labels para quitar las etiquetas de persona; Qdrant con telemetry_disabled: true; trazas de vLLM (--otlp-traces-endpoint) a un OpenTelemetry Collector 0.166.0 local, sin atributos de contenido",
+      "nota": "Versiones de noviembre de 2026 de la lección «Observabilidad de GPUs e inferencia». Prometheus va en gestión, en otra máquina, como reparte «Seguridad» (no «en el mismo servidor»). El tablero y las alertas no reciben texto de preguntas. Sin Langfuse ni Phoenix. Los valores de DCGM con Qwen3 32B en una L40S no están publicados: se miden en la prueba de carga del piloto."
+    },
+    {
+      "id": "tablero",
+      "dato": "Tablero",
+      "valor": "8 paneles: 1) preguntas por minuto y errores (pico ≈ 12.5 por minuto = 750 ÷ 60); 2) TTFT p95 con línea en 2 s; 3) latencia entre tokens p95 con línea en 50 ms; 4) conversaciones en curso por réplica con líneas en 2 y 8, y la fila; 5) KV cache y preemptions; 6) la GPU por tarjeta (potencia, temperatura, reloj, DRAM activa y SM activo); 7) la búsqueda (Qdrant y reranker, línea en 150 ms); 8) réplicas vivas y disco",
+      "nota": "Orden de la pregunta «¿está bien?»: arriba lo que siente el abogado, en medio lo que hace el motor, abajo lo que lo explica. El TI lo mira cada mañana; la línea del panel 2 es el objetivo firmado, no «2 s» de memoria."
+    },
+    {
+      "id": "alertas",
+      "dato": "Alertas",
+      "valor": "6 (nivel «ahora» o «mañana»): 1) TTFT p95 de 10 min arriba del objetivo firmado y ≥ 0.05 preguntas/s, for 10 min con keep_firing_for 10 min, mañana; 2) sum(vllm:num_requests_waiting) > 0, 2 min, ahora; 3) preemptions en 10 min > 0 o KV cache > 0.9, 5 min, mañana; 4) sum(up{job=\"vllm-chat\"}) < 3 (< 4 con la cuarta L40S), 2 min, ahora; 5) margen de temperatura bajando, throttling por calor o XID nuevo, 5 min (el XID sin espera), ahora y también de noche; 6) disco con menos de 20 % libre, 15 min, mañana",
+      "nota": "Cada una con su runbook de tres líneas en la lección. Con L40S la 1 estaría prendida en cada hora pico (el prefill solo es 2.38 s): el umbral es el objetivo que el piloto firme, y con Server Edition es 2 s. Propuesta del fondo que la lección no trae: un correo diario de «sigo vivo» (una alerta siempre prendida) para saber que Prometheus o Alertmanager no se cayeron. Para el SLA de «Cotizar», «caído» se mide con una pregunta de prueba por el gateway cada minuto, que se suma a este tablero; no está entre los 8 paneles."
+    },
+    {
+      "id": "disco_prometheus",
+      "dato": "Disco de Prometheus",
+      "valor": "≈ 3,303 series en 90 días a 15 s (2,943 sin LiteLLM + 6 histogramas × 20 series × 3 modelos) = 1.7 a 3.4 GB, a 1–2 bytes por muestra; volumen propuesto de 50 GB para la observabilidad",
+      "unidad": "series",
+      "nota": "Escenario por omisión de la lección. Si LiteLLM llevara una etiqueta por persona (200) serían 26,943 series y 14.0 a 27.9 GB: por eso se quitan de antemano. Cada histograma de LiteLLM son 20 series (17 bordes finitos + +Inf, _sum y _count). El WAL se comprime por omisión y el disco rebasa un rato la cuenta."
+    },
+    {
+      "id": "calidad_produccion",
+      "dato": "Calidad en producción",
+      "valor": "contadores propios respuestas_sin_evidencia_total y citas_invalidas_total ÷ citas_total (etiqueta solo el modelo); conteo diario de pulgares abajo de Open WebUI sin leer el comentario; finished_reason=\"length\" y fallbacks a chat-chico; muestra semanal de 30 respuestas revisadas por un abogado (± 17.9 puntos al 95 % en el peor caso)",
+      "nota": "Detecta derrumbes, no bajas de 5 puntos. La tasa normal de aciertos del cache de prefijos se mide en el piloto (depende de las repreguntas). El permiso para revisar respuestas lo decide el despacho (privacidad). Ni trazas, ni métricas, ni registro, ni comentarios llevan el texto de una pregunta."
+    },
+    {
+      "id": "zonas_red",
+      "dato": "Zonas de red",
+      "valor": "cinco: oficina (laptops: solo Open WebUI, 443); servicio (otra máquina, de CPU o una VM: Open WebUI, LiteLLM :4000, la búsqueda, el servidor MCP del agente y la máquina del examen); modelos (el servidor de GPUs: 3 vLLM, embeddings :8001, reranker y Qdrant :6333, en una VLAN sin puerta de enlace, con los puertos publicados en la IP de la zona); gestión (BMC, administración por VPN, Prometheus, registro local registry:3 y Tang); puente (VLAN con internet que solo empuja imágenes verificadas al registro, 443). Todo lo demás, negado y registrado; en el piloto, la salida en «negar y registrar»",
+      "nota": "Diseño de la lección «Seguridad: aislamiento, sin internet y actualizaciones»; requiere una máquina más (CPU o VM) para la zona de servicio, a cotizar. La ficha no decía dónde corren el gateway y Open WebUI: corren ahí."
+    },
+    {
+      "id": "salidas_internet",
+      "dato": "Lo que puede salir a internet",
+      "valor": "dos salidas, las dos a Microsoft: Open WebUI → login.microsoftonline.com (y graph.microsoft.com si pide foto o grupos), 443; Alertmanager (gestión) → el correo de Microsoft 365, 587 con SMTP AUTH o, si no, un conector por IP en el 25. El servidor de modelos no tiene ruta a internet",
+      "nota": "Dicho así, y no «air-gapped»: lo que puede prometer el despacho es que el servidor que lee los expedientes no tiene ninguna ruta a internet. Microsoft anunció que a fines de diciembre de 2026 apaga SMTP AUTH por omisión en Exchange Online (se puede volver a prender; la fecha final la dará en 2027): el TI confirma qué método usar. Qué más intenta salir lo mide el registro del firewall en el piloto; al final solo debe mostrar a Microsoft."
+    },
+    {
+      "id": "actualizaciones",
+      "dato": "Ciclo de actualizaciones",
+      "valor": "mensual: inventario → boletines → evaluar (¿lo tengo?, ¿es alcanzable?, ¿está explotado?) → la puente, con 3 días de espera, firma, escaneo y SBOM → staging → gate de evals y prueba de humo → ventana, una réplica a la vez → regreso al digest anterior si falla. Urgente (grave, alcanzable y explotado): mitigar en minutos y parchar el mismo día, sin la espera",
+      "nota": "El staging es la cuarta L40S, si se compró, o una de las tres réplicas sacada de la rotación fuera de la hora pico; no la GPU rentada del piloto, que ya se devolvió. Todo se fija por digest o hash. En 180 días (al 2026-11-26): vLLM 14 versiones estables, Open WebUI 21, Qdrant 8, el NVIDIA Container Toolkit 3 y LiteLLM 27 menores."
+    },
+    {
+      "id": "ventana_mantenimiento",
+      "dato": "Ventana de mantenimiento",
+      "valor": "con 3 L40S, una réplica fuera sostiene ≈ 533 preguntas/h: no alcanza en la hora pico (750), sí en una hora normal (≈ 250), así que se parcha fuera de la hora pico o de noche; con 4 L40S, una fuera deja 800 preguntas/h y se parcha a cualquier hora. Un aviso a las 16:00 del viernes queda instalado a las 20:30 (≈ 4.5 h)",
+      "nota": "533 = 4 lugares × 3,600 ÷ 27 s; 800 = 3 réplicas × 2 lugares × 3,600 ÷ 27. Los 15 min por réplica y los tiempos por paso son supuestos del ejemplo; el piloto los mide, y también cómo se saca una réplica de la rotación en LiteLLM 1.111.0. Con 2 Server Edition, durante la ventana no hay repuesto. «Cotizar» excluye del SLA el mantenimiento avisado fuera de horario."
+    },
+    {
+      "id": "inventario_versiones",
+      "dato": "Inventario de versiones (seguridad)",
+      "valor": "NVIDIA Container Toolkit 1.20.2; Open WebUI 0.13.5 con la imagen completa (1.65 GB), no la -slim (0.20 GB), construida en la puente con UID/GID distinto de 0; Qdrant 1.20.2; registro local distribution 3.1.2 (registry:3; Harbor 2.16.0 es la opción con interfaz); cryptsetup 2.8.9 de origen y 2.8.4 la de Ubuntu 26.04; Clevis 20 y Tang 15 de Ubuntu 26.04 (universe)",
+      "nota": "De la lección «Seguridad». Del fondo, no escrito en la lección: la imagen de vLLM 0.34.0 lleva CUDA 13.0.3, que pide un driver de NVIDIA ≥ 580 (el repositorio de Ubuntu 26.04 trae las ramas 595 a 620); la rama que NVIDIA recomienda para la L40S no se verificó."
+    },
+    {
+      "id": "variables_offline",
+      "dato": "Variables para trabajar sin internet",
+      "valor": "vLLM VLLM_NO_USAGE_STATS=1 o DO_NOT_TRACK=1; Hugging Face HF_HUB_OFFLINE=1 y HF_HUB_DISABLE_TELEMETRY=1; LiteLLM LITELLM_OFFLINE_MODE=true, LITELLM_LOCAL_MODEL_COST_MAP=True y LITELLM_TELEMETRY_DISABLED=True; Open WebUI OFFLINE_MODE=true; Qdrant telemetry_disabled: true; herramientas del examen RAGAS_DO_NOT_TRACK, DEEPEVAL_TELEMETRY_OPT_OUT y PROMPTFOO_DISABLE_TELEMETRY",
+      "nota": "Noviembre de 2026. Qué manda LiteLLM por omisión y el valor «True» de su variable no están verificados; siempre hay una llamada que nadie documentó, por eso la prueba es el firewall en «negar y registrar»."
+    },
+    {
+      "id": "horas_ti_seguridad",
+      "dato": "Horas de TI de seguridad",
+      "valor": "≈ 16 h/mes entre las 2 personas de TI (≈ 8 cada una): ≈ 14.1 h ordinarias + ≈ 2 h de urgencias",
+      "unidad": "h/mes",
+      "nota": "Supuesto de partida: los tiempos por ciclo de cada pieza son supuestos y el piloto los mide. Es el número que la lección «TCO» suma a las 52 h al mes de operar."
+    },
+    {
+      "id": "cifrado_disco",
+      "dato": "Cifrado de discos",
+      "valor": "LUKS en los discos de datos, con desbloqueo de Clevis contra Tang en la zona de gestión (otra máquina, fuera del rack) y una frase de respaldo en un sobre cerrado que guarda un socio",
+      "nota": "Decisión de la lección. Un disco devuelto por garantía o un servidor robado no abren fuera del despacho. Que Clevis y Tang funcionen con el instalador de cifrado de Ubuntu 26.04 no se verificó. En colocation, Tang va al otro lado del enlace y, si el enlace cae, el servidor que reinicie espera."
+    },
+    {
+      "id": "respaldos",
+      "dato": "Respaldos",
+      "valor": "configuración, base de LiteLLM (PostgreSQL), base de Open WebUI (SQLite, con los chats), snapshots de Qdrant y el texto leído de los expedientes (≈ 4.8 GB = 1,207.5 M de tokens × 4 bytes); pesos e imágenes se traen de la puente; una copia fuera del cuarto, cifrada, con la restauración probada",
+      "nota": "Con el texto, solo se rehacen los embeddings (≈ 1.8–4.3 h, una noche); sin él, hay que volver a leer 1.5 M de páginas (de ≈ 7 h a ≈ 14 noches). El respaldo de Open WebUI es otra copia del secreto profesional: se cifra y se borra con la misma regla. Los 4 bytes por token son el supuesto de «El cuarto»."
+    },
+    {
+      "id": "costo_total",
+      "dato": "Costo total (3 años)",
+      "valor": "propio con 3 L40S ≈ US$2,746 al mes (≈ MXN 54,153) sin lo de decidir; TCO de 36 meses ≈ US$117,161 (≈ MXN 2.31 M) con US$18,302 de decidir (examen ≈ 16,700 + piloto ≈ 1,099 + prueba de carga ≈ 504); con 4 L40S ≈ US$2,944 al mes y US$124,289 (≈ MXN 2.45 M)",
+      "nota": "Tipo de cambio de 19.7203 pesos por dólar (el FIX del 2026-11-26). Supuestos: depreciación lineal de 36 meses con 20 % de reventa, UPS de US$9,000 (precios vistos de 8,428 a 9,684, secundaria), obra y aire de MXN 130,000 (2 circuitos ≈ 60,000 + 2 minisplits ≈ 70,000), luz de «El cuarto» con PUE 2.0, 52 h de TI al mes. La compra es el precio de Exxact en EE. UU., sin impuestos, flete ni importación (los cuenta «Cotizar»). La Server Edition (2 tarjetas) sería ≈ US$2,778 al mes (hipótesis: sin precio de lista)."
+    },
+    {
+      "id": "costo_ti",
+      "dato": "Costo de las horas de TI",
+      "valor": "52 h/mes a MXN 218.1 la hora (28,000 × 1.35 ÷ 173.3) ≈ MXN 11,341 al mes (≈ US$575); con la renta, 40 h ≈ MXN 8,724; con la API, 8 h ≈ MXN 1,745",
+      "nota": "Supuestos: el sueldo de MXN 28,000, el factor de 1.35 y las 52 h (12 a la semana: ≈ 4 de vigilar, 4 de actualizar, que son las ≈ 16 al mes de seguridad, 3 de fallas y guardias y 1 de respaldos). La semana de 40 h es un supuesto de oficina: la reforma a la LFT de mayo de 2026 deja 46 h en 2027 (la hora saldría ≈ 13 % más barata). Contratar a alguien de tiempo completo subiría el propio de ≈ US$2,746 a ≈ US$4,088 al mes."
+    },
+    {
+      "id": "costo_pregunta",
+      "dato": "Costo por pregunta",
+      "valor": "≈ MXN 0.82 con 3 L40S (54,153 ÷ 66,000 preguntas al mes) y ≈ 0.88 con 4; lleno en horario (≈ 190,080 preguntas al mes) ≈ 0.28; la API del mismo modelo, ≈ 67 veces menos; por pregunta que cumple, ≈ MXN 2.87 (cota pesimista)",
+      "unidad": "MXN por pregunta",
+      "nota": "Solo la luz del propio son ≈ 7 centavos por pregunta. Los 2.87 salen de 0.82 ÷ (0.06 ÷ 0.21), con el goodput ilustrativo de la lección «Pruebas de carga»; fuera de la hora pico cumplen más. El número que va a la propuesta sale de la prueba medida del piloto, no de esta cuenta."
+    },
+    {
+      "id": "equilibrios",
+      "dato": "Puntos de equilibrio",
+      "valor": "contra Qwen3 32B por API, nunca (haría falta ≈ 67 veces el uso, ≈ 4.4 millones de preguntas al mes); contra Kimi K3 en México (≈ US$1,851 al mes), ≈ 98 mil preguntas al mes; contra Claude Sonnet 5.5 (US$1,122 al mes), ≈ 161.5 mil; contra rentar 3 L40S 24/7 (US$2,830 con TI), el mes 42 sin descontar y el 51 a una tasa de 10 %",
+      "nota": "El servidor de 3 L40S atiende ≈ 190 mil preguntas al mes en horario, así que el cruce con Sonnet queda apenas antes de que haga falta otro servidor. Kimi K3 (licencia y calidad) y la capacidad y cuota de Azure H200 no están verificadas. Con 41.2 meses el cruce contra la renta cae después de la vida contable de 36 meses."
+    },
+    {
+      "id": "precio_piloto",
+      "dato": "Precio del piloto",
+      "valor": "≈ US$27,600 + IVA en tres pagos por hito, 30 / 40 / 30 (US$8,280, 11,040 y 8,280): 266 h × $1,747.41 × 1.15; la GPU rentada va aparte, a costo (≈ US$327 a 1,876 según dónde y cuántas horas)",
+      "nota": "Supuestos: sueldo de $90,000 al mes, cargas del patrón 25 %, 65 % de horas facturables, margen 40 % sobre el precio y colchón de riesgo 15 %. Tipo de cambio de 19.3668 (el de Banxico para pagos del 2026-11-26). Las ≈ 167 h de los abogados del examen son del despacho y no están en el precio."
+    },
+    {
+      "id": "iguala",
+      "dato": "Iguala de soporte",
+      "valor": "24 h al mes ≈ $41,938 ≈ US$2,165 + IVA (≈ US$25,985 al año, el 38.7 % del servidor de la opción A; ≈ $0.64 por pregunta a 66,000 al mes); aviso de 30 a 90 días para terminarla",
+      "nota": "La hora es $1,747.41. No incluye visitas: un viaje ≈ $36,859 (vuelo $4,500, dos noches $3,600, traslados $800 y 16 h; supuestos). Con garantía de piezas de 3 años, al cuarto cada falla se paga completa (ejemplo, no dato de Exxact)."
+    },
+    {
+      "id": "sla",
+      "dato": "SLA del soporte",
+      "valor": "99 % en horario hábil (9:00 a 19:00, 22 días = 13,200 min; presupuesto de 132 min al mes); severidad 1: respuesta en 1 h hábil y servicio de vuelta en 2 h hábiles; severidad 2: 4 h y el siguiente día hábil; severidad 3: el siguiente día hábil y 5 días; severidad 4: 2 días y la ventana mensual; créditos de 10 % de la iguala (por debajo de 99 % y hasta 98 %) y de 25 % (por debajo de 98 %), con tope de 25 %; excluye luz, aire y red del edificio, mantenimiento avisado fuera de horario, el hardware mientras el fabricante repone y acciones del cliente",
+      "nota": "Todo criterio de la lección, no dato de mercado. «Caído»: un minuto del horario en que la pregunta de prueba, cada minuto por el gateway, no recibe respuesta. «Degradado»: el TTFT p95 de 10 min pasa el umbral que midió el piloto (el 3.4 s de la lección es un ejemplo; con la opción A no puede ser 2 s). El tiempo de solución se detiene mientras el cliente no abre el acceso (el servidor no tiene ruta a internet). Tablero y alertas de «Observabilidad»."
+    },
+    {
+      "id": "importacion",
+      "dato": "Costo de importar",
+      "valor": "si se importa, el importador es el despacho: servidor de la opción A puesto en México con IVA ≈ $1,612,782 y sin IVA ≈ $1,394,054 (≈ US$71,982, +7.1 %); IVA de importación ≈ $218,729, que se acredita; con origen T-MEC el DTA baja a $461.61 (≈ $10,388 menos); opción B ≈ $1,815,560 con IVA y $1,568,862 sin IVA (+6.4 %)",
+      "nota": "Supuestos: flete US$2,500, seguro 0.5 %, agente aduanal $12,000, maniobras $15,000, arancel 0 % (partida 8471.50.01, a confirmar con el agente), DTA 0.8 % del valor en aduana, tipo de cambio de 19.3668; al FIX de 19.7203 sube ≈ $25 mil sin IVA. Los ≈ $219 mil de IVA hay que pagarlos en la aduana antes de acreditarlos."
+    },
+    {
+      "id": "vigencia_cotizacion",
+      "dato": "Vigencia de la cotización",
+      "valor": "10 días naturales, por el tipo de cambio; si el FIX del día del pago se mueve más de 3 % del de la cotización, el precio se actualiza",
+      "nota": "Del 20 al 26 de noviembre de 2026 el FIX pasó de 19.0228 a 19.7203 (≈ 3.67 %): sobre el servidor, ≈ $47 mil. La regla del 3 % es una propuesta de redacción de la lección."
     }
   ]
 }

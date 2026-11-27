@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 430" role="img" aria-labelledby="f-costo-total-curvas-t" class="f-svg" style="max-width:420px">
+<title id="f-costo-total-curvas-t">Costo al mes de cada opción, en dólares de 0 a 5,000, contra las preguntas al mes, de 0 a 250 mil, con las preguntas del despacho (6,000 tokens de entrada y 500 de salida). El servidor propio con 3 L40S es una línea plana de ≈ US$2,746 hasta su capacidad en horario, ≈ 190 mil preguntas al mes; la renta de las mismas 3 L40S prendidas todo el mes es otra línea plana casi encima, ≈ US$2,830. Las APIs son rectas que salen de cero: Kimi K3 en la región de México de Bedrock cruza al propio en ≈ 98 mil preguntas al mes; Claude Sonnet 5.5 lo cruza en ≈ 161.5 mil; Qwen3 32B por API, el mismo modelo del despacho, apenas se separa del piso: US$41 al mes con las 66 mil preguntas del despacho, y no cruza dentro de la gráfica. El despacho está en 66 mil, a la izquierda de los dos cruces.</title>
+<rect class="f-card" x="10" y="10" width="340" height="410" rx="16"/>
+<text class="f-l" x="26" y="36">COSTO AL MES CONTRA USO</text>
+<text class="f-l" x="26" y="54">US$ AL MES · PRECIOS DE NOV-2026</text>
+<line x1="56" y1="280" x2="340" y2="280" style="stroke:var(--tm-line);stroke-width:1"/>
+<line x1="56" y1="236" x2="340" y2="236" style="stroke:var(--tm-line);stroke-width:1"/>
+<line x1="56" y1="192" x2="340" y2="192" style="stroke:var(--tm-line);stroke-width:1"/>
+<line x1="56" y1="148" x2="340" y2="148" style="stroke:var(--tm-line);stroke-width:1"/>
+<line x1="56" y1="104" x2="340" y2="104" style="stroke:var(--tm-line);stroke-width:1"/>
+<line x1="56" y1="60" x2="340" y2="60" style="stroke:var(--tm-line);stroke-width:1"/>
+<text class="f-s" x="50" y="284" text-anchor="end" style="font-size:12px">0</text>
+<text class="f-s" x="50" y="196" text-anchor="end" style="font-size:12px">2k</text>
+<text class="f-s" x="50" y="108" text-anchor="end" style="font-size:12px">4k</text>
+<text class="f-s" x="56" y="298" text-anchor="middle" style="font-size:12px">0</text>
+<text class="f-s" x="112.8" y="298" text-anchor="middle" style="font-size:12px">50k</text>
+<text class="f-s" x="169.6" y="298" text-anchor="middle" style="font-size:12px">100k</text>
+<text class="f-s" x="226.4" y="298" text-anchor="middle" style="font-size:12px">150k</text>
+<text class="f-s" x="283.2" y="298" text-anchor="middle" style="font-size:12px">200k</text>
+<text class="f-s" x="198" y="316" text-anchor="middle" style="font-size:12px">preguntas al mes</text>
+<line x1="131" y1="62" x2="131" y2="280" style="stroke:var(--tm-ink3);stroke-width:1.5;stroke-dasharray:4 4"/>
+<text class="f-s" x="125" y="76" text-anchor="end" style="font-size:12px;font-weight:700">el despacho</text>
+<text class="f-s" x="125" y="91" text-anchor="end" style="font-size:12px">66 mil</text>
+<line x1="271.9" y1="62" x2="271.9" y2="280" style="stroke:var(--tm-ink3);stroke-width:1.5;stroke-dasharray:4 4"/>
+<text class="f-s" x="278" y="228" style="font-size:12px">capacidad</text>
+<text class="f-s" x="278" y="243" style="font-size:12px">en horario</text>
+<text class="f-s" x="278" y="258" style="font-size:12px">≈ 190 mil</text>
+<line x1="56" y1="155.5" x2="340" y2="155.5" style="stroke:var(--tm-ink3);stroke-width:2;stroke-dasharray:2 4"/>
+<line x1="56" y1="159.2" x2="271.9" y2="159.2" style="stroke:var(--b);stroke-width:3.5"/>
+<line x1="56" y1="280" x2="340" y2="273.2" style="stroke:var(--g);stroke-width:3"/>
+<line x1="56" y1="280" x2="340" y2="93" style="stroke:var(--o);stroke-width:3"/>
+<line x1="56" y1="280" x2="258.5" y2="60" style="stroke:var(--p);stroke-width:3"/>
+<circle cx="167.2" cy="159.2" r="6" style="fill:var(--p);stroke:var(--blk);stroke-width:2"/>
+<circle cx="239.5" cy="159.2" r="6" style="fill:var(--o);stroke:var(--blk);stroke-width:2"/>
+<text class="f-s" x="167.2" y="183" text-anchor="middle" style="font-size:12px;font-weight:700;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">≈ 98 mil</text>
+<text class="f-s" x="239.5" y="183" text-anchor="middle" style="font-size:12px;font-weight:700;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">≈ 161.5 mil</text>
+<text class="f-s" x="224" y="92" text-anchor="end" style="font-size:12px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">Kimi K3</text>
+<text class="f-s" x="296" y="146" style="font-size:12px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">Sonnet</text>
+<text class="f-s" x="150" y="268" style="font-size:12px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">Qwen3 32B por API</text>
+<line x1="26" y1="340" x2="50" y2="340" style="stroke:var(--b);stroke-width:3.5"/>
+<text class="f-s" x="58" y="344" style="font-size:12px">Propio, 3 L40S: ≈ 2,746 al mes</text>
+<line x1="26" y1="360" x2="50" y2="360" style="stroke:var(--tm-ink3);stroke-width:2;stroke-dasharray:2 4"/>
+<text class="f-s" x="58" y="364" style="font-size:12px">Las mismas rentadas 24/7: ≈ 2,830</text>
+<line x1="26" y1="380" x2="50" y2="380" style="stroke:var(--p);stroke-width:3"/>
+<text class="f-s" x="58" y="384" style="font-size:12px">Kimi K3 (México) · </text>
+<line x1="160" y1="380" x2="184" y2="380" style="stroke:var(--o);stroke-width:3"/>
+<text class="f-s" x="190" y="384" style="font-size:12px">Sonnet 5.5</text>
+<line x1="26" y1="400" x2="50" y2="400" style="stroke:var(--g);stroke-width:3"/>
+<text class="f-s" x="58" y="404" style="font-size:12px">Qwen3 32B por API: 41 al mes hoy</text>
+</svg>

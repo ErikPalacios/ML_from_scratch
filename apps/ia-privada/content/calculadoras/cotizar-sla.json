@@ -1,0 +1,32 @@
+{
+  "titulo": "El SLA en minutos",
+  "intro": "Los minutos prometidos \\(M = h × d × 60\\) y el presupuesto de error \\(E = (1 − A) × M\\): lo que el servicio se puede caer al mes sin romper el SLA. Arranca con el horario del despacho y un 99 %.",
+  "preajustes": [
+    { "label": "Horario de la promesa", "inicial": 0, "opciones": [
+      { "label": "Hábil del despacho · 10 h × 22 días", "valores": { "h": 10, "d": 22 }, "nota": "9:00 a 19:00, 22 días hábiles al mes (supuesto de la ficha): 13,200 minutos. Las noches y fines de semana quedan para mantenimiento." },
+      { "label": "24 × 7 · 24 h × 30 días", "valores": { "h": 24, "d": 30 }, "nota": "Todo el mes: 43,200 minutos. Pide alguien disponible siempre y, en la práctica, réplicas que se recuperen solas." }
+    ] }
+  ],
+  "entradas": [
+    { "id": "A", "label": "Disponibilidad prometida, \\(A\\), en %", "min": 95, "max": 99.99, "paso": 0.01, "valor": 99 },
+    { "id": "h", "label": "Horas al día de la promesa, \\(h\\)", "min": 1, "max": 24, "paso": 1, "valor": 10 },
+    { "id": "d", "label": "Días al mes de la promesa, \\(d\\)", "min": 1, "max": 31, "paso": 1, "valor": 22 },
+    { "id": "t", "label": "Duración de una caída típica, \\(t\\), en minutos (reiniciar y verificar: ≈ 30; una mañana: 240)", "min": 1, "max": 600, "paso": 1, "valor": 30 }
+  ],
+  "calculos": [
+    { "id": "M", "formula": "h * d * 60" },
+    { "id": "Ep", "formula": "(1 - A / 100) * M" }
+  ],
+  "salidas": [
+    { "label": "1 · Minutos prometidos al mes, \\(M\\)", "formula": "M", "formato": "int",
+      "cuenta": "{{h|int}} h × {{d|int}} días × 60 = **{{M|int}} min**" },
+    { "label": "2 · Presupuesto de error al mes, \\(E\\), en minutos", "formula": "Ep", "formato": "num", "decimales": 1, "barra": true,
+      "cuenta": "(1 − {{A|corto|2}} %) × {{M|int}} = **{{Ep|num|1}} min**" },
+    { "label": "3 · Al año, en horas", "formula": "Ep * 12 / 60", "formato": "num", "decimales": 1,
+      "cuenta": "{{Ep|num|1}} min × 12 ÷ 60 = **{{Ep * 12 / 60|num|1}} h**" },
+    { "label": "4 · Caídas de \\(t\\) minutos que caben al mes", "formula": "Ep / t", "formato": "num", "decimales": 1,
+      "cuenta": "{{Ep|num|1}} ÷ {{t|int}} = **{{Ep / t|num|1}}**" },
+    { "label": "¿Cabe una caída de \\(t\\) minutos en el mes?", "formula": "Ep - t", "veredicto": { "si": "Sí cabe", "no": "No: una sola rompe el SLA" } }
+  ],
+  "nota": "Con 99 % en horario caben ≈ 4 caídas de 30 minutos al mes; con 99.9 %, ninguna. Pon 240 minutos (una mañana sin servidor): no cabe en ningún SLA en horario de 99 % o más."
+}
