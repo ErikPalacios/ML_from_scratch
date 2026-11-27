@@ -1,0 +1,50 @@
+{ "titulo": "La pregunta de prueba del despacho: el camino de cada minuto y lo que hace con el resultado",
+  "width": 78, "height": 52,
+  "lanes": [
+    { "id": "gestion", "label": "Gestión", "kind": "monitor", "x": 0, "y": 0, "w": 25, "h": 52 },
+    { "id": "servicio", "label": "Servicio", "kind": "online", "x": 27, "y": 0, "w": 24, "h": 52 },
+    { "id": "modelos", "label": "Modelos (sin internet)", "kind": "neutral", "x": 53, "y": 0, "w": 25, "h": 52 }
+  ],
+  "nodes": [
+    { "id": "bb", "label": "blackbox", "sub": "exporter 0.29.1", "badge": "1", "kind": "monitor", "x": 3, "y": 7, "w": 18, "h": 9,
+      "note": "[[blackbox-exporter|blackbox_exporter]] hace la pregunta cuando Prometheus se lo pide, cada 60 s, con su propia [[clave-de-api|clave]] y un plazo de 10 s. Vive en la zona de gestión, junto a Prometheus, y no en el servidor de modelos." },
+    { "id": "busq", "label": "Búsqueda", "sub": "arma el prompt", "badge": "2", "kind": "service", "x": 30, "y": 7, "w": 18, "h": 9,
+      "note": "El mismo servicio que arma las preguntas de los abogados: embebe la pregunta, busca con el filtro de permisos de la cuenta de la sonda y arma el prompt con lo que encontró." },
+    { "id": "qd", "label": "Qdrant", "sub": "PRUEBA-0001", "kind": "store", "x": 57, "y": 7, "w": 18, "h": 9,
+      "note": "En el índice vive un documento falso, `PRUEBA-0001`, con la frase «el código de verificación de la sonda es GIRASOL-7» y una ACL propia, `sonda`. La cuenta de la sonda no ve nada más: no toca ni un expediente." },
+    { "id": "gw", "label": "Gateway", "sub": "LiteLLM 1.111.0", "badge": "3", "kind": "edge", "x": 30, "y": 23, "w": 18, "h": 9,
+      "note": "El [[gateway-de-llm|gateway]] revisa la clave de la sonda (con cuota mínima, para filtrarla del registro y de los conteos) y manda la pregunta a una de las 2 copias del motor." },
+    { "id": "vllm", "label": "vLLM × 2", "sub": "chat-grande", "badge": "4", "kind": "gpu", "x": 57, "y": 23, "w": 18, "h": 9,
+      "note": "Una de las 2 copias en las Server Edition lee ≈ 1,500 tokens (≈ 0.40 s) y escribe hasta 32: ≈ 0.97 s en total. Es ≈ 2 % de los tokens de entrada de la hora pico." },
+    { "id": "prom", "label": "Prometheus", "sub": "reglas de la sonda", "badge": "5", "kind": "monitor", "x": 3, "y": 23, "w": 18, "h": 9,
+      "note": "Guarda `probe_success` (1 o 0) cada minuto. Sus reglas marcan los minutos hábiles (UTC−6, lunes a viernes, 9:00–19:00) y los minutos caídos dentro de ellos, y evalúan las alertas 7 y 8." },
+    { "id": "am", "label": "Alertmanager", "sub": "correo de M365", "kind": "monitor", "x": 3, "y": 39, "w": 18, "h": 9,
+      "note": "Si la sonda falla 2 de 5 minutos en horario (alerta 7) o deja de medir 3 minutos (alerta 8), manda el correo de nivel «ahora» por Microsoft 365, la segunda salida a internet que permite [Seguridad](/seguridad/)." },
+    { "id": "graf", "label": "Grafana", "sub": "panel 9", "kind": "monitor", "x": 30, "y": 39, "w": 18, "h": 9,
+      "note": "El panel 9 del tablero: minutos caídos del mes contra la línea de 132, la disponibilidad del mes, la última respuesta y la duración de cada sonda." }
+  ],
+  "edges": [
+    { "from": "bb", "to": "busq", "kind": "online", "label": "POST", "fromSide": "r", "toSide": "l" },
+    { "from": "busq", "to": "qd", "kind": "online", "label": "con ACL", "fromSide": "r", "toSide": "l" },
+    { "from": "busq", "to": "gw", "kind": "online", "label": "prompt", "fromSide": "b", "toSide": "t" },
+    { "from": "gw", "to": "vllm", "kind": "online", "label": "turno", "fromSide": "r", "toSide": "l" },
+    { "from": "bb", "to": "prom", "kind": "monitor", "label": "1 o 0", "fromSide": "b", "toSide": "t" },
+    { "from": "prom", "to": "am", "kind": "monitor", "label": "alerta", "fromSide": "b", "toSide": "t" },
+    { "from": "prom", "to": "graf", "kind": "monitor", "label": "minutos", "fromSide": "r", "toSide": "l", "via": [[25, 27.5], [25, 43.5]] }
+  ],
+  "flows": [
+    { "id": "normal", "label": "Un minuto normal",
+      "steps": [
+        { "nodes": ["prom", "bb"], "edges": [], "text": "**11:00:00.** Prometheus le pide a blackbox su sondeo, como cualquier scrape." },
+        { "nodes": ["bb", "busq", "qd"], "edges": ["bb>busq", "busq>qd"], "text": "blackbox manda la pregunta («¿cuál es el código de verificación de la sonda?») al servicio de búsqueda, que encuentra `PRUEBA-0001` con la ACL de la sonda." },
+        { "nodes": ["busq", "gw", "vllm"], "edges": ["busq>gw", "gw>vllm"], "text": "El prompt pasa por el gateway a una copia del motor, que contesta «GIRASOL-7 [PRUEBA-0001, p. 1]» en ≈ 1 s." },
+        { "nodes": ["bb", "prom", "graf"], "edges": ["bb>prom", "prom>graf"], "text": "Llegó un 200 con las dos palabras: `probe_success` = 1. El minuto cuenta como **arriba** y el panel 9 sigue verde." }
+      ] },
+    { "id": "caido", "label": "Un minuto caído",
+      "steps": [
+        { "nodes": ["bb", "busq", "gw"], "edges": ["bb>busq", "busq>gw"], "text": "**11:01.** El gateway no responde (por ejemplo, se llenó su disco). La búsqueda espera; a los 10 s, blackbox se rinde." },
+        { "nodes": ["bb", "prom"], "edges": ["bb>prom"], "text": "`probe_success` = 0. La regla lo marca como **minuto caído**: va contra los 132 del mes." },
+        { "nodes": ["prom", "am"], "edges": ["prom>am"], "text": "**11:02**, segunda falla: el promedio de 5 baja a 0.6. **11:03**, con `for: 1m`, la alerta 7 manda el correo de nivel «ahora» y el TI abre un incidente de severidad 1." },
+        { "nodes": ["graf"], "edges": ["prom>graf"], "text": "El panel 9 cuenta los minutos rojos. Si el TI lo arregla en 25 minutos, quedan 107 del presupuesto del mes." }
+      ] }
+  ] }

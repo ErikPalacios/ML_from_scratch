@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 466" role="img" aria-labelledby="f-caso-clinica-regla-t" class="f-svg" style="max-width:420px">
+<title id="f-caso-clinica-regla-t">La regla de clasificación de software como dispositivo médico que la Farmacopea puso a consulta del 1 de noviembre al 31 de diciembre de 2025 (no se verificó que ya sea definitiva). Una cuadrícula de tres por tres: en las filas, el propósito de la información (tratar o diagnosticar; dirigir la gestión clínica; informar la gestión clínica); en las columnas, el estado del paciente (crítico, serio, no serio). Tratar o diagnosticar: clase III, III y II. Dirigir: III, II y I. Informar: II, I y I. Dos funciones que la clínica deja fuera están marcadas: sugerir la dosis de un paciente hospitalizado cae en tratar, serio, clase III; un triage automático en urgencias cae en dirigir, crítico, clase III. Abajo, aparte de la cuadrícula, el uso que la clínica sí hace: un resumen que reorganiza lo que ya está escrito, con cita a cada nota, que el médico lee y firma; si alguien lo leyera como «informar», quedaría en clase I o II.</title>
+<text class="f-l" x="14" y="24">SOFTWARE COMO DISPOSITIVO MÉDICO</text>
+<text class="f-s" x="14" y="44" style="font-size:12px">regla propuesta en la consulta de la FEUM (2025)</text>
+<text class="f-l" x="232.0" y="64" text-anchor="middle">ESTADO DEL PACIENTE</text>
+<text class="f-s" x="156.0" y="80" text-anchor="middle" style="font-size:12px">crítico</text>
+<text class="f-s" x="232.0" y="80" text-anchor="middle" style="font-size:12px">serio</text>
+<text class="f-s" x="308.0" y="80" text-anchor="middle" style="font-size:12px">no serio</text>
+<text class="f-s" x="108" y="114.0" text-anchor="end" style="font-size:12px">tratar o</text>
+<text class="f-s" x="108" y="130.0" text-anchor="end" style="font-size:12px">diagnosticar</text>
+<rect class="f-o" x="120" y="88" width="72" height="58" rx="8"/>
+<text class="f-t" x="156.0" y="123.0" text-anchor="middle" style="font-size:18px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">III</text>
+<rect class="f-o" x="196" y="88" width="72" height="58" rx="8"/>
+<text class="f-t" x="232.0" y="123.0" text-anchor="middle" style="font-size:18px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">III</text>
+<rect class="f-y" x="272" y="88" width="72" height="58" rx="8"/>
+<text class="f-t" x="308.0" y="123.0" text-anchor="middle" style="font-size:18px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">II</text>
+<text class="f-s" x="108" y="176.0" text-anchor="end" style="font-size:12px">dirigir la</text>
+<text class="f-s" x="108" y="192.0" text-anchor="end" style="font-size:12px">gestión</text>
+<rect class="f-o" x="120" y="150" width="72" height="58" rx="8"/>
+<text class="f-t" x="156.0" y="185.0" text-anchor="middle" style="font-size:18px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">III</text>
+<rect class="f-y" x="196" y="150" width="72" height="58" rx="8"/>
+<text class="f-t" x="232.0" y="185.0" text-anchor="middle" style="font-size:18px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">II</text>
+<rect class="f-g" x="272" y="150" width="72" height="58" rx="8"/>
+<text class="f-t" x="308.0" y="185.0" text-anchor="middle" style="font-size:18px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">I</text>
+<text class="f-s" x="108" y="238.0" text-anchor="end" style="font-size:12px">informar la</text>
+<text class="f-s" x="108" y="254.0" text-anchor="end" style="font-size:12px">gestión</text>
+<rect class="f-y" x="120" y="212" width="72" height="58" rx="8"/>
+<text class="f-t" x="156.0" y="247.0" text-anchor="middle" style="font-size:18px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">II</text>
+<rect class="f-g" x="196" y="212" width="72" height="58" rx="8"/>
+<text class="f-t" x="232.0" y="247.0" text-anchor="middle" style="font-size:18px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">I</text>
+<rect class="f-g" x="272" y="212" width="72" height="58" rx="8"/>
+<text class="f-t" x="308.0" y="247.0" text-anchor="middle" style="font-size:18px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">I</text>
+<text class="f-l" x="20" y="179.0" transform="rotate(-90 20 179.0)" text-anchor="middle">PROPÓSITO</text>
+<circle class="f-acc" cx="256" cy="102" r="10"/>
+<text class="f-acc-t" x="256" y="106" text-anchor="middle" style="font-size:12px">1</text>
+<circle class="f-acc" cx="180" cy="164" r="10"/>
+<text class="f-acc-t" x="180" y="168" text-anchor="middle" style="font-size:12px">2</text>
+<text class="f-s" x="14" y="298" style="font-size:12.5px"><tspan style="font-weight:700">1</tspan> sugerir la dosis a un hospitalizado: III</text>
+<text class="f-s" x="14" y="318" style="font-size:12.5px"><tspan style="font-weight:700">2</tspan> triage automático en urgencias: III</text>
+<text class="f-s" x="14" y="338" style="font-size:12.5px">Las dos quedan fuera del caso.</text>
+<rect class="f-card" x="14" y="356" width="332" height="96" rx="12"/>
+<text class="f-l" x="26" y="378">LO QUE LA CLÍNICA SÍ HACE</text>
+<text class="f-s" x="26" y="400" style="font-size:12.5px">Un resumen que reorganiza lo ya escrito,</text>
+<text class="f-s" x="26" y="418" style="font-size:12.5px">con cita a cada nota, que el médico firma.</text>
+<text class="f-s" x="26" y="438" style="font-size:12.5px">Leído como «informar»: clase I o II.</text>
+</svg>

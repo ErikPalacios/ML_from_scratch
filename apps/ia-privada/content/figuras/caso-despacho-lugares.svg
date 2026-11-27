@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 352" role="img" aria-labelledby="f-caso-despacho-lugares-t" class="f-svg" style="max-width:420px">
+<title id="f-caso-despacho-lugares-t">Lugares a 20 tokens por segundo o más en cada opción, contra las 5.7 conversaciones a la vez de la hora pico, y lo que queda si falla una tarjeta. A, 3 L40S: 6 lugares; si falla una quedan 4, abajo de la línea. B, 4 L40S: 8 lugares; quedan 6, arriba. C, una RTX PRO 6000 Server Edition: 6 lugares; si falla queda 0. D, dos Server Edition: 12 lugares; quedan 6, apenas arriba de la línea.</title>
+<rect class="f-card" x="8" y="8" width="344" height="336" rx="16"/>
+<text class="f-l" x="22" y="34">LUGARES A ≥ 20 TOKENS/S · SI FALLA UNA</text>
+<text class="f-s" x="22" y="62" style="font-weight:700">A · 3 L40S</text>
+<rect class="f-g" x="22" y="72" width="17" height="17" rx="4"/>
+<rect class="f-g" x="42" y="72" width="17" height="17" rx="4"/>
+<rect class="f-g" x="62" y="72" width="17" height="17" rx="4"/>
+<rect class="f-g" x="82" y="72" width="17" height="17" rx="4"/>
+<rect class="f-off" x="102" y="72" width="17" height="17" rx="4"/>
+<rect class="f-off" x="122" y="72" width="17" height="17" rx="4"/>
+<text class="f-s" x="148" y="86">quedan 4</text>
+<text class="f-s" x="22" y="126" style="font-weight:700">B · 4 L40S</text>
+<rect class="f-g" x="22" y="136" width="17" height="17" rx="4"/>
+<rect class="f-g" x="42" y="136" width="17" height="17" rx="4"/>
+<rect class="f-g" x="62" y="136" width="17" height="17" rx="4"/>
+<rect class="f-g" x="82" y="136" width="17" height="17" rx="4"/>
+<rect class="f-g" x="102" y="136" width="17" height="17" rx="4"/>
+<rect class="f-g" x="122" y="136" width="17" height="17" rx="4"/>
+<rect class="f-off" x="142" y="136" width="17" height="17" rx="4"/>
+<rect class="f-off" x="162" y="136" width="17" height="17" rx="4"/>
+<text class="f-s" x="188" y="150">quedan 6</text>
+<text class="f-s" x="22" y="190" style="font-weight:700">C · 1 Server Edition</text>
+<rect class="f-off" x="22" y="200" width="17" height="17" rx="4"/>
+<rect class="f-off" x="42" y="200" width="17" height="17" rx="4"/>
+<rect class="f-off" x="62" y="200" width="17" height="17" rx="4"/>
+<rect class="f-off" x="82" y="200" width="17" height="17" rx="4"/>
+<rect class="f-off" x="102" y="200" width="17" height="17" rx="4"/>
+<rect class="f-off" x="122" y="200" width="17" height="17" rx="4"/>
+<text class="f-s" x="148" y="214">queda 0</text>
+<text class="f-s" x="22" y="254" style="font-weight:700">D · 2 Server Edition</text>
+<rect class="f-g" x="22" y="264" width="17" height="17" rx="4"/>
+<rect class="f-g" x="42" y="264" width="17" height="17" rx="4"/>
+<rect class="f-g" x="62" y="264" width="17" height="17" rx="4"/>
+<rect class="f-g" x="82" y="264" width="17" height="17" rx="4"/>
+<rect class="f-g" x="102" y="264" width="17" height="17" rx="4"/>
+<rect class="f-g" x="122" y="264" width="17" height="17" rx="4"/>
+<rect class="f-off" x="142" y="264" width="17" height="17" rx="4"/>
+<rect class="f-off" x="162" y="264" width="17" height="17" rx="4"/>
+<rect class="f-off" x="182" y="264" width="17" height="17" rx="4"/>
+<rect class="f-off" x="202" y="264" width="17" height="17" rx="4"/>
+<rect class="f-off" x="222" y="264" width="17" height="17" rx="4"/>
+<rect class="f-off" x="242" y="264" width="17" height="17" rx="4"/>
+<text class="f-s" x="22" y="300">quedan 6 · 12 con las dos</text>
+<line x1="134.5" y1="44" x2="134.5" y2="284" style="stroke:var(--ink);stroke-width:1.5;stroke-dasharray:4 3"/>
+<text class="f-l" x="139.5" y="52">PICO: 5.7</text>
+<rect class="f-g" x="22" y="322" width="12" height="12" rx="3"/><text class="f-s" x="40" y="333">sigue</text>
+<rect class="f-off" x="96" y="322" width="12" height="12" rx="3"/><text class="f-s" x="114" y="333">se pierde si falla una tarjeta</text>
+</svg>

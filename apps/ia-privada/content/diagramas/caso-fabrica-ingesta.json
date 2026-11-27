@@ -1,0 +1,260 @@
+{
+ "titulo": "Cómo entra un manual a la zona del asistente, por un solo conducto",
+ "width": 78,
+ "height": 62,
+ "lanes": [
+  {
+   "id": "it",
+   "label": "IT y DMZ industrial",
+   "kind": "offline",
+   "x": 0,
+   "y": 0,
+   "w": 78,
+   "h": 14
+  },
+  {
+   "id": "zona",
+   "label": "Zona del asistente · la ingesta",
+   "kind": "offline",
+   "x": 0,
+   "y": 16,
+   "w": 78,
+   "h": 46
+  }
+ ],
+ "nodes": [
+  {
+   "id": "ingenieria",
+   "label": "Ingeniería",
+   "sub": "aprueba el manual",
+   "badge": "1",
+   "kind": "human",
+   "x": 2,
+   "y": 3,
+   "w": 18,
+   "h": 8,
+   "note": "Ingeniería de mantenimiento decide qué manual entra, de qué máquina y en qué revisión. Sin esa firma, nada entra: un manual de otra revisión es la manera más fácil de dar un torque equivocado."
+  },
+  {
+   "id": "carpeta",
+   "label": "Carpeta de importación",
+   "sub": "en la DMZ",
+   "badge": "2",
+   "kind": "store",
+   "x": 30,
+   "y": 3,
+   "w": 18,
+   "h": 8,
+   "note": "El único lugar donde IT deja archivos para OT ([[dmz-industrial|DMZ industrial]]). Se revisa el archivo (antivirus, que sea un PDF y no otra cosa, su huella) y se anota quién lo dejó."
+  },
+  {
+   "id": "tabla",
+   "label": "Tabla de máquinas",
+   "sub": "serie → manual",
+   "kind": "store",
+   "x": 58,
+   "y": 3,
+   "w": 18,
+   "h": 8,
+   "note": "La lista de la planta: cada número de serie con su fabricante, modelo, revisión y manuales. De ella salen los campos del [[filtro-por-maquina|filtro por máquina]]."
+  },
+  {
+   "id": "ingesta",
+   "label": "Ingesta",
+   "sub": "recoge desde la zona",
+   "badge": "3",
+   "kind": "job",
+   "x": 30,
+   "y": 20,
+   "w": 18,
+   "h": 8,
+   "note": "Un proceso **dentro** de la zona del asistente que recoge lo nuevo de la carpeta: la conexión la abre la zona hacia la DMZ, nunca al revés, y nunca hacia internet. Es el conducto de entrada."
+  },
+  {
+   "id": "docling",
+   "label": "Docling",
+   "sub": "texto, tablas, cajas",
+   "badge": "4",
+   "kind": "job",
+   "x": 2,
+   "y": 34,
+   "w": 18,
+   "h": 8,
+   "note": "El [[parser-de-documentos|parser]]: texto con estructura, tablas en filas y columnas y la caja de cada cosa en la página. A 2.1 páginas por segundo, las 600,000 páginas tardan ≈ 79 h; con el servidor casi vacío, corre de día también."
+  },
+  {
+   "id": "ocr",
+   "label": "OCR de escaneos",
+   "sub": "≈ 240,000 páginas",
+   "kind": "job",
+   "x": 30,
+   "y": 34,
+   "w": 18,
+   "h": 8,
+   "note": "El 40 % de los manuales son escaneos: hay que reconocer las letras antes de buscar ([[ocr]]). En el estrato de tablas del examen se compara con MinerU, que en los benchmarks lee mejor las tablas."
+  },
+  {
+   "id": "imagenes",
+   "label": "Páginas como imagen",
+   "sub": "para el recorte",
+   "kind": "store",
+   "x": 58,
+   "y": 34,
+   "w": 18,
+   "h": 8,
+   "note": "Se guarda la imagen de cada página junto a su texto: la respuesta muestra el recorte de la tabla que sostiene el valor, y el VLM la lee al contestar."
+  },
+  {
+   "id": "emb",
+   "label": "Embeddings",
+   "sub": "≈ 0.73 h en una L40S",
+   "kind": "gpu",
+   "x": 2,
+   "y": 50,
+   "w": 18,
+   "h": 8,
+   "note": "Qwen3-Embedding-0.6B sobre ≈ 540 M de tokens: ≈ 0.73 h a 50 % del pico de una L40S. La cuenta de [RAG privado](/rag-privado/): el cuello de botella es leer, no embeber."
+  },
+  {
+   "id": "qdrant",
+   "label": "Qdrant",
+   "sub": "≈ 1.59 M fragmentos",
+   "badge": "5",
+   "kind": "store",
+   "x": 30,
+   "y": 50,
+   "w": 18,
+   "h": 8,
+   "note": "Cada fragmento de 400 tokens lleva su manual, página, idioma, fabricante, modelo y revisión. Índice de ≈ 6.5 GB: cabe de sobra en la RAM del servidor."
+  }
+ ],
+ "edges": [
+  {
+   "from": "ingenieria",
+   "to": "carpeta",
+   "kind": "offline",
+   "label": "PDF",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "ingesta",
+   "to": "carpeta",
+   "kind": "offline",
+   "label": "recoge",
+   "fromSide": "t",
+   "toSide": "b"
+  },
+  {
+   "from": "ingesta",
+   "to": "tabla",
+   "kind": "offline",
+   "fromSide": "r",
+   "toSide": "b",
+   "via": [
+    [
+     67,
+     24
+    ]
+   ]
+  },
+  {
+   "from": "ingesta",
+   "to": "docling",
+   "kind": "offline",
+   "fromSide": "l",
+   "toSide": "t",
+   "via": [
+    [
+     11,
+     24
+    ]
+   ]
+  },
+  {
+   "from": "docling",
+   "to": "ocr",
+   "kind": "offline",
+   "label": "escaneo",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "ocr",
+   "to": "imagenes",
+   "kind": "offline",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "docling",
+   "to": "emb",
+   "kind": "offline",
+   "label": "fragmentos",
+   "fromSide": "b",
+   "toSide": "t"
+  },
+  {
+   "from": "emb",
+   "to": "qdrant",
+   "kind": "offline",
+   "label": "vectores",
+   "fromSide": "r",
+   "toSide": "l"
+  }
+ ],
+ "flows": [
+  {
+   "id": "entra",
+   "label": "Un manual nuevo, de la oficina al índice",
+   "steps": [
+    {
+     "nodes": [
+      "ingenieria",
+      "carpeta"
+     ],
+     "edges": [
+      "ingenieria>carpeta"
+     ],
+     "text": "**1 · Aprobar y dejar.** Ingeniería aprueba el manual de la prensa nueva y lo deja en la carpeta de la DMZ, donde se revisa y se anota."
+    },
+    {
+     "nodes": [
+      "ingesta",
+      "carpeta",
+      "tabla"
+     ],
+     "edges": [
+      "ingesta>carpeta",
+      "ingesta>tabla"
+     ],
+     "text": "**2 · Recoger desde adentro.** La ingesta, en la zona del asistente, recoge el archivo y busca en la tabla de máquinas a qué números de serie pertenece. Ninguna conexión entra a la zona desde la oficina."
+    },
+    {
+     "nodes": [
+      "docling",
+      "ocr",
+      "imagenes"
+     ],
+     "edges": [
+      "ingesta>docling",
+      "docling>ocr",
+      "ocr>imagenes"
+     ],
+     "text": "**3 · Leer.** Docling saca texto y tablas; si la página es un escaneo, pasa por OCR. La imagen de cada página se guarda para los recortes."
+    },
+    {
+     "nodes": [
+      "emb",
+      "qdrant"
+     ],
+     "edges": [
+      "docling>emb",
+      "emb>qdrant"
+     ],
+     "text": "**4 · Indexar.** Los fragmentos de 400 tokens se embeben y entran a Qdrant con sus campos de máquina. Desde ese momento, el QR de la prensa nueva ya encuentra su manual."
+    }
+   ]
+  }
+ ]
+}

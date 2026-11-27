@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 336" role="img" aria-labelledby="f-caso-despacho-p95-t" class="f-svg" style="max-width:420px">
+<title id="f-caso-despacho-p95-t">TTFT p95 simulado en la hora pico, repartiendo al azar y por turno, contra la promesa de 2 segundos. A, 3 L40S: 4.24 al azar y 2.38 por turno. B, 4 L40S: 3.94 y 2.38. C, una Server Edition: 4.07 y 4.06, igual porque tiene una sola fila. D, dos Server Edition: 3.13 al azar y 1.77 por turno, la única barra debajo de 2 segundos.</title>
+<rect class="f-card" x="8" y="8" width="344" height="320" rx="16"/>
+<text class="f-l" x="22" y="34">TTFT P95 EN LA HORA PICO (SIMULADO)</text>
+<text class="f-s" x="22" y="62" style="font-weight:700">A · 3 L40S</text>
+<text class="f-l" x="22" y="81">AZAR</text>
+<rect class="f-off" x="70" y="70" width="220.5" height="14" rx="3"/>
+<text class="f-s" x="295.5" y="82">4.24 s</text>
+<text class="f-l" x="22" y="99">TURNO</text>
+<rect class="f-b2" x="70" y="88" width="123.8" height="14" rx="3"/>
+<text class="f-s" x="198.8" y="100">2.38 s</text>
+<text class="f-s" x="22" y="118" style="font-weight:700">B · 4 L40S</text>
+<text class="f-l" x="22" y="137">AZAR</text>
+<rect class="f-off" x="70" y="126" width="204.9" height="14" rx="3"/>
+<text class="f-s" x="279.9" y="138">3.94 s</text>
+<text class="f-l" x="22" y="155">TURNO</text>
+<rect class="f-b2" x="70" y="144" width="123.8" height="14" rx="3"/>
+<text class="f-s" x="198.8" y="156">2.38 s</text>
+<text class="f-s" x="22" y="174" style="font-weight:700">C · 1 Server Edition</text>
+<text class="f-l" x="22" y="193">AZAR</text>
+<rect class="f-off" x="70" y="182" width="211.6" height="14" rx="3"/>
+<text class="f-s" x="286.6" y="194">4.07 s</text>
+<text class="f-l" x="22" y="211">TURNO</text>
+<rect class="f-b2" x="70" y="200" width="211.1" height="14" rx="3"/>
+<text class="f-s" x="286.1" y="212">4.06 s</text>
+<text class="f-s" x="22" y="230" style="font-weight:700">D · 2 Server Edition</text>
+<text class="f-l" x="22" y="249">AZAR</text>
+<rect class="f-off" x="70" y="238" width="162.8" height="14" rx="3"/>
+<text class="f-s" x="237.8" y="250">3.13 s</text>
+<text class="f-l" x="22" y="267">TURNO</text>
+<rect class="f-g" x="70" y="256" width="92.0" height="14" rx="3"/>
+<text class="f-s" x="180.0" y="268">1.77 s</text>
+<line x1="174" y1="44" x2="174" y2="282" style="stroke:var(--ink);stroke-width:1.5;stroke-dasharray:4 3"/>
+<text class="f-l" x="179" y="52">PROMESA: 2 S</text>
+<line class="f-linea" x1="70" y1="286" x2="330" y2="286"/>
+<line class="f-linea" x1="70" y1="283" x2="70" y2="289"/><text class="f-l" x="70" y="302" text-anchor="middle">0 s</text>
+<line class="f-linea" x1="122" y1="283" x2="122" y2="289"/><text class="f-l" x="122" y="302" text-anchor="middle">1 s</text>
+<line class="f-linea" x1="174" y1="283" x2="174" y2="289"/><text class="f-l" x="174" y="302" text-anchor="middle">2 s</text>
+<line class="f-linea" x1="226" y1="283" x2="226" y2="289"/><text class="f-l" x="226" y="302" text-anchor="middle">3 s</text>
+<line class="f-linea" x1="278" y1="283" x2="278" y2="289"/><text class="f-l" x="278" y="302" text-anchor="middle">4 s</text>
+<line class="f-linea" x1="330" y1="283" x2="330" y2="289"/><text class="f-l" x="330" y="302" text-anchor="middle">5 s</text>
+<text class="f-s" x="22" y="318" style="font-size:12px">Sin red ni búsqueda (≈ 0.17 s más) · 200,000 preguntas</text>
+</svg>

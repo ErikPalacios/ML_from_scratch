@@ -1,0 +1,45 @@
+{
+  "titulo": "¿Cuántos minutos de paro paga el asistente?",
+  "intro": "Aplica \\(m^{*} = P ÷ c_p × 60\\) (los minutos de línea parada que el asistente tiene que ahorrar al mes para pagarse) y \\(A = H_p × s × c_p\\) (lo que ahorra si reduce una parte \\(s\\) del paro). Arranca con la opción B de la planta: US$2,012 al mes, US$12,000 por hora de paro (supuesto) y 25 h de paro al mes.",
+  "preajustes": {
+    "label": "Opción de la planta (costo al mes de la herramienta de TCO)",
+    "inicial": 1,
+    "opciones": [
+      { "label": "A · 2 × L4 con Qwen3.5-9B", "valores": { "P": 1022 }, "nota": "Compra supuesta de ≈ US$15,248 (servidor de entrada ≈ US$8,000 + 2 L4 de gpus.json), 36 meses, 20 % de reventa, luz y ≈ 41 h de TI (US$450)." },
+      { "label": "B · 2 × L40S con Qwen3.8-27B", "valores": { "P": 2012 }, "nota": "Exxact 4U con 2 L40S, US$58,281.30 calculado con su configurador (2026-11-25), con los mismos supuestos." }
+    ]
+  },
+  "entradas": [
+    { "id": "P", "label": "Costo del asistente al mes, \\(P\\), en US$", "min": 1, "max": 100000, "paso": 1, "valor": 2012, "tipo": "numero" },
+    { "id": "cp", "label": "Costo de una hora de línea parada, \\(c_p\\), en US$ (supuesto de la planta: 12,000)", "min": 100, "max": 5000000, "paso": 100, "valor": 12000, "tipo": "numero" },
+    { "id": "Hp", "label": "Horas de paro no planeado al mes, \\(H_p\\)", "min": 0.5, "max": 300, "paso": 0.5, "valor": 25 },
+    { "id": "s", "label": "Parte del paro que se ahorra, \\(s\\) (0.05 = 5 %)", "min": 0, "max": 0.5, "paso": 0.005, "valor": 0.05 },
+    { "id": "Q", "label": "Preguntas al mes, \\(Q\\)", "min": 1, "max": 1000000, "paso": 1, "valor": 6240, "tipo": "numero" },
+    { "id": "tc", "label": "Tipo de cambio, pesos por dólar (FIX del 2026-11-26)", "min": 10, "max": 40, "paso": 0.01, "valor": 19.7203, "tipo": "numero" }
+  ],
+  "calculos": [
+    { "id": "A", "formula": "Hp * s * cp" },
+    { "id": "meq", "formula": "P / cp * 60" }
+  ],
+  "salidas": [
+    { "label": "1 · Minutos de paro que paga el asistente al mes, \\(m^{*}\\)", "formula": "meq", "formato": "num", "decimales": 1, "barra": true,
+      "nota": "\\(m^{*} = P ÷ c_p × 60\\)",
+      "cuenta": "US${{P|int}} ÷ US${{cp|int}} por hora × 60 = **{{meq|num|1}} minutos al mes**" },
+    { "label": "2 · Lo que ahorra al mes, \\(A\\) (US$)", "formula": "A", "formato": "int", "barra": true,
+      "nota": "\\(A = H_p × s × c_p\\)",
+      "cuenta": "{{Hp|corto}} h × {{s|corto}} × US${{cp|int}} = **US${{A|int}}**" },
+    { "label": "3 · Ahorro ÷ costo", "formula": "A / P", "formato": "x", "decimales": 1,
+      "nota": "más de 1×: el asistente se paga con el paro que evita",
+      "cuenta": "US${{A|int}} ÷ US${{P|int}} = **{{A / P|num|1}}×**" },
+    { "label": "¿Se paga con el paro que evita?", "formula": "A - P",
+      "veredicto": { "si": "Sí", "no": "No" },
+      "cuenta": "US${{A|int}} − US${{P|int}} = US${{A - P|int}} al mes" },
+    { "label": "Parte del paro que basta ahorrar", "formula": "meq / (Hp * 60)", "formato": "pct", "decimales": 2,
+      "nota": "\\(m^{*} ÷ (H_p × 60)\\)",
+      "cuenta": "{{meq|num|1}} min ÷ ({{Hp|corto}} h × 60) = **{{meq / (Hp * 60) * 100|num|2}} %**" },
+    { "label": "Costo por pregunta (MXN)", "formula": "P * tc / Q", "formato": "num", "decimales": 2,
+      "nota": "el mes entre las preguntas; mide poco aquí: el servidor trabaja ≈ 1 % del día",
+      "cuenta": "US${{P|int}} × {{tc|corto}} ÷ {{Q|int}} = **MXN {{P * tc / Q|num|2}}**" }
+  ],
+  "nota": "Prueba con la cifra de Siemens para plantas automotrices grandes, US$2,300,000 por hora: el asistente «se paga» con 3 segundos de paro al mes. Por eso no se copia: esa cifra es de otra planta. Después baja \\(s\\) a 0.005 (medio por ciento): con B ya no se paga (US$1,500 contra US$2,012); con A, sí."
+}

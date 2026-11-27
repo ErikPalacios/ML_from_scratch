@@ -1,0 +1,456 @@
+{
+  "nota": "La ficha de la clínica, el caso «Clínica» de IA Privada (fase 8, 2026-11-27): cada número de la clínica que usa el caso vive aquí y se usa tal cual. Es ficticia y no tiene nombre propio: es «la clínica». Los hechos del mundo real (leyes, normas, estadísticas, modelos, precios) llevan su fuente y su fecha en la nota; los demás son supuestos del ejemplo y la nota lo dice. Las cuentas salen de las herramientas de IA Privada (sizing, VRAM, velocidad y TCO) con los valores que dice cada nota. Lo jurídico es la lectura del caso, no asesoría: lo confirma un abogado sanitario.",
+  "hechos": [
+    {
+      "id": "que_es",
+      "dato": "Qué es",
+      "valor": "un hospital privado general de 60 camas con una torre de consultorios, en Zapopan, Jalisco, con expediente clínico electrónico propio, que quiere un asistente con un LLM sin que un solo dato de un paciente salga de su red",
+      "nota": "Ficticio. Jalisco tiene el 9.3 % de las camas de los hospitales privados del país, y Zapopan y Guadalajara están entre los 25 municipios con establecimientos privados de más de 300 camas en total (INEGI, Estadísticas de Salud en Establecimientos Particulares 2025, reporte del 31 de julio de 2026)."
+    },
+    {
+      "id": "tamano_nacional",
+      "dato": "Qué tan grande es",
+      "valor": "solo el 4.1 % de los establecimientos privados con camas tiene 50 o más (110 de 2,689)",
+      "nota": "INEGI, ESEP 2025 (31-jul-2026). El 60.7 % tiene menos de 10 camas. Un hospital de 60 camas es grande en la estadística nacional, aunque mediano en una ciudad."
+    },
+    {
+      "id": "camas",
+      "dato": "Camas censables",
+      "valor": "60",
+      "unidad": "camas",
+      "nota": "Supuesto del ejemplo. Censables = las de hospitalización."
+    },
+    {
+      "id": "ocupacion",
+      "dato": "Ocupación",
+      "valor": "60 % → 36 pacientes hospitalizados en promedio",
+      "nota": "Supuesto del ejemplo. La ocupación nacional implícita es ≈ 37.5 % (2,329,690 egresos × 2.1 días ÷ 365 ÷ 35,732 camas, derivado de la ESEP 2025), baja porque la mayoría de los establecimientos son muy chicos."
+    },
+    {
+      "id": "estancia",
+      "dato": "Días de estancia promedio",
+      "valor": "2.1",
+      "unidad": "días",
+      "nota": "Media nacional de los establecimientos particulares (INEGI, ESEP 2025)."
+    },
+    {
+      "id": "egresos_dia",
+      "dato": "Egresos al día",
+      "valor": "≈ 17",
+      "unidad": "egresos/día",
+      "nota": "Derivado: 36 pacientes ÷ 2.1 días ≈ 17.1. Cada egreso pide una nota de egreso (NOM-004, 8.9): es lo que el borrador ayuda a escribir."
+    },
+    {
+      "id": "medicos_acceso",
+      "dato": "Médicos con acceso al expediente",
+      "valor": "≈ 178",
+      "unidad": "médicos",
+      "nota": "Derivado: 2.97 médicos en atención directa por cama en los hospitales privados (106,032 ÷ 35,732, ESEP 2025) × 60 camas."
+    },
+    {
+      "id": "medicos_externos",
+      "dato": "Médicos externos",
+      "valor": "83.8 % trabaja «con un acuerdo especial»; 16.2 % está en nómina",
+      "nota": "Dato nacional de los hospitales privados (INEGI, ESEP 2025, 107,290 profesionales de la medicina). Los usuarios del asistente casi nunca son empleados: son profesionales con acceso al expediente. Cambia el contrato, la confidencialidad (LFPDPPP art. 20) y la baja de accesos."
+    },
+    {
+      "id": "usuarios_asistente",
+      "dato": "Médicos que usan el asistente",
+      "valor": "60",
+      "unidad": "médicos",
+      "nota": "Supuesto del ejemplo: ≈ un tercio del cuerpo médico, para el arranque. Es el mismo número que usan las lecciones «El recorrido» y «De requisitos a hardware» para la clínica."
+    },
+    {
+      "id": "usos",
+      "dato": "Lo que hace el asistente",
+      "valor": "1) resumir el expediente de un paciente con cita a la nota de origen (antes de la consulta, en el pase de turno y para el médico de guardia); 2) escribir el borrador de la nota de egreso, que el médico revisa y firma",
+      "nota": "Decisión del caso. Fuera del alcance: sugerir diagnósticos, dosis o prioridades (triage), el chat libre sobre el paciente y, por ahora, el dictado (fase 2)."
+    },
+    {
+      "id": "no_diagnostica",
+      "dato": "Uso previsto",
+      "valor": "reorganiza lo que ya está escrito en el expediente; no sugiere diagnóstico, dosis, tratamiento ni prioridad",
+      "nota": "Decisión del caso, escrita en el contrato y en la pantalla. Con la regla de clasificación de software como dispositivo médico que la Farmacopea puso a consulta (1-nov a 31-dic-2025), sugerir un diagnóstico en un paciente hospitalizado caería en la clase III; que la regla ya sea definitiva no se verificó."
+    },
+    {
+      "id": "turnos",
+      "dato": "Turnos",
+      "valor": "matutino 7:00–14:00, vespertino 14:00–21:00, nocturno 21:00–7:00",
+      "nota": "Supuesto del ejemplo: es el esquema habitual, pero no hay norma ni cifra oficial que lo fije."
+    },
+    {
+      "id": "guardia",
+      "dato": "Médicos de guardia",
+      "valor": "2 en el matutino y el vespertino; 1 en el nocturno (más residentes e internos)",
+      "nota": "Supuesto del ejemplo, sin fuente: el INEGI no publica médicos por turno."
+    },
+    {
+      "id": "horario_consulta",
+      "dato": "Consulta externa",
+      "valor": "8:00 a 20:00, 6 días a la semana (≈ 26 días al mes)",
+      "nota": "Supuesto del ejemplo. 6 × 4.33 semanas ≈ 26."
+    },
+    {
+      "id": "servicio",
+      "dato": "Horario del asistente",
+      "valor": "24 × 7",
+      "nota": "Lo pide la guardia de noche. El expediente electrónico sigue funcionando si el asistente cae: el asistente es una ayuda, no un sistema del que dependa la atención."
+    },
+    {
+      "id": "resumenes_dia",
+      "dato": "Resúmenes al día",
+      "valor": "1,200",
+      "unidad": "resúmenes/día",
+      "nota": "60 médicos × 20, en un día de consulta, casi todos en la torre de consultorios. Supuesto heredado de la lección «El recorrido»."
+    },
+    {
+      "id": "resumenes_sin_torre",
+      "dato": "Resúmenes si no hubiera torre",
+      "valor": "≈ 190",
+      "unidad": "resúmenes/día",
+      "nota": "Derivado de las razones nacionales por cama (ESEP 2025): ≈ 64 consultas externas al día (387 por cama al año × 60 ÷ 365) + 36 pacientes × 3 pases de turno + 17 egresos. Los 1,200 son ≈ 6 veces eso: los explica la torre de médicos externos, no el hospital."
+    },
+    {
+      "id": "pico",
+      "dato": "Pico de la mañana",
+      "valor": "4 veces el promedio, a las 8:00: ≈ 200 resúmenes en 20 minutos",
+      "nota": "Supuesto heredado de «De requisitos a hardware». Con 1,200 resúmenes en 8 horas efectivas, 0.0417 por segundo en promedio × 4 = 0.167 por segundo; en 20 minutos son ≈ 200: los 60 médicos piden los de sus primeros 3 o 4 pacientes casi a la vez."
+    },
+    {
+      "id": "pase_turno",
+      "dato": "Pase de turno",
+      "valor": "36 resúmenes en 20 minutos a las 7:00, 14:00 y 21:00",
+      "nota": "Supuesto del ejemplo: un resumen por paciente hospitalizado. 0.03 por segundo; con la herramienta de sizing, ≈ 0.94 conversaciones a la vez."
+    },
+    {
+      "id": "noche",
+      "dato": "Carga de noche",
+      "valor": "≈ 50 solicitudes entre las 21:00 y las 7:00",
+      "nota": "Supuesto del ejemplo: los 36 del pase de las 21:00, ≈ 9 de urgencias (14.1 % de la consulta externa nacional es de urgencias, ESEP 2025) y algunos borradores. ≈ 0.0014 por segundo: el reto de la noche es estar arriba, no la capacidad."
+    },
+    {
+      "id": "palabras_expediente",
+      "dato": "Lo que se lee para un resumen",
+      "valor": "≈ 5,700 palabras (la estancia actual ≈ 3,500 + lo importante del historial)",
+      "nota": "Supuesto del ejemplo, no una medición. Para comparar: los resúmenes de alta de la base MIMIC-IV, de hospitales de EE. UU., miden ≈ 1,600 palabras en promedio (fuente secundaria)."
+    },
+    {
+      "id": "tokens_por_palabra",
+      "dato": "Tokens por palabra en una nota clínica",
+      "valor": "≈ 2.1",
+      "unidad": "tokens/palabra",
+      "nota": "Medido con una sola nota de evolución sintética de 249 palabras con cifras, unidades y fármacos: 2.09 con el tokenizador de Qwen3.8 27B, 1.98 con el de Gemma 4 31B y 2.23 con el de Qwen3 32B (paquete de la fase 8, 2026-11-26). Una nota con muchos números pesa más que la prosa (≈ 1.6 en texto formal). Se vuelve a medir con expedientes reales dentro de la clínica."
+    },
+    {
+      "id": "tokens_entrada",
+      "dato": "Tokens de entrada de un resumen",
+      "valor": "≈ 12,000 típico (la mediana); ≈ 30,000 en el p95",
+      "unidad": "tokens",
+      "nota": "5,700 palabras × 2.1 ≈ 11,970. El p95 es un supuesto: estancias largas y pacientes con mucho historial. Con una distribución lognormal de mediana 12,000 y p95 30,000, la media es ≈ 13,600 y ≈ 4 % pasa de 31,000 (simulación del caso)."
+    },
+    {
+      "id": "contexto",
+      "dato": "Tope de contexto por conversación",
+      "valor": "32,768",
+      "unidad": "tokens",
+      "nota": "Cabe el p95 de entrada (30,000) más la respuesta más larga (≈ 900). Lo que no cabe se recorta por fecha (lo más viejo primero) y el resumen dice qué notas no leyó."
+    },
+    {
+      "id": "tokens_salida",
+      "dato": "Tokens de salida",
+      "valor": "≈ 600 en un resumen (≈ 285 palabras); ≈ 900 en un borrador de nota de egreso",
+      "unidad": "tokens",
+      "nota": "Supuestos del ejemplo. El borrador lleva los apartados de la nota de egreso de la NOM-004 (8.9)."
+    },
+    {
+      "id": "ttft_objetivo",
+      "dato": "Tiempo al primer token, objetivo",
+      "valor": "≤ 8",
+      "unidad": "s, en el p95 con la fila",
+      "nota": "Supuesto del ejemplo: un resumen no es una conversación; el médico lo pide al abrir el expediente y lo lee mientras se escribe. En el despacho el objetivo es 2 s."
+    },
+    {
+      "id": "velocidad_objetivo",
+      "dato": "Velocidad de escritura, objetivo",
+      "valor": "≥ 20",
+      "unidad": "tokens/s por resumen",
+      "nota": "El mismo criterio del despacho. A 2.1 tokens por palabra son ≈ 9.5 palabras por segundo, más rápido de lo que se lee; un resumen de 600 tokens se escribe en ≤ 30 s."
+    },
+    {
+      "id": "eficiencias",
+      "dato": "Eficiencias supuestas",
+      "valor": "η_m = 0.7 del ancho de banda, η_c = 0.5 de los FLOPs pico",
+      "nota": "Las de la herramienta de sizing, iguales que en el despacho."
+    },
+    {
+      "id": "modelo",
+      "dato": "Modelo base",
+      "valor": "Qwen3.8 27B (Alibaba, 5 de agosto de 2026, Apache 2.0) en FP8 dinámico, sin razonamiento",
+      "nota": "27.78 mil millones de parámetros (Hugging Face, consultado 2026-11-26); tablas de tokens 248,320 × 5,120, dos tablas ≈ 2.543 mil millones (config.json: vocab_size 248,320, hidden_size 5,120, tie_word_embeddings false, consultado 2026-11-27). Se usa sin afinar: afinarlo con expedientes reales sería otra finalidad (LFPDPPP art. 11). FP8 dinámico: vLLM convierte los pesos al cargarlos. La arquitectura es la de Qwen3.5 (architectures: Qwen3_5ForConditionalGeneration en su config.json), que vLLM ya corre; que el FP8 dinámico salga bien se confirma en el piloto. Si no, existe el checkpoint FP8 oficial Qwen/Qwen3.8-27B-FP8 (Hugging Face, creado el 13-ago-2026, Apache 2.0)."
+    },
+    {
+      "id": "arquitectura",
+      "dato": "Arquitectura que pesa en la memoria",
+      "valor": "64 bloques: 16 de atención completa (4 juegos de K y V de 256 números) y 48 lineales",
+      "nota": "config.json de Qwen3.8 27B (paquete, 2026-11-26). El KV cache solo crece en los 16: 16 × 2 × 4 × 256 × 2 bytes = 64 KiB por token, contra 256 KiB de Qwen3 32B. Los 48 lineales guardan un estado fijo de ≈ 154 MB por conversación (la cuenta de la lección «Elegir un modelo» para Qwen3.6 27B; con el config.json de Qwen3.8 da lo mismo: 48 × 48 cabezas × 128 × 128 números × 4 bytes, porque mamba_ssm_dtype es float32, ≈ 151 MB, más ≈ 3 MB de la convolución). Las 24 cabezas de atención (num_attention_heads) y las 4 de K y V salen del mismo config.json (consultado 2026-11-27). Con Qwen3 32B (256 KiB por token), una conversación al tope de 32,768 ocuparía 8.59 GB de KV; con Qwen3.8 27B, 2.15 GB (herramienta de VRAM)."
+    },
+    {
+      "id": "modelo_retador",
+      "dato": "Retador médico",
+      "valor": "MedGemma 27B text-it (Google, 20 de mayo de 2025), con los términos de Health AI Developer Foundations (HAI-DEF)",
+      "nota": "27.0 mil millones de parámetros, solo texto, base Gemma 3. No es Apache 2.0: los pesos van con los términos HAI-DEF (última modificación 15-nov-2024) y su política de uso prohibido (14-nov-2024), que prohíbe las decisiones automatizadas en salud y termina la licencia si una autoridad pudiera tratar a Google como fabricante de un dispositivo médico. Su tarjeta no dice en qué idiomas sirve y sus pruebas de seguridad fueron «principalmente en inglés». No existe MedGemma 1.5 de 27B (solo 4B). Entra solo si gana el examen por un margen que justifique sus términos."
+    },
+    {
+      "id": "modelo_tercero",
+      "dato": "Tercer candidato",
+      "valor": "Gemma 4 31B (Google, 11 de marzo de 2026, Apache 2.0)",
+      "nota": "31.27 mil millones de parámetros; 10 bloques globales y 50 de ventana de 1,024 tokens (≈ 80 KiB por token más ≈ 800 MiB fijos por conversación, derivado del config.json)."
+    },
+    {
+      "id": "pesos",
+      "dato": "Pesos del modelo base",
+      "valor": "≈ 30.32 GB en FP8; ≈ 18.20 GB en INT4 de AWQ",
+      "unidad": "GB",
+      "nota": "Herramienta de VRAM con P = 27.78, E = 2.543 (las tablas se quedan en 16 bits)."
+    },
+    {
+      "id": "memoria",
+      "dato": "Memoria con 7 conversaciones al tope",
+      "valor": "47.36 GB de 86.40 útiles en una RTX PRO 6000 Server Edition (pesos 30.32 + KV 15.03 + programa 2), más ≈ 1.08 GB del estado fijo",
+      "nota": "Herramienta de VRAM: 7 × 32,768 tokens × 64 KiB. Al tope caben 25 conversaciones; la memoria no es lo que limita. En una L40S de 48 GB: en FP8, 4 conversaciones al tope dejan 2.29 GB libres; en INT4 de AWQ caben 10."
+    },
+    {
+      "id": "l40s_fp8",
+      "dato": "Qwen3.8 27B en FP8 en una L40S",
+      "valor": "≈ 19.4 tokens/s con una sola conversación: no llega a 20",
+      "nota": "Herramienta de velocidad: cada paso lee ≈ 30.3 GB de pesos a 864 GB/s × 0.7 ≈ 605 GB/s ≈ 0.050 s (≈ 20 tokens/s solo con los pesos), y el KV lo baja a 19.43. La herramienta de sizing da 0 conversaciones a ≥ 20 tokens/s."
+    },
+    {
+      "id": "velocidad",
+      "dato": "Velocidad de una conversación sola",
+      "valor": "Server Edition en FP8: ≈ 35.9 tokens/s; L40S en INT4 de AWQ: ≈ 31.8; L40S en FP8: ≈ 19.4",
+      "unidad": "tokens/s",
+      "nota": "Herramienta de velocidad con 12,000 tokens de entrada y 600 de salida, η_m = 0.7."
+    },
+    {
+      "id": "prefill",
+      "dato": "Prefill de un resumen, sin fila",
+      "valor": "12,000 tokens: 1.39 s en una Server Edition (FP8) y 3.84 s en una L40S (INT4 de AWQ); 30,000 tokens: 3.69 s y 10.19 s",
+      "unidad": "s",
+      "nota": "Herramienta de velocidad. Con AWQ el prefill corre en FP16 (362 TFLOPS densos en la L40S); en FP8, en los tensores de FP8 (≈ 1,000 TFLOPS derivados en la Server Edition, gpus.json)."
+    },
+    {
+      "id": "a_la_vez",
+      "dato": "Resúmenes a la vez en el pico de las 8:00",
+      "valor": "≈ 5.2 con la Server Edition; ≈ 5.6 con L40S en INT4",
+      "unidad": "conversaciones",
+      "nota": "Herramienta de sizing (ley de Little): 0.167 por segundo × (1.39 s + 600 ÷ 20) = 5.23; con L40S en INT4, 0.167 × (3.84 + 30) = 5.64. Con la media de 13,600 tokens en vez de 12,000, 5.26 y 5.73."
+    },
+    {
+      "id": "capacidad",
+      "dato": "Resúmenes a ≥ 20 tokens/s por tarjeta",
+      "valor": "7 por RTX PRO 6000 Server Edition en FP8 (6 con la media de 13,600 tokens); 2 por L40S en INT4 de AWQ; 0 por L40S en FP8; 11 por par de L40S en FP8 con tensor parallel (sin contar el cable)",
+      "nota": "Herramienta de sizing con Qwen3.8 27B, 12,000 tokens de entrada, 600 de salida y 20 tokens/s."
+    },
+    {
+      "id": "crecimiento",
+      "dato": "Cuándo hace falta una tercera tarjeta",
+      "valor": "desde 81 médicos",
+      "nota": "Herramienta de sizing con la Server Edition: con 80 médicos, 6.98 a la vez en el pico contra 7 lugares; con 81, 7.06. Desde ahí el pico pide dos tarjetas y el N+1 una tercera, que cabe en el chasis de 4 ranuras."
+    },
+    {
+      "id": "ttft_p95_con_cola",
+      "dato": "TTFT p95 con la fila del pico",
+      "valor": "2 Server Edition: 3.7 s; 1 Server Edition (la otra falló): 4.3 s; 3 L40S en INT4: 10.3 s; 4 L40S: 10.2 s; 4 L40S en 2 pares con tensor parallel, FP8: ≈ 3.8 s (≈ 4.5 s con un solo par)",
+      "nota": "Simulación del caso (Python, semilla 7, 400 horas de pico a 0.167 por segundo): llegadas al azar, tamaños con mediana 12,000 y p95 30,000 (tope 31,000), una fila de prefill por tarjeta, cada resumen a la que se desocupa primero, el decode sin frenar al prefill. Con L40S no alcanza ni con 4: la cola larga de expedientes es la que manda. El piloto mide el real. Para los pares, el prefill suma el cálculo en dos tarjetas (la herramienta de sizing con 2 GPUs por copia) y el cable: 1,310,720 bytes por token por PCIe 4.0 a 31.5 GB/s por dirección (el método de la lección «Varias GPUs»), ≈ 0.50 s con 12,000 tokens y ≈ 1.25 s con 30,000; la latencia de cada envío no tiene medición publicada."
+    },
+    {
+      "id": "decision_hardware",
+      "dato": "Hardware",
+      "valor": "1 servidor de rack 4U con 2 × NVIDIA RTX PRO 6000 Blackwell Server Edition, una copia de Qwen3.8 27B por tarjeta; una sola tarjeta aguanta el pico (7 lugares contra ≈ 5.2) y la otra es el N+1",
+      "nota": "Decisión del caso, contra 3 o 4 L40S en INT4 (no cumplen el TTFT con los expedientes largos) y contra 4 L40S en 2 pares con tensor parallel en FP8 (cumple en el papel, pero un tercio de su lectura es cable por PCIe sin medir, y tiene el doble de tarjetas que pueden fallar). Se cotizan D (2 Server Edition) y E (4 L40S en 2 pares). Plan B si la Server Edition no llega en el plazo: E, con el prefill de 30,000 tokens medido en la semana 2 del piloto. Plan C si el par pasa de ≈ 6 s: 4 L40S en INT4 con un tope de 20,000 tokens de entrada y lo más largo resumido por partes (TTFT p95 ≈ 6.6 s en la simulación con 3 en servicio; ≈ 18 % de los resúmenes por partes)."
+    },
+    {
+      "id": "compra",
+      "dato": "Compra del servidor",
+      "valor": "≈ US$74,779 con 2 Server Edition; US$76,101.30 con 4 L40S (en INT4 o en 2 pares)",
+      "unidad": "US$, sin impuestos",
+      "nota": "Base del Exxact TensorEX 4U de equipos.json, US$40,461.30 (2026-11-25), + 2 × US$17,159 (la Server Edition en CDW, EE. UU., 2026-11-26, «backordered»: el precio que encontró el caso del despacho; no tiene precio de lista) o + 4 × US$8,910 (el adicional de Exxact por L40S). Que el chasis base acepte la Server Edition sin otra placa se confirma con el integrador."
+    },
+    {
+      "id": "potencia",
+      "dato": "Potencia del servidor",
+      "valor": "pico ≈ 2,300 W; en promedio, 24 × 7, ≈ 930 W",
+      "nota": "Estimación derivada: pico = 2 × 600 W de GPU + 400 W de CPUs + 700 W del resto. Promedio con la herramienta de TCO: las GPUs al 40 % de su máximo (supuesto: mucho uso de día, casi nada de noche) + 450 W del resto."
+    },
+    {
+      "id": "luz",
+      "dato": "Luz",
+      "valor": "≈ 1,358 kWh al mes con el cuarto (PUE 2.0) a ≈ US$0.11 por kWh ≈ US$149 al mes",
+      "nota": "Herramienta de TCO. Supuestos: el PUE de 2.0 del despacho; el precio es la tarifa GDMTO de la ficha del despacho (≈ $1.542 por kWh + ≈ $395.29 por kW al mes ÷ 730 h ≈ $2.08 por kWh ≈ US$0.106) porque un hospital suele estar en media tensión. La tarifa de Jalisco no se consultó: la dice el recibo."
+    },
+    {
+      "id": "cuarto",
+      "dato": "Dónde va",
+      "valor": "el cuarto de cómputo del hospital, con UPS, planta de emergencia y aire propios; dos circuitos dedicados nuevos para las dos fuentes del servidor",
+      "nota": "Supuesto del ejemplo. Obra de los dos circuitos ≈ MXN 60,000 (la cifra de la lección «TCO» para el despacho), repartida en 36 meses ≈ US$84.5 al mes; en la herramienta de TCO, US$90 (la entrada va de 10 en 10 y se redondea hacia arriba)."
+    },
+    {
+      "id": "motor",
+      "dato": "Motor de inferencia",
+      "valor": "vLLM 0.34.0, una copia por tarjeta, con FP8 dinámico, tope de 32,768 tokens y hasta 8 resúmenes a la vez por copia",
+      "nota": "La versión del despacho (noviembre de 2026). La arquitectura de Qwen3.8 es la de Qwen3.5, que vLLM ya corre; el razonamiento se apaga con --default-chat-template-kwargs '{\"enable_thinking\": false}' (el parámetro enable_thinking de la tarjeta del modelo, consultada 2026-11-27; el mismo flag del despacho). Sin --enable-log-requests (apagado por omisión), vLLM no escribe las peticiones en su log. El prefix caching con bloques lineales es experimental en vLLM: el piloto mide si ahorra algo."
+    },
+    {
+      "id": "integracion",
+      "dato": "Cómo lo usa el médico",
+      "valor": "dos botones dentro del expediente electrónico («Resumir expediente» y «Borrador de nota de egreso»); sin chat libre y sin RAG",
+      "nota": "Decisión del caso. Un servicio de resumen pide las notas del paciente al expediente con la sesión del médico (hereda sus permisos), arma el prompt, lo manda por el gateway (LiteLLM 1.111.0, la versión del despacho, con store_prompts_in_spend_logs en false, su valor por omisión, y turn_off_message_logging: true, según la documentación de LiteLLM consultada 2026-11-27) y revisa la respuesta antes de mostrarla."
+    },
+    {
+      "id": "verificador",
+      "dato": "Revisión automática de cada respuesta",
+      "valor": "cada frase cita una nota que existe; cada dosis (fármaco, número y unidad) y cada alergia aparece en la nota que cita; si algo no se encuentra, la frase sale marcada en rojo y se cuenta",
+      "nota": "Decisión del caso: un programa sin modelo, de reglas, que corre después del LLM."
+    },
+    {
+      "id": "sonda",
+      "dato": "Sonda",
+      "valor": "cada minuto, el resumen de un paciente sintético de prueba: que conteste, que el TTFT quede bajo 8 s y que traiga una cita válida",
+      "nota": "Decisión del caso. De noche es la única señal de que el servicio está arriba (lección «Observabilidad»: sin tráfico, el p95 no existe). Corre con el blackbox_exporter, como la del despacho, y publica probe_success. Una copia caída es alerta de nivel «mañana»; las dos, la sonda fallando 5 minutos, o la sonda sin medir 3 minutos (absent_over_time), de nivel «ahora»."
+    },
+    {
+      "id": "consentimiento",
+      "dato": "Consentimiento",
+      "valor": "expreso y por escrito en la admisión (LFPDPPP art. 8); el asistente trata los datos para la misma finalidad de atención",
+      "nota": "LFPDPPP publicada en el DOF el 20 de marzo de 2025, última reforma del 14 de noviembre de 2025 (Cámara de Diputados, consultada 2026-11-26). Que no haga falta un consentimiento nuevo es la lectura del caso: lo confirma el abogado."
+    },
+    {
+      "id": "aviso",
+      "dato": "Aviso de privacidad",
+      "valor": "el integral y el simplificado nombran el asistente: datos que usa (identificando los sensibles), que corre en un servidor de la clínica, que el médico revisa todo y que no se entrena con los datos",
+      "nota": "LFPDPPP art. 15 (contenido mínimo) y art. 16."
+    },
+    {
+      "id": "finalidad",
+      "dato": "Finalidad",
+      "valor": "atención médica y continuidad de la atención; no entrenar ni afinar modelos con expedientes reales",
+      "nota": "Una finalidad distinta pide consentimiento nuevo (LFPDPPP art. 11) o datos disociados (art. 9-III)."
+    },
+    {
+      "id": "encargado",
+      "dato": "TI externo",
+      "valor": "el integrador que instala y opera el servidor es encargado, con cláusulas contractuales",
+      "nota": "Reglamento de la LFPDPPP de 2011, arts. 49–51 (la Cámara lo publica todavía como texto vigente, consultado 2026-11-26; no se encontró uno nuevo). Una remisión a un encargado no pide consentimiento del paciente (art. 53)."
+    },
+    {
+      "id": "conservacion",
+      "dato": "Conservación",
+      "valor": "el expediente, ≥ 5 años desde el último acto médico; el asistente no guarda el texto de los resúmenes",
+      "nota": "NOM-004-SSA3-2012, 5.4 (DOF 15-oct-2012). El borrador firmado entra al expediente y se conserva con él; lo demás del asistente no guarda texto clínico."
+    },
+    {
+      "id": "registro",
+      "dato": "Registro de uso",
+      "valor": "una fila por solicitud: quién (médico), por qué paciente (su número de expediente), cuándo, qué notas citó, cuánto tardó, la huella del texto y las marcas del verificador; sin el texto; 12 meses",
+      "nota": "Decisión del caso para la «trazabilidad» que pide la NOM-024-SSA3-2012 (6.6.1); la norma no dice «bitácora». Los 12 meses son decisión de la clínica, a confirmar con el abogado. A ≈ 1 KB por fila (el supuesto de la lección «Observabilidad»), 1,200 × 365 ≈ 438,000 filas ≈ 438 MB al año."
+    },
+    {
+      "id": "autenticacion",
+      "dato": "Autenticación",
+      "valor": "usuario y contraseña del expediente electrónico más un segundo factor",
+      "nota": "NOM-024-SSA3-2012, 6.6.3: usuario y contraseña como mínimo; los factores adicionales «se recomiendan». La norma está vigente: revisión quinquenal del 6-feb-2018 con resultado «confirmación» (PLATIICA, consultada 2026-11-26)."
+    },
+    {
+      "id": "roles",
+      "dato": "Permisos",
+      "valor": "por rol y por paciente asignado: el asistente solo lee lo que el médico ya puede abrir",
+      "nota": "NOM-024-SSA3-2012, 6.6.4 (autorización basada en roles). Enfermería no usa el asistente en el piloto."
+    },
+    {
+      "id": "firma",
+      "dato": "Quién firma",
+      "valor": "el médico firma toda nota; el borrador queda marcado «borrador de IA» hasta que lo firma",
+      "nota": "NOM-004-SSA3-2012, 5.10: fecha, hora, nombre completo y firma de quien elabora la nota; 5.11: sin abreviaturas."
+    },
+    {
+      "id": "red",
+      "dato": "Red",
+      "valor": "el servidor de IA en su VLAN sin ruta a internet; los equipos médicos en otra VLAN sin ruta al servidor; solo el servicio de resumen llega al gateway",
+      "nota": "Diseño de la lección «Seguridad», aplicado al hospital."
+    },
+    {
+      "id": "examen",
+      "dato": "Examen propio",
+      "valor": "300 expedientes sintéticos revisados por médicos, en 5 estratos: 110 resúmenes de hospitalizados, 60 antes de consulta, 50 borradores de egreso, 60 trampas de seguridad y 20 expedientes largos",
+      "nota": "Supuesto del ejemplo. Sin datos reales: un modelo Apache 2.0 escribe el borrador del expediente desde el guion de un médico y el médico lo corrige y le pone las trampas (≈ 1 h por caso, ≈ 300 h de médico, supuesto). Los 300 nunca van en el prompt ni en un ajuste fino. El borrador del expediente lo escribe un modelo que no está en la comparación (por ejemplo, el Qwen3 32B del despacho), ni Qwen3.8 ni MedGemma: un examen escrito por un candidato lo favorece. Con los términos HAI-DEF, las salidas de MedGemma no son derivados (sección 1.1), pero un modelo entrenado con ellas sí."
+    },
+    {
+      "id": "criterio_seguridad",
+      "dato": "Criterio de aceptación de seguridad",
+      "valor": "0 dosis inventadas o cambiadas, 0 alergias omitidas, a lo más 1 % de resúmenes con una omisión grave",
+      "nota": "Con 0 fallas en 300 se demuestra ≤ 0.99 % al 95 % (cota exacta de una cola, 1 − 0.05^(1/300)); con 200 solo ≤ 1.49 %. Por eso son 300."
+    },
+    {
+      "id": "piloto",
+      "dato": "Prueba piloto",
+      "valor": "8 semanas, 15 médicos de dos servicios, cada resumen calificado por el médico que lo usa",
+      "nota": "Supuesto del ejemplo."
+    },
+    {
+      "id": "auditoria",
+      "dato": "Auditoría",
+      "valor": "100 resúmenes al mes, al azar, que un médico revisor compara contra el expediente completo",
+      "nota": "Supuesto del ejemplo: ≈ 0.3 % de los ≈ 31,200 resúmenes del mes. Empieza en el piloto y sigue después: es la única forma de ver las omisiones en producción."
+    },
+    {
+      "id": "multa",
+      "dato": "Lo que cuesta no cumplir",
+      "valor": "de 200 a 320,000 UMA por infracciones como faltar a la confidencialidad o a la seguridad, hasta el doble con datos sensibles; 3 meses a 3 años de prisión por una vulneración con ánimo de lucro, el doble con sensibles (6 meses a 6 años)",
+      "nota": "LFPDPPP arts. 58–59 (el doble con sensibles está al final del 59), 62 y 64 (texto de la Cámara de Diputados, consultado 2026-11-27). Con la UMA de 2026 ($117.31) son hasta $37,539,200 y $75,078,400 con sensibles (la cuenta de la lección «Seguridad»)."
+    },
+    {
+      "id": "caida_noche",
+      "dato": "Si se cae de noche",
+      "valor": "el expediente sigue; el botón dice «el asistente no está disponible»; la copia que queda toma todo; si caen las dos, la alerta va a la guardia remota de TI",
+      "nota": "Decisión del caso."
+    },
+    {
+      "id": "operacion",
+      "dato": "Quién lo opera",
+      "valor": "el TI del hospital ≈ 52 h al mes (≈ MXN 11,341) más una guardia remota en espera del integrador (≈ MXN 12,300 al mes): ≈ US$1,200 al mes",
+      "nota": "Las 52 h a MXN 218.1 son el método del despacho (lección «TCO»). La guardia en espera es un supuesto a cotizar: no es una persona despierta (eso serían ≈ 4.1 personas, ≈ $483,183 al mes, lección «Cotizar»), sino alguien localizable que entra solo si caen las dos copias."
+    },
+    {
+      "id": "costo_total",
+      "dato": "Costo al mes",
+      "valor": "≈ US$3,101 (≈ MXN 61,155) con 2 Server Edition; ≈ US$3,143 con 4 L40S; TCO de 36 meses ≈ US$111,640 (≈ MXN 2.20 M)",
+      "nota": "Herramienta de TCO: depreciación lineal de 36 meses con 20 % de reventa (US$1,661.8), luz (US$149.4), obra (US$90) y operación (US$1,200). Tipo de cambio 19.7203 (el FIX del 2026-11-26). Sin impuestos, flete ni importación, y sin lo que cuesta decidir (examen y piloto)."
+    },
+    {
+      "id": "costo_opciones",
+      "dato": "Costo al mes de cada opción",
+      "valor": "A) 3 L40S en INT4 ≈ US$2,923; B) 4 L40S en INT4 ≈ US$3,143; C) 1 Server Edition ≈ US$2,681; D) 2 Server Edition ≈ US$3,101; E) 4 L40S en 2 pares ≈ US$3,143",
+      "nota": "Herramienta de TCO con los mismos supuestos. Entre D y C hay ≈ MXN 8,280 al mes (61,155 − 52,875): lo que cuesta el repuesto. Sin la guardia en espera (solo las 52 h de TI, ≈ US$575), D baja a ≈ US$2,476; con la Server Edition a US$13,000, a ≈ US$2,916."
+    },
+    {
+      "id": "costo_resumen",
+      "dato": "Costo por resumen",
+      "valor": "≈ MXN 1.96",
+      "unidad": "MXN por resumen",
+      "nota": "61,155 ÷ 31,200 resúmenes al mes (1,200 × 26 días). La API de Qwen3 32B de DeepInfra (apis.json, 2026-11-25) haría el mismo trabajo (≈ 393 millones de tokens al mes) por ≈ US$35 al mes, ≈ 88 veces menos, pero los datos saldrían de la red: no es opción."
+    },
+    {
+      "id": "tiempo_medico",
+      "dato": "Tiempo de médico",
+      "valor": "si cada resumen ahorra 3 minutos, 1,200 resúmenes son 60 horas de médico al día",
+      "nota": "Supuesto del ejemplo: los 3 minutos los mide el piloto."
+    },
+    {
+      "id": "dictado",
+      "dato": "Dictado (fase 2)",
+      "valor": "Whisper large-v3-turbo (MIT, 809 millones de parámetros, ≈ 6 GB de VRAM), a evaluar en una de las dos tarjetas",
+      "nota": "Tarjeta y README de OpenAI (consultados 2026-11-26). No hay cifras publicadas de error con español clínico mexicano: el examen tiene que medir nombres de fármacos y números («15» contra «50»). Si va en una instancia MIG, le quita memoria y cómputo a la copia del LLM de esa tarjeta: se mide antes de prometerlo. Otra opción: Qwen3-ASR 1.7B y 0.6B (Apache 2.0, 28-ene-2026), sin cifras verificadas en español médico."
+    }
+  ]
+}

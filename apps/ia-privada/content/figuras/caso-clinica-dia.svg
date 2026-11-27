@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 372" role="img" aria-labelledby="f-caso-clinica-dia-t" class="f-svg" style="max-width:420px">
+<title id="f-caso-clinica-dia-t">Un día de consulta en la clínica, en resúmenes que se escriben a la vez, de la medianoche a la medianoche (perfil supuesto). De noche casi cero. A las 7:00, 14:00 y 21:00, el pase de turno: 36 resúmenes en 20 minutos, ≈ 0.94 a la vez. A las 8:00, cuando abre la torre de consultorios, ≈ 200 resúmenes en 20 minutos: ≈ 5.2 a la vez. El resto del día, ≈ 0.66. Una línea en 7 marca lo que aguanta una sola RTX PRO 6000 Server Edition a 20 tokens por segundo; otra en 2, una L40S en INT4. Una sola Server Edition cubre el pico de las 8:00; la segunda tarjeta no es para el pico, es para la noche en que falle la primera.</title>
+<text class="f-l" x="14" y="24">UN DÍA DE CONSULTA · RESÚMENES A LA VEZ</text>
+<text class="f-s" x="14" y="44" style="font-size:12px">perfil supuesto; el pico sale de la herramienta de sizing</text>
+<line x1="46" y1="250.0" x2="340" y2="250.0" style="stroke:var(--tm-line);stroke-width:1"/>
+<text class="f-s" x="40" y="254.0" text-anchor="end" style="font-size:12px">0</text>
+<line x1="46" y1="202.5" x2="340" y2="202.5" style="stroke:var(--tm-line);stroke-width:1"/>
+<text class="f-s" x="40" y="206.5" text-anchor="end" style="font-size:12px">2</text>
+<line x1="46" y1="155.0" x2="340" y2="155.0" style="stroke:var(--tm-line);stroke-width:1"/>
+<text class="f-s" x="40" y="159.0" text-anchor="end" style="font-size:12px">4</text>
+<line x1="46" y1="107.5" x2="340" y2="107.5" style="stroke:var(--tm-line);stroke-width:1"/>
+<text class="f-s" x="40" y="111.5" text-anchor="end" style="font-size:12px">6</text>
+<line x1="46" y1="60.0" x2="340" y2="60.0" style="stroke:var(--tm-line);stroke-width:1"/>
+<text class="f-s" x="40" y="64.0" text-anchor="end" style="font-size:12px">8</text>
+<polygon points="46.0,250 46.0,249.5 131.8,249.5 131.8,227.7 135.8,227.7 135.8,247.6 144.0,247.6 144.0,125.8 148.1,125.8 148.1,234.3 217.5,234.3 217.5,212.0 221.6,212.0 221.6,234.3 291.0,234.3 291.0,248.8 303.2,248.8 303.2,227.7 307.3,227.7 307.3,249.5 340.0,249.5 340.0,250" class="f-b2"/>
+<polyline points="46.0,249.5 131.8,249.5 131.8,227.7 135.8,227.7 135.8,247.6 144.0,247.6 144.0,125.8 148.1,125.8 148.1,234.3 217.5,234.3 217.5,212.0 221.6,212.0 221.6,234.3 291.0,234.3 291.0,248.8 303.2,248.8 303.2,227.7 307.3,227.7 307.3,249.5 340.0,249.5" style="fill:none;stroke:var(--b);stroke-width:2.5;stroke-linejoin:round"/>
+<line x1="46" y1="83.8" x2="340" y2="83.8" style="stroke:var(--g);stroke-width:2.5;stroke-dasharray:7 5"/>
+<text class="f-s" x="340" y="77.8" text-anchor="end" style="font-size:12px;font-weight:700;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">1 Server Edition: 7</text>
+<line x1="46" y1="202.5" x2="340" y2="202.5" style="stroke:var(--o);stroke-width:2;stroke-dasharray:3 4"/>
+<text class="f-s" x="340" y="196.5" text-anchor="end" style="font-size:12px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">1 L40S en INT4: 2</text>
+<circle cx="146.0" cy="125.8" r="5" style="fill:var(--o);stroke:var(--blk);stroke-width:2"/>
+<text class="f-s" x="155.0" y="117.8" style="font-size:12px;font-weight:700;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">8:00 · ≈ 5.2</text>
+<text class="f-s" x="155.0" y="133.8" style="font-size:12px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">200 en 20 min</text>
+<text class="f-s" x="133.8" y="219.7" text-anchor="middle" style="font-size:12px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">pase</text>
+<text class="f-s" x="219.5" y="204.0" text-anchor="middle" style="font-size:12px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">pase</text>
+<text class="f-s" x="305.3" y="219.7" text-anchor="middle" style="font-size:12px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">pase</text>
+<text class="f-s" x="88.9" y="239.5" text-anchor="middle" style="font-size:12px">noche ≈ 0</text>
+<line class="f-linea" x1="46.0" y1="250" x2="46.0" y2="254"/>
+<text class="f-s" x="46.0" y="268" text-anchor="middle" style="font-size:12px">0:00</text>
+<line class="f-linea" x1="119.5" y1="250" x2="119.5" y2="254"/>
+<text class="f-s" x="119.5" y="268" text-anchor="middle" style="font-size:12px">6:00</text>
+<line class="f-linea" x1="193.0" y1="250" x2="193.0" y2="254"/>
+<text class="f-s" x="193.0" y="268" text-anchor="middle" style="font-size:12px">12:00</text>
+<line class="f-linea" x1="266.5" y1="250" x2="266.5" y2="254"/>
+<text class="f-s" x="266.5" y="268" text-anchor="middle" style="font-size:12px">18:00</text>
+<line class="f-linea" x1="340.0" y1="250" x2="340.0" y2="254"/>
+<text class="f-s" x="340.0" y="268" text-anchor="middle" style="font-size:12px">24:00</text>
+<text class="f-s" x="193.0" y="286" text-anchor="middle" style="font-size:12px">hora del día</text>
+<rect class="f-chip" x="14" y="300" width="332" height="58" rx="10"/>
+<text class="f-s" x="26" y="322" style="font-size:12.5px">El hardware se dimensiona por 20 minutos.</text>
+<text class="f-s" x="26" y="342" style="font-size:12.5px">La segunda tarjeta es por la noche en que falle.</text>
+</svg>

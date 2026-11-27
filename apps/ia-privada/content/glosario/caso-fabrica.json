@@ -1,0 +1,217 @@
+{
+  "terminos": [
+    {
+      "id": "red-ot",
+      "termino": "Red OT",
+      "en": "operational technology (OT) network",
+      "corto": "La red de las máquinas de una planta: la que une los PLCs, los robots, las pantallas de operación y los servidores que vigilan la producción. Vive separada de la red de oficina (IT), porque ahí un error no tira un correo: para una línea.",
+      "largo": "OT (*operational technology*, tecnología de operación) es todo lo que controla o vigila un proceso físico; IT (*information technology*) es lo de oficina: correo, ERP, laptops. En OT manda la **disponibilidad** y la seguridad de las personas antes que la confidencialidad, los equipos duran 15 o 20 años, muchos no se pueden parchar sin parar la línea y hablan protocolos sin autenticación. Por eso se separa de IT con zonas y un firewall, y a menudo sin ninguna ruta a internet. Se organiza con el [[modelo-purdue|modelo de Purdue]] y se protege con [[iec-62443|IEC 62443]].",
+      "analogia": "La cocina de un restaurante contra el comedor: en el comedor se atiende a la gente; en la cocina hay fuego y cuchillos, entra solo el personal y nadie del comedor mete la mano en una olla. Dónde se rompe: en la cocina un error se ve y se huele; en OT un comando mal dado por la red puede mover una prensa sin que nadie esté mirando.",
+      "ejemplo": "En la planta, la red OT une las 220 máquinas, el MES y el historiador; las tablets de los técnicos entran por una WiFi de planta que es otra zona. La red de oficina (ERP, correo) está del otro lado de la [[dmz-industrial|DMZ industrial]].",
+      "ver": [
+        "modelo-purdue",
+        "zona-y-conducto",
+        "dmz-industrial",
+        "segmentacion-de-red"
+      ],
+      "leccion": "fabrica",
+      "sensei": "redes-nube"
+    },
+    {
+      "id": "modelo-purdue",
+      "termino": "Modelo de Purdue",
+      "en": "Purdue model",
+      "corto": "Una forma de ordenar por niveles todo lo que hay en una planta, de la máquina a la oficina: nivel 0 los sensores y motores, 1 los controladores, 2 la supervisión, 3 las operaciones del sitio, 4 y 5 la empresa. Entre 3 y 4 va una zona intermedia, la DMZ industrial.",
+      "largo": "Nació en los años noventa como modelo de referencia de la integración de manufactura y hoy se usa sobre todo para decidir **quién puede hablar con quién**: la regla de NIST SP 800-82 Rev. 3 (§5.2.3.1) es que los firewalls dejen pasar solo entre niveles vecinos (por ejemplo, que nada del nivel 4 hable directo con el 2, el 1 o el 0). Los nombres de los niveles son la convención común; el «3.5» de la DMZ no es un nivel del modelo original sino la forma usual de dibujarla. Un asistente sobre manuales no controla nada: su lugar es el nivel 3 o una zona propia pegada a la DMZ.",
+      "ejemplo": "En la planta: nivel 0–1 las prensas y sus PLCs; 2 las pantallas de operación de cada línea; 3 el MES y el historiador en el gabinete de la nave; 3.5 la DMZ industrial; 4 el ERP y el correo del site de TI. El asistente va en su zona junto a la DMZ y no tiene ninguna regla hacia los niveles 0 a 2.",
+      "ver": [
+        "red-ot",
+        "dmz-industrial",
+        "zona-y-conducto"
+      ],
+      "leccion": "fabrica"
+    },
+    {
+      "id": "iec-62443",
+      "termino": "IEC 62443",
+      "en": "ISA/IEC 62443",
+      "corto": "La serie de normas de ciberseguridad de los sistemas de control industrial. No es una norma sino varias partes: unas son del dueño de la planta, otras del integrador y otras del fabricante de cada producto.",
+      "largo": "Partes y ediciones vigentes según ISA (consultado 2026-11-26): 2-1 de 2024 (el programa de seguridad del dueño; la edición de 2010 se retiró el 2024-08-07), 2-4 de 2018 (proveedores de servicio), 3-2 de 2020 (evaluar el riesgo y partir en [[zona-y-conducto|zonas y conductos]]), 3-3 de 2013 (requisitos de sistema y [[nivel-de-seguridad|niveles de seguridad]], estable hasta 2027), 4-1 y 4-2 de 2018 (desarrollo seguro y requisitos de componentes). Define siete requisitos fundamentales: identificación y autenticación, control de uso, integridad, confidencialidad, flujo restringido de datos, respuesta a eventos y disponibilidad. Al dueño le tocan la 2-1, la 3-2 con su integrador, y exigir en sus compras lo de la 3-3 y la 4-2. La certificación es de productos y procesos: un servidor armado con piezas comerciales no «cumple 62443».",
+      "ejemplo": "La planta no promete «el asistente cumple 62443»: promete «diseñado para un nivel objetivo SL-T 2 en su zona, con estas contramedidas», y lo revisa con su integrador según la 3-2.",
+      "ver": [
+        "zona-y-conducto",
+        "nivel-de-seguridad",
+        "red-ot"
+      ],
+      "leccion": "fabrica"
+    },
+    {
+      "id": "zona-y-conducto",
+      "termino": "Zona y conducto",
+      "en": "zones and conduits",
+      "corto": "Una zona es un grupo de equipos con necesidades de seguridad parecidas; un conducto es el único camino, con nombre y reglas, por donde una zona habla con otra. Es el vocabulario de IEC 62443 para la segmentación.",
+      "largo": "Se parte la planta en zonas según el riesgo (no según el edificio: dos equipos en cuartos distintos pueden estar en la misma zona) y cada conversación entre zonas tiene que pasar por un conducto, que es a su vez una zona especial con los canales de comunicación y sus controles (firewall, diodo, carpeta revisada). A cada zona se le pone un [[nivel-de-seguridad|nivel objetivo]]. Es la misma idea que las zonas del despacho en «Seguridad» ([[segmentacion-de-red]]), con dos cambios: los equipos de OT casi nunca se pueden actualizar a voluntad, y lo que se protege primero es la disponibilidad.",
+      "analogia": "Un hospital: el quirófano, la farmacia y la sala de espera son zonas con reglas distintas; la ventanilla de la farmacia es el conducto: solo por ahí pasan las recetas, y nadie de la sala de espera entra a los estantes. Dónde se rompe: la ventanilla la atiende una persona que piensa; un conducto de red solo aplica las reglas que alguien escribió.",
+      "ejemplo": "El asistente de la planta vive en su zona con tres conductos: la WiFi de planta solo llega al gateway por el 443; los manuales entran por una carpeta revisada en la DMZ; gestión entra desde OT. Ningún conducto va a los PLCs ni a internet.",
+      "ver": [
+        "iec-62443",
+        "dmz-industrial",
+        "segmentacion-de-red"
+      ],
+      "leccion": "fabrica"
+    },
+    {
+      "id": "dmz-industrial",
+      "termino": "DMZ industrial",
+      "en": "industrial DMZ",
+      "corto": "La zona de en medio entre la red de planta (OT) y la de oficina (IT): lo que las dos tienen que compartir se deja ahí, y ninguna habla directo con la otra.",
+      "largo": "DMZ viene de *demilitarized zone*. En el [[modelo-purdue|modelo de Purdue]] se dibuja como nivel 3.5. NIST SP 800-82 Rev. 3 recomienda considerarla como frontera de control entre segmentos: IT deja un archivo en un servidor de la DMZ y OT lo recoge; nadie abre una conexión que cruce de punta a punta. Ahí viven el espejo de actualizaciones, la copia del historiador para la oficina y la carpeta de importación de documentos.",
+      "ejemplo": "En la planta, ingeniería deja los manuales nuevos en la carpeta de importación de la DMZ; un proceso los revisa y la ingesta del asistente los recoge desde su zona. La oficina nunca ve el servidor del asistente.",
+      "ver": [
+        "modelo-purdue",
+        "zona-y-conducto",
+        "diodo-de-datos",
+        "maquina-puente"
+      ],
+      "leccion": "fabrica"
+    },
+    {
+      "id": "nivel-de-seguridad",
+      "termino": "Nivel de seguridad (SL)",
+      "en": "security level",
+      "corto": "Qué tan fuerte es la protección de una zona, del 1 al 4, contra qué tipo de atacante: del error accidental (1) al atacante con recursos extremos (4). En IEC 62443 se fija un objetivo por zona y se compara con lo que ofrecen sus equipos.",
+      "largo": "Según el resumen de Cisco (el texto exacto de la norma es de pago): SL 1 contra violaciones usuales o accidentales; 2 intencionales con recursos simples; 3 intencionales con medidas sofisticadas; 4 con medidas extremas. Hay tres sabores: **SL-T** (objetivo de la zona, sale del análisis de riesgo), **SL-C** (capacidad que declara un componente) y **SL-A** (lo logrado). En realidad es un vector de siete valores, uno por requisito fundamental.",
+      "ejemplo": "Para la zona del asistente, la planta y su integrador fijan un SL-T 2: el servidor no controla máquinas, pero un atacante que lo tome tendría un pie dentro de OT. Como el servidor no tiene SL-C declarado, el 2 se logra con las contramedidas de la zona (conductos, cuentas, actualizaciones verificadas).",
+      "ver": [
+        "iec-62443",
+        "zona-y-conducto"
+      ],
+      "leccion": "fabrica"
+    },
+    {
+      "id": "diodo-de-datos",
+      "termino": "Diodo de datos",
+      "en": "data diode",
+      "corto": "Un equipo que deja pasar datos en un solo sentido, por construcción física: lo que entra a la zona protegida no puede regresar por el mismo cable, ni aunque alguien lo intente.",
+      "largo": "También se llama pasarela unidireccional. NIST SP 800-82 Rev. 3 lo menciona como alternativa a los firewalls entre segmentos. Un firewall decide con reglas que alguien puede cambiar; el diodo no tiene regla que cambiar. Sirve para sacar datos de OT hacia IT (el historiador hacia la oficina) o, al revés, para meter archivos a OT sin dejar ningún camino de regreso. Su límite: nada que necesite respuesta (una página web, una sesión) cruza un diodo.",
+      "analogia": "La ranura del buzón de una casa: las cartas entran y nadie puede sacar nada por ella desde adentro. Dónde se rompe: por un buzón no puedes contestar; por eso un diodo no sirve para nada que pida respuesta.",
+      "ejemplo": "Si la planta quisiera que nada de la zona del asistente pudiera salir, los manuales entrarían por un diodo desde la DMZ. El caso no lo exige (el precio no está en el paquete): la carpeta revisada con un firewall basta para un SL-T 2.",
+      "ver": [
+        "dmz-industrial",
+        "zona-y-conducto",
+        "air-gapped"
+      ],
+      "leccion": "fabrica"
+    },
+    {
+      "id": "bloqueo-y-etiquetado",
+      "termino": "Bloqueo y etiquetado (LOTO)",
+      "en": "lockout/tagout",
+      "corto": "Cortar e inmovilizar todas las energías de una máquina (eléctrica, neumática, hidráulica) antes de meterle las manos, con un candado y una tarjeta de quien trabaja. Quien los pone es quien los quita.",
+      "largo": "LOTO es la sigla en inglés (*lockout/tagout*). En México lo pide la NOM-004-STPS-1999 (vigente, DOF del 31 de mayo de 1999), en su programa de mantenimiento: el bloqueo lo hace el encargado del mantenimiento, se avisa antes, se identifican interruptores y válvulas, se bloquea la energía, se ponen tarjetas de aviso **y** candados, se asegura que el bloqueo se hizo, se avisa al retirarlo, y quien colocó las tarjetas las retira; el registro de mantenimiento se guarda al menos 12 meses. La norma no trae el procedimiento de cada máquina: lo pone la planta. La parte eléctrica la cubre la NOM-029-STPS-2011. El proyecto de modificación de 2020 (que cambiaría «y» por «o») sigue siendo proyecto.",
+      "ejemplo": "Si un técnico pregunta «¿cómo bloqueo la prensa 7?», el asistente muestra la hoja de bloqueo de la planta para esa prensa, con su página. Si no la encuentra, dice «no encontré el procedimiento: pregúntale al encargado de mantenimiento». Nunca escribe los pasos de memoria.",
+      "ver": [
+        "filtro-por-maquina",
+        "cita"
+      ],
+      "leccion": "fabrica"
+    },
+    {
+      "id": "grado-ip",
+      "termino": "Grado IP",
+      "en": "IP code (ingress protection)",
+      "corto": "Dos dígitos que dicen cuánto protege la caja de un equipo contra sólidos (el primero) y contra agua (el segundo). IP5X es protegido contra polvo; IP6X, hermético al polvo. No dice nada de aceites ni de químicos.",
+      "largo": "Lo define la IEC 60529 (versión consolidada 2.2, del 2013-08-29). Primer dígito: 5 = entra algo de polvo pero no daña; 6 = no entra. Segundo: 4 salpicaduras, 5 chorros, 6 chorros potentes, 7 inmersión hasta 1 m por 30 min, 8 inmersión más profunda (la define el fabricante), 9K chorros a alta presión y temperatura (significados de una fuente secundaria). Un servidor de rack no publica grado IP (en la práctica, ≈ IP20: nada útil contra polvo ni agua). El IP no cubre aceite, taladrina ni solventes: eso pide pruebas químicas aparte.",
+      "ejemplo": "En la nave de la planta hay polvo metálico y neblina de aceite: un equipo IP65 aguanta el polvo y el chorro de la manguera, pero el grado no dice si el sello resiste la taladrina. Hay que preguntar por el fluido.",
+      "ver": [
+        "servidor-de-borde"
+      ],
+      "leccion": "fabrica"
+    },
+    {
+      "id": "servidor-de-borde",
+      "termino": "Servidor de borde",
+      "en": "edge server",
+      "corto": "Un servidor hecho para vivir fuera de un centro de datos: más corto, más resistente al calor, al polvo y a la vibración, a veces con fuentes de corriente continua. A cambio, acepta GPUs chicas.",
+      "largo": "Ejemplos a noviembre de 2026: el Lenovo ThinkEdge SE455 V3 (2U, 440 mm de fondo, −5 a 55 °C con configuraciones seleccionadas, choque de 40 G, diseñado para NEBS nivel 3, el estándar de las centrales telefónicas para equipos que aguantan calor, vibración y fuego; hasta 2 GPUs de ancho doble pero **limitadas a 40 °C**, o tarjetas de ancho sencillo como la L4) y el Supermicro SYS-211E-FRDN2T (0 a 45 °C, 3 GPUs de ancho sencillo, fuentes de −48 V DC). Sus filtros de polvo son de calidad de oficina (MERV 2 o 4). Casi ninguno publica precio: se cotiza.",
+      "ejemplo": "La L4 (72 W, ancho sencillo) cabe en un servidor de borde a 45 o 55 °C; la L40S (350 W, ancho doble) no, en ese rango. Por eso el modelo de la planta decide el lugar: el 9B en FP8 cabe en una L4; el 27B no.",
+      "ver": [
+        "grado-ip",
+        "tarjeta-pasiva",
+        "tdp"
+      ],
+      "leccion": "fabrica"
+    },
+    {
+      "id": "vlm",
+      "termino": "Modelo de visión y lenguaje (VLM)",
+      "en": "vision-language model",
+      "corto": "Un LLM que, además de texto, recibe imágenes: lee una página escaneada, una tabla o un diagrama y contesta sobre lo que ve. Cada imagen entra al contexto como cientos o miles de tokens.",
+      "largo": "Un codificador de imagen convierte la imagen en vectores que el LLM recibe como si fueran tokens. A noviembre de 2026 los modelos abiertos de uso general ya son de visión (Qwen3.8-27B, Qwen3.5, Gemma 4): ya no hace falta un «-VL» aparte. Dos cosas a medir siempre: cuántos tokens cuesta una página (depende del modelo y de la resolución) y si lee bien los números de una tabla escaneada, que ningún benchmark público mide con manuales técnicos.",
+      "ejemplo": "En la planta, la respuesta lleva la imagen de la página de la tabla de torques: el VLM la lee al contestar y el técnico ve el recorte. El caso supone ≈ 1,000 tokens por página; el piloto lo mide.",
+      "ver": [
+        "parser-de-documentos",
+        "ocr",
+        "contexto"
+      ],
+      "leccion": "fabrica"
+    },
+    {
+      "id": "parser-de-documentos",
+      "termino": "Parser de documentos",
+      "en": "document parser",
+      "corto": "El programa que convierte un PDF en texto con estructura: títulos, párrafos, tablas en filas y columnas, orden de lectura y dónde está cada cosa en la página. Con escaneos, primero hace OCR.",
+      "largo": "Ejemplos a noviembre de 2026: Docling 2.154.0 (MIT), MinerU 4.2.3 (código Apache 2.0 con términos adicionales; ojo, los pesos de una versión anterior son AGPL-3.0), PaddleOCR-VL (Apache 2.0) y Granite-Docling-258M (Apache 2.0). En las tablas de OmniDocBench v1.6, un parser especializado de ≈ 1.2 mil millones (MinerU-2.5) supera a un VLM general de 235 mil millones (fuente secundaria), y ese benchmark tiene ≈ 12 % de errores de anotación: las cifras orientan, no deciden.",
+      "ejemplo": "La planta lee sus 600,000 páginas con Docling y compara MinerU en el estrato de tablas del examen. El parser prepara lo que se busca; el [[vlm|VLM]] lee la figura al contestar.",
+      "ver": [
+        "ocr",
+        "vlm",
+        "ingesta",
+        "chunk"
+      ],
+      "leccion": "fabrica"
+    },
+    {
+      "id": "filtro-por-maquina",
+      "termino": "Filtro por máquina",
+      "en": "per-machine filter",
+      "corto": "Que la búsqueda solo mire los documentos de la máquina que el técnico tiene enfrente: fabricante, modelo y número de serie, tomados del QR de su placa.",
+      "largo": "Es un [[prefiltro]] con los campos de la máquina en vez de los permisos. Resuelve el error más caro de un asistente de mantenimiento: contestar con el torque correcto de otra variante. Pide que cada fragmento lleve esos campos desde la ingesta, y una tabla de la planta que diga qué manual va con qué número de serie (los modelos cambian entre años y revisiones).",
+      "ejemplo": "El técnico escanea la placa de la prensa 7; la búsqueda queda filtrada a ese modelo y revisión, más la hoja de bloqueo de la planta para esa prensa. La pregunta «¿torque de la placa de la matriz?» ya no encuentra la tabla del modelo de 400 toneladas.",
+      "ver": [
+        "prefiltro",
+        "acl-por-chunk",
+        "bloqueo-y-etiquetado"
+      ],
+      "leccion": "fabrica"
+    },
+    {
+      "id": "costo-del-paro",
+      "termino": "Costo del paro",
+      "en": "cost of downtime",
+      "corto": "Lo que pierde una planta por cada hora que una línea está parada sin que estuviera planeado: producción que no sale, gente esperando, horas extra, penalizaciones del cliente.",
+      "largo": "Es el número contra el que se compara un proyecto de mantenimiento, y es fácil exagerarlo. Siemens reporta US$2.3 millones por hora en plantas automotrices grandes (*True Cost of Downtime 2024*), pero su muestra son plantas grandes (y sus totales los extrapola a las empresas del Fortune Global 500); para un proveedor mediano hay que hacer la cuenta propia (ingreso por hora, margen, penalizaciones) y decir que es un supuesto.",
+      "ejemplo": "Supuesto de la planta: US$100 M de ingreso al año ÷ 8,000 horas productivas ≈ US$12,500 por hora, redondeado a 12,000. Copiar los 2.3 M de Siemens haría ver el asistente ≈ 192 veces más valioso.",
+      "ver": [
+        "tco",
+        "punto-de-equilibrio",
+        "analisis-de-sensibilidad"
+      ],
+      "leccion": "fabrica"
+    },
+    {
+      "id": "prueba-en-sitio",
+      "termino": "Prueba de aceptación en sitio (SAT)",
+      "en": "site acceptance test",
+      "corto": "La prueba que se hace con el sistema ya instalado en la planta, con sus datos y su gente, antes de recibirlo. La de antes, en el taller del proveedor, se llama FAT (*factory acceptance test*).",
+      "largo": "Es vocabulario de toda la industria (máquinas, tableros, sistemas de control): el proveedor demuestra en su taller (FAT) y luego en la planta (SAT), con un protocolo firmado antes. Para un asistente de IA encaja con el [[criterio-de-aceptacion|criterio de aceptación]] y el [[golden-set|examen]]: lo que no puede salir de la planta (procedimientos, planos) solo se prueba en sitio.",
+      "ejemplo": "El piloto de la planta corre en una GPU rentada con los manuales que su licencia deja procesar fuera (como un FAT); el estrato de bloqueo, con las hojas de la planta, se prueba en la SAT, en el servidor ya instalado.",
+      "ver": [
+        "criterio-de-aceptacion",
+        "prueba-piloto",
+        "golden-set"
+      ],
+      "leccion": "fabrica"
+    }
+  ]
+}

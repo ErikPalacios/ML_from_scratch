@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 330" role="img" aria-labelledby="f-caso-despacho-mes-t" class="f-svg" style="max-width:420px">
+<title id="f-caso-despacho-mes-t">Lo que cada lado le suma al mes al despacho, en pesos. Cuarto propio: luz 4,825 más obra y UPS repartidos en 36 meses 8,541, en total 13,366. Colocation a la tarifa mayorista de Querétaro con un enlace dedicado: renta 12,325, enlace 15,000, instalación y visitas 932, en total 28,257. Colocation con una VPN sobre internet: renta 12,325, VPN 450 y visitas 654, en total 13,429, casi igual que el cuarto.</title>
+<rect class="f-card" x="8" y="8" width="344" height="314" rx="16"/>
+<text class="f-l" x="22" y="34">AL MES, EN PESOS (COTA BAJA DE COLOCATION)</text>
+<text class="f-s" x="22" y="62" style="font-weight:700">Cuarto propio</text>
+<rect class="f-y" x="22.0" y="72" width="50.7" height="24"/>
+<rect class="f-b2" x="72.7" y="72" width="89.7" height="24"/>
+<text class="f-t" x="170.3" y="89" style="font-size:13px">$13,366</text>
+<line x1="162.3" y1="68" x2="162.3" y2="100" style="stroke:var(--ink);stroke-width:1.5;stroke-dasharray:4 3"/>
+<text class="f-s" x="22" y="124" style="font-weight:700">Colocation · enlace dedicado</text>
+<rect class="f-o" x="22.0" y="134" width="129.4" height="24"/>
+<rect class="f-p" x="151.4" y="134" width="157.5" height="24"/>
+<rect class="f-off" x="308.9" y="134" width="9.8" height="24"/>
+<text class="f-t" x="338" y="124" text-anchor="end" style="font-size:13px">$28,257</text>
+<line x1="162.3" y1="130" x2="162.3" y2="162" style="stroke:var(--ink);stroke-width:1.5;stroke-dasharray:4 3"/>
+<text class="f-s" x="22" y="186" style="font-weight:700">Colocation · VPN por internet</text>
+<rect class="f-o" x="22.0" y="196" width="129.4" height="24"/>
+<rect class="f-p" x="151.4" y="196" width="4.7" height="24"/>
+<rect class="f-off" x="156.1" y="196" width="6.9" height="24"/>
+<text class="f-t" x="171.0" y="213" style="font-size:13px">$13,429</text>
+<line x1="162.3" y1="192" x2="162.3" y2="224" style="stroke:var(--ink);stroke-width:1.5;stroke-dasharray:4 3"/>
+<rect class="f-y" x="22" y="251" width="12" height="12" rx="3"/><text class="f-s" x="40" y="262">luz</text>
+<rect class="f-b2" x="90" y="251" width="12" height="12" rx="3"/><text class="f-s" x="108" y="262">obra y UPS ÷ 36</text>
+<rect class="f-o" x="222" y="251" width="12" height="12" rx="3"/><text class="f-s" x="240" y="262">renta por kW</text>
+<rect class="f-p" x="22" y="275" width="12" height="12" rx="3"/><text class="f-s" x="40" y="286">enlace</text>
+<rect class="f-off" x="90" y="275" width="12" height="12" rx="3"/><text class="f-s" x="108" y="286">instalación y visitas</text>
+<text class="f-s" x="22" y="310" style="font-size:12px">2.5 kW × US$250 · línea punteada: el cuarto</text>
+</svg>
