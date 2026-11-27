@@ -94,6 +94,15 @@ PLAN_MIN = num(r"([\d.]+) min  estimado", PLAN)
 PLAN_USD = num(r"estimado · US\$([\d.]+)", PLAN)
 PLAN_MXN = num(r"estimado · US\$[\d.]+ ≈ MXN (\d+)", PLAN)
 TOPE_USD = num(r"lo más que cuesta: US\$([\d.]+)", PLAN)
+LITTLE = L("pc little")
+P8_DESP = num(r"despacho, 3 copias:.*?8 o más a la vez: ([\d.]+%)", LITTLE)
+P8_DOJO = num(r"una copia \(el dojo\):.*?8 o más a la vez: ([\d.]+%)", LITTLE)
+L_DESP = num(r"despacho, 3 copias: [\d.]+/s × 27 s = ([\d.]+)", LITTLE)
+L_DOJO = num(r"una copia \(el dojo\): [\d.]+/s × 27 s = ([\d.]+)", LITTLE)
+MEM_RC = F("memoria-recortada confirma")
+RC_TOK = num(r"GPU KV cache size: ([\d,]+) tokens", MEM_RC)
+RC_X = num(r"per request: ([\d.]+)x", MEM_RC)
+RC_GIB = num(r"Available KV cache memory: ([\d.]+) GiB", MEM_RC)
 TOPE_MXN = num(r"lo más que cuesta: US\$[\d.]+ ≈ MXN (\d+)", PLAN)
 
 e = {
@@ -152,8 +161,8 @@ e["precalculos"] = {
          "confirma": "Paso 4 (<code>python3 pipeline/carga.py humo</code>) y, con la GPU de verdad, el paso 6."},
         {"id": "little", "pregunta": "¿Cuántas conversaciones llegan a la vez a una copia?",
          "formula": "ley de Little: a la vez en promedio = llegadas por segundo × segundos que dura cada una; con llegadas al azar (Poisson) se puede calcular qué tan seguido hay 8 o más",
-         "ref": {"cuenta": "0.21 por segundo × 27 s que dura una respuesta (la ficha)", "valor": "≈ 5.7 a la vez entre las 3 copias; 8 o más el ≈ 18 % del tiempo de la hora pico"},
-         "taller": {"cuenta": "0.07 por segundo (una de las 3 copias) × 27 s", "valor": "≈ 1.9 a la vez; 8 o más casi nunca"},
+         "ref": {"cuenta": "0.21 por segundo × 27 s que dura una respuesta (la ficha)", "valor": f"≈ {L_DESP} a la vez entre las 3 copias; 8 o más el {P8_DESP} del tiempo de la hora pico"},
+         "taller": {"cuenta": "0.07 por segundo (una de las 3 copias) × 27 s", "valor": f"≈ {L_DOJO} a la vez; 8 o más el {P8_DOJO} del tiempo"},
          "decide": "Una copia recibe pocas a la vez: su TTFT lo marca el prefill, no la fila. La cerrada de 8 mide otra cosa (cómo escriben 8 juntas). Las dos pruebas se hacen porque contestan preguntas distintas.",
          "conceptos": ["carga"],
          "comprueba": cmd(P("pc little"), L("pc little"))},
@@ -363,7 +372,7 @@ G.append(dict(n=4, id="cerrada", titulo="Medir una petición y la cerrada", obje
     comandos=[
         cmd("python3 pipeline/carga.py humo", L("p4 humo"), SIM),
         cmd(f"{V} humo", L("p4 verificar humo")),
-        cmd("python3 pipeline/carga.py cerrada", L("p4 cerrada"), SIM + " La primera pregunta es la misma del humo: su prompt ya estaba en el prefix cache y su TTFT sale bajo."),
+        cmd("python3 pipeline/carga.py cerrada", L("p4 cerrada"), SIM + " Cada prueba usa sus propias preguntas (otra semilla): si repitiera las de otra, el prefix cache ya las tendría y el TTFT saldría de mentira."),
         cmd(f"{V} cerrada", L("p4 verificar")),
     ],
     verifica="<code>verificar.py humo cerrada</code> en verde: TTFT entre 0 y el total, TPOT con su fórmula, tokens del <code>usage</code>, y en la cerrada 24 bien con 8 a la vez en el motor.",
@@ -387,7 +396,7 @@ G.append(dict(n=5, id="abierta", titulo="La abierta y el reporte", objetivo="<co
 RECETA = L("p6 receta")
 G.append(dict(n=6, id="gpu", titulo="La sesión en la GPU rentada", objetivo="Con el plan y el costo dichos antes, rentar una L40S en RunPod, correr las mismas pruebas contra el vLLM de verdad desde tu Mac, y terminarla con un vigía que no dependa de acordarte.",
     conceptos=["gpu-rentada", "api-key", "metrics"],
-    explica="Por qué RunPod: comparado el 2026-11-27 (<code>mundo/proveedores.json</code>), es la L40S más barata con cobro por segundo (US$1.09/h en Secure Cloud; AWS cobra US$1.861 en us-east-1 y pide cuota de GPU, Modal US$1.95 sin máquina con puertos, Lightning US$3.54, y Lambda no factura a México ni renta L40S). Todo corre <b>desde tu Mac</b>: el pod solo corre vLLM, y la carga va por su proxy (<code>https://&lt;POD_ID&gt;-8000.proxy.runpod.net</code>), así los resultados nunca se quedan en una máquina que se borra. <code>gpu.env</code> dice proveedor, GPU, precio, disco, el tope en minutos y el tipo de cambio. <code>gpu.py plan</code> da el tiempo y el costo; <code>receta</code> arma el pod desde tu <code>servir.sh</code> (con <code>--host 0.0.0.0</code>, que el proxy necesita, y la clave en <code>VLLM_API_KEY</code>, fuera del comando). Al lanzar, <code>vigilar</code> deja un proceso en tu Mac que lo termina al tope por la API de RunPod; si la Mac se duerme, el tope es tu saldo prepagado.",
+    explica="Por qué RunPod: comparado el 2026-11-27 (<code>mundo/proveedores.json</code>), es la L40S más barata con cobro por segundo (US$1.09/h en Secure Cloud; AWS cobra US$1.861 en us-east-1 y pide cuota de GPU, Modal US$1.95 sin una máquina con puertos, Lightning de US$2.97 a US$4.21 según la máquina, y Lambda no factura a México ni renta L40S). Todo corre <b>desde tu Mac</b>: el pod solo corre vLLM, y la carga va por su proxy (<code>https://&lt;POD_ID&gt;-8000.proxy.runpod.net</code>), así los resultados nunca se quedan en una máquina que se borra. <code>gpu.env</code> dice proveedor, GPU, precio, disco, el tope en minutos y el tipo de cambio. <code>gpu.py plan</code> da el tiempo y el costo; <code>receta</code> arma el pod desde tu <code>servir.sh</code> (con <code>--host 0.0.0.0</code>, que el proxy necesita, y la clave en <code>VLLM_API_KEY</code>, fuera del comando). Al lanzar, <code>vigilar</code> deja un proceso en tu Mac que lo termina al tope por la API de RunPod; si la Mac se duerme, el tope es tu saldo prepagado.",
     codigo=[archivo("gpu.env", "bash", "La llave de RunPod no va aquí: va en la terminal, <code>export RUNPOD_API_KEY=…</code> (RunPod → Settings → API Keys, con permiso de escribir pods).")],
     comandos=[
         cmd("python3 mundo/gpu.py plan", PLAN, "El estimado sale de <code>carga.env</code> (la abierta tarda peticiones ÷ tasa) y de lo que tarda bajar 19.3 GB. El tope es el que pone el vigía."),
@@ -441,24 +450,25 @@ CONF = {
     "tope-dos": 'grep -n "max-num-seqs" servir.sh\ngrep "non-default" .taller/servidor.log',
     "memoria-recortada": 'grep "KV cache" .taller/servidor.log',
     "sin-clave": "curl -s http://127.0.0.1:8000/v1/models",
-    "razonamiento-prendido": 'curl -s http://127.0.0.1:8000/v1/chat/completions -H "Authorization: Bearer dojo-vllm-5c1e9a" \\\n  -H "Content-Type: application/json" -d \'{"model": "qwen3-32b", "messages": [{"role": "user", "content": "¿Qué es una pena convencional?"}], "max_tokens": 40}\'',
-    "nombre-servido": 'curl -s -H "Authorization: Bearer dojo-vllm-5c1e9a" http://127.0.0.1:8000/v1/models\ngrep NOMBRE servidor.env',
-    "tasa-infinita": "grep TASA carga.env\npython3 pipeline/reporte.py",
+    "razonamiento-prendido": 'curl -s http://127.0.0.1:8000/v1/chat/completions -H "Authorization: Bearer dojo-vllm-5c1e9a" \\\n  -H "Content-Type: application/json" -d \'{"model": "qwen3-32b", "messages": [{"role": "user", "content": "¿Qué es una pena convencional?"}], "max_tokens": 40}\' \\\n  | python3 -c \'import json, sys; d = json.load(sys.stdin); m = d["choices"][0]["message"]; print("reasoning:", (m["reasoning"] or "")[:90], "…"); print("content:", m["content"]); print("finish_reason:", d["choices"][0]["finish_reason"], "· usage:", d["usage"])\'',
+    "nombre-servido": 'curl -s -H "Authorization: Bearer dojo-vllm-5c1e9a" http://127.0.0.1:8000/v1/models | python3 -c \'import json, sys; print([m["id"] for m in json.load(sys.stdin)["data"]])\'\ngrep NOMBRE servidor.env',
+    "tasa-infinita": 'grep TASA carga.env\npython3 -c \'import json; d = json.load(open("resultados/abierta.json")); ms = d["medidas"]; print("tasa:", d["meta"]["tasa"], "· la última salió a los", round(max(m["programada"] for m in ms), 2), "s · TTFT de la más lenta:", round(max(m["ttft_s"] for m in ms), 1), "s · en fila hasta", d["metricas"]["pico_waiting"])\'',
 }
+VTODO = "\n" + V + "      # todos los checks; aquí, solo los que fallan"
 e["fallas"] = [
     falla("tope-dos", "En la hora pico, los abogados esperan medio minuto antes de ver la primera palabra", "infra",
           "Alguien leyó en la ficha que una L40S sostiene ≥ 20 tokens/s solo con 2 conversaciones, y para que «cada abogado escriba rápido» fijó el tope a mano en servir.sh. Reinició el servidor.",
           "<code>verificar.py lugares</code> falla: con 10 a la vez, el motor corre 2. Todo lo demás pasa: contesta, pide clave y tiene memoria de sobra.",
           ["El KV cache no alcanza para más de 2.", "El motor tiene menos lugares de los que dice servidor.env.", "El cliente manda de 2 en 2."],
-          cmd(CONF["tope-dos"] + "\n" + V + " lugares", F("tope-dos confirma") + "\n\n" + malos("tope-dos"), "El log dice el tope que de verdad usa el motor: <code>non-default args</code>."),
+          cmd(CONF["tope-dos"] + VTODO, F("tope-dos confirma") + "\n\n" + malos("tope-dos"), "El log dice el tope que de verdad usa el motor: <code>non-default args</code>."),
           "<code>--max-num-seqs \"$MAX_NUM_SEQS\"</code> de vuelta en <code>servir.sh</code> " + ARR + " Los 2 de la ficha son cuántas van a ≥ 20 tokens/s, no un tope: con tope, el TTFT se vuelve fila (hasta ≈ 27 s detrás de dos respuestas largas). Si hacen falta más rápidas, son más GPUs: por eso son 3 copias.",
           "max-num-seqs", "lugares"),
     falla("memoria-recortada", "Con 8 abogados a la vez, las respuestas se detienen y vuelven a empezar", "infra",
           "Para «dejarle memoria al modelo de embeddings» en la misma GPU, alguien copió de un tutorial viejo una opción de memoria a servir.sh y reinició el servidor. Arrancó bien.",
-          "<code>verificar.py memoria</code> falla: el KV cache tiene lugar para ≈ 19 mil tokens y las 8 típicas piden 52 mil. Las preguntas sueltas contestan bien.",
+          f"<code>verificar.py memoria</code> falla: el KV cache tiene lugar para {RC_TOK} tokens y las 8 típicas piden 52,000. Las preguntas sueltas contestan bien.",
           ["El modelo cambió y pesa más.", "Alguien le puso un tope a la memoria del motor.", "MAX_MODEL_LEN creció."],
-          cmd(CONF["memoria-recortada"], F("memoria-recortada confirma") + "\n\n" + malos("memoria-recortada"), "2.38× al tope: antes eran " + KV_X + "×."),
-          "Quitar <code>--gpu-memory-utilization 0.55</code> de <code>servir.sh</code> " + ARR + " La 0.34 dimensiona el KV cache con la memoria libre; un tope de 0.55 deja ≈ 4.7 GiB después de los pesos. Con 8 a la vez se acaban los bloques y el motor saca conversaciones (preemption): nada da error, todo tarda más. El modelo de embeddings va en otra GPU (la ficha lo pone en otra L40S).",
+          cmd(CONF["memoria-recortada"] + VTODO, F("memoria-recortada confirma") + "\n\n" + malos("memoria-recortada"), RC_X + "× al tope: antes eran " + KV_X + "×."),
+          "Quitar <code>--gpu-memory-utilization 0.55</code> de <code>servir.sh</code> " + ARR + " La 0.34 dimensiona el KV cache con la memoria libre; un tope de 0.55 deja " + RC_GIB + " GiB después de los pesos. Con 8 a la vez se acaban los bloques y el motor saca conversaciones (preemption): nada da error, todo tarda más. El modelo de embeddings va en otra GPU (la ficha lo pone en otra L40S).",
           "kv-extensible", "memoria"),
     falla("sin-clave", "El servidor contesta sin pedir clave", "infra",
           "Para «simplificar» y que el gateway no tuviera que mandar la llave, alguien quitó una opción de servir.sh y reinició el servidor. Todo sigue funcionando igual.",
@@ -476,16 +486,16 @@ e["fallas"] = [
           "razonamiento", "plantilla"),
     falla("nombre-servido", "El asistente dice «el modelo no existe» y el servidor está sano", "config",
           "Para que el gateway lo encuentre como en la ficha («chat-grande»), alguien cambió el nombre en servir.sh, pero no en servidor.env. Reinició el servidor.",
-          "<code>verificar.py servidor</code> falla: el servidor anuncia chat-grande y servidor.env dice qwen3-32b. <code>humo</code> y <code>plantilla</code> también fallan, con un 404.",
+          "<code>verificar.py servidor</code> falla: el servidor anuncia chat-grande y servidor.env dice qwen3-32b. <code>plantilla</code>, <code>lugares</code> y <code>humo</code> también fallan, todas con un 404.",
           ["El servidor se cayó.", "El nombre que anuncia el servidor no es el que piden tus programas.", "El modelo no se bajó."],
-          cmd(CONF["nombre-servido"], F("nombre-servido confirma") + "\n\n" + malos("nombre-servido"), "Cada pregunta con <code>model=qwen3-32b</code> recibe: The model `qwen3-32b` does not exist."),
+          cmd(CONF["nombre-servido"] + VTODO, F("nombre-servido confirma") + "\n\n" + malos("nombre-servido"), "Cada pregunta con <code>model=qwen3-32b</code> recibe: The model `qwen3-32b` does not exist."),
           "<code>--served-model-name \"$NOMBRE\"</code> de vuelta en <code>servir.sh</code> (una sola fuente de verdad) " + ARR + " En la ficha, «chat-grande» es el nombre en el gateway (LiteLLM), que traduce al nombre de cada copia de vLLM: es la estación 4.",
           "vllm", "servidor"),
     falla("tasa-infinita", "La prueba nueva dice que el TTFT p95 es de más de un minuto", "config",
           "Para que la prueba abierta no tardara 10 minutos, alguien puso TASA=inf en carga.env («que mande todo de una vez») y la volvió a correr. Le salió un TTFT espantoso y escribió en el chat que vLLM «no sirve».",
-          "<code>verificar.py prueba</code> falla (TASA tiene que ser 0.07) y <code>abierta</code> también: las llegadas no son las de Poisson a 0.07 con la semilla.",
+          "Solo <code>verificar.py prueba</code> falla: TASA tiene que ser 0.07. <code>abierta</code> pasa, porque la prueba sí se hizo como decía carga.env: el error está en lo que se pidió, no en cómo se corrió. En cuanto arreglas carga.env, <code>abierta</code> falla hasta que la vuelves a correr.",
           ["vLLM está roto.", "La prueba no se hizo a la tasa de diseño.", "El KV cache se llenó."],
-          cmd(CONF["tasa-infinita"].splitlines()[0] + "\n" + V + " prueba abierta", F("tasa-infinita confirma") + "\n\n" + malos("tasa-infinita"), "Las 40 salieron en el segundo 0: 8 al motor y 32 a la fila."),
+          cmd(CONF["tasa-infinita"] + VTODO, F("tasa-infinita confirma") + "\n\n" + malos("tasa-infinita"), "Las 40 salieron en el segundo 0: 8 al motor y el resto a la fila; la última esperó más de dos minutos su primer token."),
           "<code>TASA=0.07</code> en <code>carga.env</code> y otra vez <code>python3 pipeline/carga.py abierta</code> (≈ 10 min). Una ráfaga mide cuánto aguanta la fila, no la hora pico. Un benchmark honesto dice a qué tasa se midió y la cumple.",
           "carga", "abierta"),
 ]

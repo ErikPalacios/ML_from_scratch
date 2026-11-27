@@ -19,7 +19,7 @@ class H(BaseHTTPRequestHandler):
     def do_GET(self):
         pid = self.path.split("/")[-1]
         if not self.ok(): return self.r(401, {"error": "unauthorized"})
-        return self.r(200, {"id": pid, "desiredStatus": vivos[pid], "machine": {"gpuDisplayName": "L40S"}}) if pid in vivos else self.r(404, {"error": "not found"})
+        return self.r(200, {"id": pid, "status": vivos[pid]}) if pid in vivos else self.r(404, {"error": "not found"})
     def do_POST(self):
         pid = self.path.split("/")[-2]
         body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))

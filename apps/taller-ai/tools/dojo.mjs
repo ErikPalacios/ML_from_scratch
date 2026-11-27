@@ -78,7 +78,7 @@ function salida(s, lbl = 'Salida real') {
 
 // En la GPU rentada (donde: gpu) la salida puede faltar: se dice que falta, nunca se inventa.
 const PENDIENTE_GPU = '<p class="d-pendiente"><b>Salida pendiente.</b> Este comando corre contra la GPU rentada y todavía no se corre en una: aquí va su salida real cuando se haga la primera sesión. Ningún número de este paso se inventa.</p>';
-const comando = (c, lbl = 'terminal') => codigo(c.code, c.donde === 'gpu' ? 'terminal · contra la GPU rentada' : c.donde && c.donde !== 'mac' ? c.donde : lbl) + (c.nota ? `<p class="d-nota">${c.nota}</p>` : '') + (c.donde === 'gpu' && c.salida == null ? PENDIENTE_GPU : salida(c.salida));
+const comando = (c, lbl = 'terminal') => (c.donde === 'gpu' ? codigo(c.code, 'contra la GPU rentada', 'bash') : codigo(c.code, c.donde && c.donde !== 'mac' ? c.donde : lbl)) + (c.nota ? `<p class="d-nota">${c.nota}</p>` : '') + (c.donde === 'gpu' && c.salida == null ? PENDIENTE_GPU : salida(c.salida));
 
 // El prompt para pegar en Claude Code: el botón del resumen lo copia entero sin abrir el bloque (mismo botón que el código).
 const ICO_COPIAR = '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="2"/><path d="M10.5 3.5v-.5a1.5 1.5 0 0 0-1.5-1.5H4A1.5 1.5 0 0 0 2.5 3v5A1.5 1.5 0 0 0 4 9.5h.5"/></svg>';

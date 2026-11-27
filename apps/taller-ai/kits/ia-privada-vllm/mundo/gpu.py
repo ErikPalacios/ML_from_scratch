@@ -132,7 +132,7 @@ def receta() -> None:
 def api(metodo: str, ruta: str, cuerpo: dict | None = None) -> tuple[int, dict]:
     clave = os.environ.get("RUNPOD_API_KEY")
     if not clave:
-        sys.exit("✗ falta RUNPOD_API_KEY en esta terminal: export RUNPOD_API_KEY=… (RunPod → Settings → API Keys; con permiso pods:write)")
+        sys.exit("✗ falta RUNPOD_API_KEY en esta terminal: export RUNPOD_API_KEY=… (RunPod → Settings → API Keys: una llave «All», o «Restricted» con pods:write)")
     req = urllib.request.Request(API + ruta, json.dumps(cuerpo).encode() if cuerpo is not None else None, method=metodo,
                                  headers={"Authorization": f"Bearer {clave}", "Content-Type": "application/json"})
     try:
@@ -156,19 +156,20 @@ def pod_id() -> str:
 
 
 def terminar(pid: str) -> bool:
-    """Termina el pod: deja de cobrar GPU y disco. Prueba la acción y, si no, el DELETE. Luego confirma que ya no está."""
-    st, d = api("POST", f"/pods/{pid}/action", {"action": "terminate"})
-    if st not in (200, 204):
-        st2, d2 = api("DELETE", f"/pods/{pid}")
-        if st2 not in (200, 204, 404):
-            print(f"✗ RunPod no terminó el pod {pid}: action → {st} {d} · DELETE → {st2} {d2}")
+    """Termina el pod: deja de cobrar GPU y disco. DELETE (la ruta documentada) y, si no, la acción terminate. Luego
+    confirma que ya no está: 404 o status TERMINATED. EXITED es detenido, no terminado: el disco seguiría cobrando."""
+    st, d = api("DELETE", f"/pods/{pid}")
+    if st not in (200, 204, 404):
+        st2, d2 = api("POST", f"/pods/{pid}/action", {"action": "terminate"})
+        if st2 not in (200, 204):
+            print(f"✗ RunPod no terminó el pod {pid}: DELETE → {st} {d} · action → {st2} {d2}")
             return False
     for _ in range(10):
         st, d = api("GET", f"/pods/{pid}")
-        if st == 404 or (st == 200 and str(d.get("desiredStatus", d.get("status", ""))).upper() in ("TERMINATED", "EXITED")):
+        if st == 404 or (st == 200 and str(d.get("status", "")).upper() == "TERMINATED"):
             return True
         time.sleep(3)
-    print(f"⚠ pedí terminar el pod {pid}, pero RunPod todavía lo lista ({st} {d.get('desiredStatus', d)}): revísalo en la consola")
+    print(f"⚠ pedí terminar el pod {pid}, pero RunPod todavía lo lista ({st} {d.get('status', d)}): revísalo en la consola")
     return False
 
 
@@ -224,7 +225,7 @@ def estado() -> None:
     if st == 404:
         print(f"■ el pod {pid} ya no existe (terminado): no cobra")
     elif st == 200:
-        print(f"▶ pod {pid}: {d.get('desiredStatus', d.get('status', '?'))} · {d.get('machine', {}).get('gpuDisplayName', '') or d.get('gpu', '')}")
+        print(f"▶ pod {pid}: {d.get('status', '?')}{' (detenido: el disco sigue cobrando; termínalo)' if d.get('status') == 'EXITED' else ''}")
     else:
         print(f"? RunPod contesta {st}: {d}")
     if v:

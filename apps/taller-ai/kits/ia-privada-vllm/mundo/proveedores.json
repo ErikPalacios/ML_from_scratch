@@ -4,27 +4,48 @@
   "elegido": "runpod",
   "proveedores": {
     "runpod": {
-      "nombre": "RunPod (Secure Cloud)", "url": "https://www.runpod.io/pricing",
-      "gpu": { "l40s": 1.09, "rtx-6000-ada": 1.09, "a40": 0.59, "l4": 0.69, "h100-pcie": 2.89 },
-      "community": { "l40s": 0.79, "a40": 0.35, "l4": 0.44 },
+      "nombre": "RunPod (Secure Cloud)",
+      "url": "https://www.runpod.io/pricing",
+      "gpu": {
+        "l40s": 1.09,
+        "rtx-6000-ada": 1.09,
+        "a40": 0.59,
+        "l4": 0.69,
+        "h100-pcie": 2.89
+      },
+      "community": {
+        "l40s": 0.79,
+        "a40": 0.35,
+        "l4": 0.44,
+        "rtx-6000-ada": 0.74,
+        "h100-pcie": 1.99
+      },
       "cobro": "por segundo, de saldo prepagado (desde US$10; para lanzar pide saldo para ≥ 1 hora)",
       "disco": "disco del contenedor US$0.10 por GB al mes mientras corre; al terminar el pod se borra y deja de cobrar",
-      "apagar": "API v2: POST https://api.runpod.io/v2/pods/{id}/action con {\"action\": \"terminate\"} (204); DELETE https://api.runpod.io/v2/pods/{id}",
+      "apagar": "API v2: DELETE https://api.runpod.io/v2/pods/{id} (204), o POST …/pods/{id}/action con {\"action\": \"terminate\"}",
       "puerto": "HTTP 8000 por el proxy https://<id>-8000.proxy.runpod.net (Cloudflare corta a los 100 s sin datos)",
-      "mexico": "tarjeta por Stripe o cripto; no publica restricciones por país (por confirmar al abrir la cuenta)"
+      "mexico": "tarjeta por Stripe o cripto; no publica restricciones por país (por confirmar al abrir la cuenta). Algunos bancos bloquean cobros internacionales y las tarjetas de prepago pueden rechazarse"
     },
     "aws": {
-      "nombre": "AWS EC2", "url": "https://aws.amazon.com/ec2/pricing/on-demand/",
-      "gpu": { "l40s": 1.861, "l4": 0.8048 },
-      "cobro": "por segundo (mínimo 60 s) en Linux; las cuentas nuevas empiezan con cuota de GPU en 0 y hay que pedirla",
+      "nombre": "AWS EC2",
+      "url": "https://aws.amazon.com/ec2/pricing/on-demand/",
+      "gpu": {
+        "l40s": 1.861,
+        "l4": 0.8048
+      },
+      "cobro": "por segundo (mínimo 60 s) en Linux; una cuenta nueva suele tener que pedir cuota para instancias con GPU",
       "disco": "EBS aparte, también con la máquina detenida",
       "apagar": "aws ec2 terminate-instances, o un apagado dentro de la máquina con «comportamiento al apagar: terminar»",
       "puerto": "IP pública con grupo de seguridad, o túnel por SSH",
       "mexico": "región mx-central-1 sin instancias con GPU (lista de precios del 2026-11-24): la GPU queda en us-east-1"
     },
     "google": {
-      "nombre": "Google Cloud", "url": "https://cloud.google.com/compute/gpus-pricing",
-      "gpu": { "l4": 0.7068, "rtx-pro-6000-server": 4.50 },
+      "nombre": "Google Cloud",
+      "url": "https://cloud.google.com/compute/gpus-pricing",
+      "gpu": {
+        "l4": 0.7068,
+        "rtx-pro-6000-server": 4.5
+      },
       "cobro": "por segundo (mínimo 1 minuto); cuota de GPU por pedir",
       "disco": "disco persistente aparte",
       "apagar": "gcloud compute instances delete, o --max-run-duration con --instance-termination-action=DELETE",
@@ -32,26 +53,41 @@
       "mexico": "región de Querétaro (northamerica-south1) sin GPUs listadas; la GPU queda en EE. UU."
     },
     "modal": {
-      "nombre": "Modal", "url": "https://modal.com/pricing",
-      "gpu": { "l40s": 1.95, "l4": 0.80, "a10": 1.10, "h100-sxm": 3.95 },
+      "nombre": "Modal",
+      "url": "https://modal.com/pricing",
+      "gpu": {
+        "l40s": 1.95,
+        "l4": 0.8,
+        "a10": 1.1,
+        "h100-sxm": 3.95
+      },
       "cobro": "por segundo, sin servidor: el contenedor se apaga solo al quedar sin peticiones; US$30 al mes de crédito gratis",
       "disco": "volúmenes aparte",
-      "apagar": "solo, al terminar (scale to zero)",
+      "apagar": "solo, al terminar (scale to zero); el contenedor sigue vivo ≈ 60 s después de la última petición, y se cobran",
       "puerto": "una URL por función; no es una máquina con SSH",
       "mexico": "no confirmado"
     },
     "lightning": {
-      "nombre": "Lightning AI", "url": "https://lightning.ai/pricing",
-      "gpu": { "l40s": 3.54, "l4": 0.79, "h100": 5.45 },
-      "cobro": "por segundo; créditos gratis al registrarse",
+      "nombre": "Lightning AI",
+      "url": "https://lightning.ai/pricing",
+      "gpu": {
+        "l40s": 3.54,
+        "l4": 0.79,
+        "h100": 5.45
+      },
+      "cobro": "por segundo; el precio de cada GPU varía según la máquina (la L40S de US$2.97 a US$4.21; aquí la fila principal); créditos gratis al registrarse y al agregar tarjeta",
       "disco": "incluido en el estudio",
       "apagar": "el estudio se duerme solo sin uso",
       "puerto": "puertos del estudio",
       "mexico": "no confirmado"
     },
     "lambda": {
-      "nombre": "Lambda Cloud", "url": "https://lambda.ai/pricing",
-      "gpu": { "a10": 1.29, "h100-pcie": 3.79 },
+      "nombre": "Lambda Cloud",
+      "url": "https://lambda.com/pricing",
+      "gpu": {
+        "a10": 1.29,
+        "h100-pcie": 3.79
+      },
       "cobro": "por minuto",
       "disco": "aparte",
       "apagar": "API de Lambda (terminate)",

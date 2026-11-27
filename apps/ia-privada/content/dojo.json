@@ -40,11 +40,11 @@
       "num": 3,
       "id": "vllm",
       "titulo": "Servir con vLLM bajo carga",
-      "sale": "vLLM sirviendo y su curva de usuarios contra latencia",
+      "sale": "vLLM sirviendo con sus límites y una prueba de carga honesta: el p95 con su intervalo, el goodput y el veredicto",
       "etapa": "api",
       "donde": "gpu",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://dojo.trueml.app/ia-privada/vllm/"
     },
     {
       "num": 4,

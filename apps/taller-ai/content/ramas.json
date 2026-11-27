@@ -75,7 +75,7 @@
       "estaciones": [
         { "num": 1, "id": "modelo-local", "titulo": "Un modelo local por API", "sale": "un modelo chico que contesta por una API compatible con OpenAI", "etapa": "api", "donde": "mac" },
         { "num": 2, "id": "cuantizacion", "titulo": "Medir y cuantizar", "sale": "TTFT, tokens/s y calidad de 3 cuantizaciones, lado a lado", "etapa": "modelo", "donde": "mac" },
-        { "num": 3, "id": "vllm", "titulo": "Servir con vLLM bajo carga", "sale": "vLLM sirviendo y su curva de usuarios contra latencia", "etapa": "api", "donde": "gpu" },
+        { "num": 3, "id": "vllm", "titulo": "Servir con vLLM bajo carga", "sale": "vLLM sirviendo con sus límites y una prueba de carga honesta: el p95 con su intervalo, el goodput y el veredicto", "etapa": "api", "donde": "gpu" },
         { "num": 4, "id": "gateway", "titulo": "Gateway de modelos", "sale": "un gateway con llaves, límites y ruteo entre modelos", "etapa": "orquestacion", "donde": "mac" },
         { "num": 5, "id": "rag", "titulo": "Tu RAG, al despacho", "sale": "el RAG del entrenamiento RAG en el servidor del despacho, sin internet, con el modelo propio", "etapa": "datos", "donde": "mac" },
         { "num": 6, "id": "evals", "titulo": "El gate, con el modelo propio", "sale": "el mismo golden set contra el modelo del despacho, y guardrails para que nada salga de su red", "etapa": "modelo", "donde": "mac" },

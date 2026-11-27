@@ -269,8 +269,8 @@ class Motor(threading.Thread):
                 if self.a.enable_prefix_caching and len(p.prompt) == p.n_prompt:
                     for h in self.hashes(p.prompt):
                         self.cache[h] = ahora
-                    if len(self.cache) > 4 * self.total_bloques:
-                        for h, _ in sorted(self.cache.items(), key=lambda x: x[1])[: len(self.cache) // 4]:
+                    if len(self.cache) > self.total_bloques:   # caben tantos bloques guardados como tiene el KV cache: se van los más viejos
+                        for h, _ in sorted(self.cache.items(), key=lambda x: x[1])[: len(self.cache) - self.total_bloques]:
                             del self.cache[h]
             pensando = len(p.escritos) < p.razonar
             palabra = PENSAR[len(p.escritos) % len(PENSAR)] if pensando else RELLENO[(len(p.escritos) + p.n_prompt) % len(RELLENO)]
@@ -414,7 +414,7 @@ class API(BaseHTTPRequestHandler):
         if self.path != "/v1/chat/completions":
             return self.responder(404, {"detail": "Not Found"})
         if d.get("model") not in self.nombres:
-            return self.responder(*error(404, f"The model `{d.get('model')}` does not exist.", "NotFoundError", "model"))
+            return self.responder(*error(404, f"The model `{d.get('model')}` does not exist. Valid aliases: {', '.join(self.nombres)}.", "NotFoundError", "model"))
         prompt = plantilla(d.get("messages") or [], pensar(self.a, d))
         n = len(prompt)
         if n >= self.a.max_model_len:   # vLLM 0.34 solo rechaza si el prompt solo ya no cabe

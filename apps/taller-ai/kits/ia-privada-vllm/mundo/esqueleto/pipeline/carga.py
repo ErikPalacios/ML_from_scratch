@@ -11,7 +11,8 @@ Contrato (lo revisa verificar.py):
 - `llegadas(n, tasa, semilla)` → los segundos de llegada: suma de random.Random(semilla).expovariate(tasa), n veces.
 - `cerrada(preguntas, a_la_vez, max_tokens)` y `abierta(preguntas, tasa, max_tokens, semilla)` → list[Medida], cada
   una con `programada` (cuándo tocaba mandarla) e `inicio` (cuándo salió), en segundos desde el arranque de la prueba.
-- `correr(tipo)` → escribe resultados/<tipo>.json: {"meta": {...}, "medidas": [...], "metricas": {...}}; metricas
+- `correr(tipo)` → cada prueba con sus propias preguntas (abierta: semilla; cerrada: semilla + 1; humo: semilla + 2),
+  para que el prefix cache no traiga de una prueba a otra prompts ya leídos; escribe resultados/<tipo>.json: {"meta": {...}, "medidas": [...], "metricas": {...}}; metricas
   junta lo que dijo /metrics del servidor durante la prueba (picos de running y waiting, KV cache máximo, preemptions).
 Solo usa la biblioteca estándar.
 """
@@ -111,10 +112,10 @@ def correr(tipo: str) -> Path:
     mu.start()
     t0 = time.perf_counter()
     if tipo == "humo":
-        medidas = [una(preguntas_despacho(1, semilla)[0], 64)]
+        medidas = [una(preguntas_despacho(1, semilla + 2)[0], 64)]
     elif tipo == "cerrada":
         meta["a_la_vez"] = int(c["CERRADA_A_LA_VEZ"])
-        medidas = cerrada(preguntas_despacho(int(c["CERRADA_PETICIONES"]), semilla), meta["a_la_vez"], maxt)
+        medidas = cerrada(preguntas_despacho(int(c["CERRADA_PETICIONES"]), semilla + 1), meta["a_la_vez"], maxt)
     elif tipo == "abierta":
         meta["tasa"] = float(c["TASA"])
         medidas = abierta(preguntas_despacho(int(c["PETICIONES"]), semilla), meta["tasa"], maxt, semilla)

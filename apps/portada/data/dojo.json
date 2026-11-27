@@ -232,7 +232,8 @@
           "id": "vllm",
           "titulo": "Servir con vLLM bajo carga",
           "etapa": "api",
-          "url": null
+          "lista": true,
+          "url": "https://dojo.trueml.app/ia-privada/vllm/"
         },
         {
           "num": 4,

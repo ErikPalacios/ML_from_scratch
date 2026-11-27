@@ -1,0 +1,1083 @@
+{
+  "id": "vllm",
+  "patron": "llm",
+  "rama": "ia-privada",
+  "etapa": "api",
+  "num": 3,
+  "titulo": "Servir con vLLM bajo carga",
+  "nav": "vLLM bajo carga",
+  "pregunta": "¿Cómo sirves un modelo de 32B en una GPU para varias personas a la vez, y cómo sabes, con una prueba de carga honesta, si cumple la promesa de velocidad antes de firmarla?",
+  "version": "2026-11-27",
+  "mapa": {
+    "resumen": "En la estación 1 el modelo atendía a una persona. El despacho necesita atender a <b>8 conversaciones a la vez</b> con Qwen3 32B, y antes de firmar una promesa (que la primera palabra salga en ≤ 2 s y que cada palabra siguiente tarde ≤ 50 ms) tiene que <b>medirla</b>. Para eso se usa <b>vLLM</b>, el servidor de inferencia hecho para GPUs NVIDIA y muchas conversaciones a la vez: reparte la memoria de la GPU en bloques (<b>PagedAttention</b>), mete conversaciones nuevas en cada paso sin esperar a que terminen las otras (<b>batching continuo</b>) y lee los prompts largos por pedazos. Aquí lo sirves con su clave y sus límites, escribes un <b>generador de carga</b> (cerrada, con 8 a la vez; y abierta, con llegadas al azar a la tasa que de verdad le toca a una copia) y un <b>reporte</b> que dice el p95 con su intervalo, el <b>goodput</b> y si pasa o no el criterio. <b>Dónde corre:</b> los pasos 0 a 5 y las fallas, en tu Mac con el <b>vLLM del dojo</b>, un simulador que habla la misma API y hace en tiempo real la cuenta de servilleta de una L40S (gratis, sin GPU, pero sin medir nada). El paso 6 es la sesión en una L40S rentada en RunPod (≈ 36 min, ≈ US$0.65), donde los mismos archivos corren contra el vLLM de verdad.",
+    "entra": [
+      "el modelo del despacho: Qwen/Qwen3-32B-AWQ (INT4 de AWQ, 19.3 GB, Apache 2.0); en la Mac solo sus números (capas, cabezas, bytes), en el pod se baja de Hugging Face",
+      "vLLM 0.34.0: en la Mac, el vLLM del dojo (simulado); en el pod, la imagen <code>vllm/vllm-openai:v0.34.0</code>",
+      "la ficha del despacho: 8 conversaciones de diseño, prompts de ≈ 6,000 tokens con las mismas instrucciones al inicio, 0.21 preguntas por segundo en la hora pico entre 3 copias, TTFT p95 ≤ 2 s y TPOT p95 ≤ 50 ms",
+      "una cuenta de RunPod con saldo prepagado, solo para el paso 6 (la abres tú; el kit nunca pide datos de pago)"
+    ],
+    "sale": [
+      "<code>servidor.env</code> y <code>servir.sh</code>: <code>vllm serve</code> con clave, 8,192 tokens, 8 a la vez, el parser de razonamiento de Qwen3 y la plantilla sin razonar; el mismo archivo arma el pod",
+      "<code>pipeline/carga.py</code>: el generador de carga (cerrada y abierta con Poisson, sin tope en el cliente), con TTFT, TPOT y huecos entre tokens por petición, y lo que dijo <code>/metrics</code> durante la prueba",
+      "<code>pipeline/reporte.py</code>: percentiles con su intervalo de 95 %, goodput y el veredicto contra el criterio del despacho",
+      "<code>mundo/gpu.py</code>: el plan (minutos y costo antes de rentar), la receta del pod, un vigía que lo termina al tope y el apagado"
+    ],
+    "escala": [
+      {
+        "que": "El motor",
+        "ref": "3 copias de vLLM 0.34.0, una por L40S, detrás de LiteLLM",
+        "taller": "1 copia: el vLLM del dojo en tu Mac (simulado) y, en el paso 6, una L40S rentada"
+      },
+      {
+        "que": "Las llegadas",
+        "ref": "0.21 preguntas por segundo en la hora pico",
+        "taller": "0.07 por segundo: lo que le toca a una de las 3 copias"
+      },
+      {
+        "que": "La prueba",
+        "ref": "≥ 1,000 peticiones por prueba abierta (≈ 79 min), 3 repeticiones, y una jornada de resistencia",
+        "taller": "40 en la abierta (≈ 10 min) y 24 en la cerrada"
+      },
+      {
+        "que": "La GPU",
+        "ref": "3 L40S propias (o 4 L40S rentadas en AWS para la prueba: US$10.49/h)",
+        "taller": "1 L40S de RunPod a US$1.09/h, con un tope de 90 min"
+      },
+      {
+        "que": "Qué tanto se sabe del p95",
+        "ref": "con 1,000: entre el p93.6 y el p96.4",
+        "taller": "con 40: entre la 35.ª y la más lenta, sin techo"
+      }
+    ]
+  },
+  "precalculos": {
+    "intro": "Antes de escribir nada, las cuentas de servilleta de un modelo grande bajo carga: cuántas conversaciones caben en la memoria, a qué velocidad escribe cada una cuando son 8, cuántas llegan a la vez, cuántas peticiones hacen falta para saber el p95 y cuánto cuesta medirlo. Cada una en el despacho (con su ficha) y en el dojo. Son las mismas cuentas que hace el vLLM del dojo por dentro, así que en la Mac lo que sale es la cuenta misma; la GPU rentada dice si la cuenta se parece a la realidad.",
+    "cuentas": [
+      {
+        "id": "memoria",
+        "pregunta": "¿Cuántas conversaciones caben en el KV cache de una L40S?",
+        "formula": "KV cache = memoria que ve el programa − pesos − lo del programa (≈ 2 GiB); tokens = KV cache ÷ (2 × capas × cabezas K/V × dimensión × 2 bytes), en bloques de 16",
+        "ref": {
+          "cuenta": "Qwen3 32B: 256 KiB por token; la ficha: 8 conversaciones de 8,192 piden 17.18 GB de KV cache, y con --gpu-memory-utilization 0.90 caben 10",
+          "valor": "≈ 25 GiB libres sin ese flag: ≈ 102 mil tokens, ≈ 12.5 conversaciones al tope o ≈ 15.7 de 6,500"
+        },
+        "taller": {
+          "cuenta": "la misma L40S, con lo que dice su log al arrancar",
+          "valor": "102,384 tokens: 12.50× al tope de 8,192 (simulado; en el pod, el número real)"
+        },
+        "decide": "La memoria dice cuántas caben, no cuántas se atienden bien: caben ≈ 12 y la ficha diseña para 8. Con menos memoria (otro modelo en la misma tarjeta, un --gpu-memory-utilization bajo), el motor saca conversaciones a la mitad (preemption).",
+        "conceptos": [
+          "paged-attention",
+          "kv-extensible"
+        ],
+        "comprueba": {
+          "code": "python3 -c \"\nimport json\nm = json.load(open('mundo/modelos.json'))['Qwen/Qwen3-32B-AWQ']; g = json.load(open('mundo/gpus.json'))['gpus']['l40s']\nkv = 2 * m['capas'] * m['cabezas_kv'] * m['dim_cabeza'] * m['bytes_kv']          # K y V · capas · cabezas KV · dimensión · 2 bytes\nlibre = g['vram_gib'] - m['bytes_pesos'] / 2**30 - 2                              # memoria que ve el programa − pesos − ≈ 2 GiB del programa\ntokens = int(libre * 2**30 // (kv * 16)) * 16                                     # en bloques de 16 tokens\nprint(f'KV por token: 2 × {m[\"capas\"]} × {m[\"cabezas_kv\"]} × {m[\"dim_cabeza\"]} × 2 = {kv:,} B ({kv // 1024} KiB)')\nprint(f'L40S: {g[\"vram_gib\"]} GiB − {m[\"bytes_pesos\"] / 2**30:.2f} de pesos − 2 del programa = {libre:.2f} GiB de KV cache = {tokens:,} tokens')\nprint(f'  al tope de 8,192: {tokens / 8192:.1f} conversaciones · de ≈ 6,500 (las típicas): {tokens / 6500:.1f} · las 8 de diseño piden 8 × 6,500 = 52,000')\"",
+          "nota": "Los números salen de <code>mundo/modelos.json</code> y <code>mundo/gpus.json</code>. La memoria que ve el programa (44.99 GiB) es menos que los 48 GB de la caja: GB contra GiB y lo que reserva el driver.",
+          "donde": "mac",
+          "salida": "KV por token: 2 × 64 × 8 × 128 × 2 = 262,144 B (256 KiB)\nL40S: 44.99 GiB − 17.99 de pesos − 2 del programa = 25.00 GiB de KV cache = 102,384 tokens\n  al tope de 8,192: 12.5 conversaciones · de ≈ 6,500 (las típicas): 15.8 · las 8 de diseño piden 8 × 6,500 = 52,000"
+        }
+      },
+      {
+        "id": "decode",
+        "pregunta": "¿A cuántos tokens por segundo escribe cada conversación cuando son 8?",
+        "formula": "cada paso escribe un token para cada conversación y lee los pesos más el KV cache de todas: tiempo por paso ≈ (pesos + n × tokens × KV por token) ÷ (0.7 × ancho de banda)",
+        "ref": {
+          "cuenta": "(19.32 GB + 8 × 6,500 × 256 KiB) ÷ (0.7 × 864 GB/s)",
+          "valor": "≈ 54 ms por token: ≈ 18 tokens/s cada una, ya debajo de los 20 de la ficha sin contar los prompts"
+        },
+        "taller": {
+          "cuenta": "la cerrada de 8 a la vez, con prompts de ≈ 6,000 tokens entrando todo el tiempo",
+          "valor": "TPOT p50 ≈ 118 ms (simulado): cada paso que lee un pedazo de prompt frena a las 8"
+        },
+        "decide": "Con 8 a la vez, el ancho de banda ya no alcanza para 20 tokens/s, y cada prompt que entra mete un paso de ≈ 0.74 s. Por eso la ficha dice «2 por L40S a ≥ 20 tokens/s» y diseña 3 copias: el tope de 8 es de memoria, no de velocidad.",
+        "conceptos": [
+          "continuous-batching",
+          "chunked-prefill",
+          "tpot"
+        ],
+        "comprueba": {
+          "code": "python3 -c \"\npesos, kv, bw = 19.32e9, 262144, 0.7 * 864e9                                       # bytes de pesos · KV por token · 0.7 del ancho de banda de la L40S\nfor n in (1, 2, 8):\n    t = (pesos + n * 6500 * kv) / bw                                                 # cada paso lee los pesos y el KV de las n conversaciones\n    print(f'{n} a la vez: ({pesos / 1e9:.2f} GB + {n} × 6,500 × 256 KiB = {n * 6500 * kv / 1e9:.2f} GB) ÷ {bw / 1e9:.1f} GB/s = {t * 1000:.1f} ms por token → {1 / t:.1f} tokens/s cada una')\npre = 2 * 32.76e9 * 2048 / (0.5 * 362.05e12)\nprint(f'y un paso que además lee 2,048 tokens de un prompt: 2 × 32.76 mil millones × 2,048 ÷ (0.5 × 362 TFLOPS) = {pre * 1000:.0f} ms: ese token sale {pre / t:.0f} veces más lento')\"",
+          "nota": "",
+          "donde": "mac",
+          "salida": "1 a la vez: (19.32 GB + 1 × 6,500 × 256 KiB = 1.70 GB) ÷ 604.8 GB/s = 34.8 ms por token → 28.8 tokens/s cada una\n2 a la vez: (19.32 GB + 2 × 6,500 × 256 KiB = 3.41 GB) ÷ 604.8 GB/s = 37.6 ms por token → 26.6 tokens/s cada una\n8 a la vez: (19.32 GB + 8 × 6,500 × 256 KiB = 13.63 GB) ÷ 604.8 GB/s = 54.5 ms por token → 18.4 tokens/s cada una\ny un paso que además lee 2,048 tokens de un prompt: 2 × 32.76 mil millones × 2,048 ÷ (0.5 × 362 TFLOPS) = 741 ms: ese token sale 14 veces más lento"
+        }
+      },
+      {
+        "id": "prefill",
+        "pregunta": "¿Cuánto tarda la primera palabra de una pregunta sola?",
+        "formula": "prefill ≈ 2 × parámetros × tokens del prompt ÷ (0.5 × FLOPs pico); los tokens que ya están en el prefix cache no se calculan",
+        "ref": {
+          "cuenta": "2 × 32.76 mil millones × 6,000 ÷ (0.5 × 362 TFLOPS)",
+          "valor": "≈ 2.17 s: con la L40S, el TTFT ya pasa los 2 s con una sola pregunta (la ficha lo dice)"
+        },
+        "taller": {
+          "cuenta": "la pregunta de humo, de 5,104 tokens",
+          "valor": "TTFT 1,892 ms (simulado)"
+        },
+        "decide": "El TTFT de una pregunta del despacho lo pone la GPU y el largo del prompt, no la fila. Si sola ya roza 2 s, con fila no cumple: o menos tokens (menos fragmentos), o una GPU con más FLOPs (la ficha compara la RTX PRO 6000).",
+        "conceptos": [
+          "ttft",
+          "prefix-caching"
+        ],
+        "confirma": "Paso 4 (<code>python3 pipeline/carga.py humo</code>) y, con la GPU de verdad, el paso 6."
+      },
+      {
+        "id": "little",
+        "pregunta": "¿Cuántas conversaciones llegan a la vez a una copia?",
+        "formula": "ley de Little: a la vez en promedio = llegadas por segundo × segundos que dura cada una; con llegadas al azar (Poisson) se puede calcular qué tan seguido hay 8 o más",
+        "ref": {
+          "cuenta": "0.21 por segundo × 27 s que dura una respuesta (la ficha)",
+          "valor": "≈ 5.67 a la vez entre las 3 copias; 8 o más el 21.20% del tiempo de la hora pico"
+        },
+        "taller": {
+          "cuenta": "0.07 por segundo (una de las 3 copias) × 27 s",
+          "valor": "≈ 1.89 a la vez; 8 o más el 0.08% del tiempo"
+        },
+        "decide": "Una copia recibe pocas a la vez: su TTFT lo marca el prefill, no la fila. La cerrada de 8 mide otra cosa (cómo escriben 8 juntas). Las dos pruebas se hacen porque contestan preguntas distintas.",
+        "conceptos": [
+          "carga"
+        ],
+        "comprueba": {
+          "code": "python3 -c \"\nimport math\nfor quien, tasa in (('despacho, 3 copias', 0.21), ('una copia (el dojo)', 0.07)):\n    L = tasa * 27                                                                    # ley de Little: llegadas por segundo × segundos que dura cada una\n    p8 = 1 - sum(math.exp(-L) * L**k / math.factorial(k) for k in range(8))          # Poisson: probabilidad de 8 o más a la vez\n    print(f'{quien}: {tasa}/s × 27 s = {L:.2f} a la vez en promedio · 8 o más a la vez: {p8:.2%} del tiempo')\"",
+          "nota": "",
+          "donde": "mac",
+          "salida": "despacho, 3 copias: 0.21/s × 27 s = 5.67 a la vez en promedio · 8 o más a la vez: 21.20% del tiempo\nuna copia (el dojo): 0.07/s × 27 s = 1.89 a la vez en promedio · 8 o más a la vez: 0.08% del tiempo"
+        }
+      },
+      {
+        "id": "intervalo",
+        "pregunta": "¿Cuántas peticiones hacen falta para saber el p95?",
+        "formula": "el p95 verdadero cae, con 95 % de confianza, entre las posiciones n·0.95 ∓ 1.96·√(n·0.95·0.05) de las n medidas ordenadas",
+        "ref": {
+          "cuenta": "1,000 peticiones por prueba (el plan de la prueba de carga)",
+          "valor": "entre el p93.6 y el p96.4: se puede firmar"
+        },
+        "taller": {
+          "cuenta": "40 peticiones en la abierta",
+          "valor": "entre la 35.ª y la más lenta: sin techo. Sirve para ver la forma, no para firmar"
+        },
+        "decide": "Un p95 sin su intervalo no dice nada. Con 40 se sabe si algo anda muy mal (si hasta la 35.ª pasa el objetivo, no cumple); para prometer que cumple hacen falta cientos.",
+        "conceptos": [
+          "percentil"
+        ],
+        "comprueba": {
+          "code": "python3 -c \"\nimport math\nfor n in (40, 200, 1000):\n    d = 1.96 * math.sqrt(n * 0.95 * 0.05)\n    lo, hi = math.floor(n * 0.95 - d), math.ceil(n * 0.95 + d)\n    print(f'{n:>5} peticiones: el p95 verdadero está entre la {max(1, lo)}.ª y la {min(n, hi)}.ª más lenta (p{100 * max(1, lo) / n:.1f}–p{100 * min(n, hi) / n:.1f})' + ('' if hi <= n else ': sin techo, la más lenta es lo más que sabes'))\"",
+          "nota": "",
+          "donde": "mac",
+          "salida": "   40 peticiones: el p95 verdadero está entre la 35.ª y la 40.ª más lenta (p87.5–p100.0): sin techo, la más lenta es lo más que sabes\n  200 peticiones: el p95 verdadero está entre la 183.ª y la 197.ª más lenta (p91.5–p98.5)\n 1000 peticiones: el p95 verdadero está entre la 936.ª y la 964.ª más lenta (p93.6–p96.4)"
+        }
+      },
+      {
+        "id": "costo",
+        "pregunta": "¿Cuánto cuesta medirlo en una GPU de verdad?",
+        "formula": "costo = minutos ÷ 60 × (precio por hora de la GPU + disco); el tope es lo que tarde el vigía en apagarla",
+        "ref": {
+          "cuenta": "la prueba de la promesa en 4 L40S rentadas (g6e.12xlarge de AWS, US$10.49/h) por 48 h",
+          "valor": "≈ US$500"
+        },
+        "taller": {
+          "cuenta": "1 L40S en RunPod a US$1.09/h, ≈ 36 min de sesión y un tope de 90",
+          "valor": "≈ US$0.65 (≈ MXN 13); con el tope, a lo más US$1.65 (≈ MXN 32)"
+        },
+        "decide": "Todo lo que se puede escribir y probar sin GPU se hace en la Mac. A la GPU se llega con el código listo, a medir: cada minuto esperando es dinero. Y siempre con un tope que la apague.",
+        "conceptos": [
+          "gpu-rentada"
+        ],
+        "confirma": "Paso 6 (<code>python3 mundo/gpu.py plan</code>, con tu <code>gpu.env</code>)."
+      }
+    ]
+  },
+  "conceptos": [
+    {
+      "id": "simulador",
+      "termino": "El vLLM del dojo (un simulador)",
+      "en": "simulator, digital twin",
+      "def": "Un programa que contesta como vLLM (las mismas rutas, errores y métricas) y tarda lo que diría la cuenta de servilleta de una L40S. No usa GPU y no mide nada.",
+      "analogia": "Como un simulador de vuelo: practicas el despegue y las fallas sin gastar combustible, pero el viento real no está ahí.",
+      "importa": "Deja escribir y probar todo el código (el generador, el reporte, las fallas) gratis en la Mac, y llegar a la GPU rentada solo a medir.",
+      "trampa": "Tomar sus números como medidos. Hacen la cuenta perfecta: la GPU real tiene cuellos que la cuenta no ve (kernels, la red del proxy, el calentamiento). Cada número del simulador se dice como «simulado»."
+    },
+    {
+      "id": "vllm",
+      "termino": "vLLM",
+      "en": "vLLM inference engine",
+      "def": "Un servidor de inferencia para GPUs, hecho para atender muchas conversaciones a la vez. Habla la API compatible con OpenAI; cada copia anuncia el modelo con el nombre de --served-model-name.",
+      "analogia": "Como la cocina de un restaurante grande: no cocina un platillo a la vez, va metiendo órdenes nuevas a la estufa mientras salen las otras.",
+      "importa": "Es lo que el despacho corre en cada L40S. Lo que cambia contra llama-server no es la API, es cuántas atiende a la vez y cómo reparte la memoria.",
+      "trampa": "Cambiar el nombre servido en un lado y no en el otro: el servidor está sano y cada pregunta recibe «The model … does not exist»."
+    },
+    {
+      "id": "paged-attention",
+      "termino": "PagedAttention y bloques del KV cache",
+      "en": "PagedAttention, KV cache blocks",
+      "def": "vLLM guarda el KV cache en bloques chicos (16 tokens) que da conforme crece cada conversación, en vez de apartar el contexto máximo para cada una.",
+      "analogia": "Como un estacionamiento por lugares: a cada coche le das un cajón al llegar, no le apartas un piso entero por si trae remolque.",
+      "importa": "Por eso en vLLM el contexto no se reparte como en llama-server: caben más conversaciones cortas y una larga no le quita lugar a las demás hasta que de verdad lo usa.",
+      "trampa": "Creer que el KV cache se aparta al arrancar por conversación. Se aparta la memoria total; los bloques se reparten en marcha, y se pueden acabar a la mitad."
+    },
+    {
+      "id": "kv-extensible",
+      "termino": "La memoria del KV cache",
+      "en": "--gpu-memory-utilization, extensible KV cache",
+      "def": "Cuánta memoria le toca al KV cache. vLLM 0.34 la mide al arrancar con lo que queda libre; --gpu-memory-utilization fija un tope (fracción de la GPU) y achica el KV cache.",
+      "analogia": "Como repartir una bodega: lo que no usan los pesos queda para las conversaciones, a menos que alguien pinte una raya «hasta aquí» en la mitad.",
+      "importa": "El log de arranque dice cuántos tokens caben (GPU KV cache size) y cuántas conversaciones al tope (Maximum concurrency). Es el primer número que se revisa.",
+      "trampa": "Copiar un --gpu-memory-utilization de un tutorial viejo: arranca bien y el KV cache queda chico. Nada truena hasta que llegan 8 a la vez."
+    },
+    {
+      "id": "max-num-seqs",
+      "termino": "Lugares a la vez",
+      "en": "--max-num-seqs",
+      "def": "Cuántas conversaciones corre el motor juntas en cada paso. Las que llegan de más esperan en fila (vllm:num_requests_waiting). El despacho usa 8, su número de diseño.",
+      "analogia": "Como las sillas de un consultorio: si hay 8, el noveno espera en la sala aunque el doctor tenga tiempo.",
+      "importa": "Pone la orilla entre memoria y fila: con pocos lugares la GPU queda ociosa y el TTFT se vuelve espera; con muchos, cada una escribe más lento.",
+      "trampa": "Bajarlo «para que cada una escriba más rápido»: escriben más rápido las que entran, y las demás esperan medio minuto."
+    },
+    {
+      "id": "continuous-batching",
+      "termino": "Batching continuo",
+      "en": "continuous batching",
+      "def": "En cada paso, el motor escribe un token para cada conversación que ya está escribiendo y mete conversaciones nuevas en cuanto hay lugar, sin esperar a que termine la tanda.",
+      "analogia": "Como un elevador que deja y recoge gente en cada piso, en vez de esperar a que se vacíe para subir a los siguientes.",
+      "importa": "Es por qué 8 conversaciones no tardan 8 veces más: leer los pesos una vez sirve para las 8.",
+      "trampa": "Pensar que cada conversación va «a su velocidad». Todas comparten el paso: si el paso se alarga (un prompt grande entrando), se frenan todas."
+    },
+    {
+      "id": "chunked-prefill",
+      "termino": "Prefill por pedazos",
+      "en": "chunked prefill, --max-num-batched-tokens",
+      "def": "vLLM lee los prompts largos en pedazos de hasta --max-num-batched-tokens (2,048 en una L40S) por paso, junto con los tokens de las que ya escriben.",
+      "analogia": "Como un cajero que entre cliente y cliente de la fila rápida atiende un pedazo del trámite largo, en vez de cerrar la ventanilla una hora.",
+      "importa": "Un prompt de 6,000 tokens tarda ≈ 3 pasos de ≈ 0.74 s. En esos pasos, cada conversación que escribe espera: es el salto en el hueco entre tokens.",
+      "trampa": "Ver un TPOT promedio alto y culpar al ancho de banda. Muchas veces es el prefill de las que van entrando: se ve en los huecos grandes de itl_s."
+    },
+    {
+      "id": "preemption",
+      "termino": "Preemption",
+      "en": "preemption (recompute)",
+      "def": "Cuando se acaban los bloques del KV cache, vLLM saca a la última conversación que entró, libera su memoria y la vuelve a leer completa después.",
+      "analogia": "Como un restaurante lleno que levanta a la última mesa para sentar a otra, y luego la vuelve a sentar desde la entrada.",
+      "importa": "Nada da error: la respuesta solo tarda más y gasta GPU dos veces. Se ve en vllm:num_preemptions_total y en un KV cache cerca del 100 %.",
+      "trampa": "No revisar /metrics: el cliente ve una respuesta lenta y nadie sabe que el motor tiró trabajo."
+    },
+    {
+      "id": "prefix-caching",
+      "termino": "Prefix caching",
+      "en": "automatic prefix caching",
+      "def": "vLLM guarda los bloques de prompt que ya leyó. Si otra pregunta empieza igual (las mismas instrucciones), esos bloques no se vuelven a calcular. Viene prendido.",
+      "analogia": "Como el mesero que ya trae el pan a la mesa porque todos lo piden: solo prepara lo que cambia.",
+      "importa": "Las ≈ 400 tokens de instrucciones del despacho se leen una vez: el TTFT baja lo que pesan en el prompt (≈ 7 %).",
+      "trampa": "Medir con la misma pregunta una y otra vez: el prefix cache la tiene completa y el TTFT sale bajísimo. El dataset de la prueba cambia los fragmentos en cada pregunta."
+    },
+    {
+      "id": "ttft",
+      "termino": "Tiempo al primer token",
+      "en": "time to first token, TTFT",
+      "def": "Lo que tarda en llegar el primer pedazo de texto desde que se mandó la pregunta: la fila, más leer el prompt (prefill), más la red.",
+      "analogia": "Como el tiempo entre pedir en la ventanilla y que te den el primer taco: espera en la fila más lo que tarda en prepararse.",
+      "importa": "Es lo que siente el abogado: si la primera palabra tarda, «el sistema está lento», aunque luego escriba rápido. El despacho promete ≤ 2 s en el p95.",
+      "trampa": "Medirlo en el servidor y prometerlo al cliente: el cliente suma la red y el gateway. Se mide del lado del cliente (y se compara con vllm:time_to_first_token_seconds)."
+    },
+    {
+      "id": "tpot",
+      "termino": "TPOT y huecos entre tokens",
+      "en": "time per output token, inter-token latency",
+      "def": "TPOT: (tiempo total − TTFT) ÷ (tokens − 1), el promedio de una respuesta. ITL: cada hueco entre dos pedazos. El despacho pide TPOT p95 ≤ 50 ms (≥ 20 tokens/s).",
+      "analogia": "Como la velocidad de alguien que dicta: el TPOT es su ritmo promedio; los huecos son las pausas, y una pausa larga se nota aunque el ritmo sea bueno.",
+      "importa": "Dice si el texto sale más rápido de lo que se lee. Se mide con 8 a la vez, que es cuando se comparte la GPU.",
+      "trampa": "Reportar solo el promedio: un TPOT de 50 ms puede esconder pausas de 0.7 s cada vez que entra un prompt."
+    },
+    {
+      "id": "carga",
+      "termino": "Carga cerrada y carga abierta",
+      "en": "closed-loop vs open-loop load, Poisson arrivals",
+      "def": "Cerrada: N usuarios, cada uno pregunta de nuevo al recibir respuesta. Abierta: las preguntas llegan a su hora (al azar, Poisson), conteste o no el servidor.",
+      "analogia": "Cerrada es una mesa de 8 que pide otro platillo al terminar el anterior; abierta es la calle: la gente entra al restaurante cuando quiere, haya mesa o no.",
+      "importa": "La cerrada nunca satura (si el servidor se frena, llegan menos). La abierta sí, y es la del mundo real: la hora pico no espera a que el servidor acabe.",
+      "trampa": "Usar una cerrada (o una ráfaga a tasa infinita) para prometer un TTFT de la hora pico. La promesa se mide a la tasa de diseño, y se dice cuál fue."
+    },
+    {
+      "id": "percentil",
+      "termino": "Percentiles y su intervalo",
+      "en": "p50, p95, p99, confidence interval",
+      "def": "El p95 es el tiempo que no pasa el 95 % de las peticiones. Medido con n peticiones, el verdadero cae en un rango de posiciones: n·0.95 ∓ 1.96·√(n·0.95·0.05).",
+      "analogia": "Como una encuesta: con 40 personas sabes la tendencia; para afirmar el 95 % necesitas cientos, y el margen de error se dice junto al número.",
+      "importa": "El SLA se firma en p95, no en promedio: el promedio esconde a los que esperan. Y un p95 sin intervalo no se puede comparar con otro.",
+      "trampa": "Firmar un p95 medido con 40 peticiones: con 40, el p95 es prácticamente la más lenta y no tiene techo."
+    },
+    {
+      "id": "goodput",
+      "termino": "Goodput",
+      "en": "goodput",
+      "def": "Las peticiones por segundo que cumplen todo el criterio a la vez (TTFT y TPOT), no las que solo contestaron. vllm bench serve lo da con --goodput ttft:2000 tpot:50.",
+      "analogia": "Como contar las pizzas que llegaron calientes y a tiempo, no las que salieron de la cocina.",
+      "importa": "Un servidor puede contestar todo (throughput alto) y que casi nada cumpla la promesa. La ficha estima ≈ 0.06/s de goodput con 3 L40S: ≈ 29 % de lo pedido.",
+      "trampa": "Reportar throughput como si fuera capacidad útil."
+    },
+    {
+      "id": "metrics",
+      "termino": "/metrics de vLLM",
+      "en": "Prometheus metrics",
+      "def": "vLLM publica en /metrics, en el formato de Prometheus, lo que pasa adentro: corriendo, en fila, uso del KV cache, preemptions e histogramas de TTFT y huecos.",
+      "analogia": "Como el tablero de un coche: el pasajero siente que va lento; el tablero dice si es el motor, la gasolina o el freno de mano.",
+      "importa": "El cliente mide lo que vive el usuario; /metrics explica por qué. Una prueba honesta guarda los dos.",
+      "trampa": "Dejar /metrics abierto a internet: no pide clave. En el pod el proxy es público, y en el despacho va solo a la red de gestión."
+    },
+    {
+      "id": "gpu-rentada",
+      "termino": "GPU rentada por segundo",
+      "en": "on-demand GPU pod, billing per second",
+      "def": "Una máquina con GPU que se renta por segundo (RunPod: L40S a US$1.09/h) de saldo prepagado. Se lanza con una imagen (vllm/vllm-openai) y se termina para dejar de pagar.",
+      "analogia": "Como rentar un auto por minuto: pagas mientras está prendido, y el tope real es lo que cargaste a la tarjeta de prepago.",
+      "importa": "Deja medir en la GPU del despacho sin comprarla: una sesión de práctica cuesta menos que un café. Con un vigía que la termina al tope, el olvido no sale caro.",
+      "trampa": "Dejarla prendida «un ratito» o solo detenerla: detenida, el disco sigue cobrando. Se termina, y se comprueba que ya no existe."
+    },
+    {
+      "id": "api-key",
+      "termino": "Clave de la API",
+      "en": "API key, bearer token",
+      "def": "Un texto que vLLM pide en cada petición a /v1 («Authorization: Bearer …»); sin la clave correcta contesta 401. Se pasa con --api-key o la variable VLLM_API_KEY.",
+      "analogia": "Como el gafete de la oficina: el guardia no pregunta quién eres, solo si traes uno válido.",
+      "importa": "En el pod el puerto queda en una URL pública de internet: sin clave, cualquiera que la encuentre usa tu GPU y tu saldo.",
+      "trampa": "Probar solo que «con la clave funciona»: si nadie prueba sin clave, nadie se entera el día que se quita. /health y /metrics quedan abiertos."
+    },
+    {
+      "id": "razonamiento",
+      "termino": "Razonamiento de Qwen3",
+      "en": "thinking mode, --reasoning-parser",
+      "def": "Qwen3 razona antes de contestar si la plantilla no lo apaga. --default-chat-template-kwargs '{\"enable_thinking\": false}' lo apaga; --reasoning-parser qwen3 lo separa en otro campo.",
+      "analogia": "Como alguien que piensa en voz alta antes de cada respuesta: útil a veces, pero el abogado quería la respuesta, no el borrador.",
+      "importa": "Cada token de razonamiento es GPU y tiempo: el tope de 500 tokens se va en pensar y la respuesta útil llega tarde.",
+      "trampa": "Quitar «el JSON raro» del comando: es lo que lo apaga. Lo que importa se escribe explícito, aunque se vea raro."
+    }
+  ],
+  "mundo": {
+    "resumen": "El kit trae todo para escribir y probar la estación en tu Mac, gratis, y para llegar a la GPU rentada con el código listo. El centro es el <b>vLLM del dojo</b> (<code>mundo/vllm_dojo.py</code>): cuando no hay vLLM instalado, <code>vllm serve</code> corre este simulador, que habla la API de vLLM 0.34.0 (rutas, errores, streaming y las métricas <code>vllm:…</code>) y hace en tiempo real la cuenta de servilleta de una L40S con Qwen3 32B en AWQ: memoria y bloques del KV cache, prefill por FLOPs, escritura por ancho de banda, batching continuo con prefill por pedazos, fila, prefix caching y preemption. <b>Sus números son la cuenta, no una medición</b>: toda salida de la Mac en esta página es del simulador. Además: las preguntas del despacho (≈ 6,000 tokens, ficticias, con las mismas instrucciones al inicio), lo que arranca y para tu servidor, y <code>mundo/gpu.py</code> para la sesión rentada. Todo usa solo la biblioteca estándar de Python.",
+    "trae": [
+      {
+        "que": "mundo/vllm_dojo.py y mundo/bin/vllm",
+        "detalle": "El vLLM del dojo. <code>mundo/servidor.py</code> pone <code>mundo/bin</code> en el PATH cuando no hay vLLM, así que tu <code>servir.sh</code> dice <code>vllm serve</code> igual que en el pod. Su primera línea de log dice SIMULADO."
+      },
+      {
+        "que": "mundo/servidor.py",
+        "detalle": "<code>arrancar</code> corre tu <code>servir.sh</code> en segundo plano y espera a que <code>/health</code> conteste (en el pod de verdad, la primera vez tarda minutos); <code>parar</code>, <code>estado</code> y <code>log</code>, con el log en <code>.taller/servidor.log</code>."
+      },
+      {
+        "que": "mundo/dataset.py",
+        "detalle": "<code>preguntas(n, semilla)</code>: las preguntas del despacho, deterministas. 5 fragmentos de contratos ficticios distintos en cada una y las mismas ≈ 400 tokens de instrucciones al inicio; de ≈ 4,200 a ≈ 7,800 tokens."
+      },
+      {
+        "que": "mundo/gpu.py y mundo/proveedores.json",
+        "detalle": "<code>plan</code> (minutos y costo antes de rentar), <code>receta</code> (los campos del pod, sacados de tu <code>servir.sh</code>), <code>vigilar</code> (un proceso en tu Mac que termina el pod al tope, por la API v2 de RunPod), <code>estado</code> y <code>apagar</code>. La comparación de proveedores, con sus precios del 2026-11-27."
+      },
+      {
+        "que": "mundo/modelos.json y mundo/gpus.json",
+        "detalle": "Los números del modelo (capas, cabezas K/V, bytes de pesos) y de la L40S y la L4 (memoria, ancho de banda, FLOPs) con los que el simulador hace sus cuentas."
+      },
+      {
+        "que": "verificar.py y romper.py",
+        "detalle": "Los 13 checks (de <code>mundo</code> a <code>gpu</code>) contra el servidor de <code>LLM_URL</code>, y las 6 fallas: el tope de 2, la memoria recortada, sin clave, el razonamiento prendido, el nombre servido cambiado y la prueba a tasa infinita."
+      }
+    ],
+    "tu_pipeline": [
+      {
+        "archivo": "servidor.env y servir.sh",
+        "hace": "Pasos 1 y 2: qué sirve vLLM y cómo; el mismo <code>servir.sh</code> corre en la Mac y arma el pod."
+      },
+      {
+        "archivo": "carga.env",
+        "hace": "Paso 3: la prueba (tasa, peticiones, a la vez, tope de salida, semilla) y el criterio."
+      },
+      {
+        "archivo": "pipeline/carga.py",
+        "hace": "Pasos 4 y 5: una petición medida, la cerrada y la abierta con Poisson."
+      },
+      {
+        "archivo": "pipeline/reporte.py",
+        "hace": "Paso 5: percentiles con su intervalo, goodput y el veredicto."
+      },
+      {
+        "archivo": "gpu.env",
+        "hace": "Paso 6: proveedor, GPU, precio, disco, tope de minutos y el id del pod."
+      }
+    ],
+    "requisitos": [
+      "Una Mac (o cualquier máquina) con Python 3.10 o más nuevo; se probó con 3.14.3 en un MacBook Air M4. Sin GPU, sin Docker, sin entorno virtual",
+      "Para el paso 6: una cuenta de RunPod con ≈ US$10 de saldo prepagado y una llave de API con permiso de escribir pods (la abres tú)",
+      "Internet solo para el paso 6: la carga sale de tu Mac hacia el proxy del pod"
+    ],
+    "sustituciones": [
+      {
+        "nube": "vLLM 0.34.0 en una L40S",
+        "local": "el vLLM del dojo en tu Mac (simulado)",
+        "diferencia": "La misma API, los mismos errores y los mismos nombres de métricas, así que tu código no cambia. El simulador hace la cuenta de servilleta perfecta; la GPU real tiene lo que la cuenta no ve (kernels, CUDA graphs, el calentamiento). Por eso el paso 6 mide."
+      },
+      {
+        "nube": "3 copias de vLLM detrás de LiteLLM, a 0.21 preguntas por segundo",
+        "local": "1 copia a 0.07 por segundo",
+        "diferencia": "Es lo que le toca a una de las 3 si el gateway reparte parejo. El reparto y la afinidad por conversación son de la estación 4."
+      },
+      {
+        "nube": "La prueba de la promesa: ≥ 1,000 peticiones, 3 repeticiones y una jornada",
+        "local": "40 en la abierta y 24 en la cerrada",
+        "diferencia": "Alcanza para ver la forma y para saber si algo no cumple; no para firmar un p95 (no tiene techo)."
+      },
+      {
+        "nube": "El generador en otra máquina de la red del despacho",
+        "local": "tu Mac, hacia el proxy del pod por internet",
+        "diferencia": "El TTFT del cliente suma la ida y vuelta a RunPod (≈ decenas de ms desde México). Se compara con vllm:time_to_first_token_seconds, que es del lado del servidor."
+      }
+    ],
+    "arranque": "unzip ia-privada-vllm.zip && cd ia-privada-vllm\npython3 verificar.py mundo",
+    "python": "python3"
+  },
+  "guiado": [
+    {
+      "n": 0,
+      "id": "mundo",
+      "titulo": "Levantar el mundo",
+      "objetivo": "El kit descomprimido, Python 3.10+, y el vLLM del dojo listo para contestar como vLLM.",
+      "conceptos": [
+        "simulador",
+        "vllm"
+      ],
+      "explica": "No hay nada que instalar en la Mac: el kit usa solo la biblioteca estándar. <code>verificar.py mundo</code> revisa Python, que estén las piezas del mundo y que el dataset salga igual con la misma semilla, y dice qué motor va a usar: sin vLLM instalado, el del dojo. <code>mundo/dataset.py</code> enseña las preguntas de la prueba.",
+      "codigo": [],
+      "comandos": [
+        {
+          "code": "python3 --version",
+          "nota": "",
+          "donde": "mac",
+          "salida": "Python 3.14.3"
+        },
+        {
+          "code": "python3 verificar.py mundo",
+          "nota": "«SIMULADO» es la palabra clave: lo vas a ver en cada salida de la Mac.",
+          "donde": "mac",
+          "salida": "✓ mundo     Python 3.14.3 · el vLLM del dojo (SIMULADO, imita vLLM 0.34.0 en una NVIDIA L40S): sin GPU, los tiempos son la cuenta de servilleta · dataset determinista (semilla 11)\n\n1/1 en verde"
+        },
+        {
+          "code": "python3 verificar.py config",
+          "nota": "Es lo esperado: <code>servidor.env</code> viene vacío. Cada check se pone en verde en su paso.",
+          "donde": "mac",
+          "salida": "✗ config    servidor.env: faltan MODELO, NOMBRE, HOST, PUERTO, MAX_MODEL_LEN, MAX_NUM_SEQS, CLAVE, LLM_URL (paso 1)\n\n0/1 en verde · falta: config\n[código 1]"
+        },
+        {
+          "code": "python3 mundo/dataset.py 40",
+          "nota": "Sin servidor, cuenta con el tokenizer aproximado del kit; con el servidor arriba, con el suyo (<code>/tokenize</code>).",
+          "donde": "mac",
+          "salida": "(el servidor no contesta /tokenize: cuento con el objetivo aproximado)\n40 preguntas · tokens del prompt: mín 4,239 · mediana 6,298 · máx 7,793 · promedio 6,056\nlas instrucciones comunes: 400 tokens al inicio de cada una (7% del prompt promedio)\nejemplo q0000: …epta rescindir el contrato sin responsabilidad durante la vigencia del contrato y dos años después.\n\nPregunta: ¿Qué pasa si el arrendatario paga la renta tarde?"
+        }
+      ],
+      "verifica": "<code>verificar.py mundo</code> en verde: Python 3.10+, el mundo completo y el dataset determinista.",
+      "ojo": "El simulador no se baja el modelo ni usa la GPU: no esperes ver 19 GB ni el ventilador. Lo que importa en la Mac es que tu código hable bien con algo que se comporta como vLLM."
+    },
+    {
+      "n": 1,
+      "id": "config",
+      "titulo": "Decidir cómo se sirve",
+      "objetivo": "<code>servidor.env</code>: el modelo, el nombre con el que se anuncia, dónde escucha, el contexto, cuántas a la vez, la clave y la URL de tus programas.",
+      "conceptos": [
+        "max-num-seqs",
+        "api-key",
+        "simulador"
+      ],
+      "explica": "Cada línea es una decisión de la ficha. <b>MODELO=Qwen/Qwen3-32B-AWQ</b>: el nombre en Hugging Face. <b>NOMBRE=qwen3-32b</b>: el «model» de cada petición. <b>HOST=127.0.0.1</b> y <b>PUERTO=8000</b> (el de vLLM por omisión): en la Mac, nadie más llega. <b>MAX_MODEL_LEN=8192</b>: ≈ 6,000 de prompt + 500 de respuesta. <b>MAX_NUM_SEQS=8</b>: las conversaciones a la vez de diseño. <b>CLAVE</b>: de 12 caracteres o más, porque en el pod el puerto queda en internet. <b>LLM_URL</b>: lo que usan tus programas; en el paso 6 cambia a la URL del pod, y es lo único que cambia.",
+      "codigo": [
+        {
+          "lang": "bash",
+          "path": "servidor.env",
+          "code": "# servidor.env: qué sirve vLLM y cómo. Lo leen servir.sh, mundo/gpu.py, pipeline/ y verificar.py.\n# El modelo, como se llama en Hugging Face (el del despacho)\nMODELO=Qwen/Qwen3-32B-AWQ\n# El nombre con el que la API lo anuncia: el «model» de cada petición\nNOMBRE=qwen3-32b\n# Dónde escucha en tu Mac (en el pod, mundo/gpu.py receta lo cambia a 0.0.0.0 para el proxy)\nHOST=127.0.0.1\nPUERTO=8000\n# Tokens por conversación (prompt + respuesta): ≈ 6,000 de entrada + 500 de salida caben en 8,192\nMAX_MODEL_LEN=8192\n# Conversaciones a la vez en el motor: las 8 de diseño del despacho\nMAX_NUM_SEQS=8\n# La llave de la API: cada petición manda «Authorization: Bearer <CLAVE>»\nCLAVE=dojo-vllm-5c1e9a\n# Lo que usan tus programas: la URL base de la API (en la sesión de GPU, la del proxy del pod)\nLLM_URL=http://127.0.0.1:8000/v1",
+          "nota": ""
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python3 verificar.py config",
+          "nota": "Pasa la parte de <code>servidor.env</code>; falta <code>servir.sh</code>, que es el paso 2.",
+          "donde": "mac",
+          "salida": "✗ config    no pude leer los argumentos de servir.sh (¿termina en `exec vllm serve …`?): servir.sh todavía es el esqueleto (paso 2)\n\n0/1 en verde · falta: config\n[código 1]"
+        }
+      ],
+      "verifica": "<code>verificar.py config</code> dice lo que falta de <code>servir.sh</code> y nada de <code>servidor.env</code>: el modelo del despacho, 127.0.0.1, 8,192 tokens, 8 a la vez, una clave larga y la URL armada con el mismo puerto.",
+      "ojo": "El 8 de MAX_NUM_SEQS es de memoria (cuántas caben), no de velocidad (a ≥ 20 tokens/s van ≈ 2 por L40S). No lo bajes para «que escriban más rápido»: es la primera falla.",
+      "en_pagina": {
+        "conceptos": [
+          "simulador",
+          "max-num-seqs",
+          "api-key"
+        ],
+        "precalculos": []
+      }
+    },
+    {
+      "n": 2,
+      "id": "servir",
+      "titulo": "Arrancar vLLM",
+      "objetivo": "<code>servir.sh</code>: <code>vllm serve</code> con todo lo de <code>servidor.env</code>; arrancarlo y leer su log, su API y su <code>/metrics</code>.",
+      "conceptos": [
+        "vllm",
+        "paged-attention",
+        "kv-extensible",
+        "razonamiento",
+        "metrics"
+      ],
+      "explica": "<code>servir.sh</code> lee <code>servidor.env</code> y termina en <code>exec vllm serve \"$MODELO\"</code> con: <code>--host</code> y <code>--port</code>; <code>--served-model-name</code>; <code>--max-model-len</code>; <code>--max-num-seqs</code>; <code>--api-key</code>; <code>--reasoning-parser qwen3</code> (separa el razonamiento en su campo, si lo hubiera) y <code>--default-chat-template-kwargs '{\"enable_thinking\": false}'</code> (lo apaga en la plantilla). <b>Sin</b> <code>--gpu-memory-utilization</code>: la 0.34 mide la memoria libre y la da al KV cache. Al arrancar, el log dice lo importante: cuánto pesan los pesos, cuánta memoria quedó para el KV cache, cuántos tokens caben y cuántas conversaciones al tope.",
+      "codigo": [
+        {
+          "lang": "bash",
+          "path": "servir.sh",
+          "code": "#!/usr/bin/env bash\n# Arranca vLLM con lo que dice servidor.env. En tu Mac corre el vLLM del dojo (simulado); en el pod, el de verdad.\nset -euo pipefail\ncd \"$(dirname \"$0\")\"\nsource servidor.env\nexec vllm serve \"$MODELO\" \\\n  --host \"$HOST\" --port \"$PUERTO\" \\\n  --served-model-name \"$NOMBRE\" \\\n  --max-model-len \"$MAX_MODEL_LEN\" \\\n  --max-num-seqs \"$MAX_NUM_SEQS\" \\\n  --api-key \"$CLAVE\" \\\n  --reasoning-parser qwen3 \\\n  --default-chat-template-kwargs '{\"enable_thinking\": false}'",
+          "nota": "El mismo archivo corre en la Mac (con el vLLM del dojo) y lo lee <code>mundo/gpu.py receta</code> para armar el pod."
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python3 verificar.py config",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ config    qwen3-32b (Qwen/Qwen3-32B-AWQ) en http://127.0.0.1:8000/v1 · 8,192 tokens · 8 a la vez · servir.sh corre vllm serve\n\n1/1 en verde"
+        },
+        {
+          "code": "python3 mundo/servidor.py arrancar",
+          "nota": "En la Mac tarda un segundo. En el pod de verdad, la primera vez baja 19 GB y compila: minutos.",
+          "donde": "mac",
+          "salida": "▶ servidor arriba (pid 2298) en http://127.0.0.1:8000 en 1 s · el vLLM del dojo (SIMULADO, imita vLLM 0.34.0 en una NVIDIA L40S): sin GPU, los tiempos son la cuenta de servilleta · log en .taller/servidor.log"
+        },
+        {
+          "code": "grep -E \"SIMULADO|non-default|Chunked|Model loading|KV cache|Starting|startup\" .taller/servidor.log | sed -E \"s/^\\((APIServer|EngineCore_DP0) pid=[0-9]+\\) //; s/ [0-9]{2}-[0-9]{2} [0-9:]{8} / /\"",
+          "nota": "Salida del vLLM del dojo (simulado): los tiempos son la cuenta de servilleta de una L40S, no una medición. Las líneas imitan las de vLLM 0.34.0; la primera y la última del motor son del simulador.",
+          "donde": "mac",
+          "salida": "WARNING [vllm_dojo.py:1] vLLM del dojo: SIMULADO, sin GPU. Imita `vllm serve` 0.34.0 con una NVIDIA L40S de 48 GB (DOJO_GPU=l40s). Los tiempos salen de la cuenta de servilleta, no de una medición.\nINFO [utils.py:328] non-default args: {'model': 'Qwen/Qwen3-32B-AWQ', 'max_model_len': 8192, 'max_num_seqs': 8, 'served_model_name': ['qwen3-32b'], 'api_key': ['…']}\nINFO [scheduler.py:355] Chunked prefill is enabled with max_num_batched_tokens=2048.\nINFO [model_runner.py:442] Model loading took 17.99 GiB memory and 44.832105 seconds\nINFO [gpu_worker.py:796] Available KV cache memory: 25.00 GiB (KV cache extensible: sin --gpu-memory-utilization)\nINFO [kv_cache_utils.py:1169] GPU KV cache size: 102,384 tokens, Maximum concurrency for 8,192 tokens per request: 12.50x\nINFO [entry.py:139] Starting vLLM server on http://127.0.0.1:8000\nINFO:     Application startup complete."
+        },
+        {
+          "code": "curl -s http://127.0.0.1:8000/health\ncurl -s http://127.0.0.1:8000/v1/models",
+          "nota": "<code>/health</code> contesta 200 vacío y abierto; <code>/v1</code> pide clave: el cuerpo del 401 de vLLM es así de corto.",
+          "donde": "mac",
+          "salida": "[HTTP 200]\n{\"error\": \"Unauthorized\"}\n[HTTP 401]"
+        },
+        {
+          "code": "curl -s -H \"Authorization: Bearer dojo-vllm-5c1e9a\" http://127.0.0.1:8000/v1/models",
+          "nota": "<code>id</code> es el nombre servido; <code>root</code>, el modelo; <code>max_model_len</code>, el contexto que cargó.",
+          "donde": "mac",
+          "salida": "{\n    \"object\": \"list\",\n    \"data\": [\n        {\n            \"id\": \"qwen3-32b\",\n            \"object\": \"model\",\n            \"owned_by\": \"vllm\",\n            \"root\": \"Qwen/Qwen3-32B-AWQ\",\n            \"parent\": null,\n            \"max_model_len\": 8192\n        }\n    ]\n}"
+        },
+        {
+          "code": "curl -sN http://127.0.0.1:8000/v1/chat/completions -H \"Authorization: Bearer dojo-vllm-5c1e9a\" -H \"Content-Type: application/json\" -d \"{\\\"model\\\": \\\"qwen3-32b\\\", \\\"messages\\\": [{\\\"role\\\": \\\"user\\\", \\\"content\\\": \\\"¿Qué es una pena convencional?\\\"}], \\\"max_tokens\\\": 4, \\\"stream\\\": true, \\\"stream_options\\\": {\\\"include_usage\\\": true}}\" | grep -v \"^$\" | sed -E \"s/\\\"id\\\": \\\"chatcmpl-[0-9a-f]+\\\", //; s/\\\"created\\\": [0-9]+, //\"",
+          "nota": "Así habla en streaming: un evento por pedazo, el último con <code>usage</code> (porque se pidió <code>include_usage</code>) y <code>[DONE]</code>. El texto del vLLM del dojo es relleno: aquí importa el tiempo, no lo que dice.",
+          "donde": "mac",
+          "salida": "data: {\"object\": \"chat.completion.chunk\", \"model\": \"qwen3-32b\", \"choices\": [{\"index\": 0, \"delta\": {\"role\": \"assistant\", \"content\": \"\"}, \"logprobs\": null, \"finish_reason\": null}]}\ndata: {\"object\": \"chat.completion.chunk\", \"model\": \"qwen3-32b\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"que\"}, \"logprobs\": null, \"finish_reason\": null}]}\ndata: {\"object\": \"chat.completion.chunk\", \"model\": \"qwen3-32b\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \" cualquier\"}, \"logprobs\": null, \"finish_reason\": null}]}\ndata: {\"object\": \"chat.completion.chunk\", \"model\": \"qwen3-32b\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \" modificación\"}, \"logprobs\": null, \"finish_reason\": null}]}\ndata: {\"object\": \"chat.completion.chunk\", \"model\": \"qwen3-32b\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \" al\"}, \"logprobs\": null, \"finish_reason\": null}]}\ndata: {\"object\": \"chat.completion.chunk\", \"model\": \"qwen3-32b\", \"choices\": [{\"index\": 0, \"delta\": {}, \"logprobs\": null, \"finish_reason\": \"length\", \"stop_reason\": null}]}\ndata: {\"object\": \"chat.completion.chunk\", \"model\": \"qwen3-32b\", \"choices\": [], \"usage\": {\"prompt_tokens\": 20, \"total_tokens\": 24, \"completion_tokens\": 4}}\ndata: [DONE]"
+        },
+        {
+          "code": "curl -s http://127.0.0.1:8000/metrics | grep -E \"^vllm:(cache_config_info|num_requests_running|num_requests_waiting|kv_cache_usage_perc|num_preemptions_total|time_to_first_token_seconds_count)\"",
+          "nota": "<code>cache_config_info</code> trae cuántos bloques de 16 tokens reservó el motor; los demás son lo que pasa en este momento.",
+          "donde": "mac",
+          "salida": "vllm:cache_config_info{block_size=\"16\",cache_dtype=\"auto\",enable_prefix_caching=\"True\",engine=\"0\",gpu_memory_utilization=\"1.0\",num_gpu_blocks=\"6399\"} 1.0\nvllm:num_requests_running{engine=\"0\",model_name=\"qwen3-32b\"} 0.0\nvllm:num_requests_waiting{engine=\"0\",model_name=\"qwen3-32b\"} 0.0\nvllm:kv_cache_usage_perc{engine=\"0\",model_name=\"qwen3-32b\"} 0.0\nvllm:num_preemptions_total{engine=\"0\",model_name=\"qwen3-32b\"} 0.0\nvllm:time_to_first_token_seconds_count{engine=\"0\",model_name=\"qwen3-32b\"} 1.0"
+        },
+        {
+          "code": "python3 verificar.py servidor clave memoria plantilla",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ servidor  /health 200 · qwen3-32b → Qwen/Qwen3-32B-AWQ · max_model_len 8,192 · simulado\n✓ clave     sin clave → 401 · clave equivocada → 401 · tu clave → 200 (/health y /metrics quedan abiertos)\n✓ memoria   KV cache: 6,399 bloques de 16 = 102,384 tokens · 2.0× las 8 típicas · simulado\n✓ plantilla sin razonamiento · 34 tokens de entrada (los mismos en /tokenize) · 108 de salida\n\n4/4 en verde"
+        }
+      ],
+      "verifica": "<code>verificar.py servidor clave memoria plantilla</code> en verde: el nombre y el contexto de <code>servidor.env</code>, 401 sin clave, lugar en el KV cache para las 8 típicas (≥ 52,000 tokens) y sin razonamiento.",
+      "ojo": "Si el log dice «To serve at least one request with the model's max seq len…», el KV cache no alcanza ni para una conversación al tope: el MAX_MODEL_LEN es demasiado o la memoria quedó corta.",
+      "en_pagina": {
+        "conceptos": [
+          "vllm",
+          "paged-attention",
+          "kv-extensible",
+          "razonamiento",
+          "metrics"
+        ],
+        "precalculos": [
+          "memoria"
+        ]
+      }
+    },
+    {
+      "n": 3,
+      "id": "prueba",
+      "titulo": "Diseñar la prueba",
+      "objetivo": "<code>carga.env</code>: qué se mide, a qué tasa, con cuántas peticiones, con qué tope de salida y contra qué criterio; y comprobar que el motor tiene exactamente 8 lugares.",
+      "conceptos": [
+        "carga",
+        "continuous-batching"
+      ],
+      "explica": "Dos pruebas, porque contestan dos preguntas. La <b>abierta</b> (¿qué vive un abogado en la hora pico?): las preguntas llegan al azar a <b>TASA=0.07</b> por segundo, la de una copia (0.21 ÷ 3), <b>PETICIONES=40</b>. La <b>cerrada</b> (¿cómo escriben 8 juntas?): <b>CERRADA_A_LA_VEZ=8</b> y <b>CERRADA_PETICIONES=24</b> (3 vueltas). <b>MAX_TOKENS=500</b>, el tope de salida del plan. <b>SEMILLA=11</b>: las mismas preguntas y las mismas llegadas en la Mac y en la GPU. <b>TTFT_MS=2000</b> y <b>TPOT_MS=50</b>: el criterio. El check <code>lugares</code> manda 10 preguntas cortas a la vez y lee <code>/metrics</code>: tienen que correr 8 y esperar las demás.",
+      "codigo": [
+        {
+          "lang": "bash",
+          "path": "carga.env",
+          "code": "# carga.env: la prueba de carga de una copia de vLLM (paso 3). La leen pipeline/carga.py, pipeline/reporte.py y mundo/gpu.py.\n# Abierta: llegadas al azar (Poisson) a esta tasa, en preguntas por segundo. El despacho: 0.21/s entre 3 copias\nTASA=0.07\nPETICIONES=40\n# Cerrada: cuántas conversaciones a la vez (las 8 de diseño) y cuántas preguntas en total\nCERRADA_A_LA_VEZ=8\nCERRADA_PETICIONES=24\n# Tope de salida por respuesta (el del plan de la prueba)\nMAX_TOKENS=500\n# La semilla de las preguntas y de las llegadas: la misma en tu Mac y en la GPU\nSEMILLA=11\n# El criterio del despacho: TTFT p95 y TPOT p95, en milisegundos\nTTFT_MS=2000\nTPOT_MS=50",
+          "nota": ""
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python3 verificar.py prueba lugares",
+          "nota": "Salida del vLLM del dojo (simulado): los tiempos son la cuenta de servilleta de una L40S, no una medición.",
+          "donde": "mac",
+          "salida": "✓ prueba    abierta 40 a 0.07/s (≈ 9.5 min) · cerrada 24 con 8 a la vez · salida ≤ 500\n✓ lugares   10 a la vez → 8 corriendo y hasta 2 en fila (vllm:num_requests_running / waiting)\n\n2/2 en verde"
+        }
+      ],
+      "verifica": "<code>verificar.py prueba lugares</code> en verde: la tasa de una copia, ≥ 30 peticiones, 8 a la vez, salida ≤ 500 y el criterio del despacho; y en el motor, 8 corriendo y el resto en fila.",
+      "ojo": "«Que mande todo de una vez para que acabe rápido» (TASA=inf) no es una prueba más corta: es otra prueba, una ráfaga. Su TTFT mide la fila de la ráfaga.",
+      "en_pagina": {
+        "conceptos": [
+          "carga",
+          "continuous-batching"
+        ],
+        "precalculos": [
+          "little"
+        ]
+      }
+    },
+    {
+      "n": 4,
+      "id": "cerrada",
+      "titulo": "Medir una petición y la cerrada",
+      "objetivo": "<code>una()</code> mide una petición en streaming desde el cliente; <code>cerrada()</code> corre 8 trabajadores que preguntan de nuevo en cuanto les contestan.",
+      "conceptos": [
+        "ttft",
+        "tpot",
+        "chunked-prefill",
+        "prefix-caching",
+        "preemption"
+      ],
+      "explica": "<code>una()</code> manda la pregunta con <code>stream: true</code> y <code>stream_options: {include_usage: true}</code> y lee línea por línea los eventos <code>data:</code>. Toma la hora antes de mandar; el <b>TTFT</b> es la hora del primer pedazo con texto; cada pedazo siguiente deja su hueco en <code>itl_s</code>; los tokens salen del <code>usage</code> del último evento (los del servidor, no los del cliente); y <b>TPOT</b> = (total − TTFT) ÷ (tokens − 1). Un error no truena: queda en la medida, con su código. <code>cerrada()</code> arranca 8 hilos que toman la siguiente pregunta de una fila compartida. Mientras dura, un hilo lee <code>/metrics</code> cada segundo: el pico de corriendo y en fila, el KV cache y las preemptions (lo que el cliente no ve).",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "pipeline/carga.py",
+          "code": "\"\"\"El generador de carga: manda las preguntas del despacho a vLLM y mide cada una desde el lado del cliente.\n\n    python3 pipeline/carga.py humo       # 1 pregunta: ¿funciona la medición?\n    python3 pipeline/carga.py cerrada    # CERRADA_A_LA_VEZ conversaciones a la vez, hasta CERRADA_PETICIONES (carga.env)\n    python3 pipeline/carga.py abierta    # PETICIONES llegadas al azar a TASA por segundo, sin tope en el cliente\n\nContrato (lo revisa verificar.py):\n- `una(pregunta, max_tokens)` → `Medida`: una petición en streaming (stream_options include_usage) a\n  /v1/chat/completions. ttft_s = del envío al primer pedazo con texto; tpot_s = (e2e_s − ttft_s) ÷ (tokens_salida − 1);\n  itl_s = los huecos entre pedazos con texto; tokens_* = el usage del servidor. Un error no truena: queda en la Medida.\n- `llegadas(n, tasa, semilla)` → los segundos de llegada: suma de random.Random(semilla).expovariate(tasa), n veces.\n- `cerrada(preguntas, a_la_vez, max_tokens)` y `abierta(preguntas, tasa, max_tokens, semilla)` → list[Medida], cada\n  una con `programada` (cuándo tocaba mandarla) e `inicio` (cuándo salió), en segundos desde el arranque de la prueba.\n- `correr(tipo)` → cada prueba con sus propias preguntas (abierta: semilla; cerrada: semilla + 1; humo: semilla + 2),\n  para que el prefix cache no traiga de una prueba a otra prompts ya leídos; escribe resultados/<tipo>.json: {\"meta\": {...}, \"medidas\": [...], \"metricas\": {...}}; metricas\n  junta lo que dijo /metrics del servidor durante la prueba (picos de running y waiting, KV cache máximo, preemptions).\nSolo usa la biblioteca estándar.\n\"\"\"\nfrom __future__ import annotations\n\nimport json\nimport random\nimport sys\nimport threading\nimport time\nimport urllib.error\nimport urllib.request\nfrom dataclasses import asdict, dataclass, field\nfrom datetime import datetime\nfrom pathlib import Path\n\nRAIZ = Path(__file__).resolve().parent.parent\nsys.path.insert(0, str(RAIZ))\nfrom mundo.comun import RESULTADOS, base_url, escribir_json, leer_env, metricas, motor  # noqa: E402\nfrom mundo.dataset import preguntas as preguntas_despacho  # noqa: E402\n\n\n@dataclass\nclass Medida:\n    id: str\n    ok: bool = False\n    status: int = 0\n    error: str = \"\"\n    tokens_prompt: int = 0\n    tokens_salida: int = 0\n    ttft_s: float | None = None\n    tpot_s: float | None = None\n    e2e_s: float | None = None\n    itl_s: list[float] = field(default_factory=list)\n    programada: float = 0.0\n    inicio: float = 0.0\n    fin: str | None = None\n\n\ndef una(pregunta: dict, max_tokens: int, timeout: float = 600) -> Medida:\n    e = leer_env()\n    m = Medida(id=pregunta[\"id\"])\n    cuerpo = {\"model\": e[\"NOMBRE\"], \"messages\": pregunta[\"messages\"], \"max_tokens\": max_tokens, \"temperature\": 0,\n              \"stream\": True, \"stream_options\": {\"include_usage\": True}}\n    req = urllib.request.Request(base_url() + \"/v1/chat/completions\", json.dumps(cuerpo).encode(),\n                                 {\"Content-Type\": \"application/json\", \"Authorization\": f\"Bearer {e['CLAVE']}\"})\n    t0 = time.perf_counter()\n    ultimo = None\n    try:\n        with urllib.request.urlopen(req, timeout=timeout) as r:\n            m.status = r.status\n            for linea in r:\n                linea = linea.decode().strip()\n                if not linea.startswith(\"data: \"):\n                    continue\n                dato = linea[6:]\n                if dato == \"[DONE]\":\n                    break\n                d = json.loads(dato)\n                if d.get(\"usage\"):\n                    m.tokens_prompt, m.tokens_salida = d[\"usage\"][\"prompt_tokens\"], d[\"usage\"][\"completion_tokens\"]\n                for c in d.get(\"choices\", []):\n                    delta = c.get(\"delta\", {})\n                    if delta.get(\"content\") or delta.get(\"reasoning\"):\n                        ahora = time.perf_counter()\n                        if m.ttft_s is None:\n                            m.ttft_s = ahora - t0\n                        else:\n                            m.itl_s.append(ahora - ultimo)\n                        ultimo = ahora\n                    if c.get(\"finish_reason\"):\n                        m.fin = c[\"finish_reason\"]\n        m.e2e_s = time.perf_counter() - t0\n        m.ok = m.ttft_s is not None and m.tokens_salida > 0\n        if m.ok and m.tokens_salida > 1:\n            m.tpot_s = (m.e2e_s - m.ttft_s) / (m.tokens_salida - 1)\n        if not m.ok:\n            m.error = \"sin texto o sin usage en el stream\"\n    except urllib.error.HTTPError as err:\n        m.status, m.e2e_s = err.code, time.perf_counter() - t0\n        m.error = err.read().decode()[:300]\n    except Exception as err:  # noqa: BLE001 — se cuenta como error, no tumba la prueba\n        m.e2e_s = time.perf_counter() - t0\n        m.error = f\"{type(err).__name__}: {err}\"[:300]\n    return m\n\n\ndef llegadas(n: int, tasa: float, semilla: int) -> list[float]:\n    r, t, out = random.Random(semilla), 0.0, []\n    for _ in range(n):\n        t += r.expovariate(tasa)\n        out.append(t)\n    return out\n\n\nclass Muestreo(threading.Thread):\n    \"\"\"Lee /metrics cada segundo mientras dura la prueba: lo que el cliente no ve (la fila y la memoria del motor).\"\"\"\n\n    def __init__(self):\n        super().__init__(daemon=True)\n        self.alto = threading.Event()\n        self.pico_running = self.pico_waiting = self.kv_max = 0.0\n        self.antes = self.despues = {}\n\n    def leer(self) -> dict:\n        try:\n            return metricas()\n        except Exception:  # noqa: BLE001\n            return {}\n\n    def run(self) -> None:\n        self.antes = self.leer()\n        while not self.alto.wait(1.0):\n            x = self.leer()\n            self.pico_running = max(self.pico_running, x.get(\"vllm:num_requests_running\", 0))\n            self.pico_waiting = max(self.pico_waiting, x.get(\"vllm:num_requests_waiting\", 0))\n            self.kv_max = max(self.kv_max, x.get(\"vllm:kv_cache_usage_perc\", 0))\n\n    def resumen(self) -> dict:\n        self.alto.set()\n        self.join()\n        self.despues = self.leer()\n        d = lambda k: self.despues.get(k, 0) - self.antes.get(k, 0)  # noqa: E731\n        return {\"pico_running\": self.pico_running, \"pico_waiting\": self.pico_waiting, \"kv_max\": round(self.kv_max, 4),\n                \"preemptions\": d(\"vllm:num_preemptions_total\"), \"tokens_prompt\": d(\"vllm:prompt_tokens_total\"),\n                \"tokens_cache\": d(\"vllm:prefix_cache_hits_total\"), \"tokens_salida\": d(\"vllm:generation_tokens_total\")}\n\n\ndef cerrada(preguntas: list[dict], a_la_vez: int, max_tokens: int) -> list[Medida]:\n    \"\"\"a_la_vez trabajadores; cada uno manda la siguiente pregunta en cuanto le contestan la anterior.\"\"\"\n    fila, out, candado = list(preguntas), [], threading.Lock()\n    t0 = time.perf_counter()\n\n    def trabajador() -> None:\n        while True:\n            with candado:\n                if not fila:\n                    return\n                q = fila.pop(0)\n            salida = time.perf_counter() - t0\n            m = una(q, max_tokens)\n            m.programada = m.inicio = salida\n            with candado:\n                out.append(m)\n\n    hilos = [threading.Thread(target=trabajador) for _ in range(a_la_vez)]\n    for h in hilos:\n        h.start()\n    for h in hilos:\n        h.join()\n    return sorted(out, key=lambda m: m.inicio)\n\n\ndef abierta(preguntas: list[dict], tasa: float, max_tokens: int, semilla: int) -> list[Medida]:\n    \"\"\"Cada pregunta sale a su hora (Poisson), conteste o no el servidor la anterior: sin tope en el cliente.\"\"\"\n    horas, out, candado, hilos = llegadas(len(preguntas), tasa, semilla), [], threading.Lock(), []\n    t0 = time.perf_counter()\n\n    def mandar(q: dict, programada: float) -> None:\n        salida = time.perf_counter() - t0\n        m = una(q, max_tokens)\n        m.programada, m.inicio = programada, salida\n        with candado:\n            out.append(m)\n\n    for q, h in zip(preguntas, horas):\n        espera = h - (time.perf_counter() - t0)\n        if espera > 0:\n            time.sleep(espera)\n        hilo = threading.Thread(target=mandar, args=(q, h))\n        hilo.start()\n        hilos.append(hilo)\n    for hilo in hilos:\n        hilo.join()\n    return sorted(out, key=lambda m: m.programada)\n\n\ndef correr(tipo: str) -> Path:\n    c, e = leer_env(RAIZ / \"carga.env\"), leer_env()\n    semilla, maxt = int(c[\"SEMILLA\"]), int(c[\"MAX_TOKENS\"])\n    meta = {\"tipo\": tipo, \"fecha\": datetime.now().astimezone().isoformat(timespec=\"seconds\"), \"servidor\": base_url(), \"modelo\": e[\"NOMBRE\"],\n            \"motor\": motor()[1], \"max_tokens\": maxt, \"semilla\": semilla, \"max_num_seqs\": int(e[\"MAX_NUM_SEQS\"])}\n    mu = Muestreo()\n    mu.start()\n    t0 = time.perf_counter()\n    if tipo == \"humo\":\n        medidas = [una(preguntas_despacho(1, semilla + 2)[0], 64)]\n    elif tipo == \"cerrada\":\n        meta[\"a_la_vez\"] = int(c[\"CERRADA_A_LA_VEZ\"])\n        medidas = cerrada(preguntas_despacho(int(c[\"CERRADA_PETICIONES\"]), semilla + 1), meta[\"a_la_vez\"], maxt)\n    elif tipo == \"abierta\":\n        meta[\"tasa\"] = float(c[\"TASA\"])\n        medidas = abierta(preguntas_despacho(int(c[\"PETICIONES\"]), semilla), meta[\"tasa\"], maxt, semilla)\n    else:\n        sys.exit(f\"tipo desconocido: {tipo} (humo, cerrada o abierta)\")\n    meta[\"duracion_s\"] = round(time.perf_counter() - t0, 2)\n    salida = RESULTADOS / f\"{tipo}.json\"\n    escribir_json(salida, {\"meta\": meta, \"medidas\": [asdict(m) for m in medidas], \"metricas\": mu.resumen()})\n    return salida\n\n\nif __name__ == \"__main__\":\n    tipo = sys.argv[1] if len(sys.argv) > 1 else \"humo\"\n    ruta = correr(tipo)\n    d = json.loads(ruta.read_text())\n    ok = [m for m in d[\"medidas\"] if m[\"ok\"]]\n    print(f\"{tipo}: {len(ok)}/{len(d['medidas'])} bien en {d['meta']['duracion_s']:.1f} s → {ruta.relative_to(RAIZ)}\")\n    if ok:\n        m = ok[0]\n        print(f\"  la primera: {m['tokens_prompt']:,} tokens de entrada → {m['tokens_salida']} de salida · TTFT {m['ttft_s'] * 1000:,.0f} ms\"\n              + (f\" · TPOT {m['tpot_s'] * 1000:.1f} ms\" if m[\"tpot_s\"] else \"\") + f\" · total {m['e2e_s']:.1f} s\")\n    x = d[\"metricas\"]\n    print(f\"  /metrics: a la vez hasta {x['pico_running']:.0f} · en fila hasta {x['pico_waiting']:.0f} · KV cache hasta {x['kv_max']:.0%}\"\n          f\" · preemptions {x['preemptions']:.0f} · tokens del prompt desde el prefix cache {x['tokens_cache']:,.0f} de {x['tokens_prompt']:,.0f}\")\n    malos = [m for m in d[\"medidas\"] if not m[\"ok\"]]\n    for m in malos[:3]:\n        print(f\"  ✗ {m['id']}: {m['status']} {m['error'][:120]}\")",
+          "nota": "Escribes <code>una()</code> y <code>cerrada()</code> en este paso, y <code>llegadas()</code> y <code>abierta()</code> en el siguiente. <code>Medida</code>, <code>Muestreo</code> y <code>correr()</code> vienen en el esqueleto."
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python3 pipeline/carga.py humo",
+          "nota": "Salida del vLLM del dojo (simulado): los tiempos son la cuenta de servilleta de una L40S, no una medición.",
+          "donde": "mac",
+          "salida": "humo: 1/1 bien en 4.5 s → resultados/humo.json\n  la primera: 5,104 tokens de entrada → 64 de salida · TTFT 1,892 ms · TPOT 40.7 ms · total 4.5 s\n  /metrics: a la vez hasta 1 · en fila hasta 0 · KV cache hasta 5% · preemptions 0 · tokens del prompt desde el prefix cache 0 de 0"
+        },
+        {
+          "code": "python3 verificar.py humo",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ humo      una(): 5,298 tokens → 32 · TTFT 1,816 ms · TPOT 40.4 ms · llegadas() como Poisson\n\n1/1 en verde"
+        },
+        {
+          "code": "python3 pipeline/carga.py cerrada",
+          "nota": "Salida del vLLM del dojo (simulado): los tiempos son la cuenta de servilleta de una L40S, no una medición. Cada prueba usa sus propias preguntas (otra semilla): si repitiera las de otra, el prefix cache ya las tendría y el TTFT saldría de mentira.",
+          "donde": "mac",
+          "salida": "cerrada: 24/24 bien en 91.8 s → resultados/cerrada.json\n  la primera: 5,871 tokens de entrada → 102 de salida · TTFT 2,272 ms · TPOT 181.8 ms · total 20.6 s\n  /metrics: a la vez hasta 8 · en fila hasta 7 · KV cache hasta 52% · preemptions 0 · tokens del prompt desde el prefix cache 9,600 de 146,311"
+        },
+        {
+          "code": "python3 verificar.py cerrada",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ cerrada   24 bien · TPOT p50 118 ms · 8 a la vez en el motor · preemptions 0 · el vLLM del dojo (SIMULADO, imita vLLM 0…\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "<code>verificar.py humo cerrada</code> en verde: TTFT entre 0 y el total, TPOT con su fórmula, tokens del <code>usage</code>, y en la cerrada 24 bien con 8 a la vez en el motor.",
+      "ojo": "Medir el TTFT con el primer evento (el que solo trae <code>role</code>) y no con el primero con texto: sale bajísimo y miente. Y no repetir la misma pregunta para «calentar»: el prefix cache la guarda.",
+      "en_pagina": {
+        "conceptos": [
+          "ttft",
+          "tpot",
+          "chunked-prefill",
+          "prefix-caching",
+          "preemption"
+        ],
+        "precalculos": [
+          "decode",
+          "prefill"
+        ]
+      }
+    },
+    {
+      "n": 5,
+      "id": "abierta",
+      "titulo": "La abierta y el reporte",
+      "objetivo": "<code>abierta()</code> manda cada pregunta a su hora (Poisson), sin tope en el cliente; <code>reporte.py</code> dice el p95 con su intervalo, el goodput y el veredicto.",
+      "conceptos": [
+        "carga",
+        "percentil",
+        "goodput"
+      ],
+      "explica": "<code>llegadas()</code>: los segundos entre llegadas de un proceso de Poisson son exponenciales con media 1 ÷ tasa; se suman con <code>random.Random(semilla).expovariate(tasa)</code>. <code>abierta()</code> duerme hasta cada hora y lanza un hilo por pregunta, sin esperar a que contesten las anteriores: si el cliente esperara, la tasa la pondría el servidor. Cada medida guarda cuándo tocaba (<code>programada</code>) y cuándo salió (<code>inicio</code>): el reporte revisa que coincidan. <code>reporte.py</code>: el percentil de rango más cercano, su intervalo con las posiciones n·0.95 ∓ 1.96·√(n·0.95·0.05), el goodput (las que cumplen TTFT y TPOT ÷ segundos) y un veredicto con tres respuestas: pasa, no pasa, o «no se sabe con estas peticiones».",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "pipeline/reporte.py",
+          "code": "\"\"\"El reporte de la prueba de carga: percentiles con su intervalo, goodput y el veredicto contra el criterio del despacho.\n\n    python3 pipeline/reporte.py          # lee resultados/abierta.json y resultados/cerrada.json, escribe resultados/reporte.json\n\nContrato (lo revisa verificar.py contra su propia cuenta):\n- `percentil(xs, q)`: el de rango más cercano. Ordena xs y toma el de la posición ceil(q/100 × n) (contando desde 1).\n- `intervalo(xs, q)` → (bajo, alto, rango_bajo, rango_alto, cerrado): dónde cae el percentil verdadero con 95 % de\n  confianza. Rangos = n·p ∓ 1.96·√(n·p·(1−p)), redondeados hacia afuera y recortados a [1, n]; cerrado es False si el\n  de arriba se recortó (con tan pocas peticiones, el p95 no tiene techo: el más alto es lo más que sabes).\n- `goodput(medidas, ttft_ms, tpot_ms, segundos)`: peticiones por segundo que cumplen las dos cosas (vllm bench serve --goodput).\n- `veredicto(abierta, cerrada, criterio)` → [{\"que\", \"pasa\": True | False | None, \"detalle\"}]; None = no se sabe con estas\n  peticiones (el intervalo cruza el objetivo).\n\"\"\"\nfrom __future__ import annotations\n\nimport json\nimport math\nimport sys\nfrom pathlib import Path\n\nRAIZ = Path(__file__).resolve().parent.parent\nsys.path.insert(0, str(RAIZ))\nfrom mundo.comun import RESULTADOS, escribir_json, leer_env  # noqa: E402\n\nZ95 = 1.96\n\n\ndef percentil(xs: list[float], q: float) -> float:\n    s = sorted(xs)\n    return s[max(1, math.ceil(q / 100 * len(s))) - 1]\n\n\ndef intervalo(xs: list[float], q: float) -> tuple[float, float, int, int, bool]:\n    s, n, p = sorted(xs), len(xs), q / 100\n    d = Z95 * math.sqrt(n * p * (1 - p))\n    bajo, alto = math.floor(n * p - d), math.ceil(n * p + d)\n    cerrado = alto <= n\n    bajo, alto = max(1, bajo), min(n, alto)\n    return s[bajo - 1], s[alto - 1], bajo, alto, cerrado\n\n\ndef goodput(medidas: list[dict], ttft_ms: float, tpot_ms: float, segundos: float) -> float:\n    buenas = [m for m in medidas if m[\"ok\"] and m[\"ttft_s\"] * 1000 <= ttft_ms and (m[\"tpot_s\"] or 0) * 1000 <= tpot_ms]\n    return len(buenas) / segundos\n\n\ndef metrica(medidas: list[dict], campo: str) -> dict:\n    xs = [m[campo] * 1000 for m in medidas if m[\"ok\"] and m[campo] is not None]\n    bajo, alto, rb, ra, cerrado = intervalo(xs, 95)\n    return {\"n\": len(xs), \"p50\": percentil(xs, 50), \"p95\": percentil(xs, 95), \"p99\": percentil(xs, 99), \"max\": max(xs),\n            \"p95_intervalo\": [bajo, alto], \"p95_rangos\": [rb, ra], \"p95_cerrado\": cerrado}\n\n\ndef resumen(d: dict, criterio: dict) -> dict:\n    ms, meta = d[\"medidas\"], d[\"meta\"]\n    ok = [m for m in ms if m[\"ok\"]]\n    r = {\"tipo\": meta[\"tipo\"], \"peticiones\": len(ms), \"errores\": len(ms) - len(ok), \"duracion_s\": meta[\"duracion_s\"],\n         \"ttft_ms\": metrica(ms, \"ttft_s\"), \"tpot_ms\": metrica(ms, \"tpot_s\"), \"e2e_ms\": metrica(ms, \"e2e_s\"),\n         \"tokens_prompt_promedio\": sum(m[\"tokens_prompt\"] for m in ok) / len(ok), \"tokens_salida_promedio\": sum(m[\"tokens_salida\"] for m in ok) / len(ok),\n         \"salida_tok_s\": sum(m[\"tokens_salida\"] for m in ok) / meta[\"duracion_s\"],\n         \"goodput\": goodput(ms, criterio[\"ttft_ms\"], criterio[\"tpot_ms\"], meta[\"duracion_s\"]),\n         \"retraso_max_s\": max(m[\"inicio\"] - m[\"programada\"] for m in ms), \"metricas\": d[\"metricas\"]}\n    if meta[\"tipo\"] == \"abierta\":\n        r[\"tasa_pedida\"] = meta[\"tasa\"]\n    return r\n\n\ndef contra(m: dict, objetivo: float) -> bool | None:\n    bajo, alto = m[\"p95_intervalo\"]\n    if bajo > objetivo:\n        return False\n    return True if alto <= objetivo and m[\"p95_cerrado\"] else None\n\n\ndef veredicto(a: dict, c: dict, criterio: dict) -> list[dict]:\n    ttft, tpot = a[\"ttft_ms\"], c[\"tpot_ms\"]\n    v = [\n        {\"que\": f\"TTFT p95 ≤ {criterio['ttft_ms']:.0f} ms, abierta a {a['tasa_pedida']}/s\", \"pasa\": contra(ttft, criterio[\"ttft_ms\"]),\n         \"detalle\": f\"p95 {ttft['p95']:,.0f} ms (entre {ttft['p95_intervalo'][0]:,.0f} y {ttft['p95_intervalo'][1]:,.0f}{'' if ttft['p95_cerrado'] else ', sin techo'}; {ttft['n']} peticiones)\"},\n        {\"que\": f\"TPOT p95 ≤ {criterio['tpot_ms']:.0f} ms, cerrada de {c['a_la_vez']} a la vez\", \"pasa\": contra(tpot, criterio[\"tpot_ms\"]),\n         \"detalle\": f\"p95 {tpot['p95']:,.1f} ms (entre {tpot['p95_intervalo'][0]:,.1f} y {tpot['p95_intervalo'][1]:,.1f}{'' if tpot['p95_cerrado'] else ', sin techo'}; {tpot['n']} peticiones)\"},\n        {\"que\": \"sin errores\", \"pasa\": a[\"errores\"] == 0 and c[\"errores\"] == 0, \"detalle\": f\"abierta {a['errores']} · cerrada {c['errores']}\"},\n        {\"que\": \"cada pregunta salió a su hora (la tasa pedida, no la que aguantó el cliente)\", \"pasa\": a[\"retraso_max_s\"] < 1.0,\n         \"detalle\": f\"el mayor retraso al mandar: {a['retraso_max_s']:.2f} s\"},\n        {\"que\": \"sin preemptions\", \"pasa\": a[\"metricas\"][\"preemptions\"] == 0 and c[\"metricas\"][\"preemptions\"] == 0,\n         \"detalle\": f\"abierta {a['metricas']['preemptions']:.0f} · cerrada {c['metricas']['preemptions']:.0f}\"},\n    ]\n    return v\n\n\ndef main() -> None:\n    c = leer_env(RAIZ / \"carga.env\")\n    criterio = {\"ttft_ms\": float(c[\"TTFT_MS\"]), \"tpot_ms\": float(c[\"TPOT_MS\"])}\n    da, dc = (json.loads((RESULTADOS / f\"{t}.json\").read_text()) for t in (\"abierta\", \"cerrada\"))\n    a, ce = resumen(da, criterio), resumen(dc, criterio)\n    ce[\"a_la_vez\"] = dc[\"meta\"][\"a_la_vez\"]\n    v = veredicto(a, ce, criterio)\n    escribir_json(RESULTADOS / \"reporte.json\", {\"criterio\": criterio, \"abierta\": a, \"cerrada\": ce, \"veredicto\": v, \"motor\": da[\"meta\"][\"motor\"]})\n    print(f\"Motor: {da['meta']['motor']}\")\n    for r in (a, ce):\n        t, p, e = r[\"ttft_ms\"], r[\"tpot_ms\"], r[\"e2e_ms\"]\n        print(f\"\\n{r['tipo']}: {r['peticiones']} peticiones, {r['errores']} errores, {r['duracion_s']:.0f} s\"\n              + (f\" a {r['tasa_pedida']}/s\" if \"tasa_pedida\" in r else f\", {r['a_la_vez']} a la vez\")\n              + f\" · ≈ {r['tokens_prompt_promedio']:,.0f} tokens de entrada y {r['tokens_salida_promedio']:.0f} de salida\")\n        print(f\"  {'':5} {'p50':>9} {'p95':>9} {'p99':>9}   p95 entre (95 %)\")\n        for nombre, m in ((\"TTFT\", t), (\"TPOT\", p), (\"e2e\", e)):\n            print(f\"  {nombre:5} {m['p50']:>9,.1f} {m['p95']:>9,.1f} {m['p99']:>9,.1f}   {m['p95_intervalo'][0]:,.1f} – {m['p95_intervalo'][1]:,.1f}{'' if m['p95_cerrado'] else ' (sin techo)'}  ms\")\n        x = r[\"metricas\"]\n        print(f\"  goodput {r['goodput']:.3f}/s · salida {r['salida_tok_s']:.1f} tokens/s · a la vez hasta {x['pico_running']:.0f}, en fila hasta {x['pico_waiting']:.0f}\"\n              f\" · KV hasta {x['kv_max']:.0%} · preemptions {x['preemptions']:.0f}\")\n    print(\"\\nVeredicto contra el criterio del despacho:\")\n    for r in v:\n        marca = {True: \"✓\", False: \"✗\", None: \"?\"}[r[\"pasa\"]]\n        print(f\"  {marca} {r['que']}: {r['detalle']}\")\n\n\nif __name__ == \"__main__\":\n    main()",
+          "nota": "Escribes <code>percentil()</code>, <code>intervalo()</code>, <code>goodput()</code> y <code>contra()</code>; el resumen, el veredicto y la tabla vienen en el esqueleto."
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python3 pipeline/carga.py abierta",
+          "nota": "Salida del vLLM del dojo (simulado): los tiempos son la cuenta de servilleta de una L40S, no una medición. Tarda 11 min: 40 llegadas a 0.07 por segundo.",
+          "donde": "mac",
+          "salida": "abierta: 40/40 bien en 676.3 s → resultados/abierta.json\n  la primera: 5,791 tokens de entrada → 235 de salida · TTFT 1,984 ms · TPOT 40.8 ms · total 11.5 s\n  /metrics: a la vez hasta 8 · en fila hasta 1 · KV cache hasta 52% · preemptions 0 · tokens del prompt desde el prefix cache 16,016 de 239,633"
+        },
+        {
+          "code": "python3 verificar.py abierta",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ abierta   40 bien a 0.07/s (Poisson, semilla 11) en 11.3 min · todas a su hora · TTFT p50 2,273 ms\n\n1/1 en verde"
+        },
+        {
+          "code": "python3 pipeline/reporte.py",
+          "nota": "Salida del vLLM del dojo (simulado): los tiempos son la cuenta de servilleta de una L40S, no una medición. Es la cuenta de la ficha hecha en tiempo real: la L40S no cumple el TTFT (el prefill solo ya ronda los 2 s) ni el TPOT con 8 a la vez. Lo que dirá la GPU de verdad está en el paso 6.",
+          "donde": "mac",
+          "salida": "Motor: el vLLM del dojo (SIMULADO, imita vLLM 0.34.0 en una NVIDIA L40S): sin GPU, los tiempos son la cuenta de servilleta\n\nabierta: 40 peticiones, 0 errores, 676 s a 0.07/s · ≈ 5,991 tokens de entrada y 240 de salida\n              p50       p95       p99   p95 entre (95 %)\n  TTFT    2,179.0   3,877.7   4,520.3   3,387.5 – 4,520.3 (sin techo)  ms\n  TPOT       45.7      96.9     130.9   85.4 – 130.9 (sin techo)  ms\n  e2e    14,814.4  30,018.5  35,079.8   25,612.2 – 35,079.8 (sin techo)  ms\n  goodput 0.022/s · salida 14.2 tokens/s · a la vez hasta 8, en fila hasta 1 · KV hasta 52% · preemptions 0\n\ncerrada: 24 peticiones, 0 errores, 92 s, 8 a la vez · ≈ 6,096 tokens de entrada y 197 de salida\n              p50       p95       p99   p95 entre (95 %)\n  TTFT    2,417.9  14,260.8  15,855.5   8,264.2 – 15,855.5 (sin techo)  ms\n  TPOT      115.1     181.8     182.4   145.7 – 182.4 (sin techo)  ms\n  e2e    24,970.1  56,047.5  58,292.1   36,596.7 – 58,292.1 (sin techo)  ms\n  goodput 0.000/s · salida 51.6 tokens/s · a la vez hasta 8, en fila hasta 7 · KV hasta 52% · preemptions 0\n\nVeredicto contra el criterio del despacho:\n  ✗ TTFT p95 ≤ 2000 ms, abierta a 0.07/s: p95 3,878 ms (entre 3,387 y 4,520, sin techo; 40 peticiones)\n  ✗ TPOT p95 ≤ 50 ms, cerrada de 8 a la vez: p95 181.8 ms (entre 145.7 y 182.4, sin techo; 24 peticiones)\n  ✓ sin errores: abierta 0 · cerrada 0\n  ✓ cada pregunta salió a su hora (la tasa pedida, no la que aguantó el cliente): el mayor retraso al mandar: 0.01 s\n  ✓ sin preemptions: abierta 0 · cerrada 0"
+        },
+        {
+          "code": "python3 verificar.py reporte",
+          "nota": "",
+          "donde": "mac",
+          "salida": "Motor: el vLLM del dojo (SIMULADO, imita vLLM 0.34.0 en una NVIDIA L40S): sin GPU, los tiempos son la cuenta de servilleta\n\nabierta: 40 peticiones, 0 errores, 676 s a 0.07/s · ≈ 5,991 tokens de entrada y 240 de salida\n              p50       p95       p99   p95 entre (95 %)\n  TTFT    2,179.0   3,877.7   4,520.3   3,387.5 – 4,520.3 (sin techo)  ms\n  TPOT       45.7      96.9     130.9   85.4 – 130.9 (sin techo)  ms\n  e2e    14,814.4  30,018.5  35,079.8   25,612.2 – 35,079.8 (sin techo)  ms\n  goodput 0.022/s · salida 14.2 tokens/s · a la vez hasta 8, en fila hasta 1 · KV hasta 52% · preemptions 0\n\ncerrada: 24 peticiones, 0 errores, 92 s, 8 a la vez · ≈ 6,096 tokens de entrada y 197 de salida\n              p50       p95       p99   p95 entre (95 %)\n  TTFT    2,417.9  14,260.8  15,855.5   8,264.2 – 15,855.5 (sin techo)  ms\n  TPOT      115.1     181.8     182.4   145.7 – 182.4 (sin techo)  ms\n  e2e    24,970.1  56,047.5  58,292.1   36,596.7 – 58,292.1 (sin techo)  ms\n  goodput 0.000/s · salida 51.6 tokens/s · a la vez hasta 8, en fila hasta 7 · KV hasta 52% · preemptions 0\n\nVeredicto contra el criterio del despacho:\n  ✗ TTFT p95 ≤ 2000 ms, abierta a 0.07/s: p95 3,878 ms (entre 3,387 y 4,520, sin techo; 40 peticiones)\n  ✗ TPOT p95 ≤ 50 ms, cerrada de 8 a la vez: p95 181.8 ms (entre 145.7 y 182.4, sin techo; 24 peticiones)\n  ✓ sin errores: abierta 0 · cerrada 0\n  ✓ cada pregunta salió a su hora (la tasa pedida, no la que aguantó el cliente): el mayor retraso al mandar: 0.01 s\n  ✓ sin preemptions: abierta 0 · cerrada 0\n✓ reporte   percentil, intervalo y goodput como la cuenta de verificar · ✗ TTFT p95 ≤ 2000 ms · ✗ TPOT p95 ≤ 50 ms · ✓ sin errores · ✓ cada pregunta salió a su hora (la tasa pedida · ✓ sin preemptions\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "<code>verificar.py abierta reporte</code> en verde: 40 llegadas exactamente en las horas de Poisson con la semilla, ninguna tarde, y el reporte igual a la cuenta de <code>verificar.py</code> (percentiles, intervalos, goodput y veredicto).",
+      "ojo": "«No pasa» y «no se sabe» son distintos: si el p95 medido cumple pero el intervalo no tiene techo, no se puede firmar. Un veredicto de dos valores esconde eso.",
+      "en_pagina": {
+        "conceptos": [
+          "percentil",
+          "goodput"
+        ],
+        "precalculos": [
+          "intervalo"
+        ]
+      }
+    },
+    {
+      "n": 6,
+      "id": "gpu",
+      "titulo": "La sesión en la GPU rentada",
+      "objetivo": "Con el plan y el costo dichos antes, rentar una L40S en RunPod, correr las mismas pruebas contra el vLLM de verdad desde tu Mac, y terminarla con un vigía que no dependa de acordarte.",
+      "conceptos": [
+        "gpu-rentada",
+        "api-key",
+        "metrics"
+      ],
+      "explica": "Por qué RunPod: comparado el 2026-11-27 (<code>mundo/proveedores.json</code>), es la L40S más barata con cobro por segundo (US$1.09/h en Secure Cloud; AWS cobra US$1.861 en us-east-1 y pide cuota de GPU, Modal US$1.95 sin una máquina con puertos, Lightning de US$2.97 a US$4.21 según la máquina, y Lambda no factura a México ni renta L40S). Todo corre <b>desde tu Mac</b>: el pod solo corre vLLM, y la carga va por su proxy (<code>https://&lt;POD_ID&gt;-8000.proxy.runpod.net</code>), así los resultados nunca se quedan en una máquina que se borra. <code>gpu.env</code> dice proveedor, GPU, precio, disco, el tope en minutos y el tipo de cambio. <code>gpu.py plan</code> da el tiempo y el costo; <code>receta</code> arma el pod desde tu <code>servir.sh</code> (con <code>--host 0.0.0.0</code>, que el proxy necesita, y la clave en <code>VLLM_API_KEY</code>, fuera del comando). Al lanzar, <code>vigilar</code> deja un proceso en tu Mac que lo termina al tope por la API de RunPod; si la Mac se duerme, el tope es tu saldo prepagado.",
+      "codigo": [
+        {
+          "lang": "bash",
+          "path": "gpu.env",
+          "code": "# gpu.env: la sesión en la GPU rentada (paso 6). La lee mundo/gpu.py. La llave de RunPod NO va aquí: va en la terminal.\n# Dónde y qué: el proveedor de mundo/proveedores.json y la GPU\nPROVEEDOR=runpod\nGPU=l40s\n# Lo que cobra: US$ por hora de la GPU, y el disco del contenedor (GB y US$ por GB al mes mientras corre)\nUSD_HORA=1.09\nDISCO_GB=60\nUSD_GB_MES=0.10\n# El tope: a los MINUTOS de lanzar el vigía, el pod se termina solo\nMINUTOS=90\n# Pesos por dólar (el FIX de Banxico del día), para el costo en MXN\nTIPO_CAMBIO=19.72\n# El id del pod (RunPod → Pods), cuando ya lo lanzaste\nPOD_ID=",
+          "nota": "La llave de RunPod no va aquí: va en la terminal, <code>export RUNPOD_API_KEY=…</code> (RunPod → Settings → API Keys, con permiso de escribir pods)."
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python3 mundo/gpu.py plan",
+          "nota": "El estimado sale de <code>carga.env</code> (la abierta tarda peticiones ÷ tasa) y de lo que tarda bajar 19.3 GB. El tope es el que pone el vigía.",
+          "donde": "mac",
+          "salida": "Sesión en RunPod (Secure Cloud) · 1 × L40S a US$1.09/h + disco 60 GB (US$0.008/h) · cobro por segundo, de saldo prepagado (desde US$10; para lanzar pide saldo para ≥ 1 hora)\n    6.0 min  pedir el pod y que arranque la imagen de vLLM (≈ 10 GB)\n    3.2 min  bajar el modelo (19.3 GB a ≈ 100 MB/s)\n    4.0 min  arranque de vLLM: cargar pesos, perfilar memoria, CUDA graphs\n    3.0 min  verificar.py contra el pod\n    4.0 min  carga cerrada: 24 preguntas, 8 a la vez\n   10.5 min  carga abierta: 40 preguntas a 0.07/s (Poisson) y el final de la cola\n    5.0 min  copiar números, revisar /metrics y apagar\n  ─────\n   35.7 min  estimado · US$0.65 ≈ MXN 13\n     90 min  tope del vigía (MINUTOS) · lo más que cuesta: US$1.65 ≈ MXN 32\nSi lanzas el pod ahora y corres el vigía, se apaga solo a las 13:34. Saldo sugerido: US$10 (lo que alcance a cobrar es tu tope real)."
+        },
+        {
+          "code": "python3 mundo/gpu.py receta",
+          "nota": "Si en el log del pod <code>non-default args</code> no trae <code>default_chat_template_kwargs</code> con <code>enable_thinking: False</code>, la consola no pasó bien el JSON: <code>verificar.py plantilla</code> lo atrapa.",
+          "donde": "mac",
+          "salida": "RunPod → Pods → Deploy. Llena así (lo demás, como viene):\n  Cloud:                 Secure Cloud · GPU: L40S × 1 (si no hay: RTX 6000 Ada, también 48 GB)\n  Pod template:          Edit → Container image: vllm/vllm-openai:v0.34.0\n  Container disk:        60 GB · Volume disk: 0 GB (al terminar se borra todo; no cobra después)\n  Expose HTTP ports:     8000\n  Environment variables: VLLM_API_KEY = (tu CLAVE de servidor.env)\n                         VLLM_NO_USAGE_STATS = 1 (que vLLM no mande estadísticas de uso)\n  Container start command:\n    Qwen/Qwen3-32B-AWQ --host 0.0.0.0 --port 8000 --served-model-name qwen3-32b --max-model-len 8192 --max-num-seqs 8 --reasoning-parser qwen3 --default-chat-template-kwargs '{\"enable_thinking\": false}'\nCuando diga Running: copia su id (Pods → el nombre del pod) a POD_ID en gpu.env y en servidor.env pon\n  LLM_URL=https://<POD_ID>-8000.proxy.runpod.net/v1\nY de inmediato, en otra terminal de tu Mac: python3 mundo/gpu.py vigilar"
+        },
+        {
+          "code": "python3 verificar.py gpu",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ gpu       RunPod (Secure Cloud), L40S a US$1.09/h · sesión ≈ 36 min, tope 90 min = US$1.64 (≈ MXN 32)\n\n1/1 en verde"
+        },
+        {
+          "code": "export RUNPOD_API_KEY=…            # tu llave, solo en esta terminal\n# gpu.env: POD_ID=<el id del pod>\n# servidor.env: LLM_URL=https://<POD_ID>-8000.proxy.runpod.net/v1\npython3 mundo/gpu.py vigilar",
+          "nota": "Lo primero al ver el pod en Running. El vigía avisa 10 min antes del tope con una notificación de la Mac.",
+          "donde": "gpu",
+          "salida": null
+        },
+        {
+          "code": "python3 verificar.py servidor clave memoria plantilla lugares",
+          "nota": "Contra el vLLM de verdad. <code>memoria</code> dice cuántos bloques reservó la L40S real.",
+          "donde": "gpu",
+          "salida": null
+        },
+        {
+          "code": "python3 pipeline/carga.py humo\npython3 pipeline/carga.py cerrada\npython3 pipeline/carga.py abierta\npython3 pipeline/reporte.py",
+          "nota": "Las mismas pruebas, la misma semilla, la misma tasa. El TTFT del cliente suma la ida y vuelta a RunPod: compáralo con <code>vllm:time_to_first_token_seconds</code>.",
+          "donde": "gpu",
+          "salida": null
+        },
+        {
+          "code": "python3 mundo/gpu.py apagar\npython3 mundo/gpu.py estado",
+          "nota": "Termina el pod (deja de cobrar GPU y disco) y confirma que ya no existe. Después, <code>LLM_URL</code> de vuelta a <code>http://127.0.0.1:8000/v1</code>.",
+          "donde": "gpu",
+          "salida": null
+        }
+      ],
+      "verifica": "<code>verificar.py gpu</code> en verde antes de rentar (el precio del proveedor, una GPU de 48 GB y un tope con ≥ 20 % de margen y ≤ 3 h); en el pod, los mismos checks de los pasos 2 a 5 contra el vLLM de verdad; y al final <code>gpu.py estado</code> dice que el pod ya no existe.",
+      "ojo": "Detener no es terminar: un pod detenido sigue cobrando el disco. Y el proxy es público: sin <code>VLLM_API_KEY</code>, cualquiera que adivine la URL usa tu saldo.",
+      "en_pagina": {
+        "conceptos": [
+          "gpu-rentada"
+        ],
+        "precalculos": [
+          "costo"
+        ]
+      }
+    }
+  ],
+  "solo": {
+    "reglas": [
+      "Empieza con <code>python3 mundo/reiniciar.py</code>: para el servidor, respalda tus archivos y tus resultados en <code>.respaldo/</code> y deja el esqueleto.",
+      "En tu Mac, con el vLLM del dojo: la GPU rentada no hace falta para esta ronda.",
+      "Sin GUION.md: solo los contratos de arriba de cada archivo y estos objetivos. Claude corre <code>verificar.py</code> y te dice qué falla; no te da código."
+    ],
+    "objetivos": [
+      {
+        "n": 1,
+        "objetivo": "El mundo completo y el dataset determinista.",
+        "check": "mundo"
+      },
+      {
+        "n": 2,
+        "objetivo": "Un servidor.env con el modelo del despacho, solo en esta Mac, con su contexto, sus 8 lugares, una clave larga y la URL de tus programas; y un servir.sh que corra vllm serve con él.",
+        "check": "config"
+      },
+      {
+        "n": 3,
+        "objetivo": "Una prueba con la tasa de una copia, peticiones suficientes, 8 a la vez, el tope de salida del plan y el criterio del despacho.",
+        "check": "prueba",
+        "pista": "¿Qué le toca a una de 3 copias de 0.21 por segundo?"
+      },
+      {
+        "n": 4,
+        "objetivo": "El servidor arriba con el nombre y el contexto de servidor.env, que conteste una pregunta.",
+        "check": "servidor"
+      },
+      {
+        "n": 5,
+        "objetivo": "Sin clave o con otra, nadie usa el modelo.",
+        "check": "clave"
+      },
+      {
+        "n": 6,
+        "objetivo": "Lugar en el KV cache para las 8 conversaciones típicas.",
+        "check": "memoria",
+        "pista": "¿Qué dice el log al arrancar, y qué opción achica esa memoria?"
+      },
+      {
+        "n": 7,
+        "objetivo": "El modelo contesta sin razonar, y el servidor cuenta el prompt igual en /tokenize y en la respuesta.",
+        "check": "plantilla"
+      },
+      {
+        "n": 8,
+        "objetivo": "Con 10 a la vez, el motor corre exactamente 8 y las demás esperan.",
+        "check": "lugares"
+      },
+      {
+        "n": 9,
+        "objetivo": "Una petición medida desde el cliente: TTFT, TPOT con su fórmula, huecos y los tokens del servidor; y las llegadas de Poisson con la semilla.",
+        "check": "humo",
+        "pista": "¿Qué evento del stream trae el primer texto, y cuál trae el usage?"
+      },
+      {
+        "n": 10,
+        "objetivo": "La cerrada: 24 peticiones bien, con 8 a la vez en el motor.",
+        "check": "cerrada"
+      },
+      {
+        "n": 11,
+        "objetivo": "La abierta: 40 llegadas exactamente a su hora de Poisson, ninguna tarde.",
+        "check": "abierta",
+        "pista": "Si el cliente espera a que conteste la anterior, ¿quién pone la tasa?"
+      },
+      {
+        "n": 12,
+        "objetivo": "Un reporte con el percentil de rango más cercano, su intervalo, el goodput y un veredicto de tres valores, igual a la cuenta de verificar.py.",
+        "check": "reporte"
+      },
+      {
+        "n": 13,
+        "objetivo": "La sesión de GPU planeada: el precio del proveedor, una GPU de 48 GB y un tope con margen.",
+        "check": "gpu"
+      }
+    ]
+  },
+  "fallas": [
+    {
+      "id": "tope-dos",
+      "titulo": "En la hora pico, los abogados esperan medio minuto antes de ver la primera palabra",
+      "tipo": "infra",
+      "historia": "Alguien leyó en la ficha que una L40S sostiene ≥ 20 tokens/s solo con 2 conversaciones, y para que «cada abogado escriba rápido» fijó el tope a mano en servir.sh. Reinició el servidor.",
+      "sintoma": "<code>verificar.py lugares</code> falla: con 10 a la vez, el motor corre 2. Todo lo demás pasa: contesta, pide clave y tiene memoria de sobra.",
+      "hipotesis": [
+        "El KV cache no alcanza para más de 2.",
+        "El motor tiene menos lugares de los que dice servidor.env.",
+        "El cliente manda de 2 en 2."
+      ],
+      "confirma": {
+        "code": "grep -n \"max-num-seqs\" servir.sh\ngrep \"non-default\" .taller/servidor.log\npython3 verificar.py      # todos los checks; aquí, solo los que fallan",
+        "nota": "El log dice el tope que de verdad usa el motor: <code>non-default args</code>.",
+        "donde": "mac",
+        "salida": "6:exec vllm serve \"$MODELO\" --host \"$HOST\" --port \"$PUERTO\" --served-model-name \"$NOMBRE\" --max-model-len \"$MAX_MODEL_LEN\" --max-num-seqs 2 --api-key \"$CLAVE\" --reasoning-parser qwen3 --default-chat-template-kwargs '{\"enable_thinking\": false}'\n{'model': 'Qwen/Qwen3-32B-AWQ', 'max_model_len': 8192, 'max_num_seqs': 2, 'served_model_name': ['qwen3-32b'], 'api_key': ['…']}\n\n✗ lugares   con 10 a la vez, el motor corrió hasta 2 juntas: tiene que ser 8 (--max-num-seqs)\n12/13 en verde · falta: lugares"
+      },
+      "arreglo": "<code>--max-num-seqs \"$MAX_NUM_SEQS\"</code> de vuelta en <code>servir.sh</code> y <code>python3 mundo/servidor.py arrancar</code>. Los 2 de la ficha son cuántas van a ≥ 20 tokens/s, no un tope: con tope, el TTFT se vuelve fila (hasta ≈ 27 s detrás de dos respuestas largas). Si hacen falta más rápidas, son más GPUs: por eso son 3 copias.",
+      "concepto": "max-num-seqs",
+      "check": "lugares"
+    },
+    {
+      "id": "memoria-recortada",
+      "titulo": "Con 8 abogados a la vez, las respuestas se detienen y vuelven a empezar",
+      "tipo": "infra",
+      "historia": "Para «dejarle memoria al modelo de embeddings» en la misma GPU, alguien copió de un tutorial viejo una opción de memoria a servir.sh y reinició el servidor. Arrancó bien.",
+      "sintoma": "<code>verificar.py memoria</code> falla: el KV cache tiene lugar para 19,456 tokens y las 8 típicas piden 52,000. Las preguntas sueltas contestan bien.",
+      "hipotesis": [
+        "El modelo cambió y pesa más.",
+        "Alguien le puso un tope a la memoria del motor.",
+        "MAX_MODEL_LEN creció."
+      ],
+      "confirma": {
+        "code": "grep \"KV cache\" .taller/servidor.log\npython3 verificar.py      # todos los checks; aquí, solo los que fallan",
+        "nota": "2.38× al tope: antes eran 12.50×.",
+        "donde": "mac",
+        "salida": "INFO [gpu_worker.py:796] Available KV cache memory: 4.75 GiB\nINFO [kv_cache_utils.py:1169] GPU KV cache size: 19,456 tokens, Maximum concurrency for 8,192 tokens per request: 2.38x\n\n✗ memoria   el KV cache tiene lugar para 19,456 tokens y las 8 conversaciones típicas piden 8 × 6,500 = 52,000: habrá preemptions (¿--gpu-memory-utilization? ¿otra GPU?)\n12/13 en verde · falta: memoria"
+      },
+      "arreglo": "Quitar <code>--gpu-memory-utilization 0.55</code> de <code>servir.sh</code> y <code>python3 mundo/servidor.py arrancar</code>. La 0.34 dimensiona el KV cache con la memoria libre; un tope de 0.55 deja 4.75 GiB después de los pesos. Con 8 a la vez se acaban los bloques y el motor saca conversaciones (preemption): nada da error, todo tarda más. El modelo de embeddings va en otra GPU (la ficha lo pone en otra L40S).",
+      "concepto": "kv-extensible",
+      "check": "memoria"
+    },
+    {
+      "id": "sin-clave",
+      "titulo": "El servidor contesta sin pedir clave",
+      "tipo": "infra",
+      "historia": "Para «simplificar» y que el gateway no tuviera que mandar la llave, alguien quitó una opción de servir.sh y reinició el servidor. Todo sigue funcionando igual.",
+      "sintoma": "<code>verificar.py clave</code> falla: sin clave, <code>/v1/models</code> contesta 200. Lo demás pasa: tus programas mandan su clave y nadie la revisa.",
+      "hipotesis": [
+        "Tus programas perdieron la clave.",
+        "El servidor ya no pide clave.",
+        "Alguien cambió la clave."
+      ],
+      "confirma": {
+        "code": "curl -s http://127.0.0.1:8000/v1/models",
+        "nota": "Sin <code>Authorization</code> y contesta. En el pod, esa URL es pública.",
+        "donde": "mac",
+        "salida": "{\"object\": \"list\", \"data\": [{\"id\": \"qwen3-32b\", \"object\": \"model\", \"created\": 1795802907, \"owned_by\": \"vllm\", \"root\": \"Qwen/Qwen3-32B-AWQ\", \"parent\": null, \"max_model_len\": 8192}]}\n[HTTP 200]"
+      },
+      "arreglo": "<code>--api-key \"$CLAVE\"</code> de vuelta en <code>servir.sh</code> y <code>python3 mundo/servidor.py arrancar</code>. En el pod va en <code>VLLM_API_KEY</code>, y es lo único entre internet y tu saldo. Nada truena cuando se quita una barrera: por eso se prueba el lado de «sin permiso».",
+      "concepto": "api-key",
+      "check": "clave"
+    },
+    {
+      "id": "razonamiento-prendido",
+      "titulo": "Las respuestas tardan el doble y salen con un «pensamiento» en inglés",
+      "tipo": "infra",
+      "historia": "Limpiando servir.sh de «un JSON raro que nadie entendía», alguien quitó una opción y reinició el servidor.",
+      "sintoma": "<code>verificar.py plantilla</code> falla: el modelo razonó antes de contestar. Las pruebas de carga todavía pasan, pero cada respuesta gasta su tope en pensar.",
+      "hipotesis": [
+        "Cambió el modelo.",
+        "La plantilla ya no apaga el razonamiento.",
+        "max_tokens es muy chico."
+      ],
+      "confirma": {
+        "code": "curl -s http://127.0.0.1:8000/v1/chat/completions -H \"Authorization: Bearer dojo-vllm-5c1e9a\" \\\n  -H \"Content-Type: application/json\" -d '{\"model\": \"qwen3-32b\", \"messages\": [{\"role\": \"user\", \"content\": \"¿Qué es una pena convencional?\"}], \"max_tokens\": 40}' \\\n  | python3 -c 'import json, sys; d = json.load(sys.stdin); m = d[\"choices\"][0][\"message\"]; print(\"reasoning:\", (m[\"reasoning\"] or \"\")[:90], \"…\"); print(\"content:\", m[\"content\"]); print(\"finish_reason:\", d[\"choices\"][0][\"finish_reason\"], \"· usage:\", d[\"usage\"])'",
+        "nota": "Con 40 tokens de tope, no alcanzó a contestar: todos se fueron en <code>reasoning</code>.",
+        "donde": "mac",
+        "salida": "reasoning: okay so the user is asking about this clause let me think about what the contract says and …\ncontent: None\nfinish_reason: length · usage: {'prompt_tokens': 16, 'total_tokens': 56, 'completion_tokens': 40}"
+      },
+      "arreglo": "<code>--default-chat-template-kwargs '{\"enable_thinking\": false}'</code> de vuelta en <code>servir.sh</code> y <code>python3 mundo/servidor.py arrancar</code>. Lo que importa se escribe explícito, aunque se vea raro. <code>--reasoning-parser qwen3</code> solo separa el razonamiento en su campo: no lo apaga.",
+      "concepto": "razonamiento",
+      "check": "plantilla"
+    },
+    {
+      "id": "nombre-servido",
+      "titulo": "El asistente dice «el modelo no existe» y el servidor está sano",
+      "tipo": "config",
+      "historia": "Para que el gateway lo encuentre como en la ficha («chat-grande»), alguien cambió el nombre en servir.sh, pero no en servidor.env. Reinició el servidor.",
+      "sintoma": "<code>verificar.py servidor</code> falla: el servidor anuncia chat-grande y servidor.env dice qwen3-32b. <code>plantilla</code>, <code>lugares</code> y <code>humo</code> también fallan, todas con un 404.",
+      "hipotesis": [
+        "El servidor se cayó.",
+        "El nombre que anuncia el servidor no es el que piden tus programas.",
+        "El modelo no se bajó."
+      ],
+      "confirma": {
+        "code": "curl -s -H \"Authorization: Bearer dojo-vllm-5c1e9a\" http://127.0.0.1:8000/v1/models | python3 -c 'import json, sys; print([m[\"id\"] for m in json.load(sys.stdin)[\"data\"]])'\ngrep NOMBRE servidor.env\npython3 verificar.py      # todos los checks; aquí, solo los que fallan",
+        "nota": "Cada pregunta con <code>model=qwen3-32b</code> recibe: The model `qwen3-32b` does not exist.",
+        "donde": "mac",
+        "salida": "['chat-grande']\nNOMBRE=qwen3-32b\n\n✗ servidor  el servidor anuncia ['chat-grande'] y servidor.env dice NOMBRE=qwen3-32b: ¿arrancaste con otro servir.sh?\n✗ plantilla /v1/chat/completions contesta 404: {'error': {'message': 'The model `qwen3-32b` does not exist. Valid aliases: chat-grande.', 'type': 'NotFoundError', 'param': 'model', 'code': 404}}\n✗ lugares   de 10 preguntas a la vez contestaron [404, 404, 404, 404, 404, 404, 404, 404, 404, 404]\n✗ humo      una(): q0000 no salió bien (404 {\"error\": {\"message\": \"The model `qwen3-32b` does not exist. Valid aliases: chat-grande.\", \"type\": \")\n9/13 en verde · falta: servidor, plantilla, lugares, humo"
+      },
+      "arreglo": "<code>--served-model-name \"$NOMBRE\"</code> de vuelta en <code>servir.sh</code> (una sola fuente de verdad) y <code>python3 mundo/servidor.py arrancar</code>. En la ficha, «chat-grande» es el nombre en el gateway (LiteLLM), que traduce al nombre de cada copia de vLLM: es la estación 4.",
+      "concepto": "vllm",
+      "check": "servidor"
+    },
+    {
+      "id": "tasa-infinita",
+      "titulo": "La prueba nueva dice que el TTFT p95 es de más de un minuto",
+      "tipo": "config",
+      "historia": "Para que la prueba abierta no tardara 10 minutos, alguien puso TASA=inf en carga.env («que mande todo de una vez») y la volvió a correr. Le salió un TTFT espantoso y escribió en el chat que vLLM «no sirve».",
+      "sintoma": "Solo <code>verificar.py prueba</code> falla: TASA tiene que ser 0.07. <code>abierta</code> pasa, porque la prueba sí se hizo como decía carga.env: el error está en lo que se pidió, no en cómo se corrió. En cuanto arreglas carga.env, <code>abierta</code> falla hasta que la vuelves a correr.",
+      "hipotesis": [
+        "vLLM está roto.",
+        "La prueba no se hizo a la tasa de diseño.",
+        "El KV cache se llenó."
+      ],
+      "confirma": {
+        "code": "grep TASA carga.env\npython3 -c 'import json; d = json.load(open(\"resultados/abierta.json\")); ms = d[\"medidas\"]; print(\"tasa:\", d[\"meta\"][\"tasa\"], \"· la última salió a los\", round(max(m[\"programada\"] for m in ms), 2), \"s · TTFT de la más lenta:\", round(max(m[\"ttft_s\"] for m in ms), 1), \"s · en fila hasta\", d[\"metricas\"][\"pico_waiting\"])'\npython3 verificar.py      # todos los checks; aquí, solo los que fallan",
+        "nota": "Las 40 salieron en el segundo 0: 8 al motor y el resto a la fila; la última esperó más de dos minutos su primer token.",
+        "donde": "mac",
+        "salida": "TASA=inf\ntasa: inf · la última salió a los 0.0 s · TTFT de la más lenta: 143.9 s · en fila hasta 39.0\n\n✗ prueba    TASA=inf: una copia de las 3 del despacho recibe 0.21 ÷ 3 = 0.07 preguntas por segundo\n12/13 en verde · falta: prueba"
+      },
+      "arreglo": "<code>TASA=0.07</code> en <code>carga.env</code> y otra vez <code>python3 pipeline/carga.py abierta</code> (≈ 10 min). Una ráfaga mide cuánto aguanta la fila, no la hora pico. Un benchmark honesto dice a qué tasa se midió y la cumple.",
+      "concepto": "carga",
+      "check": "abierta"
+    }
+  ],
+  "listo": [
+    "vLLM sirve Qwen3 32B en AWQ con su clave (401 sin ella), 8,192 tokens, 8 lugares exactos, sin razonamiento y sin topes de memoria copiados.",
+    "El log de arranque leído: cuántos tokens caben en el KV cache y cuántas conversaciones al tope.",
+    "Un generador de carga que mide del lado del cliente (TTFT, TPOT, huecos y los tokens del servidor) y guarda lo que dijo /metrics.",
+    "Una cerrada con 8 a la vez y una abierta con llegadas de Poisson a la tasa de una copia, cada pregunta a su hora.",
+    "Un reporte con el p95 y su intervalo, el goodput y un veredicto que distingue «no pasa» de «no se sabe».",
+    "La sesión de GPU planeada antes de rentar: costo estimado, tope y un vigía que la termina; y la confirmación de que ya no existe."
+  ],
+  "repaso": {
+    "memo": "<b>vLLM con sus límites a la vista (clave, contexto, 8 lugares, la memoria del KV cache sin topes copiados y el razonamiento apagado), y una prueba de carga honesta: cerrada con 8 a la vez y abierta con llegadas de Poisson a la tasa de diseño, medida desde el cliente, con /metrics al lado y un reporte que da el p95 con su intervalo, el goodput y un veredicto de tres valores.</b> En el dojo (simulado): el KV cache de una L40S tiene 102,384 tokens (12.50× al tope), una pregunta sola tarda 1,892 ms al primer token, el TTFT p95 de la abierta sale 3,877.7 ms y el TPOT p95 de la cerrada 181.8 ms: la cuenta de la ficha dice que una L40S no cumple. La sesión en la GPU rentada (≈ US$0.65) dice si la cuenta se parece a la realidad.",
+    "trampa": "Lo que falla sin dar error: un tope de lugares que convierte el TTFT en fila, un --gpu-memory-utilization copiado que provoca preemptions, el JSON «raro» que apagaba el razonamiento, y sobre todo una prueba que no mide lo que se va a prometer (una ráfaga en vez de la tasa de diseño, 40 peticiones para firmar un p95, el TTFT del primer evento vacío). Lo que los atrapa: leer el log de arranque, mirar /metrics junto a lo que ve el cliente y escribir a qué tasa y con cuántas peticiones se midió cada número.",
+    "entrevista": [
+      {
+        "q": "¿Por qué vLLM y no llama-server para el despacho?",
+        "a": "Porque son 8 conversaciones a la vez en una GPU NVIDIA. vLLM reparte el KV cache en bloques que da conforme crece cada conversación (PagedAttention) y mete conversaciones nuevas en cada paso (batching continuo), así que leer los pesos una vez sirve para todas. llama-server reparte el contexto en lugares fijos. Los dos hablan la misma API: el cliente no cambia."
+      },
+      {
+        "q": "Tu vLLM tiene lugar para 12 conversaciones. ¿Por qué el despacho pone --max-num-seqs 8 y no 2 ni 12?",
+        "a": "Porque 8 es su número de diseño: con llegadas de Poisson a 0.21/s y 27 s por respuesta, 8 cubren casi toda la hora pico. 12 caben en memoria pero escribirían más lento. Y 2 (las que van a ≥ 20 tokens/s en una L40S) haría que las demás esperen en fila hasta ≈ 27 s: el TTFT se volvería espera. Si hace falta velocidad, son más GPUs, no menos lugares."
+      },
+      {
+        "q": "¿Cómo diseñas una prueba de carga para un LLM?",
+        "a": "Dos pruebas. Una abierta, con llegadas al azar (Poisson) a la tasa de diseño, sin tope en el cliente, para el TTFT de la hora pico. Una cerrada con N a la vez, para el TPOT cuando comparten la GPU. Con un dataset parecido al real (largos con variación y el mismo inicio, para que el prefix cache haga lo que hará en producción), tope de salida fijo, semilla, y cientos de peticiones si voy a firmar un p95. Guardo /metrics al lado: fila, KV cache y preemptions."
+      },
+      {
+        "q": "Te dan un p95 de TTFT de 1.8 s. ¿Qué preguntas antes de creerlo?",
+        "a": "Con cuántas peticiones (con 40 no tiene techo), a qué tasa y si fue abierta o una ráfaga, de qué largo eran los prompts y si se repetían (el prefix cache los guarda), desde dónde se midió (el cliente suma la red), y si cuenta desde el primer pedazo con texto. Y su intervalo: sin él no lo comparo con nada."
+      },
+      {
+        "q": "¿Qué es el goodput y por qué importa más que el throughput?",
+        "a": "Son las peticiones por segundo que cumplen todo el criterio a la vez, TTFT y TPOT. Un servidor puede contestar todo, con throughput alto, y que casi nada cumpla la promesa. Con 3 L40S, la ficha estima ≈ 0.06/s de goodput contra 0.21 pedidas: la capacidad útil es ≈ 29 %."
+      },
+      {
+        "q": "¿Cómo practicas con una GPU rentada sin que te salga caro?",
+        "a": "Escribo y pruebo todo sin GPU, contra un simulador con la misma API, y llego al pod a medir. Antes de rentar calculo minutos y costo (una L40S a US$1.09/h por ≈ 40 min es menos de un dólar). Al lanzar, un vigía que la termina por API al tope, saldo prepagado como tope real, y al final compruebo que el pod ya no existe: detenido, el disco sigue cobrando."
+      }
+    ]
+  },
+  "prompts": {
+    "claude_md": "kits/ia-privada-vllm/CLAUDE.md",
+    "guiado": "content/estaciones/ia-privada-vllm/prompts/guiado.md",
+    "solo": "content/estaciones/ia-privada-vllm/prompts/solo.md",
+    "romper_ayuda": "content/estaciones/ia-privada-vllm/prompts/romper-ayuda.md",
+    "romper_solo": "content/estaciones/ia-privada-vllm/prompts/romper-solo.md"
+  }
+}
