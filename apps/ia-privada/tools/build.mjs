@@ -5,6 +5,7 @@
 //   index.html                 inicio con las 4 secciones: Lecciones, Herramientas, Casos y Dojo · rama IA Privada
 //   herramientas/<id>/         una página por cada content/herramientas/<id>.md que exista (la calculadora y sus conceptos)
 //   <leccion>/index.html       una página por cada content/lecciones/<id>.md que exista
+//   casos/<id>/index.html      una página por cada content/casos/<id>.md que exista (los casos de content/casos.json)
 //   glosario/index.html        todos los conceptos, con buscador
 //   indice.json                lo que busca el buscador de la barra lateral
 //   sw.js, ia-privada.css…     modo sin conexión y estilos
@@ -95,12 +96,21 @@ HERR.forEach((h, k) => {
   h.herramienta = true;
   h.n = `H${k + 1}`;
 });
-const PAGINAS = [...HERR, ...ORDEN];
+// Los casos van al final del orden de lectura: aplican lo que presentan las herramientas y las lecciones.
+CASOS.casos.forEach((c, k) => {
+  c.url = `/casos/${c.id}/`;
+  c.archivo = join(C, 'casos', `${c.id}.md`);
+  c.lista = existsSync(c.archivo);
+  c.caso = true;
+  c.num = k + 1;
+  c.n = `C${k + 1}`;
+});
+const PAGINAS = [...HERR, ...ORDEN, ...CASOS.casos];
 PAGINAS.forEach((p, k) => { p.pos = k; });
 const POR_ID = new Map(PAGINAS.map((l) => [l.id, l]));
-if (POR_ID.size !== PAGINAS.length) errores.push('una herramienta y una lección tienen el mismo id');
+if (POR_ID.size !== PAGINAS.length) errores.push('una herramienta, una lección o un caso tienen el mismo id');
 for (const g of GLOS.values()) if (g.leccion && !POR_ID.has(g.leccion)) errores.push(`glosario ${g.id}: «leccion» = «${g.leccion}», que no está en el temario`);
-for (const [dir, f] of [['lecciones', 'md'], ['herramientas', 'md']]) for (const x of readdirSync(join(C, dir)).filter((x) => x.endsWith('.' + f))) if (!POR_ID.has(x.slice(0, -3))) errores.push(`${dir}/${x} no está en el temario ni en herramientas.json`);
+for (const [dir, f] of [['lecciones', 'md'], ['herramientas', 'md'], ['casos', 'md']]) if (existsSync(join(C, dir))) for (const x of readdirSync(join(C, dir)).filter((x) => x.endsWith('.' + f))) if (!POR_ID.has(x.slice(0, -3))) errores.push(`${dir}/${x} no está en el temario ni en herramientas.json`);
 
 function frente(texto, archivo) {
   const m = texto.match(/^---\n([\s\S]*?)\n---\n/);
@@ -129,7 +139,7 @@ function resolverDatos(c, id) {
     const g = GPU_POR_ID.get(x.inicial);
     if (!g) throw new Error(`calculadora ${id}: entrada ${x.id}: «inicial» = «${x.inicial}» no está en gpus.json`);
     x.tipo = 'opcion';
-    x.opciones = GPUS.gpus.map((y) => ({ valor: y.vram_gb, label: `${y.nombre} · ${y.vram_gb} GB` }));
+    x.opciones = GPUS.gpus.map((y) => ({ id: y.id, valor: y.vram_gb, label: `${y.nombre} · ${y.vram_gb} GB` }));
     x.valor = g.vram_gb;
     x.seleccion = GPUS.gpus.indexOf(g);
   }
@@ -151,7 +161,7 @@ function resolverDatos(c, id) {
       const nota = pa.datos === 'gpus'
         ? `${y.nombre}: especificaciones de [${dominio(f.url)}](${f.url}), consultado ${f.consultado}.${pa.campos && Object.values(pa.campos).includes('renta_min_usd_hora') && y.nube?.length ? ` Renta: la más barata de gpus.json (${rentaMin(y).proveedor}, ${rentaMin(y).fuente.consultado}).` : ''}${faltan.length ? ` **Sin dato publicado:** ${faltan.join(', ')} (queda en 0; escribe el tuyo).` : ''}`
         : `${y.proveedor}, ${y.modelo}: [precios de ${dominio(f.url)}](${f.url}), consultado ${f.consultado}.${y.nota ? ` ${y.nota}` : ''}`;
-      return { label: pa.datos === 'gpus' ? `${y.nombre} · ${y.vram_gb} GB` : `${y.modelo} · ${y.proveedor}`, valores, nota };
+      return { id: y.id, label: pa.datos === 'gpus' ? `${y.nombre} · ${y.vram_gb} GB` : `${y.modelo} · ${y.proveedor}`, valores, nota };
     });
     pa.inicial = ini;
     for (const [k, v] of Object.entries(pa.opciones[ini].valores)) if (porId.has(k)) porId.get(k).valor = v;
@@ -181,15 +191,53 @@ const figura = (id) => {
   return leer(p).trim();
 };
 
+// Los enlaces a una herramienta con valores (/herramientas/sizing/?r=200&p1=l40s): cada nombre tiene que ser una entrada
+// de su calculadora o una lista de preajustes (p0, p1…) con una opción que exista (su id de datos o su índice), y cada
+// número tiene que caber en el rango de su entrada. Así un caso nunca abre la herramienta con un control que no existe.
+const CALC_DE = new Map();   // herramienta → su calculadora, ya con los datos puestos
+function calcDe(h) {
+  if (CALC_DE.has(h)) return CALC_DE.get(h);
+  const md = join(C, 'herramientas', `${h}.md`);
+  const m = existsSync(md) && leer(md).match(/^:::calculadora\s+(\S+)/m);
+  const c = m ? resolverDatos(json(join(C, 'calculadoras', `${m[1]}.json`)), m[1]) : null;
+  CALC_DE.set(h, c);
+  return c;
+}
+function enlacesHerramienta(texto, rel) {
+  const e = [];
+  for (const [, h, q] of texto.matchAll(/\]\(\/herramientas\/([a-z0-9-]+)\/\?([^)#\s]+)/g)) {
+    const c = calcDe(h);
+    if (!c) { e.push(`${rel}: el enlace a /herramientas/${h}/ lleva valores, pero esa herramienta no tiene calculadora`); continue; }
+    const listas = Array.isArray(c.preajustes) ? c.preajustes : c.preajustes ? [c.preajustes] : [];
+    for (const [k, v] of new URLSearchParams(q)) {
+      const pm = k.match(/^p(\d+)$/);
+      if (pm) {
+        const pa = listas[+pm[1]];
+        if (!pa) e.push(`${rel}: /herramientas/${h}/?${k}: esa calculadora no tiene la lista de preajustes ${pm[1]}`);
+        else if (!pa.opciones.some((o, n) => o.id === v || String(n) === v)) e.push(`${rel}: /herramientas/${h}/?${k}=${v}: no es una opción de «${pa.label}»`);
+        continue;
+      }
+      const x = (c.entradas || []).find((y) => y.id === k);
+      if (!x) { e.push(`${rel}: /herramientas/${h}/?${k}: «${k}» no es una entrada de la calculadora`); continue; }
+      if (x.tipo === 'opcion') { if (!x.opciones.some((o) => o.id === v || o.valor === Number(v))) e.push(`${rel}: /herramientas/${h}/?${k}=${v}: no es una opción de «${x.label}»`); continue; }
+      const n = Number(v);
+      if (!Number.isFinite(n)) e.push(`${rel}: /herramientas/${h}/?${k}=${v}: no es un número`);
+      else if ((x.min !== undefined && n < x.min) || (x.max !== undefined && n > x.max)) e.push(`${rel}: /herramientas/${h}/?${k}=${v}: fuera del rango de la entrada (${x.min}–${x.max})`);
+    }
+  }
+  return e;
+}
+
 if (SOLO && !POR_ID.has(SOLO)) fail(`--solo ${SOLO}: no está en el temario ni en herramientas.json`);
 if (SOLO && !POR_ID.get(SOLO).lista) fail(`--solo ${SOLO}: falta su archivo .md`);
 const LISTAS = PAGINAS.filter((l) => l.lista && (!SOLO || l.id === SOLO));
-const LECCIONES = LISTAS.filter((l) => !l.herramienta);
+const LECCIONES = LISTAS.filter((l) => !l.herramienta && !l.caso);
 const PRESENTA = new Map();   // concepto → la página que lo presenta
 for (const l of LISTAS) {
-  const rel = `${l.herramienta ? 'herramientas' : 'lecciones'}/${l.id}.md`;
+  const rel = `${l.herramienta ? 'herramientas' : l.caso ? 'casos' : 'lecciones'}/${l.id}.md`;
   const { meta, cuerpo } = frente(leer(l.archivo), rel);
   if (meta.titulo !== l.titulo) errores.push(`${rel}: el título «${meta.titulo}» no es el del temario («${l.titulo}»)`);
+  errores.push(...enlacesHerramienta(leer(l.archivo), rel));
   for (const r of meta.requisitos) if (!POR_ID.has(r)) errores.push(`${rel}: requisito «${r}» no está en el temario`);
   for (const s of meta.sensei) if (!SENSEI.lecciones[s]) errores.push(`${rel}: «sensei» menciona «${s}», que no está en el temario de Sensei`);
   l.meta = meta;
@@ -247,13 +295,14 @@ function sidebar(actual) {
     const listas = ls.filter((l) => l.lista).length;
     return `<details class="nav__group"${abierto || listas || ls.some((l) => l.id === actual) ? ' open' : ''}><summary><span class="nav__label">${titulo}</span><span class="nav__fase${listas === ls.length ? ' is-lista' : ''}">${listas === ls.length ? 'Listo' : listas ? `${listas}/${ls.length}` : `Fase ${fase}`}</span></summary><ol class="nav__list">${ls.map(navItem).join('')}</ol></details>`;
   };
-  const grupos = grupo('Herramientas', HERR, 2, true) + TEMARIO.modulos.map((m) => grupo(`${m.num} · ${esc(m.titulo)}`, m.lecciones, m.fase, false)).join('');
+  const grupos = grupo('Herramientas', HERR, 2, true) + TEMARIO.modulos.map((m) => grupo(`${m.num} · ${esc(m.titulo)}`, m.lecciones, m.fase, false)).join('')
+    + grupo('Casos', CASOS.casos.map((c) => ({ ...c, n: `C${c.num}` })), CASOS.casos[0].fase, CASOS.casos.some((c) => c.lista));
   const top = [['/', ICO.casa, 'Inicio', 'inicio'], ['/glosario/', ICO.libro, 'Glosario', 'glosario']]
     .map(([href, ico, t, id]) => `<a class="nav__item" href="${href}"${id === actual ? ' aria-current="page"' : ''}>${ico}<span>${t}</span>${id === 'glosario' ? `<span class="nav__count">${REALES().length}</span>` : '<span></span>'}</a>`).join('');
   return `<aside class="sidebar" id="sidebar" aria-label="Índice">
   <div class="sidebar__head">${marcaLink(`TrueML · ${SITIO.subtitulo}`)}<button type="button" class="btn-ico sidebar__close" aria-label="Cerrar el índice" data-cajon="cerrar">${ICO.x}</button></div>
   <div class="side-search" role="search"><input type="search" placeholder="Buscar herramientas y conceptos…" aria-label="Buscar herramientas y conceptos" autocomplete="off" data-buscar-nav><kbd aria-hidden="true">/</kbd><ul class="side-res" hidden></ul></div>
-  <nav class="nav"><div class="nav__top">${top}</div>${grupos}<div class="nav__top nav__fin"><a class="nav__item" href="/#casos">${ICO.calc}<span>Casos (próximamente)</span><span></span></a><a class="nav__item" href="${DOJO.url}">${ICO.dojo}<span>Dojo · rama ${esc(DOJO.nombre)}</span><span></span></a></div></nav>
+  <nav class="nav"><div class="nav__top">${top}</div>${grupos}<div class="nav__top nav__fin"><a class="nav__item" href="${DOJO.url}">${ICO.dojo}<span>Dojo · rama ${esc(DOJO.nombre)}</span><span></span></a></div></nav>
   <div class="sidebar__foot">
     <div class="tema-row"><span class="lbl">Tema</span>${TEMA}</div>
     <span>Lo que eliges se guarda solo en este navegador.</span>
@@ -344,7 +393,7 @@ ${scripts.map((s) => `<script src="${s}" defer></script>`).join('\n')}
 // ================================================================ una lección o una herramienta
 function paginaLeccion(l) {
   const m = l.meta, mod = l.modulo;
-  const vecinos = l.herramienta ? HERR : ORDEN;
+  const vecinos = l.herramienta ? HERR : l.caso ? CASOS.casos : ORDEN;
   const i = vecinos.indexOf(l);
   const anterior = vecinos.slice(0, i).reverse().find((x) => x.lista);
   const siguiente = vecinos[i + 1];
@@ -357,6 +406,7 @@ function paginaLeccion(l) {
   const secciones = l.secciones.map((x, k) => `<li><a class="toc__link${x.extra ? ' is-extra' : ''}" href="#${x.id}"><span class="toc__n">${String(k + 1).padStart(2, '0')}</span><span>${esc(x.t)}${x.extra ? ' <small>extra</small>' : ''}</span></a></li>`).join('');
   const ceja = l.herramienta
     ? `<a href="/#herramientas">Herramientas</a><span aria-hidden="true">·</span><span>${i + 1} de ${HERR.length}</span>`
+    : l.caso ? `<a href="/#casos">Casos</a><span aria-hidden="true">·</span><span>Caso ${l.num} de ${CASOS.casos.length}</span>`
     : `<a href="/#m-${mod.id}">${mod.num} · ${esc(mod.titulo)}</a><span aria-hidden="true">·</span><span>Lección ${mod.lecciones.indexOf(l) + 1} de ${mod.lecciones.length}</span>`;
   const est = DOJO.estaciones.find((e) => (m.dojo || '') === e.id);
   const contenido = `<article class="page">
@@ -365,7 +415,7 @@ function paginaLeccion(l) {
     <h1 class="phead__title" id="titulo">${esc(l.titulo)}</h1>
     ${m.en ? `<p class="phead__en">${esc(m.en)}</p>` : ''}
     <p class="phead__summary">${esc(m.subtitulo)}</p>
-    <div class="phead__meta"><span>⏱ ${l.min.esencial < l.min.todo ? `${l.min.esencial} min lo esencial · ${l.min.todo} min todo` : `${l.min.todo} min de lectura`}</span><span>${l.conceptos.length} conceptos</span>${l.cuenta.calculadoras ? `<span>${l.cuenta.calculadoras} calculadora${l.cuenta.calculadoras > 1 ? 's' : ''}</span>` : ''}${l.cuenta.ejercicios ? `<span>${l.cuenta.ejercicios} ejercicios</span>` : ''}${l.etapas ? `<span>${miniT(l.etapas)}</span>` : ''}</div>
+    <div class="phead__meta"><span>⏱ ${l.min.esencial < l.min.todo ? `${l.min.esencial} min lo esencial · ${l.min.todo} min todo` : `${l.min.todo} min de lectura`}</span><span>${l.conceptos.length} conceptos</span>${l.cuenta.calculadoras ? `<span>${l.cuenta.calculadoras} calculadora${l.cuenta.calculadoras > 1 ? 's' : ''}</span>` : ''}${l.cuenta.intentos ? `<span>${l.cuenta.intentos} para intentar</span>` : ''}${l.cuenta.ejercicios ? `<span>${l.cuenta.ejercicios} ejercicios</span>` : ''}${l.etapas ? `<span>${miniT(l.etapas)}</span>` : ''}</div>
     <details class="page-toc"><summary>${ICO.chev}<span class="lbl">Secciones</span><span class="page-toc__count">${l.secciones.length}</span></summary><ol>${secciones}</ol></details>
   </header>
   <div class="prose">
@@ -373,14 +423,14 @@ function paginaLeccion(l) {
     ${l.html}
   </div>
   <section class="cierre" aria-label="Al terminar">
-    ${l.herramienta ? '' : `<button type="button" class="btn c-leida" data-leida="${l.id}" aria-pressed="false"><span class="no">Marcar como leída</span><span class="si">Leída ✓</span></button>`}
-    ${siguiente ? `<a class="card${siguiente.lista ? '' : ' card--pronto'}" href="${siguiente.lista ? siguiente.url : (l.herramienta ? '/#herramientas' : '/#lecciones')}"><span class="lbl">Sigue · ${siguiente.n}</span><b>${esc(siguiente.titulo)}</b><span class="txt">${siguiente.lista ? esc(siguiente.resumen || siguiente.modulo?.titulo || '') : `Próximamente (fase ${siguiente.fase || siguiente.modulo.fase}). ${esc(siguiente.resumen || '')}`}</span></a>` : ''}
+    ${l.herramienta || l.caso ? '' : `<button type="button" class="btn c-leida" data-leida="${l.id}" aria-pressed="false"><span class="no">Marcar como leída</span><span class="si">Leída ✓</span></button>`}
+    ${siguiente ? `<a class="card${siguiente.lista ? '' : ' card--pronto'}" href="${siguiente.lista ? siguiente.url : (l.herramienta ? '/#herramientas' : l.caso ? '/#casos' : '/#lecciones')}"><span class="lbl">Sigue · ${siguiente.caso ? `Caso ${siguiente.num}` : siguiente.n}</span><b>${esc(siguiente.titulo)}</b><span class="txt">${siguiente.lista ? esc(siguiente.resumen || siguiente.modulo?.titulo || '') : `Próximamente (fase ${siguiente.fase || siguiente.modulo?.fase}). ${esc(siguiente.resumen || '')}`}</span></a>` : ''}
     <a class="card card--dojo" href="${est && est.url ? est.url : DOJO.url}"><span class="lbl">Practícalo con código</span><b>${est ? `Estación ${est.num} del Dojo: ${esc(est.titulo)}` : `Dojo · rama ${esc(DOJO.nombre)}`}</b><span class="txt">${est && est.lista ? 'Constrúyelo, rómpelo y arréglalo con Claude Code.' : `En el Dojo levantas un modelo en tu Mac, lo mides, lo cuantizas y lo sirves. ${DOJO.estaciones.filter((e) => e.lista).length ? '' : 'Sus estaciones todavía están en camino.'}`}</span></a>
-    ${anterior ? `<a class="c-ant" href="${anterior.url}">← ${anterior.n} · ${esc(anterior.titulo)}</a>` : ''}
+    ${anterior ? `<a class="c-ant" href="${anterior.url}">← ${anterior.caso ? `Caso ${anterior.num}` : anterior.n} · ${esc(anterior.titulo)}</a>` : ''}
   </section>
 </article>`;
-  const toc = `<aside class="toc" aria-label="En esta página"><p class="toc__title">En esta página</p><ol class="toc__list">${secciones}</ol><div class="toc__foot">${l.n} · ${esc(l.herramienta ? 'Herramientas' : mod.titulo)}<br><a href="#titulo">↑ Arriba</a></div></aside>`;
-  return pagina({ path: l.url, title: `${l.titulo} · ${SITIO.nombre} · TrueML`, desc: `${m.subtitulo} ${m.pregunta}`, actual: l.id, contenido, toc,
+  const toc = `<aside class="toc" aria-label="En esta página"><p class="toc__title">En esta página</p><ol class="toc__list">${secciones}</ol><div class="toc__foot">${l.caso ? `Caso ${l.num} · Casos` : `${l.n} · ${esc(l.herramienta ? 'Herramientas' : mod.titulo)}`}<br><a href="#titulo">↑ Arriba</a></div></aside>`;
+  return pagina({ path: l.url, title: `${l.caso ? `Caso: ${l.titulo}` : l.titulo} · ${SITIO.nombre} · TrueML`, desc: `${m.subtitulo} ${m.pregunta}`, actual: l.id, contenido, toc,
     globos: [...l.terminos], diagramas: l.html.includes('dg-mount'), leccion: !l.herramienta });
 }
 
@@ -402,7 +452,9 @@ function portada() {
       <span class="mod__est">${listas === m.lecciones.length ? 'Listo' : listas ? `${listas} de ${m.lecciones.length} lecciones` : pronto(m.fase)}</span>
     </li>`;
   }).join('\n');
-  const casos = CASOS.casos.map((c, k) => `<li><div class="card card--pronto"><span class="lbl">Caso ${k + 1} · ${pronto(c.fase)}</span><b>${esc(c.titulo)}</b><span class="txt">${esc(c.resumen)}</span></div></li>`).join('');
+  const casos = CASOS.casos.map((c, k) => (c.lista
+    ? `<li><a class="card card--caso" href="${c.url}"><span class="lbl">Caso ${k + 1} · listo</span><b>${esc(c.titulo)}</b><span class="txt">${esc(c.resumen)}</span></a></li>`
+    : `<li><div class="card card--pronto"><span class="lbl">Caso ${k + 1} · ${pronto(c.fase)}</span><b>${esc(c.titulo)}</b><span class="txt">${esc(c.resumen)}</span></div></li>`)).join('');
   const sinGpu = new Set(DOJO.sin_gpu?.estaciones || []);
   const DONDE = { mac: 'Mac', gpu: 'GPU rentada', 'mac-gpu': 'Mac y GPU rentada' };
   const estaciones = DOJO.estaciones.map((e) => {
@@ -423,7 +475,7 @@ function portada() {
 <nav class="home-secs" aria-label="Secciones">
   <a href="#lecciones"><b>Lecciones</b><span>${ORDEN.length} en ${TEMARIO.modulos.length} módulos</span></a>
   <a href="#herramientas"><b>Herramientas</b><span>${HERR.filter((h) => h.lista).length} de ${HERR.length} listas</span></a>
-  <a href="#casos"><b>Casos</b><span>${CASOS.casos.length} empresas</span></a>
+  <a href="#casos"><b>Casos</b><span>${CASOS.casos.filter((c) => c.lista).length ? `${CASOS.casos.filter((c) => c.lista).length} de ${CASOS.casos.length} listos` : `${CASOS.casos.length} empresas`}</span></a>
   <a href="#dojo"><b>Dojo</b><span>rama ${esc(DOJO.nombre)}</span></a>
 </nav>
 <section class="home-sec" id="herramientas" aria-labelledby="h-herr">
@@ -502,7 +554,7 @@ const CSS = [join(ROOT, 'vendor', 'trueml', 'tokens.css'), join(ROOT, 'vendor', 
 writeFileSync(join(OUT, 'ia-privada.css'), CSS);
 const sinMd = (s) => s.replace(/\[\[([a-z0-9-]+)(?:\|([^\]]+))?\]\]/g, (_, id, t) => t || GLOS.get(id).termino.toLowerCase()).replace(/[*`]/g, '').replace(/\\\(|\\\)/g, '');
 writeFileSync(join(OUT, 'indice.json'), JSON.stringify({
-  lecciones: LISTAS.map((l) => ({ t: l.titulo, n: l.n, u: l.url, m: l.herramienta ? 'Herramientas' : l.modulo.titulo })),
+  lecciones: LISTAS.map((l) => ({ t: l.titulo, n: l.n, u: l.url, m: l.herramienta ? 'Herramientas' : l.caso ? 'Casos' : l.modulo.titulo })),
   conceptos: REALES().map((g) => ({ t: g.termino, en: g.en || '', u: `/glosario/#g-${g.id}`, c: sinMd(g.corto) })),
 }));
 

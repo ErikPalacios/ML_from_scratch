@@ -75,14 +75,14 @@ Todo lo de esta tabla sale de la ficha del despacho y de las lecciones anteriore
 | Supuestos | 15 preguntas por persona al día, pico de 2.5 veces, ≈ 6,000 tokens de entrada y ≈ 500 de salida; un abogado enlace con 4 h a la semana; acceso a los documentos desde la semana 1; la GPU rentada en una nube con contrato de [[encargado-de-datos\|encargado]]. |
 | Riesgos | La calidad del OCR; permisos mal mapeados en el sistema documental; el precio de la Server Edition (no tiene precio publicado); el [[tipo-de-cambio\|tipo de cambio]]; las reglas de exportación de chips de Estados Unidos. |
 | Precio | Piloto ≈ US$27,600 + IVA en tres pagos por hito; GPU rentada aparte, a costo (≈ US$327 a 1,876 según dónde y cuántas horas); soporte mensual tras la aceptación, ≈ US$2,165 + IVA. |
-| Opciones | A: 3 L40S (US$67,191.30, sin repuesto). B: 4 L40S (US$76,101.30, con repuesto, [[n-mas-1\|N+1]]). C: 2 RTX PRO 6000 Server Edition (a cotizar). |
+| Opciones | A: 3 L40S (US$67,191.30, sin repuesto). B: 4 L40S (US$76,101.30, con repuesto, [[n-mas-1\|N+1]]). C: 1 RTX PRO 6000 Server Edition (sin repuesto; la descarta el caso). D: 2 RTX PRO 6000 Server Edition (a cotizar; ≈ US$74,779 con la tarjeta a precio de CDW). Las letras son las de [el caso del despacho](/casos/despacho/), que elige D con condiciones. |
 | Vigencia | 10 días naturales, por el tipo de cambio. |
 
 ### Un criterio que la opción A no pasa
 
 Mira la fila de aceptación con cuidado. Las cuentas de [De requisitos a hardware](/requisitos-hardware/) dicen que con las L40S el TTFT de 2 s **no se cumple**: solo el [[prefill]] de 6,000 tokens tarda ≈ 2.38 s sin nadie delante, y con la fila de la hora pico el p95 simulado sube a ≈ 3.3–4.2 s. La Server Edition, en la misma cuenta, da ≈ 1.77 s viendo la fila, y ≈ 1.94 s sumando la red y la búsqueda: cumple, pero en el filo.
 
-La tentación es esconderlo: poner «TTFT ≤ 3 s» para que pase lo que ya cotizaste, o no poner TTFT. Las dos cosas son vender mal. La propuesta honesta dice: **el criterio es el que necesitan los abogados; con la opción A la cuenta dice que no se cumple; el piloto lo mide y decide entre A, B y C**. Si al final el despacho acepta 3 s porque la L40S es más barata, que sea una decisión suya, firmada, y no un número que tú bajaste para cerrar la venta.
+La tentación es esconderlo: poner «TTFT ≤ 3 s» para que pase lo que ya cotizaste, o no poner TTFT. Las dos cosas son vender mal. La propuesta honesta dice: **el criterio es el que necesitan los abogados; con la opción A la cuenta dice que no se cumple; el piloto lo mide y decide entre A, B, C y D**. Si al final el despacho acepta 3 s porque la L40S es más barata, que sea una decisión suya, firmada, y no un número que tú bajaste para cerrar la venta.
 
 La lección [Pruebas de carga y benchmarks honestos](/pruebas-carga/) dejó otra promesa para este papel: la propuesta final lleva **[[costo-por-pregunta|cuánto cuesta cada pregunta que cumple]]**. El [[goodput]] esperado de 3 L40S a TTFT de 2 s y TPOT de 50 ms es ≈ 0.06 por segundo, el ≈ 29 % de las 0.21 de la hora pico: en esa hora, ≈ 3 de cada 10 preguntas cumplirían la promesa completa. El costo del mes entre las que cumplen es el que se compara entre opciones; cómo se arma ese costo está en [TCO: API, nube o servidor propio](/costo-total/).
 
@@ -260,10 +260,10 @@ Elige el horario, mueve la disponibilidad y la duración de una caída típica, 
 
 Un SLA sin definición de «caído» es una pelea esperando a pasar. «El servidor está prendido» no le sirve a nadie: el servidor puede estar prendido y vLLM colgado. La definición útil se mide **desde donde está el abogado**. Para eso, al [[tablero|tablero]] de la lección [Observabilidad de GPUs e inferencia](/observabilidad/), que ya mide el TTFT p95, se le suma una **pregunta de prueba** (*synthetic check*): un programa pequeño que cada minuto manda la misma pregunta corta por el gateway, como si fuera un abogado, y anota si llegó la respuesta.
 
-- **Caído**: un minuto del horario en que la pregunta de prueba no recibe respuesta. Cuenta para la disponibilidad.
+- **Caído**: un minuto del horario en que la pregunta de prueba no recibe respuesta. Cuenta para la disponibilidad. Cómo se arma esa pregunta, con sus alertas, está en [el caso del despacho](/casos/despacho/).
 - **Degradado**: el servicio contesta, pero el TTFT p95 de los últimos 10 minutos pasa el umbral acordado. No cuenta como caído; tiene su propia severidad y su tiempo de respuesta.
 
-El umbral de «degradado» **no puede ser 2 s con la opción A**, porque la cuenta dice que las L40S no lo cumplen ni en un día normal. Se fija con lo que el piloto midió: si el p95 medido en la hora pico fue de 3.4 s, el umbral razonable es algo arriba de eso. Si el despacho exige 2 s, la respuesta honesta es la opción C, no un SLA que sabes que vas a romper.
+El umbral de «degradado» **no puede ser 2 s con la opción A**, porque la cuenta dice que las L40S no lo cumplen ni en un día normal. Se fija con lo que el piloto midió: si el p95 medido en la hora pico fue de 3.4 s, el umbral razonable es algo arriba de eso. Si el despacho exige 2 s, la respuesta honesta es la opción D, no un SLA que sabes que vas a romper.
 
 ## Qué se puede prometer con un solo servidor {What one server can honestly promise}
 
@@ -304,7 +304,7 @@ Qué queda cuando falla una tarjeta, en lugares (conversaciones a ≥ 20 tokens/
 
 - **Opción A, 3 L40S sin repuesto.** Quedan 2 [[replica|réplicas]], 4 lugares contra 5.7: en la hora pico el servicio se **degrada** (fila, TTFT que se dispara), aunque no se cae. En una hora normal alcanza: con 4 lugares y respuestas de ≈ 27 s caben, por la [[ley-de-little|ley de Little]], 4 ÷ 27 × 3,600 ≈ 533 preguntas por hora, 1.8 veces el promedio de 300 (la hora pico trae 750). Se aguanta días, no semanas.
 - **Opción B, 4 L40S.** Quedan 3 réplicas, 6 lugares ≥ 5.7: el abogado no se entera. Es el [[n-mas-1|N+1]] de la ficha y cuesta **US$8,910** más (US$76,101.30 − 67,191.30).
-- **Opción C, 2 Server Edition.** Queda una con ≈ 6 lugares: alcanza, sin [[holgura]], con toda la fila de prefill en una GPU. No está simulado; se mide en el piloto apagando una.
+- **Opción D, 2 Server Edition.** Queda una con ≈ 6 lugares: alcanza, sin [[holgura]], con toda la fila de prefill en una GPU. No está simulado; se mide en el piloto apagando una.
 
 Y hay fallas que ninguna opción cubre: la tarjeta madre, el disco del sistema. **Un servidor es un solo punto de falla.** Por eso el SLA de un servidor único **excluye** la falla de hardware mientras el fabricante repone la pieza: lo que prometes es diagnosticar a tiempo y mover el reemplazo.
 
@@ -605,7 +605,7 @@ Con el precio de la hora de arriba: 24 × $1,747 ≈ **$41,938 al mes ≈ US$2,1
 
 **El despacho.** La propuesta sale con tres opciones de hardware y un solo criterio: el de los abogados. El piloto cuesta ≈ US$27,600 + IVA en tres pagos; la iguala, ≈ US$2,165 al mes, con un SLA de 99 % en horario hábil (132 minutos al mes), severidad 1 en 2 horas y créditos de 10 a 25 %. El servidor lo compra el despacho directo al integrador; si se importa, el importador es el despacho, con su agente aduanal, y cuesta ≈ 7 % más que el precio de lista, sin contar el IVA que se acredita.
 
-**Una clínica que pide 24 × 7.** Los médicos de guardia también preguntan de noche. Prometerlo de verdad es otra cosa: con la reforma laboral publicada el 1 de mayo de 2026, la jornada máxima baja de 48 horas a la semana en 2026 a 40 en 2030, un año a la vez, y las horas extra se pagan al doble (art. 66) o al triple pasado cierto límite (art. 68). Cubrir 168 horas a la semana con una persona despierta, a 46 horas en 2027, son 168 ÷ 46 ≈ 3.65 personas, y con vacaciones e incapacidades (supuesto) ≈ 4.1. Encima, el hardware: con un 99.9 % en 24 × 7 hay 43.2 minutos al mes, que un reemplazo de tarjeta por mensajería rompe si no hay N+1. Y los expedientes clínicos tienen normas propias: eso, con su abogado sanitario.
+**Una clínica que pide 24 × 7.** Los médicos de guardia también preguntan de noche. Prometerlo de verdad es otra cosa: con la reforma laboral publicada el 1 de mayo de 2026, la jornada máxima baja de 48 horas a la semana en 2026 a 40 en 2030, un año a la vez, y las horas extra se pagan al doble (art. 66) o al triple pasado cierto límite (art. 68). Cubrir 168 horas a la semana con una persona despierta, a 46 horas en 2027, son 168 ÷ 46 ≈ 3.65 personas, y con vacaciones e incapacidades (supuesto) ≈ 4.1. Encima, el hardware: con un 99.9 % en 24 × 7 hay 43.2 minutos al mes, que un reemplazo de tarjeta por mensajería rompe si no hay N+1. Y los expedientes clínicos tienen normas propias: eso, con su abogado sanitario. [La clínica](/casos/clinica/) propone una guardia en espera en vez de 4.1 personas.
 
 **Una dependencia de gobierno.** Compra por licitación, con la Ley de Adquisiciones nueva (publicada el 16 de abril de 2025). Lo que cambia la propuesta: los plazos para presentar proposiciones son de al menos 15 días naturales en una licitación nacional y 20 en una internacional (art. 42); la dependencia acepta lo entregado en hasta 10 días hábiles (art. 72) y paga en **hasta 17 días hábiles** desde que la factura se envía y se verifica en su plataforma (art. 73), y si se atrasa, el proveedor puede pedir gastos financieros. Mucha gente dice «el gobierno paga a 60–90 días»; la ley no dice eso, aunque en la práctica puede tardar más por el trámite. Los anticipos se pactan en el contrato y no pasan de 50 % del monto. Y el proveedor tiene que estar al corriente de sus impuestos para participar.
 
@@ -634,8 +634,9 @@ Es un **cambio de alcance** (está en el «no incluye»): por hora con tope, apa
 
 ## Lo que sigue {What comes next} [extra]
 
+- **Los tres casos:** [el despacho](/casos/despacho/) decide el hardware y arma la pregunta de prueba del SLA, [la clínica](/casos/clinica/) lleva todo a datos de salud y [la fábrica](/casos/fabrica/) a una planta sin internet; cada uno termina en una propuesta.
 - **[TCO: API, nube o servidor propio](/costo-total/)** suma lo que esta lección cotiza (piloto, iguala, importación) con la depreciación y la luz, y dice cuánto cuesta cada pregunta en cada opción.
-- **[Observabilidad de GPUs e inferencia](/observabilidad/)** construye el [[tablero|tablero]] de donde sale el SLA: el TTFT p95 y las [[alerta|alertas]], al que se le suma la pregunta de prueba de cada minuto.
+- **[Observabilidad de GPUs e inferencia](/observabilidad/)** construye el [[tablero|tablero]] de donde sale el SLA: el TTFT p95 y las [[alerta|alertas]], al que se le suma la pregunta de prueba de cada minuto (su diseño completo, con el panel y las alertas que se agregan, está en [el caso del despacho](/casos/despacho/)).
 - **[Seguridad: aislamiento, sin internet y actualizaciones](/seguridad/)** es la mitad técnica del contrato: las medidas que promete el encargado y la ventana de acceso para soporte.
 - De esta app: [El recorrido](/recorrido/) tiene el calendario del piloto; [Comprar hardware](/comprar-hardware/), la cadena de vendedores y las preguntas de garantía; [Demostrar que el modelo abierto sirve](/evals/) y [Pruebas de carga](/pruebas-carga/), los criterios de aceptación.
 - En Sensei: [Datos personales y la ley](https://sensei.trueml.app/privacidad/), [Qué es la nube](https://sensei.trueml.app/nube/) y [Regiones, zonas y disponibilidad](https://sensei.trueml.app/regiones/).

@@ -701,6 +701,8 @@ a.tl:hover { box-shadow: 0 0 0 2px var(--accent); }
 @media (max-width: 767px) { .home-secs { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .card--herr { box-shadow: inset 4px 0 0 var(--b); }
 .card--herr .lbl { color: var(--accent-ink); }
+.card--caso { box-shadow: inset 4px 0 0 var(--g); }
+.card--caso .lbl { color: var(--accent-ink); }
 .mod__sensei { margin: 0; font: 13px/1.55 var(--sans); color: var(--ink-2); }
 .mod__sensei .lbl { display: block; margin-bottom: 2px; }
 .tl small { display: block; font: 500 12.5px/1.4 var(--sans); color: var(--muted); margin-top: 2px; }
@@ -764,3 +766,11 @@ a.tl:hover { box-shadow: 0 0 0 2px var(--accent); }
   .cat-tabla tbody th { min-width: 128px; max-width: 150px; }
   .cat-scroll { margin-left: 10px; margin-right: 10px; }
 }
+
+/* :::intenta — el «inténtalo antes de ver la solución» de los casos */
+.c-intenta { margin: 22px 0; border-radius: 18px; background: var(--blk); box-shadow: inset 4px 0 0 var(--g); padding: 16px 20px; display: flex; flex-direction: column; gap: 8px; }
+.c-intenta > h4 { margin: 0; font: 800 17px/1.3 var(--sans); color: var(--ink); }
+.c-intenta-q > :first-child { margin-top: 0; }
+.c-intenta-sol > summary { margin-left: 0; }
+.c-intenta-sol[open] > summary { margin-bottom: 10px; }
+.cx-url { margin: 0 0 12px; padding: 10px 14px; border-radius: 12px; background: var(--blk); box-shadow: inset 3px 0 0 var(--g); font: 600 14px/1.4 var(--sans); color: var(--ink); }

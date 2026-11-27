@@ -1,0 +1,55 @@
+{
+  "titulo": "Cuarto propio o colocation, al mes",
+  "intro": "Compara lo que el cuarto le agrega al mes al despacho, \\(C_{cuarto} = L + (O + U × t) ÷ V\\), con lo que costaría un rack en [[colocation]], \\(C_{colo} = k × p_{kW} × t + E + C_{enl} + I ÷ V + n_v × h_v × c_h\\). Arranca con los números de la ficha y con la **cota baja** de colocation: la tarifa mayorista de Querétaro (CBRE, 1T 2026), que un cliente de 2.5 kW no consigue. En la Ciudad de México ningún operador publica precio: cambia los valores por los de tu cotización.",
+  "entradas": [
+    { "id": "L", "label": "Luz del servidor en el cuarto, \\(L\\), en pesos al mes (la ficha: GDBT, PUE 2.0, antes de IVA)", "min": 0, "max": 100000, "paso": 1, "valor": 4825, "tipo": "numero" },
+    { "id": "O", "label": "Obra y aire del cuarto, \\(O\\), en pesos (2 circuitos + 2 minisplits, supuesto de la ficha)", "min": 0, "max": 2000000, "paso": 1000, "valor": 130000, "tipo": "numero" },
+    { "id": "U", "label": "UPS, \\(U\\), en US$ (6 kVA de doble conversión, supuesto de la ficha)", "min": 0, "max": 100000, "paso": 100, "valor": 9000, "tipo": "numero" },
+    { "id": "V", "label": "Meses en que se reparte lo que se paga una vez, \\(V\\)", "min": 12, "max": 72, "paso": 6, "valor": 36, "unidad": "meses" },
+    { "id": "t", "label": "Tipo de cambio, \\(t\\), en pesos por dólar (el FIX del 2026-11-26)", "min": 10, "max": 40, "paso": 0.0001, "valor": 19.7203, "tipo": "numero" },
+    { "id": "k", "label": "**kW contratados** en el rack, \\(k\\) (el pico del servidor: 2.5 con 4 L40S, ≈ 2.3 con 2 Server Edition)", "min": 0.5, "max": 20, "paso": 0.1, "valor": 2.5 },
+    { "id": "pk", "label": "**Precio por kW al mes**, \\(p_{kW}\\), en US$ (250–270 mayorista en Querétaro, bloques de 250–500 kW; el minorista paga más)", "min": 0, "max": 2000, "paso": 1, "valor": 250, "tipo": "numero" },
+    { "id": "inc", "label": "¿La energía va incluida en el precio por kW?", "tipo": "opcion", "valor": 1, "opciones": [
+      { "valor": 1, "label": "Sí, incluida (lo normal en la tarifa por kW)" },
+      { "valor": 0, "label": "No, se cobra aparte por kWh («pass-through»)" }
+    ] },
+    { "id": "Es", "label": "Energía del servidor solo, en kWh al mes (la ficha: 784)", "min": 0, "max": 20000, "paso": 1, "valor": 784, "tipo": "numero" },
+    { "id": "pue", "label": "PUE del centro de datos, si la energía va aparte (1.56 promedio; supuesto)", "min": 1, "max": 3, "paso": 0.01, "valor": 1.56 },
+    { "id": "pe", "label": "Precio del kWh, si va aparte, en pesos (3.565 = PDBT; supuesto de «El cuarto»)", "min": 0, "max": 20, "paso": 0.001, "valor": 3.565, "tipo": "numero" },
+    { "id": "Ce", "label": "**Enlace** de la oficina al sitio, \\(C_{enl}\\), en pesos al mes (dedicado de 100 Mb/s: ≈ 15,000–30,000 según un blog; VPN sobre internet de negocio: ≈ 450)", "min": 0, "max": 200000, "paso": 1, "valor": 15000, "tipo": "numero" },
+    { "id": "I", "label": "Instalación del enlace, \\(I\\), en pesos, una vez (≈ 5,000–20,000 según el mismo blog)", "min": 0, "max": 200000, "paso": 1, "valor": 10000, "tipo": "numero" },
+    { "id": "nv", "label": "Visitas al sitio al mes, \\(n_v\\) (supuesto)", "min": 0, "max": 10, "paso": 0.5, "valor": 1 },
+    { "id": "hv", "label": "Horas de TI por visita, \\(h_v\\), con el traslado (supuesto)", "min": 0, "max": 16, "paso": 0.5, "valor": 3 },
+    { "id": "ch", "label": "Costo de una hora de TI, \\(c_h\\), en pesos (la ficha: 218.1)", "min": 0, "max": 5000, "paso": 0.1, "valor": 218.1, "tipo": "numero" }
+  ],
+  "calculos": [
+    { "id": "cuarto", "formula": "L + (O + U * t) / V" },
+    { "id": "renta", "formula": "k * pk * t" },
+    { "id": "ener", "formula": "inc == 1 ? 0 : Es * pue * pe" },
+    { "id": "inst", "formula": "I / V" },
+    { "id": "vis", "formula": "nv * hv * ch" },
+    { "id": "colo", "formula": "renta + ener + Ce + inst + vis" },
+    { "id": "otros", "formula": "ener + Ce + inst + vis" }
+  ],
+  "salidas": [
+    { "label": "1 · Cuarto propio al mes, \\(C_{cuarto}\\) (MXN)", "formula": "cuarto", "formato": "int", "barra": true,
+      "nota": "la luz más la obra y el UPS repartidos; el servidor es el mismo en los dos lados y no entra",
+      "cuenta": "{{L|int}} + ({{O|int}} + {{U|int}} × {{t|corto}}) ÷ {{V|int}} = {{L|int}} + {{(O + U * t) / V|int}} = **{{cuarto|int}} pesos**" },
+    { "label": "2 · Renta del rack por kW (MXN)", "formula": "renta", "formato": "int",
+      "cuenta": "{{k|corto}} kW × US${{pk|int}} × {{t|corto}} = **{{renta|int}} pesos**" },
+    { "label": "3 · Colocation al mes, \\(C_{colo}\\) (MXN)", "formula": "colo", "formato": "int", "barra": true,
+      "nota": "la renta, la energía si va aparte, el enlace, su instalación repartida y las visitas",
+      "cuenta": "{{renta|int}} + {{ener|int}} de energía + {{Ce|int}} de enlace + {{inst|int}} de instalación + {{vis|int}} de visitas = **{{colo|int}} pesos**" },
+    { "label": "Diferencia: colocation − cuarto (MXN al mes)", "formula": "colo - cuarto", "formato": "int",
+      "nota": "positiva: el cuarto propio sale más barato" },
+    { "label": "¿El cuarto propio sale más barato?", "formula": "colo - cuarto",
+      "veredicto": { "si": "Sí", "no": "No" },
+      "cuenta": "colocation {{colo|int}} − cuarto {{cuarto|int}} = {{colo - cuarto|int}} pesos al mes" },
+    { "label": "Precio por kW en que empatan, \\(p^{*}_{kW}\\) (US$)", "sin_valor": "Nunca: lo demás ya cuesta más que el cuarto", "formula": "cuarto - otros > 0 ? (cuarto - otros) / (k * t) : 1 / 0", "formato": "int",
+      "nota": "\\(p^{*}_{kW} = (C_{cuarto} − E − C_{enl} − I ÷ V − visitas) ÷ (k × t)\\): una cotización más barata que esto le gana al cuarto",
+      "cuenta": "({{cuarto|int}} − {{otros|int}}) ÷ ({{k|corto}} × {{t|corto}}) = **US${{cuarto - otros > 0 ? (cuarto - otros) / (k * t) : 1 / 0|int}} por kW**" },
+    { "label": "En dólares: cuarto · colocation", "formula": "cuarto / t", "formato": "int",
+      "cuenta": "cuarto **US${{cuarto / t|int}}** · colocation **US${{colo / t|int}}** al mes" }
+  ],
+  "nota": "Prueba: baja el enlace a 450 pesos (una VPN sobre el internet de negocio de la oficina) y mira cómo los dos casi empatan a la tarifa mayorista; sube el precio por kW a 400 y el cuarto vuelve a ganar. Lo que esta cuenta no trae decide más que el dinero: si el edificio deja hacer la obra, quién responde un domingo y si los contratos con los clientes permiten que los expedientes salgan de la oficina."
+}

@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 494" role="img" aria-labelledby="f-caso-clinica-cola-t" class="f-svg" style="max-width:420px">
+<title id="f-caso-clinica-cola-t">El tiempo al primer token de un resumen en el pico de las 8:00, en segundos, con Qwen3.8 27B. Dos RTX PRO 6000 Server Edition en FP8: 1.39 s con un expediente típico de 12,000 tokens sin fila, 3.69 s con uno largo de 30,000 y 3.7 s en el p95 con la fila. Con una sola Server Edition, porque la otra falló: 1.39, 3.69 y 4.3. Tres L40S en INT4 de AWQ: 3.84, 10.19 y 10.3. Cuatro L40S: 3.84, 10.19 y 10.2. Una línea punteada marca el objetivo de 8 segundos en el p95: las L40S se pasan con cualquier número de tarjetas porque el expediente largo tarda 10 segundos en leerse aunque no haya fila. Herramienta de velocidad y simulación del caso.</title>
+<text class="f-l" x="14" y="24">TTFT DE UN RESUMEN A LAS 8:00, EN SEGUNDOS</text>
+<text class="f-t" x="14" y="54" style="font-size:14px">2 × Server Edition, FP8</text>
+<text class="f-s" x="14" y="74" style="font-size:12px">12,000 sin fila</text>
+<rect class="f-off" x="124" y="62" width="22.2" height="15" rx="3"/>
+<text class="f-s" x="151.2" y="74" style="font-size:12px">1.39</text>
+<text class="f-s" x="14" y="94" style="font-size:12px">30,000 sin fila</text>
+<rect class="f-y" x="124" y="82" width="59.0" height="15" rx="3"/>
+<text class="f-s" x="188.0" y="94" style="font-size:12px">3.69</text>
+<text class="f-s" x="14" y="114" style="font-size:12px">p95 con fila</text>
+<rect class="f-g" x="124" y="102" width="59.2" height="15" rx="3"/>
+<text class="f-s" x="188.2" y="114" style="font-size:12px">3.7</text>
+<text class="f-t" x="14" y="148" style="font-size:14px">1 Server Edition (falló la otra)</text>
+<text class="f-s" x="14" y="168" style="font-size:12px">12,000 sin fila</text>
+<rect class="f-off" x="124" y="156" width="22.2" height="15" rx="3"/>
+<text class="f-s" x="151.2" y="168" style="font-size:12px">1.39</text>
+<text class="f-s" x="14" y="188" style="font-size:12px">30,000 sin fila</text>
+<rect class="f-y" x="124" y="176" width="59.0" height="15" rx="3"/>
+<text class="f-s" x="188.0" y="188" style="font-size:12px">3.69</text>
+<text class="f-s" x="14" y="208" style="font-size:12px">p95 con fila</text>
+<rect class="f-g" x="124" y="196" width="68.8" height="15" rx="3"/>
+<text class="f-s" x="197.8" y="208" style="font-size:12px">4.3</text>
+<text class="f-t" x="14" y="242" style="font-size:14px">3 × L40S, INT4 de AWQ</text>
+<text class="f-s" x="14" y="262" style="font-size:12px">12,000 sin fila</text>
+<rect class="f-off" x="124" y="250" width="61.4" height="15" rx="3"/>
+<text class="f-s" x="190.4" y="262" style="font-size:12px">3.84</text>
+<text class="f-s" x="14" y="282" style="font-size:12px">30,000 sin fila</text>
+<rect class="f-y" x="124" y="270" width="163.0" height="15" rx="3"/>
+<text class="f-s" x="292.0" y="282" style="font-size:12px">10.19</text>
+<text class="f-s" x="14" y="302" style="font-size:12px">p95 con fila</text>
+<rect class="f-o" x="124" y="290" width="164.8" height="15" rx="3"/>
+<text class="f-s" x="293.8" y="302" style="font-size:12px">10.3</text>
+<text class="f-t" x="14" y="336" style="font-size:14px">4 × L40S, INT4 de AWQ</text>
+<text class="f-s" x="14" y="356" style="font-size:12px">12,000 sin fila</text>
+<rect class="f-off" x="124" y="344" width="61.4" height="15" rx="3"/>
+<text class="f-s" x="190.4" y="356" style="font-size:12px">3.84</text>
+<text class="f-s" x="14" y="376" style="font-size:12px">30,000 sin fila</text>
+<rect class="f-y" x="124" y="364" width="163.0" height="15" rx="3"/>
+<text class="f-s" x="292.0" y="376" style="font-size:12px">10.19</text>
+<text class="f-s" x="14" y="396" style="font-size:12px">p95 con fila</text>
+<rect class="f-o" x="124" y="384" width="163.2" height="15" rx="3"/>
+<text class="f-s" x="292.2" y="396" style="font-size:12px">10.2</text>
+<line x1="252.0" y1="44" x2="252.0" y2="418" style="stroke:var(--ink);stroke-width:1.5;stroke-dasharray:3 3"/>
+<text class="f-s" x="256.0" y="40" style="font-size:12px;font-weight:700">objetivo: 8 s</text>
+<line class="f-linea" x1="124" y1="418" x2="316.0" y2="418"/>
+<line class="f-linea" x1="124.0" y1="418" x2="124.0" y2="422"/>
+<text class="f-s" x="124.0" y="436" text-anchor="middle" style="font-size:12px">0</text>
+<line class="f-linea" x1="156.0" y1="418" x2="156.0" y2="422"/>
+<text class="f-s" x="156.0" y="436" text-anchor="middle" style="font-size:12px">2</text>
+<line class="f-linea" x1="188.0" y1="418" x2="188.0" y2="422"/>
+<text class="f-s" x="188.0" y="436" text-anchor="middle" style="font-size:12px">4</text>
+<line class="f-linea" x1="220.0" y1="418" x2="220.0" y2="422"/>
+<text class="f-s" x="220.0" y="436" text-anchor="middle" style="font-size:12px">6</text>
+<line class="f-linea" x1="252.0" y1="418" x2="252.0" y2="422"/>
+<text class="f-s" x="252.0" y="436" text-anchor="middle" style="font-size:12px">8</text>
+<line class="f-linea" x1="284.0" y1="418" x2="284.0" y2="422"/>
+<text class="f-s" x="284.0" y="436" text-anchor="middle" style="font-size:12px">10</text>
+<line class="f-linea" x1="316.0" y1="418" x2="316.0" y2="422"/>
+<text class="f-s" x="316.0" y="436" text-anchor="middle" style="font-size:12px">12</text>
+<text class="f-s" x="14" y="462" style="font-size:12.5px">Más L40S quitan fila, pero no hacen más</text>
+<text class="f-s" x="14" y="480" style="font-size:12.5px">rápida la lectura de un expediente largo.</text>
+</svg>

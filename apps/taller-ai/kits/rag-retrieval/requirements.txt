@@ -1,0 +1,6 @@
+# Versiones fijadas: así el kit corre igual en tu Mac hoy y dentro de seis meses.
+# onnxruntime corre el modelo de embeddings; tokenizers parte el texto en tokens; numpy guarda y compara los vectores.
+onnxruntime==1.32.0
+numpy==2.5.5
+tokenizers==0.23.3
+pyyaml==6.0.4

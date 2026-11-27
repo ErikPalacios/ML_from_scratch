@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 520" role="img" aria-labelledby="f-caso-fabrica-respuesta-t" class="f-svg" style="max-width:420px">
+<title id="f-caso-fabrica-respuesta-t">Tres respuestas del asistente en la tablet de un técnico, con valores de ejemplo. Arriba, la máquina elegida con el código QR de su placa: prensa 7, su modelo y su número de serie. Primera respuesta, un valor: el torque de los tornillos de una placa, con su unidad, la cita del manual en alemán y su página, y la imagen recortada de la tabla con el renglón marcado; al pie, «verifica en el manual antes de apretar». Segunda, un bloqueo: el asistente no escribe pasos; muestra la hoja de bloqueo de la planta para la prensa 7 con su página. Tercera, sin cita: «no lo encontré en los manuales de esta máquina; pregúntale al encargado de mantenimiento».</title>
+<rect class="f-card" x="10" y="10" width="340" height="500" rx="16"/>
+<rect class="f-dark" x="22" y="22" width="316" height="44" rx="8"/>
+<text class="f-dark-l" x="34" y="40">MÁQUINA · DEL QR DE LA PLACA</text>
+<text class="f-dark-t" x="34" y="58" style="font-size:13px">Prensa 7 · modelo y serie</text>
+<text class="f-l" x="22" y="90">1 · UN VALOR</text>
+<text class="f-s" x="22" y="110" style="font-size:12px">«¿Torque de los tornillos de la placa?»</text>
+<rect class="f-g" x="22" y="118" width="316" height="132" rx="10"/>
+<text class="f-t" x="34" y="142">86 N·m (valor de ejemplo)</text>
+<text class="f-s" x="34" y="162" style="font-size:12px">Manual del fabricante, en alemán, p. 142</text>
+<rect class="f-card" x="34" y="172" width="180" height="66" rx="4"/>
+<line class="f-linea" x1="34" y1="188" x2="214" y2="188"/>
+<line class="f-linea" x1="34" y1="204" x2="214" y2="204"/>
+<line class="f-linea" x1="34" y1="220" x2="214" y2="220"/>
+<line class="f-linea" x1="124" y1="172" x2="124" y2="238"/>
+<rect class="f-y" x="35" y="189" width="178" height="14"/>
+<text class="f-s" x="224" y="190" style="font-size:12px">el recorte de</text>
+<text class="f-s" x="224" y="206" style="font-size:12px">la tabla, con</text>
+<text class="f-s" x="224" y="222" style="font-size:12px">el renglón</text>
+<text class="f-s" x="224" y="238" style="font-size:12px">marcado</text>
+<text class="f-s" x="22" y="270" style="font-size:12px">Verifica en el manual antes de apretar.</text>
+<text class="f-l" x="22" y="300">2 · UN BLOQUEO</text>
+<text class="f-s" x="22" y="320" style="font-size:12px">«¿Cómo bloqueo la prensa 7?»</text>
+<rect class="f-b2" x="22" y="328" width="316" height="62" rx="10"/>
+<text class="f-s" x="34" y="350" style="font-weight:700">No escribe pasos: muestra la hoja</text>
+<text class="f-s" x="34" y="368" style="font-size:12px">Hoja de bloqueo de la planta, prensa 7, p. 1</text>
+<text class="f-s" x="34" y="384" style="font-size:12px">Tu candado y tu tarjeta; tú la retiras.</text>
+<text class="f-l" x="22" y="418">3 · SIN CITA</text>
+<text class="f-s" x="22" y="438" style="font-size:12px">«¿Qué grasa lleva el buje del cojín?»</text>
+<rect class="f-o" x="22" y="446" width="316" height="52" rx="10"/>
+<text class="f-s" x="34" y="468" style="font-weight:700">No lo encontré en los manuales</text>
+<text class="f-s" x="34" y="486" style="font-size:12px">de esta máquina. Pregúntale al encargado.</text>
+</svg>

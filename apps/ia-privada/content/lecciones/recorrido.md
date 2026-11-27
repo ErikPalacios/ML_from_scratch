@@ -502,11 +502,11 @@ Ya lo recorriste completo: 200 personas, 3,000 preguntas al día, ≈ 0.21 por s
 
 ### Una clínica
 
-Una clínica con, digamos, 60 médicos (números supuestos para el ejemplo) que quieren resumir el expediente de un paciente antes de la consulta: 20 resúmenes al día cada uno, en 8 horas, con un pico de 3 veces el promedio en la mañana, y 20 s por resumen. Servilleta: 1,200 al día, 150 por hora, 450 en el pico, 0.125 por segundo, × 20 s = **2.5 conversaciones a la vez**. El hardware es más chico que el del despacho, pero las restricciones son más duras: los datos de salud son datos sensibles, con reglas más estrictas, y un error en un resumen puede pesar en una decisión médica. Su criterio de aceptación tendría un límite de errores mucho más bajo, y siempre con el médico revisando. Lo que es legal en su caso lo revisa su abogado.
+[La clínica](/casos/clinica/) es un caso completo, con cuentas y decisiones. Aquí, la servilleta: una clínica con, digamos, 60 médicos (números supuestos para el ejemplo) que quieren resumir el expediente de un paciente antes de la consulta: 20 resúmenes al día cada uno, en 8 horas, con un pico de 3 veces el promedio en la mañana, y 20 s por resumen. Servilleta: 1,200 al día, 150 por hora, 450 en el pico, 0.125 por segundo, × 20 s = **2.5 conversaciones a la vez**. El hardware es más chico que el del despacho, pero las restricciones son más duras: los datos de salud son datos sensibles, con reglas más estrictas, y un error en un resumen puede pesar en una decisión médica. Su criterio de aceptación tendría un límite de errores mucho más bajo, y siempre con el médico revisando. Lo que es legal en su caso lo revisa su abogado.
 
 ### Una fábrica
 
-Una fábrica con un asistente sobre sus manuales técnicos, usado en la planta. Aquí el descubrimiento encuentra otras restricciones: el servidor quizá no puede tener internet (la red de la planta está aislada), los manuales vienen escaneados (hay que sacarles el texto antes de buscar en ellos) y los usuarios trabajan por turnos, así que no hay una sola hora pico sino tres. El volumen puede ser bajo, y entonces la pregunta honesta de la sección «Cuándo NO conviene» aparece: ¿vale la pena una GPU para un uso de unas pocas preguntas por hora? A veces sí, si la red aislada no deja otra opción; a veces conviene una máquina mucho más chica.
+[La fábrica](/casos/fabrica/) es un caso completo. Aquí, el descubrimiento: una fábrica con un asistente sobre sus manuales técnicos, usado en la planta. Aquí el descubrimiento encuentra otras restricciones: el servidor quizá no puede tener internet (la red de la planta está aislada), los manuales vienen escaneados (hay que sacarles el texto antes de buscar en ellos) y los usuarios trabajan por turnos, así que no hay una sola hora pico sino tres. El volumen puede ser bajo, y entonces la pregunta honesta de la sección «Cuándo NO conviene» aparece: ¿vale la pena una GPU para un uso de unas pocas preguntas por hora? A veces sí, si la red aislada no deja otra opción; a veces conviene una máquina mucho más chica.
 
 ### Fuera de la IA
 
@@ -546,7 +546,7 @@ Necesita números, la muestra con que se mide y la carga: «Con un examen de 200
 - Caben ⌊(43.2 − 19.32 − 2) ÷ 4.295⌋ = ⌊5.09⌋ = 5 conversaciones de ese tamaño. Opciones: acotar el contexto, una GPU más grande o dos. Es la puerta «no cabe: acotar».
 
 ? [medio] Una de las salidas de la vuelta a descubrimiento: pasar 3 fragmentos de expediente por pregunta en vez de 5. ¿Cuántos tokens de entrada quedan, cuánto tarda el [[prefill|prefill]] en la L40S con la fórmula de la sección «Sizing» y qué hay que medir antes de aceptarlo?
-- Tokens de entrada: ≈ 400 de instrucciones + ≈ 100 de la pregunta + 3 × 1,000 = **3,500**.
+- Tokens de entrada: ≈ 400 de instrucciones + ≈ 100 de la pregunta + 3 × 1,000 = **3,500** (≈ 4,000 si se redondea hacia arriba, como los 6,000 de la ficha; entonces el prefill sube a ≈ 1.45 s).
 - \(F\) = 2 × 32.76 × 10⁹ × 3,500 ≈ 2.29 × 10¹⁴ FLOPs.
 - \(t_{prefill}\) = 2.29 × 10¹⁴ ÷ (0.5 × 362 × 10¹²) ≈ **1.27 s**: queda debajo de los 2 s del objetivo, con la GPU libre.
 - Lo que hay que medir: si la calidad aguanta. Con menos fragmentos es más probable que la página correcta no llegue al modelo, y entonces no la puede citar. Se corre el examen de 200 preguntas con 3 fragmentos y se compara contra el criterio (≥ 85 %) antes de aceptar el cambio.

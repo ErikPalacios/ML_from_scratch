@@ -206,7 +206,13 @@
       "id": "compra",
       "dato": "Compra, decisión de la lección",
       "valor": "servidor de rack 2U o 4U, certificado por NVIDIA y armado por un integrador, con al menos 4 ranuras PCIe de doble ancho; cotizar dos configuraciones: 3 × L40S (US$67,191.30 en el configurador de Exxact, 2026-11-25, con la cuarta ranura libre) y 2 × RTX PRO 6000 Blackwell Server Edition; el piloto decide",
-      "nota": "Lección «Comprar hardware: de la workstation al rack». No cambia el hecho «sizing» (3 × L40S; 4 para las 8 de diseño): agrega una segunda cotización. Con la herramienta de sizing la Server Edition (1,597 GB/s, ≈ 500 TFLOPS en FP16 denso, derivado) da ≈ 6 conversaciones por tarjeta y TTFT ≈ 1.7 s, que cumple el objetivo de 2 s que la L40S no cumple; es una cuenta, no una medición con el modelo del despacho. La Server Edition no tiene precio de lista (el de US$16,399 en gpus.json es de la Workstation): se cotiza; tiendas de EE. UU. anuncian la tarjeta suelta en ≈ US$12–14 mil (fuente secundaria, 2026-11-26). Supuesto: la Server Edition a 600 W tiene las cifras de la Workstation (no verificado). Con 4 L40S el servidor sale en US$76,101.30."
+      "nota": "Lección «Comprar hardware: de la workstation al rack». No cambia el hecho «sizing» (3 × L40S; 4 para las 8 de diseño): agrega una segunda cotización. Con la herramienta de sizing la Server Edition (1,597 GB/s, ≈ 500 TFLOPS en FP16 denso, derivado) da ≈ 6 conversaciones por tarjeta y TTFT ≈ 1.7 s, que cumple el objetivo de 2 s que la L40S no cumple; es una cuenta, no una medición con el modelo del despacho. La Server Edition no tiene precio de lista (el de US$16,399 en gpus.json es de la Workstation): se cotiza; CDW la lista en US$17,158.99 y sin existencias (2026-11-26); un listado de Newegg en US$11,989 no se pudo confirmar; NVIDIA subió la Workstation a US$16,000 en agosto de 2026 (prensa, secundaria). Supuesto: la Server Edition a 600 W tiene las cifras de la Workstation (no verificado). Con 4 L40S el servidor sale en US$76,101.30."
+    },
+    {
+      "id": "decision_hardware",
+      "dato": "Decisión de hardware (caso del despacho)",
+      "valor": "D: 2 × RTX PRO 6000 Blackwell Server Edition en el Exxact 4U, si el piloto mide un prefill de 6,000 tokens ≤ ≈ 1.75 s (el límite: ≈ 2.00 s con red y búsqueda), en la Server Edition rentada en Google Cloud G4 o en la Workstation, y la cotización no pasa la de 4 L40S (US$76,101) con entrega en ≈ 3 meses; 3 L40S con 3 fragmentos si el examen los acepta; 4 L40S si la Server Edition no llega o sale más cara",
+      "nota": "Caso «Despacho de abogados». p95 simulado por turno: D 1.77 s (≈ 1.94 con red y búsqueda); A y B 2.38; C (1 Server Edition) 4.06 con cualquier reparto (una sola fila, ρ ≈ 36 %); al azar A 4.24, B 3.94, C 4.07, D 3.13. C con 3 fragmentos: p95 ≈ 1.8 s sin sumar nada, ≈ 2.2 s con reranker, red y búsqueda: no cumple. Lugares a ≥ 20 tokens/s: A 6, B 8, C 6, D 12. Compra: A 67,191.30, B 76,101.30, C ≈ 57,620, D ≈ 74,779 (Server Edition a US$17,158.99 de CDW, 2026-11-26, sin existencias; mismo chasis sin verificar). Al mes con la herramienta de TCO (PUE 2.0, luz US$0.16/kWh, UPS y obra US$433, TI US$575): A 2,753, B 3,000, C 2,478, D 2,943; por pregunta MXN 0.82, 0.90, 0.74, 0.88. Con 3,500 tokens: L40S 1.34 s y 4 por tarjeta (3 L40S = 12 lugares, N+1, ≈ 1.74 s con reranker de 232 ms, red y búsqueda); con el redondeo de los 6,000 (≈ 4,000 tokens) la L40S lee en 1.54 s y A queda en ≈ 1.94 s, en el filo. Las letras A–D son las del caso."
     },
     {
       "id": "cuarto_ti",
@@ -218,7 +224,7 @@
       "id": "servidor_potencia",
       "dato": "Potencia del servidor (Exxact 4U con 4 L40S)",
       "valor": "pico ≈ 2,500 W; en horas de oficina ≈ 1,640 W; en reposo ≈ 830 W",
-      "nota": "Estimaciones derivadas: Exxact no publica la potencia del servidor. Pico = 4 × 350 W de GPUs + 400 W de CPUs + 700 W del resto = 2,500 W (con 3 GPUs, 2,150 W). En uso: GPUs al 60 % del TDP + 800 W = 1,640 W; en reposo: GPUs al 20 % + 550 W = 830 W (supuestos). Factor de potencia supuesto de 0.95. El valor de 2,500 W también está en equipos.json como estimado."
+      "nota": "Estimaciones derivadas: Exxact no publica la potencia del servidor. Pico = 4 × 350 W de GPUs + 400 W de CPUs + 700 W del resto = 2,500 W (con 3 GPUs, 2,150 W). En uso: GPUs al 60 % del TDP + 800 W = 1,640 W; en reposo: GPUs al 20 % + 550 W = 830 W (supuestos). Factor de potencia supuesto de 0.95. El valor de 2,500 W también está en equipos.json como estimado. Con 2 Server Edition: 2 × 600 + 400 + 700 = 2,300 W de pico."
     },
     {
       "id": "tarifa",
@@ -239,10 +245,22 @@
       "nota": "Resultado de la lección «El cuarto: energía, enfriamiento y red»; supuesto del ejemplo. Si el edificio no deja hacer las obras, la alternativa es colocation."
     },
     {
+      "id": "colocation",
+      "dato": "Colocation (plan B)",
+      "valor": "No (plan B): el servidor va al cuarto propio. Sin precio público en la CDMX; el único dato primario es mayorista de Querétaro, US$250–270 por kW al mes en bloques de 250–500 kW (CBRE, 1T 2026). Con 2.5 kW a US$250 + enlace dedicado de $15,000 + instalación $10,000 ÷ 36 + una visita de 3 h al mes: ≈ $28,257 al mes contra ≈ $13,366 del cuarto (luz $4,825 + obra y UPS ÷ 36 = $8,541); con VPN de $450, ≈ $13,429. Si el edificio no deja: CDMX (KIO MEX1–3 Santa Fe, Triara Azcapotzalco o MTP Santa Fe), enlace dedicado, Tang en la oficina, el SLA dice de quién es el enlace",
+      "nota": "Fuentes del paquete del caso (PeeringDB, CBRE, HostDime, Telmex, blog de Red Fibra) con fecha 2026-11-26; Equinix «Mexico City» está en El Marqués, Querétaro. Latencia de 1–5 ms dentro de la zona metropolitana: estimación, no medida. Una visita al mes de 3 h de TI y $10,000 de instalación son supuestos del caso (punto medio del rango del blog)."
+    },
+    {
+      "id": "enlace",
+      "dato": "Enlace dedicado (plan B)",
+      "valor": "Telmex Internet Directo Empresarial: simétrico, 99.5 %, 36 meses mínimo, sin precio público; un solo blog (2026-10-05) da $15,000–30,000 al mes por 100 Mb/s con Telmex y desde $5,900 por 200 Mb/s con otro operador; instalación $5,000–20,000. Tráfico real ≈ 0.05 Mb/s en la hora pico",
+      "nota": "Fuente secundaria única (un blog); se cotiza con dos operadores. Solo importa si el servidor se va a colocation."
+    },
+    {
       "id": "ttft_p95_con_cola",
       "dato": "Tiempo al primer token con cola, p95 en la hora pico",
       "valor": "3 L40S: ≈ 4.2 s repartiendo al azar, ≈ 3.3 s contando peticiones abiertas (least-busy), 2.38 s (el prefill solo) por turno o viendo la fila. 2 RTX PRO 6000 Server Edition: ≈ 3.1 s, ≈ 2.7 s y 1.77 s",
-      "nota": "Simulación de la lección «De requisitos a hardware»: llegadas de Poisson a 0.208/s, una fila de prefill por GPU, servicio fijo igual al prefill de la herramienta de sizing, decode sin frenar al prefill; sin red ni búsqueda. La cota pesimista (espera M/M/1 + prefill) da 5.8 s y 4.4 s. El 2.38 s de «prefill» es sin fila. El piloto mide el real. La lección «RAG privado» agrega que, con 3 fragmentos más el reranker (en vez de 5), y un reparto por turno o viendo la fila, la simulación daría ≈ 1.85–1.99 s (en la raya de 2 s), y con el reparto al azar nadie cumple. Lo reemplaza el p95 medido en la prueba abierta a 0.21/s del piloto, con su intervalo y su fecha (lección «Pruebas de carga y benchmarks honestos»)."
+      "nota": "Simulación de la lección «De requisitos a hardware»: llegadas de Poisson a 0.208/s, una fila de prefill por GPU, servicio fijo igual al prefill de la herramienta de sizing, decode sin frenar al prefill; sin red ni búsqueda. La cota pesimista (espera M/M/1 + prefill) da 5.8 s y 4.4 s. El 2.38 s de «prefill» es sin fila. El piloto mide el real. La lección «RAG privado» agrega que, con 3 fragmentos más el reranker (en vez de 5), y un reparto por turno o viendo la fila, la simulación daría ≈ 1.85–1.99 s (en la raya de 2 s), y con el reparto al azar nadie cumple. Los 3 fragmentos de esa cuenta son ≈ 4,000 tokens; con ≈ 3,500 tokens, 3 L40S dan ≈ 1.74 s con reranker, red y búsqueda (caso del despacho). Lo reemplaza el p95 medido en la prueba abierta a 0.21/s del piloto, con su intervalo y su fecha (lección «Pruebas de carga y benchmarks honestos»)."
     },
     {
       "id": "presupuesto_latencia",
@@ -261,7 +279,7 @@
       "id": "n_mas_1",
       "dato": "Repuesto (N+1)",
       "valor": "4 L40S; con la alternativa, 2 RTX PRO 6000 Server Edition",
-      "nota": "Con 4 L40S, si una falla, las 3 que quedan dan 3 × 2 = 6 ≥ 5.7. Con 2 Server Edition, una sola atiende el promedio (≈ 6 conversaciones por tarjeta). Con 2 Server Edition, una sola atiende el promedio y no el pico: es N+1 del promedio (≈ 6 lugares contra ≈ 5.7), «en el filo», con toda la fila de prefill en una GPU; su TTFT con una sola tarjeta no se ha medido."
+      "nota": "Con 4 L40S, si una falla, las 3 que quedan dan 3 × 2 = 6 ≥ 5.7. Con 2 Server Edition, una sola atiende el promedio (≈ 6 conversaciones por tarjeta). Con 2 Server Edition, una sola atiende el promedio y no el pico: es N+1 del promedio (≈ 6 lugares contra ≈ 5.7), «en el filo», con toda la fila de prefill en una GPU; su TTFT con una sola tarjeta no se ha medido. Con 2 Server Edition y una caída, el p95 simulado es ≈ 4.1 s (una sola fila, el mismo de 1 Server Edition)."
     },
     {
       "id": "paralelismo",
@@ -437,7 +455,7 @@
       "id": "plan_prueba_carga",
       "dato": "Plan de la prueba de carga",
       "valor": "en la L40S del piloto se mide una copia a 0.07/s (0.21 ÷ 3); la prueba de la promesa va en una máquina rentada de 4 L40S solo los días de la prueba (g6e.12xlarge de AWS, US$10.49 por hora en us-east-1, ≈ US$500 por 48 h), contra el gateway (LiteLLM, chat-grande) con una clave de pruebas de cuota propia y el generador en otra máquina; vLLM 0.34.0 con los flags de producción. Dataset: ≥ 1,000 prompts sintéticos de ≈ 6,000 tokens (± 30 %) con las mismas ≈ 400 tokens de instrucciones al inicio y 5 fragmentos distintos, tope de salida de 500. Pruebas: calentamiento de 20; abierta de Poisson a 0.21/s con 1,000 peticiones (≈ 79 min) × 3 repeticiones, sin tope en el cliente; rampa de 0.10 a 0.42/s (escalones 0.10, 0.21, 0.31, 0.42); cerrada de 8 conversaciones (≈ 0.30/s por Little), con 3 y con 4 copias; resistencia de una jornada (8–10 h); opcional, el reparto al azar contra el de menos peticiones abiertas",
-      "nota": "Lección «Pruebas de carga y benchmarks honestos». Con 1,000 peticiones el p95 verdadero cae entre el p93.6 y el p96.4 de lo medido. La Server Edition no tiene precio de renta en gpus.json (nube vacío): hay que cotizarlo para la comparación."
+      "nota": "Lección «Pruebas de carga y benchmarks honestos». Con 1,000 peticiones el p95 verdadero cae entre el p93.6 y el p96.4 de lo medido. Google Cloud renta la Server Edition (g4-standard-48, 1 tarjeta, ≈ US$4.50/h en us-central1, 2026-11-27; ≈ US$216 por 48 h); hay máquinas G4 de 2 tarjetas para medir D directo. La renta está en gpus.json."
     },
     {
       "id": "criterio_velocidad",
@@ -454,14 +472,20 @@
     {
       "id": "tablero",
       "dato": "Tablero",
-      "valor": "8 paneles: 1) preguntas por minuto y errores (pico ≈ 12.5 por minuto = 750 ÷ 60); 2) TTFT p95 con línea en 2 s; 3) latencia entre tokens p95 con línea en 50 ms; 4) conversaciones en curso por réplica con líneas en 2 y 8, y la fila; 5) KV cache y preemptions; 6) la GPU por tarjeta (potencia, temperatura, reloj, DRAM activa y SM activo); 7) la búsqueda (Qdrant y reranker, línea en 150 ms); 8) réplicas vivas y disco",
+      "valor": "9 paneles: 1) preguntas por minuto y errores (pico ≈ 12.5 por minuto = 750 ÷ 60); 2) TTFT p95 con línea en 2 s; 3) latencia entre tokens p95 con línea en 50 ms; 4) conversaciones en curso por réplica con líneas en 2 y 8, y la fila; 5) KV cache y preemptions; 6) la GPU por tarjeta (potencia, temperatura, reloj, DRAM activa y SM activo); 7) la búsqueda (Qdrant y reranker, línea en 150 ms); 8) réplicas vivas y disco; 9) la pregunta de prueba (minutos caídos del mes contra 132, disponibilidad del mes, última respuesta y su duración), arriba junto a los paneles 1 a 3",
       "nota": "Orden de la pregunta «¿está bien?»: arriba lo que siente el abogado, en medio lo que hace el motor, abajo lo que lo explica. El TI lo mira cada mañana; la línea del panel 2 es el objetivo firmado, no «2 s» de memoria."
     },
     {
       "id": "alertas",
       "dato": "Alertas",
-      "valor": "6 (nivel «ahora» o «mañana»): 1) TTFT p95 de 10 min arriba del objetivo firmado y ≥ 0.05 preguntas/s, for 10 min con keep_firing_for 10 min, mañana; 2) sum(vllm:num_requests_waiting) > 0, 2 min, ahora; 3) preemptions en 10 min > 0 o KV cache > 0.9, 5 min, mañana; 4) sum(up{job=\"vllm-chat\"}) < 3 (< 4 con la cuarta L40S), 2 min, ahora; 5) margen de temperatura bajando, throttling por calor o XID nuevo, 5 min (el XID sin espera), ahora y también de noche; 6) disco con menos de 20 % libre, 15 min, mañana",
-      "nota": "Cada una con su runbook de tres líneas en la lección. Con L40S la 1 estaría prendida en cada hora pico (el prefill solo es 2.38 s): el umbral es el objetivo que el piloto firme, y con Server Edition es 2 s. Propuesta del fondo que la lección no trae: un correo diario de «sigo vivo» (una alerta siempre prendida) para saber que Prometheus o Alertmanager no se cayeron. Para el SLA de «Cotizar», «caído» se mide con una pregunta de prueba por el gateway cada minuto, que se suma a este tablero; no está entre los 8 paneles."
+      "valor": "8 (nivel «ahora» o «mañana»): 1) TTFT p95 de 10 min arriba del objetivo firmado y ≥ 0.05 preguntas/s, for 10 min con keep_firing_for 10 min, mañana; 2) sum(vllm:num_requests_waiting) > 0, 2 min, ahora; 3) preemptions en 10 min > 0 o KV cache > 0.9, 5 min, mañana; 4) sum(up{job=\"vllm-chat\"}) < 3 (< 4 con la cuarta L40S; < 2 con 2 Server Edition), 2 min, ahora; 5) margen de temperatura bajando, throttling por calor o XID nuevo, 5 min (el XID sin espera), ahora y también de noche; 6) disco con menos de 20 % libre, 15 min, mañana; 7) SondaPreguntaCaida: avg_over_time(probe_success{job=\"sonda-despacho\"}[5m]) < 0.8 dentro del horario hábil (UTC−6, lunes a viernes 9–19), for 1m, ahora; 8) SondaSinDatos: absent_over_time(probe_success{job=\"sonda-despacho\"}[3m]), ahora",
+      "nota": "Cada una con su runbook de tres líneas en la lección. Con L40S la 1 estaría prendida en cada hora pico (el prefill solo es 2.38 s): el umbral es el objetivo que el piloto firme, y con Server Edition es 2 s. Propuesta del fondo que la lección no trae: un correo diario de «sigo vivo» (una alerta siempre prendida) para saber que Prometheus o Alertmanager no se cayeron. Para el SLA de «Cotizar», «caído» se mide con la pregunta de prueba (hecho «sonda»): su panel es el 9 y sus alertas, la 7 y la 8."
+    },
+    {
+      "id": "sonda",
+      "dato": "Pregunta de prueba del SLA (sonda)",
+      "valor": "blackbox_exporter 0.29.1 (2026-10-21) en la zona de gestión; módulo http POST cada 60 s (scrape_timeout 15 s, timeout 10 s) al servicio que arma las preguntas, con \"model\":\"chat-grande\", stream:false, max_tokens 32, temperatura 0, llave propia de LiteLLM con cuota mínima; pregunta por el documento sintético PRUEBA-0001 (ACL «sonda»); pasa si 200 y la respuesta trae GIRASOL-7 y PRUEBA-0001. ≈ 1,500 tokens por sonda (supuesto), ≈ 0.97 s en la Server Edition, ≈ 2 % de los tokens de entrada de la hora pico; con su propia llave se filtra del registro (si no, ≈ 130 mil filas más en 90 días)",
+      "nota": "Diseño del caso, no ejecutado: la sintaxis del YAML y de las reglas sigue la documentación (blackbox 0.29.1, Prometheus 3.16.0) y falta correr promtool check rules y una prueba con probe_success forzado a 0. El destino (busqueda.despacho.interno) es un ejemplo: depende de cómo se arme el RAG. No mide el TTFT: eso sale del histograma de vLLM. El Pushgateway no sirve: según su documentación es para trabajos por lotes que terminan, y si el script muere deja probe_success en 1."
     },
     {
       "id": "disco_prometheus",
@@ -535,7 +559,7 @@
       "id": "costo_total",
       "dato": "Costo total (3 años)",
       "valor": "propio con 3 L40S ≈ US$2,746 al mes (≈ MXN 54,153) sin lo de decidir; TCO de 36 meses ≈ US$117,161 (≈ MXN 2.31 M) con US$18,302 de decidir (examen ≈ 16,700 + piloto ≈ 1,099 + prueba de carga ≈ 504); con 4 L40S ≈ US$2,944 al mes y US$124,289 (≈ MXN 2.45 M)",
-      "nota": "Tipo de cambio de 19.7203 pesos por dólar (el FIX del 2026-11-26). Supuestos: depreciación lineal de 36 meses con 20 % de reventa, UPS de US$9,000 (precios vistos de 8,428 a 9,684, secundaria), obra y aire de MXN 130,000 (2 circuitos ≈ 60,000 + 2 minisplits ≈ 70,000), luz de «El cuarto» con PUE 2.0, 52 h de TI al mes. La compra es el precio de Exxact en EE. UU., sin impuestos, flete ni importación (los cuenta «Cotizar»). La Server Edition (2 tarjetas) sería ≈ US$2,778 al mes (hipótesis: sin precio de lista)."
+      "nota": "Tipo de cambio de 19.7203 pesos por dólar (el FIX del 2026-11-26). Supuestos: depreciación lineal de 36 meses con 20 % de reventa, UPS de US$9,000 (precios vistos de 8,428 a 9,684, secundaria), obra y aire de MXN 130,000 (2 circuitos ≈ 60,000 + 2 minisplits ≈ 70,000), luz de «El cuarto» con PUE 2.0, 52 h de TI al mes. La compra es el precio de Exxact en EE. UU., sin impuestos, flete ni importación (los cuenta «Cotizar»). La hipótesis vieja de 2 Server Edition quedó atrás: a precio de CDW, D es ≈ US$74,779 de compra y ≈ US$2,943 al mes con la herramienta de TCO (≈ US$124,253 en 36 meses con lo de decidir). Con la herramienta, A da US$2,753 y B US$3,000 al mes (la ficha: 2,746 y 2,944): la herramienta escala la luz con las tarjetas y la ficha usó la misma luz para A y B."
     },
     {
       "id": "costo_ti",
@@ -572,7 +596,7 @@
       "id": "sla",
       "dato": "SLA del soporte",
       "valor": "99 % en horario hábil (9:00 a 19:00, 22 días = 13,200 min; presupuesto de 132 min al mes); severidad 1: respuesta en 1 h hábil y servicio de vuelta en 2 h hábiles; severidad 2: 4 h y el siguiente día hábil; severidad 3: el siguiente día hábil y 5 días; severidad 4: 2 días y la ventana mensual; créditos de 10 % de la iguala (por debajo de 99 % y hasta 98 %) y de 25 % (por debajo de 98 %), con tope de 25 %; excluye luz, aire y red del edificio, mantenimiento avisado fuera de horario, el hardware mientras el fabricante repone y acciones del cliente",
-      "nota": "Todo criterio de la lección, no dato de mercado. «Caído»: un minuto del horario en que la pregunta de prueba, cada minuto por el gateway, no recibe respuesta. «Degradado»: el TTFT p95 de 10 min pasa el umbral que midió el piloto (el 3.4 s de la lección es un ejemplo; con la opción A no puede ser 2 s). El tiempo de solución se detiene mientras el cliente no abre el acceso (el servidor no tiene ruta a internet). Tablero y alertas de «Observabilidad»."
+      "nota": "Todo criterio de la lección, no dato de mercado. «Caído»: un minuto del horario en que la pregunta de prueba (hecho «sonda»), cada minuto por el gateway, no recibe respuesta. «Degradado»: el TTFT p95 de 10 min pasa el umbral que midió el piloto (el 3.4 s de la lección es un ejemplo; con la opción A no puede ser 2 s). El tiempo de solución se detiene mientras el cliente no abre el acceso (el servidor no tiene ruta a internet). Tablero y alertas de «Observabilidad». Se mide con la sonda: un minuto hábil cuenta como caído si probe_success = 0; un minuto hábil sin medición cuenta como caído salvo que el registro del gateway demuestre respuesta. Ejemplo: caídas de 25 y 12 min → 37 de 132, 99.72 %. Si el servidor se va a colocation, el SLA dice de quién es el enlace."
     },
     {
       "id": "importacion",

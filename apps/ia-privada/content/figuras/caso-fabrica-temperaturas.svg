@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 352" role="img" aria-labelledby="f-caso-fabrica-temperaturas-t" class="f-svg" style="max-width:420px">
+<title id="f-caso-fabrica-temperaturas-t">Rangos de temperatura de operación contra la nave de la planta. La clase A2 de ASHRAE, la de un servidor común, va de 10 a 35 °C. El Supermicro de 1U con L4 va de 0 a 40 °C; el Supermicro 2U de borde, de 0 a 45; el Lenovo ThinkEdge SE455 V3 con tarjetas de ancho sencillo, de −5 a 55; y el mismo SE455 V3 con GPUs de ancho doble, como la L40S, solo hasta 40. Dos líneas verticales marcan la nave: 35 °C normal y 40 °C en los picos de verano. Solo los equipos de borde con tarjetas de ancho sencillo dejan margen arriba de los 40 °C.</title>
+<text class="f-l" x="14" y="22">TEMPERATURA DE OPERACIÓN, °C</text>
+<text class="f-s" x="14" y="58" style="font-size:12px">ASHRAE A2</text>
+<text class="f-s" x="14" y="73" style="font-size:12px">servidor común</text>
+<rect class="f-b2" x="208.0" y="50" width="72.5" height="16" rx="4"/>
+<text class="f-s" x="212.0" y="62" style="font-size:12px">10 a 35</text>
+<text class="f-s" x="14" y="100" style="font-size:12px">Supermicro 1U</text>
+<text class="f-s" x="14" y="115" style="font-size:12px">2 L4</text>
+<rect class="f-b2" x="179.0" y="92" width="116.0" height="16" rx="4"/>
+<text class="f-s" x="183.0" y="104" style="font-size:12px">0 a 40</text>
+<text class="f-s" x="14" y="142" style="font-size:12px">Supermicro 2U</text>
+<text class="f-s" x="14" y="157" style="font-size:12px">de borde</text>
+<rect class="f-b2" x="179.0" y="134" width="130.5" height="16" rx="4"/>
+<text class="f-s" x="183.0" y="146" style="font-size:12px">0 a 45</text>
+<text class="f-s" x="14" y="184" style="font-size:12px">SE455 V3</text>
+<text class="f-s" x="14" y="199" style="font-size:12px">ancho sencillo</text>
+<rect class="f-g" x="164.5" y="176" width="174.0" height="16" rx="4"/>
+<text class="f-s" x="168.5" y="188" style="font-size:12px">−5 a 55</text>
+<text class="f-s" x="14" y="226" style="font-size:12px">SE455 V3</text>
+<text class="f-s" x="14" y="241" style="font-size:12px">GPU de ancho doble</text>
+<rect class="f-o" x="164.5" y="218" width="130.5" height="16" rx="4"/>
+<text class="f-s" x="168.5" y="230" style="font-size:12px">−5 a 40</text>
+<line class="f-linea" x1="150.0" y1="260" x2="353.0" y2="260"/>
+<line class="f-linea" x1="150.0" y1="260" x2="150.0" y2="264"/>
+<text class="f-s" x="150.0" y="278" text-anchor="middle" style="font-size:12px">−10</text>
+<line class="f-linea" x1="179.0" y1="260" x2="179.0" y2="264"/>
+<text class="f-s" x="179.0" y="278" text-anchor="middle" style="font-size:12px">0</text>
+<line class="f-linea" x1="208.0" y1="260" x2="208.0" y2="264"/>
+<text class="f-s" x="208.0" y="278" text-anchor="middle" style="font-size:12px">10</text>
+<line class="f-linea" x1="237.0" y1="260" x2="237.0" y2="264"/>
+<text class="f-s" x="237.0" y="278" text-anchor="middle" style="font-size:12px">20</text>
+<line class="f-linea" x1="266.0" y1="260" x2="266.0" y2="264"/>
+<text class="f-s" x="266.0" y="278" text-anchor="middle" style="font-size:12px">30</text>
+<line class="f-linea" x1="295.0" y1="260" x2="295.0" y2="264"/>
+<text class="f-s" x="295.0" y="278" text-anchor="middle" style="font-size:12px">40</text>
+<line class="f-linea" x1="324.0" y1="260" x2="324.0" y2="264"/>
+<text class="f-s" x="324.0" y="278" text-anchor="middle" style="font-size:12px">50</text>
+<line class="f-linea" x1="353.0" y1="260" x2="353.0" y2="264"/>
+<text class="f-s" x="353.0" y="278" text-anchor="middle" style="font-size:12px">60</text>
+<line x1="280.5" y1="38" x2="280.5" y2="260" style="stroke:var(--ink);stroke-width:1.5;stroke-dasharray:3 3"/>
+<line x1="295.0" y1="38" x2="295.0" y2="260" style="stroke:var(--ink);stroke-width:1.5;stroke-dasharray:3 3"/>
+<text class="f-s" x="277.5" y="296" text-anchor="end" style="font-size:12px">nave 35 ↑</text>
+<text class="f-s" x="298.0" y="296" style="font-size:12px">↑ pico 40</text>
+<text class="f-s" x="14" y="322" style="font-size:12px">En la nave, solo el borde con tarjetas de ancho</text>
+<text class="f-s" x="14" y="338" style="font-size:12px">sencillo (la L4) deja margen sobre los 40 °C.</text>
+</svg>

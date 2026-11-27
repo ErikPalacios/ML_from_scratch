@@ -24,7 +24,7 @@ const filtro = opt('--filtro');
 
 execFileSync('node', [join(ROOT, 'tools', 'build.mjs'), '--solo', id], { stdio: 'inherit' });
 const base = join(ROOT, '.solo', id);
-const html = readFileSync(join(base, id, 'index.html'), 'utf8');
+const html = readFileSync(existsSync(join(base, id, 'index.html')) ? join(base, id, 'index.html') : join(base, 'casos', id, 'index.html'), 'utf8');   // una lección o un caso (en casos/<id>/)
 const piezas = [
   ...[...html.matchAll(/<figure class="c-figura" id="fig-([^"]+)">[\s\S]*?<\/figure>/g)].map((m) => ['figura', m[1], m[0]]),
   ...[...html.matchAll(/<div class="dg-mount" data-dg="([^"]+)"[\s\S]*?<\/figure>\n<\/div>/g)].map((m) => ['diagrama', m[1], m[0]]),

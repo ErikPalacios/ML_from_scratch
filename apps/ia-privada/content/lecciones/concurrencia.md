@@ -325,7 +325,7 @@ Con 3 en cada una // \(t_{paso}\) ≈ 40.4 ms | (1 − 0.151) ÷ 0.0404 | ≈ 21
 
 Ese es el clímax de la lección. Por memoria, en una L40S caben 8 conversaciones del despacho (≈ 12 si cada una usa sus 6,500 tokens típicos en vez del tope de 8,192). Por velocidad, ninguna se atiende bien en la hora pico. **La memoria dice cuántas caben; el cómputo y el [[ancho-de-banda|ancho de banda]] dicen cuántas se atienden bien.**
 
-¿Qué puede hacer el despacho? Tres caminos, y la decisión va en el caso del despacho, no aquí:
+¿Qué puede hacer el despacho? Tres caminos, y la decisión va en [el caso del despacho](/casos/despacho/), no aquí:
 
 - **Una GPU con más cómputo.** Una H100 SXM tiene ≈ 989.5 TFLOPS densos en FP16 (la mitad de los 1,979 «con sparsity» de su hoja de datos): el mismo prefill, con \(η_c\) = 0.5, tardaría ≈ 0.8 s. Cuesta más.
 - **Menos tokens de entrada.** Mandar 3 fragmentos en vez de 5, o fragmentos más cortos. Baja el TTFT casi en proporción, pero hay que medir si las respuestas siguen igual de buenas.

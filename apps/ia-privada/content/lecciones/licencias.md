@@ -581,7 +581,7 @@ El despacho, el ejemplo ficticio de esta lección, tiene 200 abogados y asistent
 
 ### Una clínica
 
-Una clínica con 40 médicos (números supuestos) quiere resumir notas clínicas en su red. Un proveedor le propone Gemma 3 27B. La revisión encuentra los Gemma Terms of Use: uso comercial permitido, pero Google se reserva restringir el uso si cree que se violan los términos, y si la clínica algún día le entrega un derivado a otra clínica, tiene que pasar las restricciones de uso en su propio contrato. Además, las notas son datos personales sensibles: la LFPDPPP pide, por regla general, consentimiento expreso y por escrito para tratarlos, y eso la licencia ni lo toca. La clínica compara con Gemma 4 31B, que es Apache 2.0, y pide que la evaluación de calidad incluya a los dos.
+Una clínica con 60 médicos (números supuestos) quiere resumir notas clínicas en su red. Un proveedor le propone Gemma 3 27B. La revisión encuentra los Gemma Terms of Use: uso comercial permitido, pero Google se reserva restringir el uso si cree que se violan los términos, y si la clínica algún día le entrega un derivado a otra clínica, tiene que pasar las restricciones de uso en su propio contrato. Además, las notas son datos personales sensibles: la LFPDPPP pide, por regla general, consentimiento expreso y por escrito para tratarlos, y eso la licencia ni lo toca. La clínica compara con Gemma 4 31B, que es Apache 2.0, y pide que la evaluación de calidad incluya a los dos. Con modelos médicos, como MedGemma, la licencia trae además sus propios términos de uso: [la clínica](/casos/clinica/) los lee con su fecha.
 
 ### Un integrador que revende
 

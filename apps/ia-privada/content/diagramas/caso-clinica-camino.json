@@ -1,0 +1,353 @@
+{
+  "titulo": "El camino de un resumen en la clínica, del botón a la tarjeta y de vuelta",
+  "width": 78,
+  "height": 64,
+  "lanes": [
+    {
+      "id": "piso",
+      "label": "Piso y consultorio · red clínica",
+      "kind": "neutral",
+      "x": 0,
+      "y": 0,
+      "w": 78,
+      "h": 14
+    },
+    {
+      "id": "servicio",
+      "label": "Servicio · VLAN del hospital",
+      "kind": "online",
+      "x": 0,
+      "y": 16,
+      "w": 78,
+      "h": 15
+    },
+    {
+      "id": "modelos",
+      "label": "Modelos · VLAN sin internet",
+      "kind": "online",
+      "x": 0,
+      "y": 33,
+      "w": 78,
+      "h": 14
+    },
+    {
+      "id": "gestion",
+      "label": "Gestión · VPN de TI",
+      "kind": "monitor",
+      "x": 0,
+      "y": 49,
+      "w": 78,
+      "h": 15
+    }
+  ],
+  "nodes": [
+    {
+      "id": "medico",
+      "label": "Médico",
+      "sub": "abre el expediente",
+      "badge": "1",
+      "kind": "human",
+      "x": 2,
+      "y": 4,
+      "w": 20,
+      "h": 8,
+      "note": "Uno de los 60 médicos que usan el asistente, casi siempre **externo** (en los hospitales privados, 83.8 % trabaja con un acuerdo especial, INEGI). Entra con su usuario, su contraseña y un segundo factor, como pide la [[nom-024|NOM-024]] (6.6.3), y solo ve a sus pacientes."
+    },
+    {
+      "id": "equipos",
+      "label": "Equipos médicos",
+      "sub": "otra VLAN, sin ruta",
+      "kind": "external",
+      "x": 56,
+      "y": 4,
+      "w": 20,
+      "h": 8,
+      "note": "Monitores, bombas e imagen con sistemas viejos que no se pueden parchar. Van en su propia [[vlan|VLAN]], sin ruta al servidor de modelos ni a internet: el asistente no los necesita y no les deja una puerta."
+    },
+    {
+      "id": "expediente",
+      "label": "Expediente electrónico",
+      "sub": "SIRES · roles",
+      "badge": "2",
+      "kind": "store",
+      "x": 2,
+      "y": 19,
+      "w": 20,
+      "h": 9,
+      "note": "El sistema que ya existe y que sí es un SIRES de la [[nom-024|NOM-024]]: guarda las notas con fecha, hora y firma ([[nom-004|NOM-004]], 5.10) y decide quién ve qué por rol y por paciente asignado. Tiene dos botones nuevos: «Resumir expediente» y «Borrador de nota de egreso»."
+    },
+    {
+      "id": "resumen",
+      "label": "Servicio de resumen",
+      "sub": "prompt · verificador",
+      "badge": "3",
+      "kind": "service",
+      "x": 29,
+      "y": 19,
+      "w": 20,
+      "h": 9,
+      "note": "Un programa chico de la clínica. Pide las notas del paciente **con la sesión del médico** (no con una cuenta maestra: hereda sus permisos), las ordena por fecha con su identificador, recorta lo más viejo si pasa de ≈ 31,000 tokens (para que quepa la respuesta en el tope de 32,768) y arma el prompt. Al volver la respuesta, el **verificador** revisa que cada frase cite una nota que existe y que cada dosis y cada alergia aparezcan en esa nota."
+    },
+    {
+      "id": "gateway",
+      "label": "LiteLLM",
+      "sub": "gateway · 2 copias",
+      "badge": "4",
+      "kind": "edge",
+      "x": 56,
+      "y": 19,
+      "w": 20,
+      "h": 9,
+      "note": "El [[gateway-de-llm|gateway]] reparte entre las dos copias y saca de la rotación la que no contesta. No guarda el texto de prompts ni respuestas: el registro de uso lo escribe el servicio de resumen, sin texto."
+    },
+    {
+      "id": "se1",
+      "label": "Server Edition 1",
+      "sub": "vLLM · Qwen3.8 27B",
+      "badge": "5",
+      "kind": "gpu",
+      "x": 29,
+      "y": 36,
+      "w": 20,
+      "h": 8,
+      "note": "Una RTX PRO 6000 Blackwell Server Edition de 96 GB con su propia copia de [[vllm|vLLM]] y Qwen3.8 27B en FP8. Sola aguanta 7 resúmenes a la vez a ≥ 20 tokens/s, más que los ≈ 5.2 del pico de las 8:00 (herramienta de sizing)."
+    },
+    {
+      "id": "se2",
+      "label": "Server Edition 2",
+      "sub": "la misma copia",
+      "kind": "gpu",
+      "x": 56,
+      "y": 36,
+      "w": 20,
+      "h": 8,
+      "note": "La segunda tarjeta, en el mismo servidor. No está para el pico: está para que, si una falla a las 3:00, la otra siga sola con el TTFT p95 en ≈ 4.3 s (simulación del caso). Es el [[n-mas-1|N+1]]."
+    },
+    {
+      "id": "registro",
+      "label": "Registro de uso",
+      "sub": "sin texto · 12 meses",
+      "badge": "6",
+      "kind": "queue",
+      "x": 2,
+      "y": 53,
+      "w": 20,
+      "h": 8,
+      "note": "Una fila por resumen: quién, de qué paciente (su número de expediente), cuándo, qué notas citó, cuánto tardó, la huella del texto y las marcas del verificador. Es la «trazabilidad» de la NOM-024 (6.6.1). Sin el texto: el resumen es dato sensible y no se copia a otro lado."
+    },
+    {
+      "id": "prom",
+      "label": "Prometheus",
+      "sub": "alertas · sonda",
+      "badge": "7",
+      "kind": "monitor",
+      "x": 29,
+      "y": 53,
+      "w": 20,
+      "h": 8,
+      "note": "Lee las dos copias de vLLM y las GPUs cada 15 s. Cada minuto, una **sonda** pide el resumen de un paciente sintético de prueba, que no existe; de noche no hay tráfico y la sonda es lo único que dice si el servicio está arriba."
+    },
+    {
+      "id": "guardia",
+      "label": "TI de guardia",
+      "sub": "en espera",
+      "kind": "human",
+      "x": 56,
+      "y": 53,
+      "w": 20,
+      "h": 8,
+      "note": "Una guardia remota del integrador, localizable, no despierta. La despiertan dos cosas: que caigan las dos copias, o que la sonda falle 5 minutos seguidos. Lo demás espera a las 8:00."
+    }
+  ],
+  "edges": [
+    {
+      "from": "medico",
+      "to": "expediente",
+      "kind": "online",
+      "label": "botón",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "expediente",
+      "to": "resumen",
+      "kind": "online",
+      "label": "notas",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "resumen",
+      "to": "gateway",
+      "kind": "online",
+      "label": "prompt",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "gateway",
+      "to": "se1",
+      "kind": "online",
+      "fromSide": "b",
+      "toSide": "r",
+      "via": [
+        [
+          66,
+          32
+        ],
+        [
+          52,
+          32
+        ],
+        [
+          52,
+          40
+        ]
+      ]
+    },
+    {
+      "from": "gateway",
+      "to": "se2",
+      "kind": "online",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "resumen",
+      "to": "registro",
+      "kind": "async",
+      "label": "una fila",
+      "fromSide": "b",
+      "toSide": "t",
+      "dashed": true,
+      "via": [
+        [
+          39,
+          32
+        ],
+        [
+          12,
+          32
+        ]
+      ]
+    },
+    {
+      "from": "prom",
+      "to": "se1",
+      "kind": "monitor",
+      "fromSide": "t",
+      "toSide": "b"
+    },
+    {
+      "from": "prom",
+      "to": "guardia",
+      "kind": "monitor",
+      "label": "si caen 2",
+      "fromSide": "r",
+      "toSide": "l"
+    }
+  ],
+  "flows": [
+    {
+      "id": "manana",
+      "label": "Un resumen a las 8:00",
+      "steps": [
+        {
+          "nodes": [
+            "medico"
+          ],
+          "edges": [],
+          "text": "Abre la torre. Una médica tiene a su primer paciente en 10 minutos y aprieta **Resumir expediente**. Igual que ella, otros 59 médicos: ≈ 200 resúmenes en 20 minutos."
+        },
+        {
+          "nodes": [
+            "medico",
+            "expediente"
+          ],
+          "edges": [
+            "medico>expediente"
+          ],
+          "text": "El expediente revisa que ese paciente esté asignado a ella (rol y paciente, [[nom-024|NOM-024]] 6.6.4). Si no lo está, no hay botón."
+        },
+        {
+          "nodes": [
+            "expediente",
+            "resumen"
+          ],
+          "edges": [
+            "expediente>resumen"
+          ],
+          "text": "El servicio de resumen pide las notas **con la sesión de la médica**: ≈ 5,700 palabras, ≈ 12,000 tokens. Las ordena por fecha, cada una con su identificador, y arma el prompt."
+        },
+        {
+          "nodes": [
+            "resumen",
+            "gateway",
+            "se1"
+          ],
+          "edges": [
+            "resumen>gateway",
+            "gateway>se1"
+          ],
+          "text": "El gateway lo manda a la copia que tiene menos trabajo. La Server Edition lee los 12,000 tokens en ≈ 1.4 s y escribe ≈ 600 a más de 20 tokens por segundo."
+        },
+        {
+          "nodes": [
+            "resumen"
+          ],
+          "edges": [],
+          "text": "Antes de mostrarlo, el **verificador** busca cada dosis y cada alergia en la nota que cita. Lo que no encuentra sale en rojo, y la médica lo ve antes de leer lo demás."
+        },
+        {
+          "nodes": [
+            "registro"
+          ],
+          "edges": [
+            "resumen>registro"
+          ],
+          "text": "Queda una fila sin texto: quién, qué paciente, qué notas, cuánto tardó y qué marcó el verificador. Es lo que se le enseña a la autoridad si pregunta quién vio qué."
+        }
+      ]
+    },
+    {
+      "id": "noche",
+      "label": "La noche en que falla una tarjeta",
+      "steps": [
+        {
+          "nodes": [
+            "se2"
+          ],
+          "edges": [],
+          "text": "3:10. La Server Edition 2 se detiene con un error de hardware. Hay un médico de guardia y casi ningún resumen en curso."
+        },
+        {
+          "nodes": [
+            "prom",
+            "se1"
+          ],
+          "edges": [
+            "prom>se1"
+          ],
+          "text": "Prometheus ve que una copia no contesta y la sonda del paciente sintético sigue pasando por la otra. El servicio está arriba."
+        },
+        {
+          "nodes": [
+            "gateway",
+            "se1"
+          ],
+          "edges": [
+            "gateway>se1"
+          ],
+          "text": "El gateway deja de mandar a la copia caída. La que queda aguanta incluso el pico de las 8:00 (7 lugares contra ≈ 5.2), con el TTFT p95 en ≈ 4.3 s."
+        },
+        {
+          "nodes": [
+            "guardia"
+          ],
+          "edges": [],
+          "text": "Nadie despierta a nadie: la alerta es de nivel «mañana». A las 8:00, el TI abre el caso de garantía. Solo si cayeran las dos copias se despierta la guardia."
+        }
+      ]
+    }
+  ]
+}

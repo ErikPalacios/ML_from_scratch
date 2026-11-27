@@ -1,0 +1,441 @@
+{
+  "nota": "La ficha de la planta de autopartes del caso «Fábrica» de IA Privada: cada número de la planta que usa el caso vive aquí y se usa tal cual. Es ficticia: los valores de la empresa son supuestos del ejemplo (se dice en cada nota); los del mundo real (normas, modelos, versiones, precios) traen su fuente y su fecha. No tiene nombre propio: es «la planta». Creada en la fase 8 (2026-11-27).",
+  "hechos": [
+    {
+      "id": "que_es",
+      "dato": "Qué es",
+      "valor": "una planta de autopartes (proveedor Tier 1) en Silao, Guanajuato, que quiere un asistente que conteste con cita sobre los manuales de sus máquinas, sin internet en la red de planta",
+      "nota": "Ficticia, sin nombre propio: «la planta». Guanajuato es el estado con más unidades de fabricación de partes para vehículos (SCIAN 3363) en el DENUE de mayo de 2026: 233 de 2,208 (DataMéxico, consultado 2026-11-26)."
+    },
+    {
+      "id": "sector",
+      "dato": "El sector, para ubicarse",
+      "valor": "producción nacional de autopartes 2025 ≈ US$119,000 M; Guanajuato, enero–agosto de 2025, ≈ US$10,787 M de US$78,830 M (13.7 %, 2.º lugar tras Coahuila); enero–agosto 2026, Guanajuato ≈ US$11,561 M y el Bajío ≈ 35.9 % del total",
+      "nota": "Datos de la INA con INEGI, leídos en mexicoindustry.com, clusterindustrial.com.mx y liderempresarial.com (fuentes secundarias, consultadas 2026-11-26 y 2026-11-27). Los US$10,787 M (13.7 %) son del acumulado enero–agosto de 2025 (US$78,830 M nacional), no del año completo. Las autopartes perdieron ≈ 90,000 empleos en dos años (Expansión, 2026-09-03). Solo contexto: ningún cálculo del caso los usa."
+    },
+    {
+      "id": "empleados",
+      "dato": "Personas en la planta",
+      "valor": "900",
+      "unidad": "Supuesto: el promedio real por planta no está publicado.",
+      "nota": "personas en 3 turnos"
+    },
+    {
+      "id": "turnos",
+      "dato": "Turnos",
+      "valor": "3: 7:00–15:00, 15:00–22:00 y 22:00–7:00",
+      "nota": "El esquema de un anuncio de una automotriz en Silao (fuente secundaria); los días de cada turno se simplifican a lunes a sábado."
+    },
+    {
+      "id": "tecnicos",
+      "dato": "Técnicos de mantenimiento con acceso",
+      "valor": "30",
+      "unidad": "Supuesto. Es la cifra que adelantó la lección «Comprar hardware» (l. 460).",
+      "nota": "técnicos (12 + 12 + 6 por turno)"
+    },
+    {
+      "id": "maquinas",
+      "dato": "Máquinas",
+      "valor": "220 máquinas (prensas, soldadoras, robots, CNC, inyectoras) de 25 fabricantes y ≈ 60 modelos",
+      "nota": "Supuesto."
+    },
+    {
+      "id": "manuales",
+      "dato": "Manuales",
+      "valor": "3,000 manuales de ≈ 200 páginas: 600,000 páginas, ≈ 540 M de tokens a ≈ 900 tokens por página",
+      "nota": "Supuesto; es la cuenta de la lección «RAG privado» (l. 570)."
+    },
+    {
+      "id": "idiomas",
+      "dato": "Idioma de los manuales",
+      "valor": "inglés 40 %, alemán 20 %, japonés 15 %, español 25 %",
+      "nota": "Supuesto (prensas y robots japoneses y alemanes). Los técnicos preguntan en español."
+    },
+    {
+      "id": "escaneados",
+      "dato": "Manuales escaneados",
+      "valor": "40 %: ≈ 1,200 manuales, ≈ 240,000 páginas",
+      "nota": "Supuesto: copias de papel y fotocopias. Obliga a OCR o a un modelo de visión."
+    },
+    {
+      "id": "por_que_privado",
+      "dato": "Por qué no una API pública",
+      "valor": "la red de planta (OT) no tiene internet por regla de la planta; los manuales vienen con licencia de cada fabricante y los procedimientos de la planta y los planos de sus clientes son confidenciales",
+      "nota": "La regla de la red es la que decide: una API pública no es una opción técnica, no solo una de privacidad. Supuesto del ejemplo."
+    },
+    {
+      "id": "red_planta",
+      "dato": "Red de planta",
+      "valor": "red OT separada de la de oficina (IT): niveles 0–2 (PLCs, robots, HMI), nivel 3 (MES e historiador), una DMZ industrial entre OT e IT; WiFi de planta como zona aparte; sin ruta a internet desde OT",
+      "nota": "Supuesto con el vocabulario del modelo de Purdue y de NIST SP 800-82 Rev. 3 (septiembre de 2023), §5.2.3.1. La Rev. 4 está en borrador público, con comentarios hasta el 2026-11-30."
+    },
+    {
+      "id": "gabinete_ot",
+      "dato": "Gabinete de OT en la nave",
+      "valor": "gabinete de piso de 42U junto a la línea 3 (servidor del MES, historiador, switches de OT), con ventiladores con filtro y sin aire propio",
+      "nota": "Supuesto."
+    },
+    {
+      "id": "site_ti",
+      "dato": "Site de TI",
+      "valor": "cuarto de TI en el edificio de oficinas, a ≈ 300 m de la nave: 2 racks (ERP, correo, red de oficina), 2 minisplits de 2 toneladas, UPS y la planta de emergencia de la planta; acceso con tarjeta",
+      "nota": "Supuesto. Es el lugar con aire que la lección «Comprar hardware» suponía que no había."
+    },
+    {
+      "id": "ambiente",
+      "dato": "Ambiente de la nave",
+      "valor": "≈ 35 °C normal, picos de 40 °C en verano; polvo metálico y neblina de aceite y taladrina",
+      "nota": "Supuesto con base en «El cuarto» (l. 568). La temperatura real no está medida: se mide con un registrador en la temporada caliente."
+    },
+    {
+      "id": "ti_planta",
+      "dato": "Quién opera",
+      "valor": "3 personas de TI (red de oficina y ERP) y 1 ingeniero de automatización (red OT); nadie ha operado una GPU; de noche no hay nadie de TI",
+      "nota": "Supuesto."
+    },
+    {
+      "id": "preguntas_tecnico",
+      "dato": "Preguntas por técnico y turno",
+      "valor": "8",
+      "unidad": "Supuesto.",
+      "nota": "preguntas"
+    },
+    {
+      "id": "preguntas_dia",
+      "dato": "Preguntas al día",
+      "valor": "240",
+      "unidad": "96 en el turno 1 (12 × 8), 96 en el 2 y 48 en el 3 (6 × 8). Promedio de 10 por hora en 24 h.",
+      "nota": "preguntas/día"
+    },
+    {
+      "id": "dias_mes",
+      "dato": "Días de uso al mes",
+      "valor": "26",
+      "unidad": "Supuesto.",
+      "nota": "días (lunes a sábado)"
+    },
+    {
+      "id": "preguntas_mes",
+      "dato": "Preguntas al mes",
+      "valor": "6,240",
+      "unidad": "240 × 26.",
+      "nota": "preguntas/mes"
+    },
+    {
+      "id": "pico",
+      "dato": "Factor de pico",
+      "valor": "3",
+      "unidad": "30 preguntas en la primera hora del turno 1 (supuesto): 0.0083 preguntas por segundo.",
+      "nota": "veces el promedio por hora"
+    },
+    {
+      "id": "a_la_vez",
+      "dato": "Conversaciones a la vez, de diseño",
+      "valor": "4",
+      "unidad": "Un paro de línea: los técnicos de una celda preguntan lo mismo al mismo tiempo. Con llegadas al azar (Poisson, media 0.17) habría 4 a la vez en ≈ 3 de cada 100,000 instantes; en un paro las llegadas no son independientes y pasa. Es el número de diseño de la memoria y de la velocidad, no el promedio.",
+      "nota": "conversaciones"
+    },
+    {
+      "id": "tokens_entrada",
+      "dato": "Tokens de entrada por pregunta",
+      "valor": "≈ 3,500",
+      "unidad": "Instrucciones ≈ 400 + pregunta ≈ 50 + 5 fragmentos de ≈ 400 = 2,000 + la imagen de la página de la tabla ≈ 1,000 (supuesto: los tokens de imagen de cada modelo no están medidos).",
+      "nota": "tokens"
+    },
+    {
+      "id": "tokens_salida",
+      "dato": "Tokens de salida por respuesta",
+      "valor": "≈ 300",
+      "unidad": "Respuestas cortas: el valor, su unidad, la cita y lo que hay que verificar.",
+      "nota": "tokens"
+    },
+    {
+      "id": "contexto",
+      "dato": "Contexto por conversación (tope)",
+      "valor": "8,192",
+      "unidad": "Cabe la primera pregunta (≈ 3,800) y una repregunta con otra página.",
+      "nota": "tokens"
+    },
+    {
+      "id": "ttft_objetivo",
+      "dato": "Tiempo al primer token, objetivo",
+      "valor": "≤ 3",
+      "unidad": "Con la imagen de la página adentro.",
+      "nota": "s, en el p95"
+    },
+    {
+      "id": "primer_renglon",
+      "dato": "El primer renglón útil (el valor y su cita)",
+      "valor": "≤ 5",
+      "unidad": "≈ 40 tokens. Lo que el técnico necesita antes de bajar la vista a la máquina.",
+      "nota": "s, en el p95"
+    },
+    {
+      "id": "velocidad_objetivo",
+      "dato": "Velocidad de escritura, objetivo",
+      "valor": "≥ 15",
+      "unidad": "Criterio del caso: respuestas de 300 tokens con el valor al principio; una respuesta completa tarda ≤ 3 + 300 ÷ 15 = 23 s. El despacho pide 20 para leer respuestas de 500 en un escritorio.",
+      "nota": "tokens/s por técnico"
+    },
+    {
+      "id": "modelo_grande",
+      "dato": "Modelo candidato grande",
+      "valor": "Qwen3.8-27B en FP8 (el repo FP8 oficial), con visión",
+      "nota": "Apache 2.0; 27.8 mil millones de parámetros densos; 64 bloques, 16 de atención completa (el resto Gated DeltaNet), 4 juegos de K y V de 256; contexto de 262,144; archivos de 30.87 GB en FP8 y 55.56 GB en BF16 (Hugging Face, 2026-11-07). OmniDocBench 1.5 = 91.1 (del fabricante)."
+    },
+    {
+      "id": "modelo_chico",
+      "dato": "Modelo candidato chico",
+      "valor": "Qwen3.5-9B en FP8 dinámico, con visión",
+      "nota": "Apache 2.0; 9.65 mil millones; sin repo FP8 oficial en Hugging Face (2026-11-27); 32 bloques, 8 de atención completa, 4 × 256; 19.31 GB en BF16 (Hugging Face, 2026-03-02). Qwen dice 201 idiomas y dialectos (fuente secundaria). Ninguna tarjeta de Qwen nombra alemán ni japonés: se mide."
+    },
+    {
+      "id": "arquitectura_herramientas",
+      "dato": "Cómo se escriben en las herramientas",
+      "valor": "Qwen3.8-27B: P 27.78, E 2.543, L 16, g 4, d 256, h 24; Qwen3.5-9B: P 9.65, E 2.034, L 8, g 4, d 256, h 16; programa 3 GB",
+      "nota": "L = solo los bloques de atención completa, que son los que guardan KV. Del config.json de cada modelo en Hugging Face (consultado 2026-11-27): 27B con 64 capas (16 de atención completa), 24 cabezas de atención, 4 de KV de 256, ancho 5,120; 9B con 32 capas (8 completas), 16 cabezas, 4 de KV de 256, ancho 4,096; vocabulario de 248,320 y tablas de entrada y salida separadas (tie_word_embeddings = false) en los dos: E = 248,320 × ancho × 2. Supuesto: 1 GB del programa para el estado fijo de las capas Gated DeltaNet (≈ 154 MB por conversación en el 27B, lección «Elegir un modelo»). Con esto, W = 30.32 GB en FP8 (el archivo pesa 30.87)."
+    },
+    {
+      "id": "kv_token",
+      "dato": "KV cache por token",
+      "valor": "64 KiB (27B) y 32 KiB (9B)",
+      "unidad": "Una cuarta parte de lo que pide Qwen3 32B (256 KiB): solo 1 de cada 4 bloques tiene atención completa. 4 conversaciones de 8,192 tokens: 2.15 GB con el 27B.",
+      "nota": "en 16 bits"
+    },
+    {
+      "id": "vram",
+      "dato": "Memoria, con 4 conversaciones de 8,192",
+      "valor": "27B FP8 en una L40S: 35.47 de 43.2 GB útiles (82 %), caben 18; 9B FP8 en una L4: 15.76 de 21.6 GB (73 %), caben 25; 27B en una L4: no cabe ni en INT4 de AWQ (23.34 de 21.6)",
+      "nota": "Herramienta de VRAM con los valores de «arquitectura_herramientas»."
+    },
+    {
+      "id": "velocidad",
+      "dato": "Velocidad con 4 a la vez",
+      "valor": "27B FP8 en L40S: ≈ 19.3 tokens/s por técnico y TTFT ≈ 0.54 s; 9B FP8 en L4: ≈ 17.3 y ≈ 0.56 s; 27B en INT4 de AWQ en L4: ≈ 11 y ≈ 3.25 s",
+      "nota": "Herramienta de velocidad, η_m 0.7 y η_c 0.5, prompt de 3,500 y respuesta de 300. Sin la cola y sin el codificador de imagen."
+    },
+    {
+      "id": "sizing",
+      "dato": "Resultado del sizing",
+      "valor": "1 GPU basta para la carga (0.17 conversaciones a la vez en el pico); con 15 tokens/s caben 7 por L40S con el 27B y 4 por L4 con el 9B; a 20 tokens/s ninguna de las dos llega",
+      "nota": "Herramienta de sizing con 30 técnicos, 8 preguntas, 24 h y pico de 3. Con la RTX 6000 Ada el 27B sí llega a 20 (2 por tarjeta)."
+    },
+    {
+      "id": "n_mas_1",
+      "dato": "Redundancia",
+      "valor": "2 GPUs con una copia completa cada una (N+1)",
+      "nota": "No por carga: a las 3:00 no hay nadie de TI y la línea no debe quedarse sin manuales hasta el día siguiente (lección «Requisitos», l. 622)."
+    },
+    {
+      "id": "uso",
+      "dato": "Uso del servidor",
+      "valor": "≈ 0.8 % (opción B) y ≈ 1.4 % (opción A) de lo que atiende una sola GPU en el día",
+      "nota": "B: 7 conversaciones de ≈ 20.5 s → ≈ 1,227 preguntas por hora, ≈ 29,450 al día, contra 240. A: 4 → ≈ 700 por hora."
+    },
+    {
+      "id": "opcion_a",
+      "dato": "Opción A",
+      "valor": "1 servidor de entrada con 2 × L4 (72 W, ancho sencillo) y Qwen3.5-9B en FP8, una copia por tarjeta",
+      "nota": "Compra supuesta ≈ US$15,248: servidor ≈ US$8,000 (supuesto de la herramienta de TCO) + 2 × US$3,624 (gpus.json, mercado secundario). No es una cotización: el Lenovo ThinkEdge SE455 V3 (−5 a 55 °C con tarjetas de ancho sencillo) no publica precio, y el Supermicro SYS-111E-FDWTR (US$3,279 sin GPU, AVADirect, secundaria) trae fuentes de corriente continua."
+    },
+    {
+      "id": "opcion_b",
+      "dato": "Opción B",
+      "valor": "Exxact TensorEX 4U con 2 CPUs AMD EPYC 9124, 384 GB de RAM y 2 × L40S, y Qwen3.8-27B en FP8, una copia por tarjeta",
+      "nota": "US$58,281.30 CALCULADO: base US$40,461.30 + 2 × US$8,910 del configurador de Exxact del 2026-11-25 (equipos.json). Sobrado de CPU y de ranuras; un 2U de un integrador local probablemente sale más barato (se cotiza)."
+    },
+    {
+      "id": "lugar",
+      "dato": "Dónde va el servidor",
+      "valor": "en el site de TI, en su propia zona: un cable de fibra a la DMZ industrial y ninguno al switch de oficina",
+      "nota": "La tablet es la que va junto a la línea, no el servidor. Con la opción B no hay otra: la L40S es de ancho doble y 350 W, y los servidores de borde limitan esas tarjetas a ≈ 40 °C (SE455 V3). La opción A podría ir en el gabinete de OT con un servidor de borde, si la temperatura medida lo permite."
+    },
+    {
+      "id": "zona",
+      "dato": "Zona del asistente",
+      "valor": "zona propia pegada a la DMZ industrial (nivel 3.5 del modelo de Purdue), con tres conductos: 1) WiFi de planta → gateway, solo HTTPS al 443; 2) carpeta de importación de manuales revisada → ingesta, de entrada; 3) gestión desde OT por la DMZ; ninguna conexión a PLCs ni al MES y ninguna ruta a internet",
+      "nota": "Diseño con IEC 62443-3-2 (zonas y conductos) y NIST SP 800-82r3 §5.2.3.1. Lo defendible es «diseñado para un SL-T 2 de la zona con estas contramedidas», no «cumple 62443»: el servidor armado con piezas comerciales no tiene SL-C declarado."
+    },
+    {
+      "id": "identidad",
+      "dato": "Quién entra",
+      "valor": "cuentas locales de Open WebUI con el número de empleado, que da de alta el supervisor de mantenimiento; las tablets son compartidas por celda y cierran la sesión a los 15 min sin uso",
+      "nota": "El SSO de Entra ID pide hablar con login.microsoftonline.com: en una zona sin internet no hay. Si la planta tiene un directorio local en la DMZ industrial, LDAP. Supuesto de diseño."
+    },
+    {
+      "id": "motor",
+      "dato": "Motor de inferencia",
+      "valor": "vLLM 0.34.0 (2026-11-16, Apache 2.0), una copia por GPU, desde una carpeta local: --max-model-len 8192 --max-num-seqs 4, razonamiento apagado",
+      "nota": "Lo mismo que el despacho, con el modelo de visión. Con FP8 dinámico, el 9B lleva --quantization fp8."
+    },
+    {
+      "id": "gateway",
+      "dato": "Gateway e interfaz",
+      "valor": "LiteLLM proxy 1.111.0 y Open WebUI 0.13.5 (25-nov-2026), en la zona del asistente",
+      "nota": "Las versiones de la ficha del despacho. La interfaz para guantes (botones grandes, el QR de la placa de la máquina) es una pantalla propia sobre la misma API, después del piloto."
+    },
+    {
+      "id": "parser",
+      "dato": "Leer los manuales",
+      "valor": "Docling 2.154.0 (MIT, 2026-11-26) para todo; MinerU 4.2.3 (2026-11-16) comparado en las tablas; la imagen de cada página se guarda junto a su texto",
+      "nota": "MinerU: código Apache 2.0 con términos adicionales (licencia comercial arriba de 100 M de usuarios al mes o US$20 M de ingreso mensual; atribución si se da como servicio a terceros); pesos de la versión 4 (MinerU-4_models_torch, 2026-11-23) en Apache 2.0, pero los de MinerU2.5-2509 son AGPL-3.0: se fija la versión y el hash de los pesos. El umbral de ingreso cuenta a la empresa con sus filiales (LICENSE.md de MinerU, consultado 2026-11-27): la planta sola (≈ US$8.3 M al mes con el supuesto de US$100 M al año) queda abajo; si es parte de un grupo que factura más de US$20 M al mes, necesita la licencia comercial."
+    },
+    {
+      "id": "filtro_maquina",
+      "dato": "Filtro por máquina",
+      "valor": "cada fragmento lleva fabricante, modelo y número de serie; el técnico escanea el QR de la placa y la búsqueda solo mira esa máquina (y la hoja de bloqueo de la planta para ella)",
+      "nota": "Es un prefiltro, como la ACL del despacho. Evita el error más caro: el torque correcto de otra variante."
+    },
+    {
+      "id": "busqueda",
+      "dato": "Búsqueda",
+      "valor": "Qwen3-Embedding-0.6B + BM25 + RRF en Qdrant 1.20.2, top-5 fragmentos de 400 tokens con traslape de 60",
+      "nota": "Las piezas del despacho. BM25 pesa más aquí: los códigos de falla (E-1042) y los números de parte se escriben igual en cualquier idioma."
+    },
+    {
+      "id": "chunks",
+      "dato": "Fragmentos",
+      "valor": "≈ 1.59 M (540 M ÷ (400 − 60)); índice ≈ 6.5 GB",
+      "nota": "La cuenta de «RAG privado» (l. 570)."
+    },
+    {
+      "id": "ingesta",
+      "dato": "Ingesta",
+      "valor": "Docling a 2.1 páginas por segundo: ≈ 79 h para las 600,000 páginas; los embeddings, ≈ 0.73 h en una L40S",
+      "nota": "2.1 pág/s es la medición de Datalab en una GPU (lección «RAG privado»); con el servidor casi vacío, la ingesta corre de día también. Tesseract a 2.9 pág/s leería las 240,000 escaneadas en ≈ 23 h. Lo real se mide con 200 páginas de la planta."
+    },
+    {
+      "id": "seguridad_persona",
+      "dato": "Reglas de seguridad de la persona",
+      "valor": "1) solo con cita (manual, página y la imagen recortada de la tabla); 2) sin cita, «no lo encontré»; 3) los valores de torque, presión y holgura y los pasos de bloqueo nunca salen del conocimiento del modelo; 4) el bloqueo es el procedimiento de la planta para esa máquina; 5) el asistente consulta: la persona verifica y bloquea con su candado",
+      "nota": "NOM-004-STPS-1999 (DOF 31-may-1999, vigente) apartado 7: el bloqueo de energía lo hace el encargado del mantenimiento, con tarjetas de aviso y candados, y quien los pone los quita; el registro se guarda 12 meses. NOM-029-STPS-2011 cubre lo eléctrico. El PROY-NOM-004-STPS-2020 sigue siendo proyecto."
+    },
+    {
+      "id": "examen",
+      "dato": "Examen propio",
+      "valor": "200 preguntas de órdenes de mantenimiento reales, escritas por los técnicos, con su respuesta y su cita",
+      "nota": "Supuesto del ejemplo. Nunca en el prompt ni en un ajuste fino."
+    },
+    {
+      "id": "examen_estratos",
+      "dato": "Composición del examen",
+      "valor": "60 de valor numérico (torque, presión, holgura), 30 de código de falla, 30 de tabla o programa (lubricante, intervalos), 20 de figura o diagrama, 20 de bloqueo, 30 sin respuesta y 10 de otra variante; en cada estrato, los cuatro idiomas en la proporción de los manuales y una tercera parte de escaneos",
+      "nota": "Supuesto del ejemplo."
+    },
+    {
+      "id": "criterio_calidad",
+      "dato": "Criterio de aceptación",
+      "valor": "1) 0 valores numéricos equivocados en las 60 (bien = valor y unidad exactos con su cita, o «no lo encontré»); 2) 0 pasos de bloqueo inventados en las 20; 3) ≥ 85 % de las 200 bien y con la cita correcta (170 o más)",
+      "nota": "0 de 60 demuestra, al 95 %, que el error es ≤ 4.87 % (exacta; la regla de tres da 5 %); demostrar ≤ 1 % pediría ≈ 299 preguntas numéricas sin un error. Por eso el invariante se repite en cada cambio y el piloto lo vigila con el uso."
+    },
+    {
+      "id": "jueces",
+      "dato": "Quién califica",
+      "valor": "2 técnicos con más antigüedad califican cada respuesta numérica y de bloqueo; un juez LLM solo ordena el resto",
+      "nota": "≈ 70 h de técnicos: 50 escribiendo (15 min por pregunta) y 20 calificando (200 × 2 × 3 min). Supuesto."
+    },
+    {
+      "id": "piloto",
+      "dato": "Prueba piloto",
+      "valor": "6 semanas: los dos modelos en una L40S rentada (≈ 240 h a US$1.09) con los manuales que su licencia deja procesar fuera; luego la prueba en sitio con los procedimientos de la planta, en el servidor ya instalado",
+      "nota": "Los procedimientos de bloqueo y los planos no salen de la planta: su estrato se prueba en sitio. El piloto también mide la temperatura de la nave, los tokens de imagen por página y el tiempo que tarda un técnico en encontrar un dato hoy."
+    },
+    {
+      "id": "costo_paro_hora",
+      "dato": "Costo de una hora de línea parada",
+      "valor": "US$12,000",
+      "unidad": "Supuesto: ingreso anual supuesto de US$100 M ÷ 8,000 h productivas = US$12,500, redondeado. No se usa la cifra de Siemens (US$2.3 M por hora, True Cost of Downtime 2024), que es de una planta automotriz grande (encuesta a plantas grandes; Siemens extrapola sus totales a las empresas del Fortune Global 500; PDF leído el 2026-11-27): sería ≈ 192 veces más.",
+      "nota": "por hora"
+    },
+    {
+      "id": "paros",
+      "dato": "Paros no planeados",
+      "valor": "20 al mes, 25 horas",
+      "nota": "Supuesto con el orden de magnitud de Siemens (25 incidentes y 27 h al mes por planta, todos los sectores), cuya muestra son plantas grandes."
+    },
+    {
+      "id": "ahorro_objetivo",
+      "dato": "Ahorro que se busca",
+      "valor": "5 % del tiempo de paro: ≈ 1.25 h al mes, ≈ US$15,000",
+      "nota": "Fórmula con supuestos, no promesa: el piloto mide cuántos minutos tarda hoy un técnico en encontrar el dato."
+    },
+    {
+      "id": "tarifa",
+      "dato": "Luz",
+      "valor": "US$0.08 por kWh",
+      "nota": "Supuesto: la energía de media tensión ordinaria (GDMTO) de la ficha del despacho, ≈ $1.542 ÷ 19.7203; es del Valle de México y no cuenta la demanda. La tarifa horaria (GDMTH) del Bajío no está verificada; con ≈ 0.3 a 0.6 kW, no mueve la decisión."
+    },
+    {
+      "id": "personas",
+      "dato": "Horas de TI al mes",
+      "valor": "US$450 al mes ≈ MXN 8,874: ≈ 41 h a MXN 218.1 (28,000 × 1.35 ÷ 173.3)",
+      "nota": "Supuestos: el sueldo y el factor de cargas son los del despacho; las ≈ 41 h (US$450, el paso de la herramienta de TCO), por las actualizaciones a mano (sin internet) y la vigilancia 24/7."
+    },
+    {
+      "id": "costo_a",
+      "dato": "Costo de la opción A",
+      "valor": "compra ≈ US$15,248; ≈ US$1,022 al mes (≈ MXN 20,159); TCO de 36 meses ≈ US$36,801 (≈ MXN 726 mil)",
+      "nota": "Herramienta de TCO: 2 GPUs a US$3,624, servidor US$8,000, 36 meses, reventa 20 %, 72 W por GPU al 25 %, 250 W del resto, PUE 2.0, US$0.08 por kWh, US$200 al mes de espacio y red, US$450 de personas, 19.7203 pesos por dólar (FIX del 2026-11-26). Sin impuestos, flete ni lo de decidir."
+    },
+    {
+      "id": "costo_b",
+      "dato": "Costo de la opción B",
+      "valor": "compra US$58,281.30; ≈ US$2,012 al mes (≈ MXN 39,683); TCO de 36 meses ≈ US$72,443 (≈ MXN 1.43 M)",
+      "nota": "Misma herramienta y supuestos: 2 × US$8,910 + base US$40,461.30, 350 W por GPU al 25 %, 400 W del resto. La renta en la nube no aplica: la red de planta no sale a internet."
+    },
+    {
+      "id": "costo_pregunta",
+      "dato": "Costo por pregunta",
+      "valor": "≈ MXN 3.23 (A) y ≈ MXN 6.36 (B); Qwen3 32B por API, ≈ US$2.27 al mes por todo",
+      "nota": "6,240 preguntas al mes. El despacho paga ≈ MXN 0.82 por pregunta: aquí el servidor trabaja ≈ 1 % del día. La API no es opción (sin internet), y no es el mismo modelo."
+    },
+    {
+      "id": "equilibrio_paro",
+      "dato": "Equilibrio contra el paro",
+      "valor": "el asistente se paga si ahorra ≈ 5 min (A) o ≈ 10 min (B) de línea parada al mes",
+      "nota": "Costo al mes ÷ US$12,000 por hora × 60. Con el ahorro que se busca (1.25 h, US$15,000), B devuelve ≈ 7.5 veces lo que cuesta y A ≈ 14.7. Las dos cifras dependen del supuesto del costo del paro."
+    },
+    {
+      "id": "decidir",
+      "dato": "Lo que cuesta decidir",
+      "valor": "≈ US$760: ≈ 70 h de técnicos (MXN 132.4 la hora, ≈ US$470) + la L40S rentada (≈ US$262) + una L4 rentada 40 h (≈ US$28)",
+      "nota": "Supuestos: sueldo de técnico de MXN 17,000 (anuncio de Silao, secundaria) × 1.35 ÷ 173.3; renta de gpus.json (RunPod). Sin las horas del integrador."
+    },
+    {
+      "id": "decision_hardware",
+      "dato": "Decisión",
+      "valor": "se presupuesta B y se celebra A: se cotizan las dos; si el 9B pasa los tres criterios en el examen y en la prueba en sitio, se compra A; si no, B",
+      "nota": "La regla está firmada antes del examen. B es el presupuesto porque el cliente no debe llevarse una sorpresa hacia arriba."
+    },
+    {
+      "id": "normas_cuarto",
+      "dato": "El site, la norma eléctrica",
+      "valor": "NOM-001-SEDE-2012 (DOF 29-nov-2012, vigente); si el site se declara sala de equipos de TI (Artículo 645): desconexión de emergencia de todo el equipo y de su aire, aire dedicado, acceso solo del personal necesario, paredes resistentes al fuego, y los UPS dentro también se desconectan",
+      "nota": "Si el servidor fuera en un gabinete en la línea, el 645 no aplica (no es una sala): reglas generales de envolventes y tierras. Si la planta maquina aluminio o magnesio, sus polvos son combustibles (Grupo E, Artículo 500): criterio de ubicación, no de grado IP."
+    },
+    {
+      "id": "grado_ip",
+      "dato": "Grado de protección del equipo",
+      "valor": "un servidor de rack no publica IP (≈ IP20, no verificado); IP5X = protegido contra polvo, IP6X = hermético; el IP no cubre aceite ni taladrina",
+      "nota": "IEC 60529 (versión consolidada 2.2, 2013-08-29); significados de los dígitos de una fuente secundaria. Los filtros de los servidores de borde son de calidad de oficina (MERV 2 en una página de Lenovo, MERV 4 en su hoja de datos)."
+    },
+    {
+      "id": "voz",
+      "dato": "Voz",
+      "valor": "extra, no camino principal: el texto, el QR de la placa y una foto del número de serie resuelven casi todo",
+      "nota": "Whisper large-v3-turbo (0.81 B, MIT) o Qwen3-ASR (Apache 2.0) podrían transcribir, pero no hay ninguna medición de su error en ruido de planta (lo más cercano: 6.91 % en Common Voice 17 en español, secundaria). Se mide en el piloto con micrófono con supresión."
+    },
+    {
+      "id": "observabilidad",
+      "dato": "Lo que se vigila",
+      "valor": "lo del despacho más la temperatura: temperatura de GPU y de memoria, margen hasta el freno y segundos de throttling por calor; la alerta va a la pantalla de la oficina de mantenimiento y al correo interno de la planta",
+      "nota": "Sin internet, el correo de las alertas no puede salir a un servicio en la nube. La línea base de temperatura se mide en el mes más caliente."
+    },
+    {
+      "id": "actualizaciones",
+      "dato": "Actualizaciones",
+      "valor": "mensuales, por la máquina puente de la planta en la DMZ industrial (espejo de paquetes e imágenes verificadas), nunca con una conexión de salida desde la zona",
+      "nota": "Como el ciclo del despacho, con un paso más: el ingeniero de automatización firma la entrada a OT."
+    }
+  ]
+}

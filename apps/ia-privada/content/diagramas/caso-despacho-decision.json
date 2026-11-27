@@ -1,0 +1,47 @@
+{ "titulo": "La decisión de hardware del despacho: qué mide el piloto y qué opción sale de cada resultado",
+  "width": 78, "height": 46,
+  "lanes": [
+    { "id": "piloto", "label": "Lo que mide el piloto", "kind": "online", "x": 0, "y": 0, "w": 78, "h": 21 },
+    { "id": "compra", "label": "Lo que se compra", "kind": "offline", "x": 0, "y": 24, "w": 78, "h": 22 }
+  ],
+  "nodes": [
+    { "id": "examen", "label": "Examen", "sub": "3 contra 5 fragmentos", "badge": "1", "kind": "job", "x": 2, "y": 7, "w": 20, "h": 9,
+      "note": "Las mismas 200 preguntas con 5 fragmentos y con 3 más el [[reranker]]. La de 3 pasa si no filtra nada, no inventa citas nuevas y la [[prueba-pareada|prueba pareada]] no cae más de lo que el [[gate-de-calidad|gate]] permite. **Va primero**: si bastan 3, la GPU deja de importar tanto." },
+    { "id": "prefill", "label": "Prefill medido", "sub": "RTX PRO 6000 rentada", "badge": "2", "kind": "gpu", "x": 29, "y": 7, "w": 20, "h": 9,
+      "note": "Un prompt de 6,000 tokens en una Server Edition rentada (G4 de Google Cloud, ≈ US$4.50 por hora; o la Workstation en RunPod, ≈ US$2.69), con los flags de producción. La regla: **≤ ≈ 1.75 s**, el prefill más lento con el que el p95 por turno más la red y la búsqueda llega a 2 s. La cuenta dice 1.72 s; nadie lo ha medido." },
+    { "id": "cotiz", "label": "Cotización", "sub": "de D, con fecha", "badge": "3", "kind": "store", "x": 56, "y": 7, "w": 20, "h": 9,
+      "note": "Dos integradores, con número de parte y fecha de entrega. La regla: **no más cara que B (US$76,101)** y entrega comprometida en ≈ 3 meses. El 2026-11-26 la tienda que más la vende la tenía en US$17,158.99 y sin existencias." },
+    { "id": "a", "label": "A · 3 L40S", "sub": "con 3 fragmentos", "kind": "gpu", "x": 2, "y": 31, "w": 20, "h": 9,
+      "note": "Con ≈ 3,500 tokens por pregunta, cada L40S atiende 4 conversaciones: 12 lugares, [[n-mas-1|N+1]] y ≈ 1.74 s con reranker, red y búsqueda. US$67,191 y ≈ US$2,753 al mes: la más barata que cumple, y se entrega hoy." },
+    { "id": "b", "label": "B · 4 L40S", "sub": "TTFT firmado más alto", "kind": "gpu", "x": 29, "y": 31, "w": 20, "h": 9,
+      "note": "N+1 de verdad y se entrega hoy, pero con 5 fragmentos no baja de 2.38 s: el despacho tendría que firmar un TTFT más alto. US$76,101 y ≈ US$3,000 al mes. Es la salida si la Server Edition no llega, sale cara o su prefill medido es lento." },
+    { "id": "d", "label": "D · 2 Server Edition", "sub": "la recomendada", "kind": "gpu", "x": 56, "y": 31, "w": 20, "h": 9,
+      "note": "La única que cumple ≤ 2 s con 5 fragmentos (≈ 1.77 s por turno, ≈ 1.94 s con red y búsqueda), con 12 lugares y repuesto del promedio. ≈ US$74,779 y ≈ US$2,943 al mes." }
+  ],
+  "edges": [
+    { "from": "examen", "to": "prefill", "kind": "online", "label": "pide 5", "fromSide": "r", "toSide": "l" },
+    { "from": "prefill", "to": "cotiz", "kind": "online", "label": "≤ 1.75 s", "fromSide": "r", "toSide": "l" },
+    { "from": "examen", "to": "a", "kind": "offline", "label": "bastan 3", "fromSide": "b", "toSide": "t" },
+    { "from": "prefill", "to": "b", "kind": "offline", "label": "más lento", "fromSide": "b", "toSide": "t" },
+    { "from": "cotiz", "to": "d", "kind": "offline", "label": "a tiempo, ≤ B", "fromSide": "b", "toSide": "t" },
+    { "from": "cotiz", "to": "b", "kind": "offline", "dashed": true, "fromSide": "b", "toSide": "r", "via": [[66, 24], [52, 24], [52, 35.5]] }
+  ],
+  "flows": [
+    { "id": "hacia-d", "label": "El camino que lleva a D",
+      "steps": [
+        { "nodes": ["examen"], "edges": [], "text": "**Semana 3.** El examen corre las 200 preguntas con 5 fragmentos y con 3 más el reranker. Supón que con 3 la prueba pareada cae demasiado: el despacho necesita sus 5 fragmentos." },
+        { "nodes": ["examen", "prefill"], "edges": ["examen>prefill"], "text": "Con 5 fragmentos, el prompt sigue en ≈ 6,000 tokens y las L40S no bajan de 2.38 s. **Semana 4:** se mide el prefill en una RTX PRO 6000 rentada." },
+        { "nodes": ["prefill", "cotiz"], "edges": ["prefill>cotiz"], "text": "Sale ≤ 1.75 s: con 2 tarjetas y reparto por turno, el p95 queda en 2 s o menos. Se piden las cotizaciones con fecha." },
+        { "nodes": ["cotiz", "d"], "edges": ["cotiz>d"], "text": "La cotización llega a tiempo y no cuesta más que 4 L40S: se compra **D**, 2 RTX PRO 6000 Blackwell Server Edition." }
+      ] },
+    { "id": "bastan-3", "label": "Si bastan 3 fragmentos",
+      "steps": [
+        { "nodes": ["examen"], "edges": [], "text": "La de 3 fragmentos con reranker pasa los invariantes, la prueba pareada y el criterio de ≥ 170 de 200." },
+        { "nodes": ["examen", "a"], "edges": ["examen>a"], "text": "Con ≈ 3,500 tokens, 3 L40S dan 12 lugares, N+1 y ≈ 1.74 s. Se compra **A**: la más barata que cumple, sin esperar una tarjeta escasa." }
+      ] },
+    { "id": "no-llega", "label": "Si la Server Edition no llega",
+      "steps": [
+        { "nodes": ["prefill", "b"], "edges": ["prefill>b"], "text": "Si el prefill medido pasa de ≈ 1.75 s, ni D cumple: no vale pagar por ella." },
+        { "nodes": ["cotiz", "b"], "edges": ["cotiz>b"], "text": "O la cotización sale más cara que B, o sin fecha. Se compra **B**, 4 L40S, con reparto por turno y un TTFT que el despacho firma más alto." }
+      ] }
+  ] }

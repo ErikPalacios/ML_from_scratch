@@ -1,0 +1,48 @@
+{
+ "e5": {
+  "repo": "intfloat/multilingual-e5-small",
+  "revision": "614241f622f53c4eeff9890bdc4f31cfecc418b3",
+  "licencia": "MIT",
+  "archivos": {
+   "model.onnx": {
+    "ruta": "onnx/model.onnx",
+    "bytes": 470268510,
+    "sha256": "ca456c06b3a9505ddfd9131408916dd79290368331e7d76bb621f1cba6bc8665"
+   },
+   "tokenizer.json": {
+    "ruta": "onnx/tokenizer.json",
+    "bytes": 17082730,
+    "sha256": "0b44a9d7b51c3c62626640cda0e2c2f70fdacdc25bbbd68038369d14ebdf4c39"
+   }
+  },
+  "dim": 384,
+  "max_tokens": 512,
+  "pooling": "mean",
+  "prefijo_consulta": "query: ",
+  "prefijo_pasaje": "passage: ",
+  "idiomas": "≈ 100 (los de XLM-RoBERTa)",
+  "tipo": "embeddings"
+ },
+ "reranker": {
+  "repo": "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1",
+  "revision": "1427fd652930e4ba29e8149678df786c240d8825",
+  "licencia": "Apache-2.0",
+  "archivos": {
+   "model.onnx": {
+    "ruta": "onnx/model_qint8_arm64.onnx",
+    "bytes": 118620017,
+    "sha256": "1825907d6c1a9001ff78124780bbde20a614a8c3df3b63409cf3c72c6fe5c8b4"
+   },
+   "tokenizer.json": {
+    "ruta": "tokenizer.json",
+    "bytes": 17082660,
+    "sha256": "62c24cdc13d4c9952d63718d6c9fa4c287974249e16b7ade6d5a85e7bbb75626"
+   }
+  },
+  "tipo": "cross-encoder",
+  "max_tokens": 512,
+  "salida": "un logit por par (pregunta, pasaje): más alto = más relevante",
+  "cuantizado": "int8 (dinámico)",
+  "idiomas": "14 (los de mMARCO: el inglés y 13 traducciones, con español), sobre XLM-RoBERTa"
+ }
+}

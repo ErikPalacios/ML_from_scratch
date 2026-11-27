@@ -1,0 +1,382 @@
+{
+ "titulo": "Una pregunta en la línea: del QR de la placa a la respuesta con el recorte de la tabla",
+ "width": 78,
+ "height": 64,
+ "lanes": [
+  {
+   "id": "planta",
+   "label": "La línea · WiFi de planta",
+   "kind": "online",
+   "x": 0,
+   "y": 0,
+   "w": 78,
+   "h": 14
+  },
+  {
+   "id": "cpu",
+   "label": "Zona del asistente · CPU",
+   "kind": "online",
+   "x": 0,
+   "y": 16,
+   "w": 78,
+   "h": 28
+  },
+  {
+   "id": "gpu",
+   "label": "Zona del asistente · 2 GPUs",
+   "kind": "neutral",
+   "x": 0,
+   "y": 46,
+   "w": 78,
+   "h": 18
+  }
+ ],
+ "nodes": [
+  {
+   "id": "tecnico",
+   "label": "Técnico",
+   "sub": "tablet y QR",
+   "badge": "1",
+   "kind": "client",
+   "x": 2,
+   "y": 3,
+   "w": 18,
+   "h": 8,
+   "note": "Uno de los 30 técnicos, frente a la prensa 7. Escanea el QR de la placa (fabricante, modelo y número de serie) y escribe la pregunta. Entra con su cuenta local: en esta zona no hay SSO en la nube."
+  },
+  {
+   "id": "wifi",
+   "label": "WiFi de planta",
+   "sub": "conducto :443",
+   "kind": "edge",
+   "x": 30,
+   "y": 3,
+   "w": 18,
+   "h": 8,
+   "note": "Una [[zona-y-conducto|zona]] aparte de la WiFi de oficina. El firewall solo la deja hablar con la interfaz del asistente por HTTPS al 443. No ve los PLCs ni la oficina."
+  },
+  {
+   "id": "pdf",
+   "label": "Biblioteca de PDFs",
+   "sub": "si todo cae",
+   "kind": "store",
+   "x": 58,
+   "y": 3,
+   "w": 18,
+   "h": 8,
+   "note": "Los mismos manuales, en un servidor de archivos de la DMZ que la planta ya tiene. Si las dos GPUs fallan a las 3:00, la tablet sigue abriendo el PDF de la máquina: el asistente es un atajo, no el único camino."
+  },
+  {
+   "id": "webui",
+   "label": "Open WebUI",
+   "sub": "cuenta local",
+   "kind": "service",
+   "x": 2,
+   "y": 20,
+   "w": 18,
+   "h": 8,
+   "note": "La interfaz del piloto. Pasa la pregunta y la máquina del QR al servicio de búsqueda. Para producción, la planta decide con los técnicos si hace falta una pantalla propia con botones grandes."
+  },
+  {
+   "id": "busqueda",
+   "label": "Servicio de búsqueda",
+   "sub": "filtro por máquina",
+   "badge": "2",
+   "kind": "service",
+   "x": 30,
+   "y": 20,
+   "w": 18,
+   "h": 8,
+   "note": "Arma el [[filtro-por-maquina|filtro por máquina]] con lo que trajo el QR, consulta Qdrant, trae la imagen de la página de cada fragmento y arma el prompt con sus marcas de manual y página."
+  },
+  {
+   "id": "qdrant",
+   "label": "Qdrant",
+   "sub": "BM25 + vectores",
+   "badge": "3",
+   "kind": "store",
+   "x": 58,
+   "y": 20,
+   "w": 18,
+   "h": 8,
+   "note": "≈ 1.59 M de fragmentos de 400 tokens. [[bm25|BM25]] encuentra los códigos de falla y los números de parte, que se escriben igual en alemán que en japonés; los vectores encuentran la pregunta en español contra el manual en inglés. Las dos listas se juntan con [[rrf|RRF]]."
+  },
+  {
+   "id": "gateway",
+   "label": "Gateway",
+   "sub": "LiteLLM",
+   "kind": "edge",
+   "x": 2,
+   "y": 32,
+   "w": 18,
+   "h": 8,
+   "note": "La puerta de siempre: claves, cuotas y el registro de una fila por pregunta. Reparte entre las dos copias del modelo y, si una cae, manda todo a la otra."
+  },
+  {
+   "id": "paginas",
+   "label": "Páginas como imagen",
+   "sub": "una por página",
+   "kind": "store",
+   "x": 58,
+   "y": 32,
+   "w": 18,
+   "h": 8,
+   "note": "La imagen de cada una de las 600,000 páginas, guardada en la ingesta junto a su texto. De aquí sale el recorte de la tabla que el técnico ve junto al valor."
+  },
+  {
+   "id": "emb",
+   "label": "Embeddings",
+   "sub": "la pregunta",
+   "kind": "gpu",
+   "x": 2,
+   "y": 50,
+   "w": 18,
+   "h": 8,
+   "note": "Qwen3-Embedding-0.6B convierte la pregunta en un vector: ≈ 50 tokens, unos milisegundos."
+  },
+  {
+   "id": "llm",
+   "label": "Qwen3.8-27B",
+   "sub": "copia en la L40S 1",
+   "badge": "4",
+   "kind": "gpu",
+   "x": 30,
+   "y": 50,
+   "w": 18,
+   "h": 8,
+   "note": "El [[vlm|modelo de visión]] en FP8. Recibe ≈ 3,500 tokens: instrucciones, la pregunta, 5 fragmentos y la imagen de la página de la tabla (≈ 1,000 tokens, supuesto). Escribe primero el valor con su unidad y su cita."
+  },
+  {
+   "id": "llm2",
+   "label": "Qwen3.8-27B",
+   "sub": "copia en la L40S 2",
+   "kind": "gpu",
+   "x": 58,
+   "y": 50,
+   "w": 18,
+   "h": 8,
+   "note": "La segunda copia completa: la [[n-mas-1|N+1]]. La carga cabe de sobra en una sola GPU; la segunda existe para que una falla de noche no deje a la línea sin manuales."
+  }
+ ],
+ "edges": [
+  {
+   "from": "tecnico",
+   "to": "wifi",
+   "kind": "online",
+   "label": "pregunta",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "wifi",
+   "to": "webui",
+   "kind": "online",
+   "fromSide": "b",
+   "toSide": "t",
+   "via": [
+    [
+     39,
+     14
+    ],
+    [
+     11,
+     14
+    ]
+   ]
+  },
+  {
+   "from": "webui",
+   "to": "busqueda",
+   "kind": "online",
+   "label": "+ máquina",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "busqueda",
+   "to": "qdrant",
+   "kind": "online",
+   "label": "filtro",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "busqueda",
+   "to": "paginas",
+   "kind": "online",
+   "fromSide": "b",
+   "toSide": "l",
+   "via": [
+    [
+     39,
+     36
+    ]
+   ]
+  },
+  {
+   "from": "busqueda",
+   "to": "gateway",
+   "kind": "online",
+   "fromSide": "b",
+   "toSide": "r",
+   "via": [
+    [
+     39,
+     36
+    ]
+   ]
+  },
+  {
+   "from": "gateway",
+   "to": "emb",
+   "kind": "online",
+   "fromSide": "b",
+   "toSide": "t"
+  },
+  {
+   "from": "gateway",
+   "to": "llm",
+   "kind": "online",
+   "label": "prompt + imagen",
+   "fromSide": "b",
+   "toSide": "t",
+   "via": [
+    [
+     11,
+     46
+    ],
+    [
+     39,
+     46
+    ]
+   ]
+  },
+  {
+   "from": "gateway",
+   "to": "llm2",
+   "kind": "neutral",
+   "fromSide": "b",
+   "toSide": "t",
+   "via": [
+    [
+     11,
+     46
+    ],
+    [
+     67,
+     46
+    ]
+   ],
+   "dashed": true
+  },
+  {
+   "from": "tecnico",
+   "to": "pdf",
+   "kind": "async",
+   "fromSide": "t",
+   "toSide": "t",
+   "via": [
+    [
+     11,
+     1
+    ],
+    [
+     67,
+     1
+    ]
+   ],
+   "dashed": true
+  }
+ ],
+ "flows": [
+  {
+   "id": "vuelta",
+   "label": "Una pregunta de torque, de principio a fin",
+   "steps": [
+    {
+     "nodes": [
+      "tecnico",
+      "wifi",
+      "webui"
+     ],
+     "edges": [
+      "tecnico>wifi",
+      "wifi>webui"
+     ],
+     "text": "**1 · La máquina y la pregunta.** El técnico escanea el QR de la prensa 7 y pregunta el torque de los tornillos de una placa. La tablet solo llega a la interfaz, por el conducto de la WiFi de planta."
+    },
+    {
+     "nodes": [
+      "webui",
+      "busqueda"
+     ],
+     "edges": [
+      "webui>busqueda"
+     ],
+     "text": "**2 · El filtro.** La búsqueda recibe la pregunta y la máquina. Desde aquí, todo lo que busque está limitado a ese modelo y revisión, más la hoja de bloqueo de la planta para la prensa 7."
+    },
+    {
+     "nodes": [
+      "busqueda",
+      "gateway",
+      "emb",
+      "qdrant"
+     ],
+     "edges": [
+      "busqueda>gateway",
+      "gateway>emb",
+      "busqueda>qdrant"
+     ],
+     "text": "**3 · Buscar.** La pregunta se vuelve vector; Qdrant busca por BM25 y por vectores, con el filtro, y devuelve 5 fragmentos. El manual está en alemán; la pregunta, en español: lo que une a los dos es el vector, y lo que asegura el código o el número de parte es BM25."
+    },
+    {
+     "nodes": [
+      "busqueda",
+      "paginas"
+     ],
+     "edges": [
+      "busqueda>paginas"
+     ],
+     "text": "**4 · La página.** Para el fragmento con la tabla, la búsqueda trae la imagen de su página. Va al prompt (el modelo la lee) y a la respuesta (el técnico la ve)."
+    },
+    {
+     "nodes": [
+      "gateway",
+      "llm"
+     ],
+     "edges": [
+      "gateway>llm"
+     ],
+     "text": "**5 · Contestar.** Qwen3.8-27B lee ≈ 3,500 tokens en ≈ 0.54 s y escribe primero el valor, su unidad y su cita, a ≈ 19 tokens por segundo con 4 técnicos a la vez. Si no hay cita, contesta «no lo encontré». Nunca saca un torque de memoria."
+    }
+   ]
+  },
+  {
+   "id": "falla",
+   "label": "Cuando algo falla de noche",
+   "steps": [
+    {
+     "nodes": [
+      "gateway",
+      "llm",
+      "llm2"
+     ],
+     "edges": [
+      "gateway>llm2"
+     ],
+     "text": "**1 · Cae una GPU.** El gateway deja de mandar a la copia caída y todo va a la otra. Una sola GPU aguanta ≈ 40 veces la hora pico de la planta; nadie de TI tiene que venir a las 3:00."
+    },
+    {
+     "nodes": [
+      "tecnico",
+      "pdf"
+     ],
+     "edges": [
+      "tecnico>pdf"
+     ],
+     "text": "**2 · Cae todo el servidor.** La tablet abre el PDF del manual en la biblioteca de la DMZ, como antes del asistente. Se pierde el atajo, no el manual."
+    }
+   ]
+  }
+ ]
+}
