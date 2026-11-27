@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 352" role="img" aria-labelledby="f-caso-financiera-gpu-t" class="f-svg" style="max-width:420px">
+<title id="f-caso-financiera-gpu-t">Horas de GPU que pide cada pieza en una noche normal de la financiera, en horas de una L40S. La voz a texto con Whisper large-v3-turbo: 9.41 horas con la cota baja de velocidad (85 veces tiempo real) y 3.45 con la cota alta (232 veces). Resumir y clasificar las 8,000 llamadas con Qwen3.8 27B: 2.08 horas. Si la grabación fuera mono, separar las voces con pyannote pediría además unas 6.9 horas, medidas en una H100, no en una L40S. Con la cota baja, el LLM es el 18 % de la GPU de la noche: el modelo famoso es el que menos gasta.</title>
+<rect class="f-card" x="8" y="8" width="344" height="336" rx="16"/>
+<text class="f-l" x="22" y="34">HORAS DE GPU EN UNA NOCHE NORMAL</text>
+<text class="f-s" x="22" y="54" style="font-size:12px">800 h de audio, 8,000 llamadas · horas de una L40S</text>
+<text class="f-s" x="22" y="84" style="font-weight:700">Voz a texto · cota baja (85×)</text>
+<rect class="f-b" x="22" y="92" width="225.9" height="22" rx="3"/>
+<text class="f-t" x="255" y="108" style="font-size:13px">9.41 h</text>
+<text class="f-s" x="22" y="138" style="font-weight:700">Voz a texto · cota alta (232×)</text>
+<rect class="f-b2" x="22" y="146" width="82.8" height="22" rx="3"/>
+<text class="f-t" x="112" y="162" style="font-size:13px">3.45 h</text>
+<text class="f-s" x="22" y="192" style="font-weight:700">LLM: resumir y clasificar</text>
+<rect class="f-y" x="22" y="200" width="50.0" height="22" rx="3"/>
+<text class="f-t" x="80" y="216" style="font-size:13px">2.08 h</text>
+<text class="f-s" x="22" y="246" style="font-weight:700">Diarización, si fuera mono</text>
+<rect class="f-off" x="22" y="254" width="165.6" height="22" rx="3"/>
+<text class="f-t" x="195" y="270" style="font-size:13px">≈ 6.9 h</text>
+<text class="f-s" x="22" y="292" style="font-size:12px">medida en una H100 · con estéreo, cero</text>
+<rect class="f-chip" x="22" y="304" width="316" height="28" rx="8"/>
+<text class="f-s" x="32" y="323" style="font-size:12.5px">El LLM es ≈ 18 % de la noche. Manda la voz.</text>
+</svg>

@@ -1,0 +1,472 @@
+{
+  "nota": "La ficha de la financiera, el caso «Financiera» de IA Privada (fase 9, 2026-11-27): cada número de la financiera que usa el caso vive aquí y se usa tal cual. Es ficticia y no tiene nombre propio: es «la financiera». Los hechos del mundo real (leyes, disposiciones, normas, modelos, precios) llevan su fuente y su fecha en la nota; los demás son supuestos del ejemplo y la nota lo dice. Las cuentas salen de las herramientas de IA Privada (VRAM, velocidad y TCO) y de las dos calculadoras del caso (la ventana y la API) con los valores que dice cada nota. Lo jurídico es la lectura del caso, no asesoría: lo confirman el área de Cumplimiento y el abogado de la financiera.",
+  "hechos": [
+    {
+      "id": "que_es",
+      "dato": "Qué es",
+      "valor": "una institución de banca múltiple pequeña de consumo (tarjeta de crédito y crédito personal) con sede en Monterrey, Nuevo León, con un centro de contacto propio que graba todas sus llamadas",
+      "nota": "Ficticia. Se eligió un banco (y no una SOFOM o una SOFIPO) porque es la entidad con reglas explícitas de secreto (LIC art. 142), de terceros y nube (CUB arts. 317–318) y de grabaciones (CUB arts. 316 Bis 7 y 316 Bis 15). En el habla común, «financiera»; las lecciones «De requisitos a hardware», «Pruebas de carga» y «Evals» ya usan una financiera con un lote nocturno de documentos: este caso es la misma idea con llamadas de voz."
+    },
+    {
+      "id": "clientes",
+      "dato": "Clientes",
+      "valor": "≈ 1.2 millones",
+      "unidad": "clientes",
+      "nota": "Supuesto del ejemplo. Con 240,000 llamadas al mes son ≈ 0.2 llamadas por cliente al mes."
+    },
+    {
+      "id": "region",
+      "dato": "Dónde están los clientes",
+      "valor": "en todo el país, ≈ 45 % en el noreste",
+      "nota": "Supuesto del ejemplo. Pesa en el eval: la voz a texto se mide por región (acentos y modismos del norte, del centro y del sur)."
+    },
+    {
+      "id": "llamadas_dia",
+      "dato": "Llamadas al día",
+      "valor": "8,000: 5,600 entrantes (servicio y aclaraciones) y 2,400 salientes de cobranza propia",
+      "unidad": "llamadas/día",
+      "nota": "Supuesto del ejemplo (70 % y 30 %)."
+    },
+    {
+      "id": "horario_centro",
+      "dato": "Horario del centro de contacto",
+      "valor": "8:00 a 20:00, los 7 días",
+      "nota": "Supuesto del ejemplo. La cobranza llama solo dentro de ese horario, adentro de la franja de 7:00 a 22:00 que fijan las Disposiciones de CONDUSEF para los despachos de cobranza (disposición cuarta, fr. IV; DOF 7-oct-2014, leído 2026-11-27): son reglas para despachos externos, pero la financiera las usa como estándar propio."
+    },
+    {
+      "id": "llamadas_mes",
+      "dato": "Llamadas al mes",
+      "valor": "240,000 (8,000 × 30 días)",
+      "unidad": "llamadas/mes",
+      "nota": "Derivado. 30 días porque el centro abre todos los días (la herramienta de TCO toma días enteros)."
+    },
+    {
+      "id": "duracion",
+      "dato": "Duración media de una llamada",
+      "valor": "6.0 min (entrantes 5.0; cobranza 8.0)",
+      "unidad": "min",
+      "nota": "Supuesto del ejemplo: 0.7 × 5.0 + 0.3 × 8.0 = 5.9 ≈ 6. Los blogs de proveedores de software de centros de contacto dan 4 a 7 minutos para servicios financieros (fuentes secundarias, sin un estudio de AMIA, ICMI o COPC); 6 queda en la parte alta del rango porque incluye verificar identidad y cobranza."
+    },
+    {
+      "id": "horas_audio",
+      "dato": "Horas de audio al día",
+      "valor": "800",
+      "unidad": "h/día",
+      "nota": "Derivado: 8,000 × 6 ÷ 60. Es la cifra que dimensiona todo el caso."
+    },
+    {
+      "id": "agentes",
+      "dato": "Agentes",
+      "valor": "≈ 200, en turnos",
+      "unidad": "agentes",
+      "nota": "Derivado de supuestos: 800 h ÷ ≈ 4.9 h de conversación por agente al día (70 % de ocupación de 7 h) ≈ 163, más ausentismo, descansos y picos. Para comparar: en México hay 95.2 mil personas en la ocupación «trabajadores que proporcionan información por teléfono», con un salario medio de $7.06 mil al mes (DataMéxico con la ENOE, 1er trimestre de 2026, consultado 2026-11-27); la cifra no separa la banca."
+    },
+    {
+      "id": "grabacion",
+      "dato": "Cómo se graba",
+      "valor": "estéreo: el agente en un canal y el cliente en el otro, G.711 a 64 kbit/s por canal; la central exporta los archivos del día a las 21:30",
+      "nota": "Supuesto a confirmar con el proveedor de la central telefónica: es la pregunta que más cambia el caso. Si la grabación llega en un solo canal (mono), hay que separar las voces con diarización (pyannote) y se suma su costo de GPU."
+    },
+    {
+      "id": "almacen_audio",
+      "dato": "Audio que se guarda",
+      "valor": "≈ 46 GB al día; ≈ 8.3 TB en 180 días; ≈ 16.8 TB en un año",
+      "nota": "Derivado: 128 kbit/s × 3,600 s ÷ 8 = 57.6 MB por hora × 800 h = 46.08 GB al día. Con un códec comprimido baja; no se midió. Ya lo guarda el sistema de grabación de la financiera: el caso no compra ese disco."
+    },
+    {
+      "id": "conservacion_audio",
+      "dato": "Cuánto se conservan las grabaciones",
+      "valor": "al menos 180 días naturales, en forma segura, contra alteración y con control de acceso",
+      "nota": "CUB (Disposiciones de carácter general aplicables a las instituciones de crédito de la CNBV, texto con modificaciones al 6-nov-2026, leído 2026-11-27), art. 316 Bis 15, fr. I: el mínimo es para las grabaciones de Banca Telefónica Voz a Voz (contratación, activación, desactivación, modificación y suspensión del servicio). La financiera aplica los 180 días a todas sus llamadas: decisión del caso. La identificación remota de un cliente se conserva al menos 10 años (art. 51 Bis 6, fr. VII), pero es otro proceso."
+    },
+    {
+      "id": "transcripcion_al_cliente",
+      "dato": "Si el cliente pide su grabación",
+      "valor": "se le deja escucharla y se le da una transcripción si la pide, en ≤ 10 días hábiles; no se le entrega copia del audio",
+      "nota": "CUB art. 316 Bis 15, último párrafo (leído 2026-11-27). Es un uso legal directo de la transcripción, y la vuelve un documento que tiene que estar bien."
+    },
+    {
+      "id": "palabras_min",
+      "dato": "Palabras por minuto de llamada",
+      "valor": "≈ 130 (los dos hablantes, con pausas y esperas)",
+      "unidad": "palabras/min",
+      "nota": "Supuesto del ejemplo, no una medición: un hablante activo dice más (≈ 7.8 sílabas por segundo en español según un estudio de 2011 citado por prensa, fuente secundaria), pero una llamada tiene turnos, silencios, música de espera y verificación. Se mide en el piloto."
+    },
+    {
+      "id": "palabras_llamada",
+      "dato": "Palabras por llamada",
+      "valor": "≈ 780",
+      "unidad": "palabras",
+      "nota": "Derivado: 6 min × 130."
+    },
+    {
+      "id": "tokens_palabra",
+      "dato": "Tokens por palabra en una transcripción",
+      "valor": "≈ 1.8 (rango 1.5–2.1)",
+      "unidad": "tokens/palabra",
+      "nota": "Medido con el tokenizador de Qwen3.8 27B sobre una llamada sintética de 343 palabras escrita para el caso: 1.47 tokens por palabra el texto hablado, 1.57 con las etiquetas «Agente:» y «Cliente:» (paquete de la fase 9, 2026-11-27). Esa llamada traía los números en palabras; una transcripción con cifras («$1,250», fechas, folios) pesa más: la nota clínica con cifras dio 2.09. El 1.8 es el valor del ejemplo; se vuelve a medir con transcripciones reales."
+    },
+    {
+      "id": "tokens_entrada",
+      "dato": "Tokens de entrada por llamada",
+      "valor": "≈ 2,004 (1,404 de la transcripción + 600 de instrucciones, esquema y catálogo)",
+      "unidad": "tokens",
+      "nota": "Derivado: 780 × 1.8 = 1,404, más 600 fijos (supuesto). Los 600 son iguales en las 8,000 llamadas: el prefix caching podría ahorrarlos (≈ 30 % del prefill)."
+    },
+    {
+      "id": "tokens_salida",
+      "dato": "Tokens de salida por llamada",
+      "valor": "≈ 350",
+      "unidad": "tokens",
+      "nota": "Supuesto: un JSON con el resumen (≈ 120 palabras), el motivo, queja sí o no, la causa, la promesa de pago (sí o no, monto, fecha) y las banderas."
+    },
+    {
+      "id": "tokens_dia",
+      "dato": "Tokens al día",
+      "valor": "≈ 16.0 millones de entrada y ≈ 2.8 millones de salida (el doble en el día pico)",
+      "nota": "Derivado: 8,000 × 2,004 y 8,000 × 350."
+    },
+    {
+      "id": "ventana",
+      "dato": "Ventana nocturna",
+      "valor": "22:00 a 06:00 (8 h); el tablero, listo a las 7:00",
+      "unidad": "h",
+      "nota": "Supuesto del ejemplo: es la franja que TI reserva para los procesos nocturnos. El margen se pone en 15 %: el lote se diseña para terminar en 6.8 h, y de 6:00 a 7:00 queda una hora para reintentos."
+    },
+    {
+      "id": "margen",
+      "dato": "Margen de la ventana",
+      "valor": "15 % → 6.8 h útiles",
+      "unidad": "h",
+      "nota": "Decisión del caso (8 × 0.85)."
+    },
+    {
+      "id": "dia_pico",
+      "dato": "Día pico",
+      "valor": "el doble de un día normal: ≈ 16,000 llamadas y ≈ 1,600 h de audio",
+      "nota": "Supuesto del ejemplo: la quincena y el cierre de mes juntan cobranza y aclaraciones, y un incidente (una caída de la app, un cargo duplicado masivo) dispara las llamadas. Que la quincena sea la causa es razonable, no un dato verificado."
+    },
+    {
+      "id": "quejas",
+      "dato": "Llamadas con queja o reclamación",
+      "valor": "≈ 3 % → ≈ 240 al día",
+      "unidad": "llamadas/día",
+      "nota": "Supuesto del ejemplo, sin fuente. Incluye las aclaraciones de cargos no reconocidos, que son las más frecuentes."
+    },
+    {
+      "id": "une",
+      "dato": "Unidad Especializada (UNE)",
+      "valor": "responde cada reclamación por escrito en ≤ 30 días hábiles e informa a la CONDUSEF cada trimestre",
+      "nota": "Ley de Protección y Defensa al Usuario de Servicios Financieros (LPDUSF), art. 50 Bis (texto de la Cámara de Diputados, última reforma DOF 14-11-2025, leído 2026-11-27): la reclamación se recibe por cualquier medio; el informe trimestral, dentro de los 10 días hábiles siguientes al cierre; la reclamación suspende la prescripción."
+    },
+    {
+      "id": "reune",
+      "dato": "REUNE",
+      "valor": "registro de consultas, reclamaciones y aclaraciones ante la CONDUSEF, con su causa según el catálogo de cada sector, por cualquier canal",
+      "nota": "Disposición en Materia de Registros ante la CONDUSEF (DOF, nota 5668453, leída 2026-11-27): arts. 2 fr. LXXV, 12, 68, 70 y 71. La atención telefónica lleva bitácora (art. 68); los antecedentes se conservan 6 años (art. 70); la causa sale «del catálogo que se localiza en el REUNE» (art. 71): el catálogo no está en el DOF, la financiera lo carga de su REUNE."
+    },
+    {
+      "id": "catalogo",
+      "dato": "Causas del ejemplo",
+      "valor": "10 causas + «sin queja»: consumo no reconocido; consumo por internet no reconocido; cargo no reconocido en la cuenta; transferencia no reconocida; amenaza, insulto o intimidación en la cobranza; cobranza a quien no es el cliente; no se actualizó el historial crediticio; cancelación no atendida; bloqueo o cancelación sin aviso; otra causa",
+      "nota": "Tomadas de las causas más frecuentes de reclamación ante la CONDUSEF de enero a septiembre de 2025 (197,721 reclamaciones; consumos no reconocidos 24,018, el 12.1 %; amenazas al deudor 14,502, el 7.3 %), según Publimetro (3-nov-2025, fuente secundaria que atribuye los datos a la CONDUSEF), sin la de seguros. La lección «Evals» supone 12 categorías; aquí son 11. En producción se usa el catálogo del REUNE."
+    },
+    {
+      "id": "motivos",
+      "dato": "Motivos de la llamada",
+      "valor": "aclaración de cargo, saldo o pago, cobranza, cancelación, producto nuevo o aumento de línea, fraude o bloqueo, otro",
+      "nota": "Decisión del caso: el motivo es para el tablero; la causa de queja es para la UNE."
+    },
+    {
+      "id": "salida_json",
+      "dato": "Lo que escribe el LLM por llamada",
+      "valor": "un JSON con resumen, motivo (enum), queja (sí o no), causa (enum del catálogo), promesa de pago (sí o no, monto, fecha) y banderas (amenaza, menciona a la CONDUSEF, posible fraude)",
+      "nota": "Decisión del caso. Con salida estructurada (vLLM 0.34.0, xgrammar), un enum hace que el modelo no pueda inventar una causa: el error posible pasa de «etiqueta inventada» a «etiqueta equivocada»."
+    },
+    {
+      "id": "banderas_metadatos",
+      "dato": "Señales que no pasan por el LLM",
+      "valor": "hora de la llamada de cobranza (fuera de 7:00–22:00), duración, número de intentos al mismo cliente",
+      "nota": "Decisión del caso: salen de los metadatos de la central, con una regla. El LLM solo hace lo que pide leer la conversación."
+    },
+    {
+      "id": "modelo_asr",
+      "dato": "Voz a texto",
+      "valor": "Whisper large-v3-turbo (OpenAI, MIT, 808,878,080 parámetros) con faster-whisper 1.2.1 sobre CTranslate2 4.9.1, con el VAD de Silero y la transcripción por lotes",
+      "nota": "Hugging Face, PyPI y GitHub, consultados 2026-11-27: turbo es large-v3 con 4 capas de decodificador en vez de 32; faster-whisper 1.2.1 (31-oct-2025, MIT) trae Silero VAD y BatchedInferencePipeline; CTranslate2 4.9.1 (22-nov-2026, MIT). Alternativa a medir en el piloto: Parakeet-TDT-0.6B-v3 de NVIDIA (CC-BY-4.0, 25 idiomas europeos con español)."
+    },
+    {
+      "id": "rtfx_publicado",
+      "dato": "Velocidad publicada de la voz a texto (RTFx)",
+      "valor": "large-v3-turbo 200× (inglés corto); large-v3 111× y Parakeet-TDT-0.6B-v3 1,720× (multilingüe); en una A100 80 GB con lote de 64",
+      "nota": "Open ASR Leaderboard, arXiv 2510.06961 v4 (30-mar-2026), tablas 3 y 4: NVIDIA A100-SXM4-80GB, CUDA 12.6, lote 64. El mismo trabajo advierte que el RTFx absoluto depende del hardware, y los datasets son lectura o audio limpio, no teléfono a 8 kHz."
+    },
+    {
+      "id": "wer_publicado",
+      "dato": "Error publicado en español (WER)",
+      "valor": "Whisper large-v3 3.65 %; Parakeet-TDT-0.6B-v3 3.73 %; Canary-1B-v2 3.25 %",
+      "nota": "Misma tabla 4 del Open ASR Leaderboard (audio leído o limpio). No hay WER publicado de turbo en español en esa tabla, ni de ningún modelo en llamadas de centro de contacto en español de México a 8 kHz: el caso lo mide."
+    },
+    {
+      "id": "rtfx_l40s",
+      "dato": "RTFx de large-v3-turbo en una L40S",
+      "valor": "entre ≈ 85× y ≈ 232× (una banda, no una medición)",
+      "nota": "Derivado: los 200× de la A100 escalados por el ancho de banda (864 ÷ 2,039 GB/s → 84.7×, la cota baja) y por el pico de FP16 denso (362.05 ÷ 312 TFLOPS → 232.1×, la cota alta), con gpus.json. El caso dimensiona con la cota baja y la semana 1 del piloto la reemplaza por la medida."
+    },
+    {
+      "id": "rtfx_server_edition",
+      "dato": "RTFx de large-v3-turbo en una RTX PRO 6000 Server Edition",
+      "valor": "entre ≈ 157× y ≈ 321×",
+      "nota": "Derivado igual que la L40S: 1,597 ÷ 2,039 y 500 ÷ 312 (gpus.json)."
+    },
+    {
+      "id": "rtfx_minimo",
+      "dato": "RTFx mínimo para cerrar la ventana",
+      "valor": "con una GPU: 100× (8 h), 118× con el margen; con 4 GPUs en el día pico: ≈ 70× cada una",
+      "nota": "Derivado: 800 ÷ 8 = 100; 800 ÷ 6.8 = 117.6; día pico con 4 GPUs: 1,600 ÷ (6.8 × 4 − 2 × 2.08) = 69.5 (calculadora «¿Cabe en la ventana?»)."
+    },
+    {
+      "id": "diarizacion",
+      "dato": "Diarización, si la grabación fuera mono",
+      "valor": "pyannote community-1: ≈ 31 s por hora de audio en una H100 → ≈ 6.9 h de H100 al día",
+      "nota": "README de pyannote.audio (tabla «last updated 2025-09», consultado 2026-11-27): 31 s por hora en AMI y 37 s en DIHARD 3 en una H100 80 GB; con 37 s/h serían 8.2 h. La versión 4.1.1 (19-nov-2026) es MIT; el modelo community-1 es CC-BY-4.0 y gated: se aceptan sus condiciones y se baja con un token, después corre sin internet. Su README dice que la diarización está lejos de ser perfecta. Con estéreo no hace falta."
+    },
+    {
+      "id": "vad",
+      "dato": "Silencio",
+      "valor": "el VAD descarta los tramos sin voz antes de transcribir; con estéreo, cada canal calla mientras habla el otro",
+      "nota": "faster-whisper 1.2.1 activa el VAD por omisión en la transcripción por lotes (código de utils.py y README, consultados 2026-11-27). Cuánto recorta en estas llamadas no se midió: el caso dimensiona con las 800 h completas. Sin VAD, dos canales serían 1,600 h que transcribir."
+    },
+    {
+      "id": "modelo_llm",
+      "dato": "LLM",
+      "valor": "Qwen3.8 27B (Alibaba, Apache 2.0) en FP8 dinámico, sin razonamiento, con salida estructurada",
+      "nota": "El modelo base de la clínica (clinica.json: 27.78 mil millones de parámetros, 30.32 GB en FP8, 64 KiB de KV por token, ≈ 154 MB de estado fijo por conversación). En Hugging Face sigue con licencia apache-2.0 (consultado 2026-11-27). Retador más chico a medir: Qwen3.5 9B (Apache 2.0, 9.65 mil millones de parámetros), porque clasificar y resumir pide menos que conversar."
+    },
+    {
+      "id": "lote_llm",
+      "dato": "Llamadas a la vez en el LLM, por L40S",
+      "valor": "32",
+      "unidad": "conversaciones",
+      "nota": "Herramienta de VRAM con N = 2,354 (2,004 + 350) y u = 32 en una L40S: necesita 37.26 GB de 43.2 útiles y sobran 5.94 GB, que cubren el estado fijo de los bloques lineales (32 × 0.154 ≈ 4.93 GB, fuera de la herramienta). Con 36 ya no cabe el estado."
+    },
+    {
+      "id": "velocidad_llm",
+      "dato": "Throughput del LLM en una L40S",
+      "valor": "prefill ≈ 6,550 tokens/s; decode ≈ 555 tokens/s con 32 a la vez",
+      "nota": "Herramienta de velocidad con la L40S, FP8 (cf = 2), Np = 2,004, No = 350, b = 32, ηm = 0.7 y ηc = 0.5: velocidad del prefill 6,550 tokens/s y tokens por segundo de todas 554.7. La herramienta no cuenta la lectura del estado fijo en cada paso; con ella, ≈ 490 tokens/s."
+    },
+    {
+      "id": "horas_llm",
+      "dato": "Horas de GPU del LLM por noche",
+      "valor": "≈ 2.08 h de una L40S (prefill 0.68 h + decode 1.40 h); ≈ 0.93 h de una Server Edition",
+      "nota": "Derivado: 16.03 M ÷ 6,550 ÷ 3,600 + 2.80 M ÷ 554.7 ÷ 3,600. Sumar prefill y decode es conservador: en el servidor se traslapan. En la Server Edition, con b = 64, la herramienta de velocidad da 8,936 y 1,813 tokens/s."
+    },
+    {
+      "id": "horas_asr",
+      "dato": "Horas de GPU de la voz a texto por noche",
+      "valor": "≈ 9.41 h de una L40S con la cota baja (85×); ≈ 3.45 h con la alta (232×)",
+      "nota": "Calculadora «¿Cabe en la ventana?»: 800 ÷ 85 y 800 ÷ 232. Con la cota baja, la voz a texto es el 82 % de la GPU de la noche: lo que manda la ventana no es el LLM."
+    },
+    {
+      "id": "plan_noche",
+      "dato": "Cómo se reparte la noche",
+      "valor": "las 4 GPUs transcriben y después las 4 resumen y clasifican: ≈ 2.87 h un día normal y ≈ 5.75 h el día pico, con la cota baja",
+      "nota": "Calculadora «¿Cabe en la ventana?»: con R = 85 y s_L = 0.937 s por llamada, (9.41 + 2.08) ÷ 4 = 2.87 h; × 2 = 5.75 h ≤ 6.8. Partir el servidor fijo en 2 GPUs de voz y 2 de LLM daría 4.71 h de voz un día normal y 9.41 h el día pico: no cabe."
+    },
+    {
+      "id": "capacidad_noche",
+      "dato": "Hasta dónde aguanta la ventana",
+      "valor": "≈ 18,900 llamadas en 6.8 h con 4 L40S y la cota baja",
+      "nota": "Calculadora «¿Cabe en la ventana?»: 8,000 × 6.8 ÷ 2.87. Con una GPU menos (falla una), el día normal tarda 3.83 h y el día pico 7.66 h: el pico ya no cabe con margen."
+    },
+    {
+      "id": "decision_hardware",
+      "dato": "Servidor",
+      "valor": "Exxact TensorEX 4U con 4× NVIDIA L40S (US$76,101.30)",
+      "unidad": "US$, sin impuestos",
+      "nota": "equipos.json (exxact-4xl40s-4u, 2026-11-25): base US$40,461.30 + 4 × US$8,910. Potencia pico estimada de 2,500 W. Comparado con 2 L40S (US$58,281.30), 1 o 2 RTX PRO 6000 Server Edition (≈ US$57,620 y ≈ US$74,779, con el precio de CDW de 2026-11-26 que usaron el despacho y la clínica, «backordered»)."
+    },
+    {
+      "id": "opciones_ventana",
+      "dato": "Horas de la noche por opción (cota baja · día normal / día pico)",
+      "valor": "2 L40S 5.75 / 11.49; 4 L40S 2.87 / 5.75; 1 Server Edition 6.02 / 12.04; 2 Server Edition 3.01 / 6.02",
+      "unidad": "h",
+      "nota": "Calculadora «¿Cabe en la ventana?» con la cota baja de cada GPU (85 y 157) y los segundos del LLM por llamada de cada una (0.937 y 0.417, de la herramienta de velocidad). Con la cota alta, 2 L40S cierran el día pico en 5.53 h."
+    },
+    {
+      "id": "potencia",
+      "dato": "Consumo promedio",
+      "valor": "≈ 870 W en promedio, 24 × 7",
+      "nota": "Herramienta de TCO: 4 × 350 W × 0.3 (GPUs al máximo ≈ 3 h por noche y casi en reposo el resto, supuesto) + 450 W del resto."
+    },
+    {
+      "id": "centro_datos",
+      "dato": "Dónde va el servidor",
+      "valor": "en el centro de datos propio de la financiera en Monterrey, con UPS, planta y aire; en la red interna, sin salida a internet",
+      "nota": "Supuesto del ejemplo: un banco ya tiene centro de datos. PUE 2.0 (el del despacho y la clínica, conservador para un centro de datos) y luz a ≈ US$0.11 por kWh (la tarifa de media tensión de la ficha del despacho); la tarifa de Nuevo León no se consultó."
+    },
+    {
+      "id": "motor",
+      "dato": "Motores",
+      "valor": "faster-whisper para la voz; vLLM 0.34.0 en modo offline (LLM.generate con StructuredOutputsParams) para resumir y clasificar",
+      "nota": "vLLM 0.34.0 (release 2026-11-16, Apache 2.0). La documentación de esa versión trae dos formas de lote: vllm run-batch con un archivo JSONL (que acepta también /v1/audio/transcriptions) y la ruta offline en Python. Que structured_outputs en el body de run-batch se acepte tal cual no se probó: se usa la ruta offline, documentada. Los campos guided_* se quitaron en v0.12.0; lm-format-enforcer está deprecado desde v0.33.0 y sale en v0.35.0."
+    },
+    {
+      "id": "tandas",
+      "dato": "Cómo se corre el lote",
+      "valor": "en tandas de 500 llamadas, cada una con su archivo de salida y su código de salida revisado",
+      "nota": "Decisión del caso. La documentación de run-batch (v0.34.0) avisa que el archivo de salida se trunca al empezar y que, si la corrida falla a medias, trae solo las primeras líneas: hay que revisar el código de salida y reanudar desde la última completa."
+    },
+    {
+      "id": "secreto",
+      "dato": "Secreto bancario",
+      "valor": "la información de las operaciones y servicios es confidencial; no se da a nadie más que al cliente, sus representantes y las autoridades que la ley nombra",
+      "nota": "Ley de Instituciones de Crédito (LIC), art. 142 (texto de la Cámara de Diputados, última reforma DOF 14-11-2025, leído 2026-11-27). Los empleados responden por violarlo y la institución repara los daños. Una llamada sobre la tarjeta de un cliente es información de una operación o servicio."
+    },
+    {
+      "id": "secreto_terceros",
+      "dato": "El secreto alcanza a los terceros",
+      "valor": "el art. 142 también aplica a los terceros que le dan servicios al banco y a sus empleados, aun después de dejar de trabajar ahí",
+      "nota": "LIC art. 46 Bis 1 (leído 2026-11-27). Un proveedor de nube que transcribe llamadas queda atado al secreto; un servidor propio no es un tercero."
+    },
+    {
+      "id": "terceros_cnbv",
+      "dato": "Contratar a un tercero (la nube incluida)",
+      "valor": "informe y flujograma con la información que se intercambia y la ubicación física de los servidores; políticas aprobadas por el Consejo; cláusulas de visita de la CNBV, de confidencialidad y de eliminación segura; que el tercero avise con 30 días de cambios en su objeto social; aviso previo a la CNBV; y, si se procesa fuera de México, políticas propias y la autorización de la CNBV",
+      "nota": "CUB arts. 317, 318, 318 Bis y 326–328 (leídos 2026-11-27). La nube aparece nombrada como «cómputo bajo demanda y de infraestructura tecnológica a través de Internet». Si el tercero hace un proceso operativo o administra bases de datos (transcribir llamadas encaja ahí, en la lectura del caso), el banco da aviso a la CNBV al menos 20 días hábiles antes, firmado por el director general, con el informe del 318 fr. II y el proyecto de contrato; la CNBV puede pedir que no se contrate y, si no responde, se puede (arts. 326 y 327). Si el servicio se da total o parcialmente fuera de México, hace falta la autorización de la CNBV, pedida con 20 días hábiles de anticipación: país con protección de datos o acuerdo con México, documentación de auditorías en México y acuerdo del Consejo o de un comité (art. 328; leídos 2026-11-27 en el mismo texto de las CUB). Ninguna norma leída prohíbe la nube ni obliga a que las grabaciones se queden en México: es un procedimiento exigente, no una prohibición."
+    },
+    {
+      "id": "centro_contacto_cnbv",
+      "dato": "Controles del centro de atención telefónica",
+      "valor": "seguridad física y lógica de la infraestructura, incluidos los grabadores y los respaldos de las grabaciones; que los operadores no registren datos de los usuarios en medios distintos a los de la institución",
+      "nota": "CUB art. 316 Bis 7, fr. I y III (leído 2026-11-27). Las transcripciones y los resúmenes nacen de esas grabaciones y heredan sus controles."
+    },
+    {
+      "id": "aviso_grabacion",
+      "dato": "Aviso al grabar",
+      "valor": "el saludo grabado es el aviso simplificado y remite al aviso integral; el integral nombra la finalidad de analizar las llamadas con IA",
+      "nota": "LFPDPPP (DOF 20-mar-2025, última reforma 14-nov-2025, leída 2026-11-27), arts. 15 y 16 fr. II: los datos obtenidos por medio sonoro llevan el aviso simplificado y el sitio del integral. Los datos financieros piden consentimiento expreso (art. 7), salvo lo que exige la relación jurídica con el cliente (art. 9 fr. IV). La CONDUSEF no exige el aviso de grabación: viene de esta ley. Lectura del caso; lo confirma el abogado."
+    },
+    {
+      "id": "decisiones_automatizadas",
+      "dato": "Evaluar a los agentes",
+      "valor": "el titular puede oponerse a un tratamiento automatizado que, sin intervención humana, evalúe su rendimiento profesional",
+      "nota": "LFPDPPP art. 26 fr. II (leído 2026-11-27). Usar las transcripciones para calificar agentes es otra finalidad con otro titular (el empleado). Las reglas laborales de monitoreo no se leyeron: las revisa el abogado laboral."
+    },
+    {
+      "id": "pci",
+      "dato": "Datos de tarjeta",
+      "valor": "PCI DSS v4.0.1: el código de seguridad (CVV) no se guarda después de autorizar, ni cifrado; el número de tarjeta (PAN) se muestra enmascarado (a lo más el BIN y los últimos 4) y es ilegible dondequiera que se guarde; el audio cuenta como almacenamiento",
+      "nota": "PCI DSS v4.0.1 (junio de 2024), reqs. 3.3.1, 3.3.1.2, 3.4.1 y 3.5.1 y la definición de almacenamiento («audio files»), leídos en un espejo de la norma (middlebury.edu, no el sitio del PCI SSC), 2026-11-27. La FAQ 1210 del PCI SSC (actualizada en junio de 2025) dice que guardar el CVV en grabaciones viola el 3.3.1 aunque esté cifrado: se evita grabarlo o se redacta al capturar; si no se puede, controles compensatorios. Y que PCI DSS no reemplaza las leyes locales de retención."
+    },
+    {
+      "id": "pci_voz",
+      "dato": "Analítica de voz y PCI",
+      "valor": "cifrar el CVV en una grabación no basta: no debe poder buscarse ni escucharse; las herramientas que transcriben y guardan «se diseñan para localizar tipos de datos» y su uso donde hay datos de cuenta se controla con cuidado",
+      "nota": "Suplemento del PCI SSC «Protecting Telephone-Based Payment Card Data» v3.0 (nov-2018), sec. 7.2.5 «Voice Analytics» (leído 2026-11-27). Transcribir vuelve buscable lo que en el audio estaba enterrado."
+    },
+    {
+      "id": "redaccion",
+      "dato": "Redacción en la transcripción",
+      "valor": "toda corrida de 13 o más dígitos (escritos o dichos en palabras) se reemplaza por [PAN ****NNNN], con o sin Luhn; el código dicho después de «código de seguridad» o «CVV», por [CVV]; antes de escribir nada a disco",
+      "nota": "Decisión del caso con la demostración del paquete (redactar_pan.py, 2026-11-27): un filtro que redacta solo lo que pasa la prueba de Luhn deja pasar un PAN con un dígito mal transcrito (4111 1111 1111 1112). Los falsos positivos (folios largos) se miden."
+    },
+    {
+      "id": "pausa_telefonia",
+      "dato": "La defensa en el audio",
+      "valor": "pausa o enmascarado de la grabación mientras el cliente dicta la tarjeta (en la central), o pago por tonos fuera de la llamada grabada",
+      "nota": "La FAQ 1210 y el suplemento telefónico del PCI SSC: evitar que se grabe es lo primero. Es una pieza de la central, no del LLM; confirmar con su proveedor qué ofrece."
+    },
+    {
+      "id": "retencion",
+      "dato": "Qué se guarda y cuánto",
+      "valor": "audio ≥ 180 días (en el grabador, como hoy); transcripción redactada 180 días; JSON del resumen y la clasificación 6 años si va ligado a una reclamación, si no, 180 días",
+      "nota": "Decisión del caso con dos reglas: los 180 días de CUB 316 Bis 15 y los 6 años de antecedentes de la UNE (Disposición de registros de la CONDUSEF, art. 70). La confirma Cumplimiento."
+    },
+    {
+      "id": "equipo_ti",
+      "dato": "Quién lo opera",
+      "valor": "3 personas de TI y 1 de datos, ≈ US$1,200 al mes del tiempo que le dedican",
+      "nota": "Supuesto del ejemplo: los mismos US$1,200 de operación de la clínica, sin guardia en espera (un lote que se atrasa no despierta a nadie: el tablero llega tarde)."
+    },
+    {
+      "id": "quien_decide",
+      "dato": "Quién decide",
+      "valor": "el Oficial de Cumplimiento, la UNE y la Contraloría; el Comité de Auditoría vigila las políticas de terceros",
+      "nota": "CUB art. 318 fr. II y último párrafo (el Comité de Auditoría) y LPDUSF art. 50 Bis (la UNE)."
+    },
+    {
+      "id": "muestra_wer",
+      "dato": "Muestra para el WER",
+      "valor": "40 llamadas (≈ 4 h) transcritas a mano por dos personas, estratificadas por región y por tipo",
+      "nota": "Supuesto de diseño del caso. El WER entre las dos personas es el piso; se reporta aparte el error en números (montos, fechas, folios)."
+    },
+    {
+      "id": "muestra_clasificador",
+      "dato": "Examen del clasificador",
+      "valor": "2,000 llamadas etiquetadas por supervisores, con 600 quejas (estratificado); 400 las etiquetan dos supervisores para medir su acuerdo",
+      "nota": "Las 2,000 son las de la lección «Evals». Las 600 quejas sobrerrepresentan el ≈ 3 % real a propósito, para que cada causa tenga casos."
+    },
+    {
+      "id": "kappa_ejemplo",
+      "dato": "Acuerdo entre dos supervisores en «queja sí o no»",
+      "valor": "κ ≈ 0.81 (coinciden en 384 de 400)",
+      "nota": "Ejemplo del caso, no una medición: los dos dicen sí en 40, no en 344; uno sí y el otro no en 9 y en 7. po = 0.96, pe ≈ 0.789."
+    },
+    {
+      "id": "criterio_quejas",
+      "dato": "Criterio de las quejas",
+      "valor": "a lo más 6 quejas perdidas en las 600: ≤ 2 % demostrado con 95 % de confianza",
+      "nota": "Derivado con la cota exacta de una cola (binomial): 6 en 600 da 1.96 %; 7 da 2.18 %."
+    },
+    {
+      "id": "criterio_pan",
+      "dato": "Criterio de la redacción",
+      "valor": "0 números de tarjeta sin redactar en 1,000 llamadas de prueba con tarjetas de prueba dictadas: ≤ 0.30 % demostrado",
+      "nota": "Derivado: 1 − 0.05^(1/1,000) ≈ 0.30 % (la cota de la clínica). Las tarjetas son números de prueba, nunca reales."
+    },
+    {
+      "id": "piloto",
+      "dato": "Piloto",
+      "valor": "8 semanas: semana 1, la velocidad (RTFx) en la L40S; semanas 2–4, WER y clasificador; semanas 5–8, el tablero con 6 supervisores",
+      "nota": "Decisión del caso. La velocidad se puede medir con audio que no sea de clientes (grabado por el equipo o público), así que se puede medir antes de comprar, en una GPU rentada por horas: no es dato de nadie."
+    },
+    {
+      "id": "costo_propio",
+      "dato": "Costo del servidor propio",
+      "valor": "≈ US$3,121 al mes (≈ MXN 61,544); TCO de 36 meses ≈ US$112,351",
+      "nota": "Herramienta de TCO: depreciación de US$76,101.30 a 36 meses con 20 % de reventa (US$1,691.1), luz (US$139.7: ≈ 870 W, PUE 2.0, US$0.11 por kWh), obra US$90 y operación US$1,200. Tipo de cambio 19.7203 (el FIX del 2026-11-26). Sin impuestos, flete ni importación."
+    },
+    {
+      "id": "costo_llamada",
+      "dato": "Costo por llamada procesada",
+      "valor": "≈ MXN 0.26 (US$0.013)",
+      "nota": "Herramienta de TCO: 61,544 ÷ 240,000."
+    },
+    {
+      "id": "precio_transcripcion",
+      "dato": "Transcripción por API",
+      "valor": "US$0.006 por minuto (gpt-4o-transcribe y Whisper de OpenAI); US$0.003 (gpt-4o-mini-transcribe)",
+      "nota": "Página de precios de OpenAI, consultada 2026-11-27. AWS Transcribe por lotes usa US$0.006 por minuto en el ejemplo de su página (Virginia); su tabla de tramos no se pudo leer."
+    },
+    {
+      "id": "costo_api",
+      "dato": "Lo mismo por API",
+      "valor": "≈ US$8,730 al mes: transcripción US$8,640 + LLM US$90 (Claude Haiku 5.5); ≈ MXN 0.72 por llamada",
+      "nota": "Calculadora «Servidor propio o API»: 1,440,000 minutos × US$0.006 + 576 M de tokens de entrada × US$0.10 y 84 M de salida × US$0.50 por millón (apis.json, 2026-11-25). El propio cuesta ≈ 36 % de eso. Con gpt-4o-mini-transcribe (US$0.003), la API baja a ≈ US$4,410 y el propio es ≈ 71 % de ella; Haiku 5.5 no es el LLM más barato de apis.json, pero el LLM es ≈ 1 % de la cuenta. La transcripción es el 99 % de la cuenta de la API."
+    },
+    {
+      "id": "equilibrio",
+      "dato": "Volumen en que empatan",
+      "valor": "≈ 85,800 llamadas al mes (≈ 2,860 al día)",
+      "nota": "Calculadora «Servidor propio o API»: 3,121 ÷ 0.03638. Abajo de eso, la API es más barata en dinero."
+    },
+    {
+      "id": "nube_noche",
+      "dato": "Rentar 4 L40S solo de noche",
+      "valor": "≈ US$2,144 al mes (90 h al mes en AWS g6e.12xlarge + operación)",
+      "nota": "Herramienta de TCO con c = 2.6232 US$ por GPU y hora (AWS g6e.12xlarge, us-east-1, gpus.json, 2026-11-13) y h = 90 (≈ 3 h por noche): 944 + 1,200. Más barato que el propio en dinero, pero es un tercero con el mismo trámite que una API (CUB 318) y entra al alcance de PCI. No se puede rentar en México: la lista oficial de precios de EC2 de la región mx-central-1 (publicada 2026-11-24, consultada 2026-11-27) no trae ninguna instancia con GPU; rentar en EE. UU. es procesar fuera del país y pide la autorización de la CNBV (CUB art. 328)."
+    }
+  ]
+}

@@ -62,6 +62,22 @@
       "potencia_estimada": true
     },
     {
+      "id": "exxact-2xl40s-4u",
+      "nombre": "Exxact TensorEX 4U (2× AMD EPYC 9124, 384 GB RAM) con 2× NVIDIA L40S",
+      "gpu_id": "l40s",
+      "gpus": 2,
+      "compra_usd": 58281.3,
+      "potencia_w": 1500,
+      "precio_calculado": true,
+      "potencia_estimada": true,
+      "descripcion": "CALCULADO, no un total visto en pantalla: base US$40,461.30 (configuración Essential sin GPU) + 2 × US$8,910 (adicional por L40S) = US$58,281.30; ambos números salen del configurador de Exxact (2026-11-25). Mismo chasis que exxact-4xl40s-4u (10 ranuras PCIe de doble ancho). Sin impuestos. Potencia: 1,500 W es una ESTIMACIÓN, no un dato de Exxact: 2 × 350 W de GPUs (TDP de la hoja de NVIDIA) + ≈ 400 W de 2 CPUs EPYC 9124 + ≈ 400 W del resto (memoria, discos, ventiladores).",
+      "fuente": {
+        "url": "https://configurator.exxactcorp.com/configure/TS4-115581668",
+        "consultado": "2026-11-25",
+        "fuente_tipo": "secundaria"
+      }
+    },
+    {
       "id": "exxact-2xrtxpro6000server-4u",
       "nombre": "Exxact TensorEX 4U (2× AMD EPYC 9124, 384 GB RAM) con 2× NVIDIA RTX PRO 6000 Blackwell Server Edition",
       "gpu_id": "rtx-pro-6000-blackwell-server",

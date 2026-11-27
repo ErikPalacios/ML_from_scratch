@@ -1,0 +1,337 @@
+{
+ "titulo": "Cómo entra una pieza a la red aislada: de internet a la tarjeta de producción, sin ningún cable entre los dos lados",
+ "width": 78,
+ "height": 66,
+ "lanes": [
+  {
+   "id": "internet",
+   "label": "Lado con internet · otro cuarto",
+   "kind": "neutral",
+   "x": 0,
+   "y": 0,
+   "w": 78,
+   "h": 18
+  },
+  {
+   "id": "cruce",
+   "label": "El cruce · a mano",
+   "kind": "offline",
+   "x": 0,
+   "y": 20,
+   "w": 78,
+   "h": 14
+  },
+  {
+   "id": "aislada",
+   "label": "Red aislada",
+   "kind": "online",
+   "x": 0,
+   "y": 36,
+   "w": 78,
+   "h": 30
+  }
+ ],
+ "nodes": [
+  {
+   "id": "fuentes",
+   "label": "Registros y Hugging Face",
+   "sub": "imágenes, pesos, wheels",
+   "kind": "external",
+   "x": 2,
+   "y": 6,
+   "w": 20,
+   "h": 9,
+   "note": "Docker Hub, GHCR, Hugging Face, PyPI y el repositorio de NVIDIA. Se baja **por digest** (imágenes) y **por commit** (pesos), nunca «la última», y solo lo publicado hace más de 3 días."
+  },
+  {
+   "id": "estacion",
+   "label": "Estación de entrada",
+   "sub": "verifica y escanea",
+   "badge": "1",
+   "kind": "service",
+   "x": 29,
+   "y": 6,
+   "w": 20,
+   "h": 9,
+   "note": "La [[estacion-de-entrada|estación de entrada]]: la única máquina con internet del proceso, y no tiene ningún cable a la red aislada. Aquí se compara cada huella con la de la fuente, se verifica la firma con cosign contra Sigstore (aquí sí hay red), se escanea y se arma el SBOM."
+  },
+  {
+   "id": "manifiesto",
+   "label": "Manifiesto firmado",
+   "sub": "llave de la dependencia",
+   "kind": "store",
+   "x": 56,
+   "y": 6,
+   "w": 20,
+   "h": 9,
+   "note": "La lista de cada archivo con su tamaño y su SHA-256, firmada con la llave privada de la dependencia, que vive solo en la estación de entrada (en un token). La parte pública vive del lado aislado: es lo único con que se verifica adentro."
+  },
+  {
+   "id": "usb",
+   "label": "USB nueva",
+   "sub": "cifrada, un solo uso",
+   "badge": "2",
+   "kind": "store",
+   "x": 29,
+   "y": 23,
+   "w": 20,
+   "h": 9,
+   "note": "Un medio nuevo por ciclo. Lo graba una persona y lo revisa otra; las dos lo llevan. Nunca regresa al lado con internet: se destruye al terminar el ciclo."
+  },
+  {
+   "id": "bitacora",
+   "label": "Bitácora de medios",
+   "sub": "dos firmas",
+   "kind": "queue",
+   "x": 56,
+   "y": 23,
+   "w": 20,
+   "h": 9,
+   "note": "La [[bitacora-de-medios|bitácora]]: qué medio, la huella del manifiesto, quién grabó, quién revisó, a qué hora cruzó, qué encontró la cuarentena y cuándo se destruyó. Se conserva como documento de archivo."
+  },
+  {
+   "id": "cuarentena",
+   "label": "Estación de cuarentena",
+   "sub": "re-escanea y verifica",
+   "badge": "3",
+   "kind": "service",
+   "x": 2,
+   "y": 40,
+   "w": 20,
+   "h": 9,
+   "note": "La única máquina del lado aislado con el puerto USB abierto. Verifica la firma del manifiesto con la llave pública, recalcula cada SHA-256, escanea con las firmas de antivirus que llegaron en el ciclo anterior, y solo entonces copia. Si algo no coincide, nada pasa."
+  },
+  {
+   "id": "registro",
+   "label": "Registro interno",
+   "sub": "imágenes por digest",
+   "kind": "store",
+   "x": 29,
+   "y": 40,
+   "w": 20,
+   "h": 9,
+   "note": "El [[registro-de-contenedores|registro]] local, el [[mirror-local|mirror]] de wheels y el repositorio local del driver. `skopeo copy --all --preserve-digests oci-archive:… docker://registro.interno/…` sube cada imagen; el digest debe salir igual al que anotó la estación de entrada."
+  },
+  {
+   "id": "staging",
+   "label": "Tarjeta 2: staging",
+   "sub": "el examen y la carga",
+   "badge": "4",
+   "kind": "gpu",
+   "x": 56,
+   "y": 40,
+   "w": 20,
+   "h": 9,
+   "note": "La segunda RTX PRO 6000 sale de la rotación y corre la versión nueva con la configuración de producción: el examen de 150 con su juez local, el gate y una prueba de humo. La primera atiende sola (13 lugares contra 1.82)."
+  },
+  {
+   "id": "inventario",
+   "label": "Inventario",
+   "sub": "versión y digest",
+   "kind": "store",
+   "x": 29,
+   "y": 54,
+   "w": 20,
+   "h": 9,
+   "note": "Cada pieza con su versión, su digest o su commit, la fecha en que entró y el número de medio. Sin inventario, un aviso de seguridad no se puede responder: ¿lo tengo?"
+  },
+  {
+   "id": "prod",
+   "label": "Tarjeta 1: producción",
+   "sub": "una a la vez",
+   "badge": "5",
+   "kind": "gpu",
+   "x": 56,
+   "y": 54,
+   "w": 20,
+   "h": 9,
+   "note": "Si el gate pasa, la versión entra en la ventana, una tarjeta a la vez. Si algo falla, se regresa al digest anterior, que sigue en el registro: un minuto."
+  }
+ ],
+ "edges": [
+  {
+   "from": "fuentes",
+   "to": "estacion",
+   "kind": "offline",
+   "label": "digest",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "estacion",
+   "to": "manifiesto",
+   "kind": "offline",
+   "label": "firma",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "estacion",
+   "to": "usb",
+   "kind": "offline",
+   "label": "graba",
+   "fromSide": "b",
+   "toSide": "t"
+  },
+  {
+   "from": "usb",
+   "to": "bitacora",
+   "kind": "monitor",
+   "label": "anota",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "usb",
+   "to": "cuarentena",
+   "kind": "offline",
+   "label": "a mano",
+   "fromSide": "l",
+   "toSide": "t",
+   "via": [
+    [
+     12,
+     27.5
+    ]
+   ]
+  },
+  {
+   "from": "cuarentena",
+   "to": "registro",
+   "kind": "offline",
+   "label": "copia",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "registro",
+   "to": "staging",
+   "kind": "offline",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "registro",
+   "to": "inventario",
+   "kind": "monitor",
+   "fromSide": "b",
+   "toSide": "t"
+  },
+  {
+   "from": "staging",
+   "to": "prod",
+   "kind": "online",
+   "label": "ventana",
+   "fromSide": "b",
+   "toSide": "t"
+  }
+ ],
+ "flows": [
+  {
+   "id": "normal",
+   "label": "Un ciclo trimestral, de principio a fin",
+   "steps": [
+    {
+     "nodes": [
+      "fuentes",
+      "estacion"
+     ],
+     "edges": [
+      "fuentes>estacion"
+     ],
+     "text": "**1 · Bajar.** Con la solicitud de cambio aprobada, la estación de entrada baja vLLM, LiteLLM, Open WebUI, Qdrant y Keycloak **por digest**, solo versiones publicadas hace más de 3 días. Copiar ≈ 12 GB de imágenes toma minutos."
+    },
+    {
+     "nodes": [
+      "estacion",
+      "manifiesto"
+     ],
+     "edges": [
+      "estacion>manifiesto"
+     ],
+     "text": "**2 · Verificar y firmar.** Huellas contra la fuente, firmas con cosign contra Sigstore (aquí hay red), escaneo y SBOM. Si todo pasa, el manifiesto se firma con la llave de la dependencia."
+    },
+    {
+     "nodes": [
+      "estacion",
+      "usb",
+      "bitacora"
+     ],
+     "edges": [
+      "estacion>usb",
+      "usb>bitacora"
+     ],
+     "text": "**3 · Grabar y cruzar.** Una persona graba la USB nueva y otra la revisa. Las dos la llevan al otro cuarto y firman la bitácora con la huella del manifiesto."
+    },
+    {
+     "nodes": [
+      "usb",
+      "cuarentena",
+      "registro"
+     ],
+     "edges": [
+      "usb>cuarentena",
+      "cuarentena>registro"
+     ],
+     "text": "**4 · Cuarentena.** Adentro, la firma del manifiesto se verifica con la llave pública, cada huella se recalcula (≈ 24 s para 46 GB) y se escanea. Solo entonces skopeo sube cada imagen al registro interno, con el mismo digest."
+    },
+    {
+     "nodes": [
+      "registro",
+      "staging",
+      "inventario"
+     ],
+     "edges": [
+      "registro>staging",
+      "registro>inventario"
+     ],
+     "text": "**5 · Staging.** La tarjeta 2 corre lo nuevo y pasa el examen de 150 con su juez local. El inventario anota versión, digest y número de medio."
+    },
+    {
+     "nodes": [
+      "staging",
+      "prod"
+     ],
+     "edges": [
+      "staging>prod"
+     ],
+     "text": "**6 · La ventana.** Fuera de 9:00–18:00, una tarjeta a la vez. Del primer paso a este, ≈ 9 días hábiles: el tiempo es del procedimiento, no de las máquinas."
+    }
+   ]
+  },
+  {
+   "id": "rechazo",
+   "label": "El medio que no pasa",
+   "steps": [
+    {
+     "nodes": [
+      "usb",
+      "cuarentena"
+     ],
+     "edges": [
+      "usb>cuarentena"
+     ],
+     "text": "**1 · Una huella distinta.** La cuarentena recalcula el SHA-256 de un `.safetensors` y no coincide con el manifiesto firmado; o aparece un `.py` que el manifiesto no lista."
+    },
+    {
+     "nodes": [
+      "cuarentena",
+      "bitacora"
+     ],
+     "edges": [],
+     "text": "**2 · Nada pasa.** No se copia ni un archivo. Se anota el hallazgo en la bitácora, con las dos firmas, y el medio se aparta para revisión y luego se destruye."
+    },
+    {
+     "nodes": [
+      "estacion",
+      "fuentes"
+     ],
+     "edges": [
+      "fuentes>estacion"
+     ],
+     "text": "**3 · Otra vuelta.** La estación de entrada vuelve a bajar esa pieza y a compararla con la fuente: ¿se corrompió al grabar o cambió en el origen? Si cambió en el origen, se avisa y se espera. El ciclo pierde días, no seguridad."
+    }
+   ]
+  }
+ ]
+}

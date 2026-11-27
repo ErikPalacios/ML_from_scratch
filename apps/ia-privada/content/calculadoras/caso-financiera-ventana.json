@@ -1,0 +1,50 @@
+{
+  "titulo": "¿Cabe en la ventana?",
+  "intro": "Junta los dos modelos de la noche: la voz a texto, con \\(g_{voz} = H × k / R\\) horas de GPU (las horas de audio \\(H\\) entre su velocidad \\(R\\), el RTFx), y el LLM, con \\(g_{LLM} = n × s_L ÷ 3,600\\). Si las \\(G\\) GPUs se reparten todo el trabajo, la noche dura \\(T = (g_{voz} + g_{diar} + g_{LLM}) ÷ G\\) y el día pico \\(f × T\\). Arranca con los números de la financiera y la **cota baja** del RTFx de una L40S (85×): cambia \\(R\\) por el que mida el piloto.",
+  "entradas": [
+    { "id": "N", "label": "Llamadas al día, \\(n\\)", "min": 100, "max": 200000, "paso": 100, "valor": 8000, "tipo": "numero" },
+    { "id": "m", "label": "Minutos de audio por llamada, \\(m\\)", "min": 1, "max": 20, "paso": 0.5, "valor": 6, "unidad": "min" },
+    { "id": "kc", "label": "Cómo llega la grabación", "tipo": "opcion", "valor": 1, "opciones": [
+      { "valor": 1, "label": "Estéreo con VAD, o mono: cada hora de llamada se transcribe una vez (\\(k\\) = 1)" },
+      { "valor": 2, "label": "Estéreo sin VAD: cada canal completo, con sus silencios (\\(k\\) = 2)" }
+    ] },
+    { "id": "R", "label": "**Velocidad de la voz a texto** en una GPU, \\(R\\) (RTFx: horas de audio por hora de GPU; L40S: 85 a 232, banda derivada)", "min": 5, "max": 3000, "paso": 1, "valor": 85, "tipo": "numero" },
+    { "id": "dz", "label": "Diarización, en segundos de GPU por hora de audio (0 si la grabación es estéreo; pyannote publica 31 en una H100)", "min": 0, "max": 300, "paso": 1, "valor": 0 },
+    { "id": "sl", "label": "Segundos de GPU del LLM por llamada, \\(s_L\\) (0.937 = Qwen3.8 27B en una L40S: 2,004 tokens de entrada y 350 de salida, herramienta de velocidad)", "min": 0.05, "max": 20, "paso": 0.001, "valor": 0.937, "tipo": "numero" },
+    { "id": "G", "label": "**GPUs** que se reparten la noche, \\(G\\)", "min": 1, "max": 16, "paso": 1, "valor": 4 },
+    { "id": "f", "label": "Factor del día pico, \\(f\\) (2 = el doble de llamadas)", "min": 1, "max": 4, "paso": 0.1, "valor": 2 },
+    { "id": "W", "label": "Ventana, en horas (22:00–06:00 = 8)", "min": 1, "max": 16, "paso": 0.5, "valor": 8, "unidad": "h" },
+    { "id": "mg", "label": "Margen que se deja libre (0.15 = 15 %)", "min": 0, "max": 0.5, "paso": 0.05, "valor": 0.15 }
+  ],
+  "calculos": [
+    { "id": "Ha", "formula": "N * m / 60" },
+    { "id": "ga", "formula": "Ha * kc / R" },
+    { "id": "gd", "formula": "Ha * dz / 3600" },
+    { "id": "gl", "formula": "N * sl / 3600" },
+    { "id": "T", "formula": "(ga + gd + gl) / G" },
+    { "id": "Tp", "formula": "f * T" },
+    { "id": "U", "formula": "W * (1 - mg)" },
+    { "id": "den", "formula": "U * G / f - gd - gl" }
+  ],
+  "salidas": [
+    { "label": "1 · Horas de audio al día, \\(H\\)", "formula": "Ha", "formato": "int",
+      "cuenta": "{{N|int}} llamadas × {{m|corto}} min ÷ 60 = **{{Ha|int}} h**" },
+    { "label": "2 · Horas de GPU de la voz a texto, \\(g_{voz}\\) (más la diarización)", "formula": "ga + gd", "formato": "corto", "decimales": 2, "barra": true,
+      "cuenta": "{{Ha|int}} × {{kc|int}} ÷ {{R|int}} = {{ga|corto|2}} h + {{gd|corto|2}} h de diarización = **{{ga + gd|corto|2}} h**" },
+    { "label": "3 · Horas de GPU del LLM, \\(g_{LLM}\\)", "formula": "gl", "formato": "corto", "decimales": 2, "barra": true,
+      "cuenta": "{{N|int}} × {{sl|corto}} s ÷ 3,600 = **{{gl|corto|2}} h**" },
+    { "label": "4 · La noche de un día normal, \\(T\\) (h de reloj)", "formula": "T", "formato": "corto", "decimales": 2,
+      "nota": "las \\(G\\) GPUs transcriben primero y resumen después",
+      "cuenta": "({{ga + gd|corto|2}} + {{gl|corto|2}}) ÷ {{G|int}} = **{{T|corto|2}} h**" },
+    { "label": "5 · La noche del día pico, \\(f × T\\) (h de reloj)", "formula": "Tp", "formato": "corto", "decimales": 2,
+      "cuenta": "{{f|corto}} × {{T|corto|2}} = **{{Tp|corto|2}} h** contra {{U|corto|2}} h útiles ({{W|corto}} h × (1 − {{mg|corto}}))" },
+    { "label": "¿Cabe el día pico con el margen?", "formula": "U - Tp", "veredicto": { "si": "Sí", "no": "No" },
+      "cuenta": "{{U|corto|2}} − {{Tp|corto|2}} = {{U - Tp|corto|2}} h de sobra" },
+    { "label": "Llamadas que caben en las horas útiles", "formula": "N * U / T", "formato": "int",
+      "nota": "con la misma mezcla de llamadas" },
+    { "label": "RTFx mínimo para que quepa el día pico, \\(R^{*}\\)", "formula": "den > 0 ? Ha * kc / den : 1 / 0", "formato": "corto", "decimales": 1, "sin_valor": "Ninguno: la diarización y el LLM solos ya no caben",
+      "nota": "\\(R^{*} = H × k ÷ (U × G ÷ f − g_{diar} − g_{LLM})\\)" },
+    { "label": "Parte de la GPU de la noche que usa el LLM", "formula": "gl / (ga + gd + gl)", "formato": "pct", "decimales": 0 }
+  ],
+  "nota": "Prueba: cambia a «estéreo sin VAD» y mira cómo el día pico deja de caber; baja \\(G\\) a 3 (una tarjeta falla) y a 2 (el servidor partido); pon \\(R\\) = 232, la cota alta, y mira que 2 GPUs bastarían. Lo que esta cuenta no trae: que el prefill y el decode del LLM se traslapan (ayuda) y que un archivo que falla se reintenta (estorba)."
+}

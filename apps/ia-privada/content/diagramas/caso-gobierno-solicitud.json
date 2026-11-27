@@ -1,0 +1,316 @@
+{
+ "titulo": "Una solicitud de acceso con el asistente: propone en la red aislada, deciden personas y solo sale la versión pública aprobada",
+ "width": 78,
+ "height": 62,
+ "lanes": [
+  {
+   "id": "fuera",
+   "label": "Fuera · internet y oficina",
+   "kind": "neutral",
+   "x": 0,
+   "y": 0,
+   "w": 78,
+   "h": 14
+  },
+  {
+   "id": "personas",
+   "label": "Red aislada · personas",
+   "kind": "online",
+   "x": 0,
+   "y": 16,
+   "w": 78,
+   "h": 28
+  },
+  {
+   "id": "asistente",
+   "label": "Red aislada · el asistente",
+   "kind": "neutral",
+   "x": 0,
+   "y": 46,
+   "w": 78,
+   "h": 16
+  }
+ ],
+ "nodes": [
+  {
+   "id": "solicitante",
+   "label": "Solicitante",
+   "sub": "cualquier persona",
+   "kind": "client",
+   "x": 2,
+   "y": 3,
+   "w": 18,
+   "h": 8,
+   "note": "Pide un documento sin decir para qué, por la Plataforma Nacional de Transparencia. El plazo de 20 días hábiles corre desde el día siguiente."
+  },
+  {
+   "id": "pnt",
+   "label": "Plataforma Nacional",
+   "sub": "de Transparencia",
+   "kind": "edge",
+   "x": 30,
+   "y": 3,
+   "w": 18,
+   "h": 8,
+   "note": "Vive en internet. El texto de la solicitud (corto y ya público) lo pasa a la red aislada una persona de la Unidad; la respuesta regresa por el procedimiento de salida que la dependencia ya usa hoy (supuesto)."
+  },
+  {
+   "id": "unidad",
+   "label": "Unidad de Transparencia",
+   "sub": "turna y arma",
+   "badge": "1",
+   "kind": "human",
+   "x": 2,
+   "y": 20,
+   "w": 20,
+   "h": 9,
+   "note": "Registra la solicitud, decide si hay que prevenir (una vez, en 5 días) y la turna a las áreas que podrían tener los documentos. Arma la respuesta con lo que el área decide."
+  },
+  {
+   "id": "area",
+   "label": "Área dueña",
+   "sub": "documentos y decisión",
+   "badge": "3",
+   "kind": "human",
+   "x": 30,
+   "y": 20,
+   "w": 18,
+   "h": 9,
+   "note": "Busca de forma exhaustiva y razonable, entrega los ≈ 25 documentos y **decide** la clasificación: su titular firma la [[prueba-de-dano|prueba de daño]]. Puede aceptar, corregir o tirar cada propuesta del asistente."
+  },
+  {
+   "id": "comite",
+   "label": "Comité",
+   "sub": "confirma o revoca",
+   "badge": "4",
+   "kind": "human",
+   "x": 58,
+   "y": 20,
+   "w": 18,
+   "h": 9,
+   "note": "El [[comite-de-transparencia|Comité de Transparencia]] confirma, modifica o revoca la clasificación y aprueba una prórroga si hace falta."
+  },
+  {
+   "id": "version",
+   "label": "Versión pública",
+   "sub": "testado sin recuperar",
+   "badge": "5",
+   "kind": "job",
+   "x": 58,
+   "y": 33,
+   "w": 18,
+   "h": 9,
+   "note": "Se quita del archivo lo clasificado, con su leyenda y fundamento; no basta un rectángulo negro encima del texto. Es lo único que sale de la red aislada."
+  },
+  {
+   "id": "bitacora",
+   "label": "Bitácora de uso",
+   "sub": "quién, qué, cuándo",
+   "kind": "queue",
+   "x": 2,
+   "y": 33,
+   "w": 20,
+   "h": 9,
+   "note": "Una fila por llamada: persona, solicitud, documento, hora y propuesta. Sirve para auditar quién vio qué; se conserva con el catálogo de disposición documental."
+  },
+  {
+   "id": "asistente",
+   "label": "Asistente",
+   "sub": "propone, no decide",
+   "badge": "2",
+   "kind": "model",
+   "x": 30,
+   "y": 50,
+   "w": 18,
+   "h": 9,
+   "note": "Qwen3.8-27B lee **un documento a la vez** (≈ 5,000 tokens) y devuelve las partes que podrían ser reservadas o confidenciales, con la causal, el fundamento y el borrador de la prueba de daño. No guarda una lista de lo clasificado: la ley prohíbe clasificar antes de la solicitud."
+  },
+  {
+   "id": "indice",
+   "label": "Índice",
+   "sub": "normativa y respuestas",
+   "kind": "store",
+   "x": 2,
+   "y": 50,
+   "w": 20,
+   "h": 9,
+   "note": "≈ 180,000 páginas: las normas internas y las respuestas anteriores **en su versión pública**. Los documentos de cada solicitud no entran al índice: se quedan con su solicitud."
+  },
+  {
+   "id": "vllm",
+   "label": "vLLM · 2 tarjetas",
+   "sub": "RTX PRO 6000",
+   "kind": "gpu",
+   "x": 58,
+   "y": 50,
+   "w": 18,
+   "h": 9,
+   "note": "Dos copias, una por tarjeta, detrás de LiteLLM. En el pico hay ≈ 1.8 conversaciones a la vez; cada tarjeta atiende 13 a 20 tokens por segundo."
+  }
+ ],
+ "edges": [
+  {
+   "from": "solicitante",
+   "to": "pnt",
+   "kind": "online",
+   "label": "pide",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "pnt",
+   "to": "unidad",
+   "kind": "async",
+   "label": "a mano",
+   "fromSide": "b",
+   "toSide": "t",
+   "via": [
+    [
+     39,
+     16
+    ],
+    [
+     12,
+     16
+    ]
+   ]
+  },
+  {
+   "from": "unidad",
+   "to": "area",
+   "kind": "online",
+   "label": "turna",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "area",
+   "to": "asistente",
+   "kind": "online",
+   "label": "documento",
+   "fromSide": "b",
+   "toSide": "t"
+  },
+  {
+   "from": "indice",
+   "to": "asistente",
+   "kind": "offline",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "asistente",
+   "to": "vllm",
+   "kind": "online",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "area",
+   "to": "comite",
+   "kind": "online",
+   "label": "decide",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "comite",
+   "to": "version",
+   "kind": "online",
+   "fromSide": "b",
+   "toSide": "t"
+  },
+  {
+   "from": "version",
+   "to": "pnt",
+   "kind": "async",
+   "fromSide": "r",
+   "toSide": "r",
+   "via": [
+    [
+     77,
+     37.5
+    ],
+    [
+     77,
+     7
+    ]
+   ]
+  }
+ ],
+ "flows": [
+  {
+   "id": "solicitud",
+   "label": "Una solicitud, del día 0 al 20",
+   "steps": [
+    {
+     "nodes": [
+      "solicitante",
+      "pnt",
+      "unidad"
+     ],
+     "edges": [
+      "solicitante>pnt",
+      "pnt>unidad"
+     ],
+     "text": "**1 · Llega.** Una persona pide los oficios de una inspección de 2026. Una persona de la Unidad pasa el texto de la solicitud a la red aislada y la registra: el plazo es el día hábil 20."
+    },
+    {
+     "nodes": [
+      "unidad",
+      "area"
+     ],
+     "edges": [
+      "unidad>area"
+     ],
+     "text": "**2 · Se turna.** La Unidad la manda al área de inspección, que busca y junta ≈ 25 documentos."
+    },
+    {
+     "nodes": [
+      "area",
+      "asistente",
+      "indice",
+      "vllm"
+     ],
+     "edges": [
+      "area>asistente",
+      "indice>asistente",
+      "asistente>vllm"
+     ],
+     "text": "**3 · Propone.** El asistente lee cada documento por separado y propone: «renglón 4, nombre del representante: confidencial, art. 115»; «párrafo 3: posible reserva, art. 112 VI, mientras siga la inspección», con el borrador de la prueba de daño y el fundamento que encontró en el índice."
+    },
+    {
+     "nodes": [
+      "asistente",
+      "bitacora"
+     ],
+     "edges": [],
+     "text": "**4 · Queda registro.** Cada llamada deja su fila: quién pidió la revisión de qué documento de qué solicitud. No queda ninguna lista de «lo reservado» fuera de esa solicitud."
+    },
+    {
+     "nodes": [
+      "area",
+      "comite"
+     ],
+     "edges": [
+      "area>comite"
+     ],
+     "text": "**5 · Deciden personas.** La titular del área acepta dos propuestas, corrige una y tira otra; firma. El Comité confirma el día 19."
+    },
+    {
+     "nodes": [
+      "comite",
+      "version",
+      "pnt",
+      "solicitante"
+     ],
+     "edges": [
+      "comite>version",
+      "version>pnt"
+     ],
+     "text": "**6 · Sale la versión pública.** Lo testado se quita del archivo, y la versión pública sale por el procedimiento de salida: es lo único que cruza hacia afuera. El borrador del asistente nunca sale."
+    }
+   ]
+  }
+ ]
+}

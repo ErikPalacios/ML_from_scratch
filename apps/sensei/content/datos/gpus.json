@@ -321,7 +321,7 @@
       "fp4": false,
       "mig": 0,
       "interconexion": "PCIe Gen4 x16, 64 GB/s bidireccional; sin NVLink",
-      "notas": "La página de NVIDIA (revisada 2026-11-13) publica las dos cifras: FP16 y BF16 362.05 | 733 con sparsity; FP8, INT8 e INT4 733 | 1,466 con sparsity. Densos: FP16 362.05 (no 366.5: el denso publicado no es exactamente la mitad), FP8 733, INT8 733. Sin MIG.",
+      "notas": "La página de NVIDIA (revisada 2026-11-13) publica las dos cifras: FP16 y BF16 362.05 | 733 con sparsity; FP8, INT8 e INT4 733 | 1,466 con sparsity. Densos: FP16 362.05 (no 366.5: el denso publicado no es exactamente la mitad), FP8 733, INT8 733. Sin MIG. Nube en México: la lista oficial de precios de EC2 de la región mx-central-1 (publicada 2026-11-24, consultada 2026-11-27) no trae ninguna instancia con GPU; las filas de nube de abajo son de us-east-1 (rentar ahí es procesar fuera de México).",
       "fuente": {
         "url": "https://www.nvidia.com/en-us/data-center/l40s/",
         "consultado": "2026-11-13",

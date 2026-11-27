@@ -1,0 +1,34 @@
+{
+  "titulo": "El tope del lote",
+  "intro": "Un despacho sube \\(N\\) documentos y cada uno ocupa un lugar \\(t_d\\) segundos. Con un tope de \\(k\\) a la vez, el lote tarda \\(T = N × t_d ÷ k\\) y les deja a los demás \\(R − k\\) lugares, contra las \\(c\\) conversaciones que tienen en el pico (ley de Little). Arranca con el vecino ruidoso de la ficha: 5,000 documentos a las 8:30, 26 lugares y 9.0 conversaciones de los demás.",
+  "entradas": [
+    { "id": "N", "label": "Documentos del lote, \\(N\\)", "min": 1, "max": 1000000, "paso": 1, "valor": 5000, "tipo": "numero" },
+    { "id": "td", "label": "Lo que ocupa cada documento, \\(t_d\\), en segundos (0.45 de prefill + 200 tokens ÷ 20)", "min": 0.1, "max": 300, "paso": 0.01, "valor": 10.45, "tipo": "numero" },
+    { "id": "k", "label": "**Tope del lote**: documentos a la vez, \\(k\\) (el `max_parallel_requests` de su llave)", "min": 1, "max": 64, "paso": 1, "valor": 4 },
+    { "id": "R", "label": "Lugares del servidor a ≥ 20 tokens/s, \\(R\\) (26 con dos tarjetas; 13 si una está caída)", "min": 1, "max": 128, "paso": 1, "valor": 26 },
+    { "id": "c", "label": "Conversaciones de los demás en el pico, \\(c\\) (herramienta de sizing: 9.0)", "min": 0, "max": 128, "paso": 0.1, "valor": 9 },
+    { "id": "h0", "label": "Hora en que empieza, \\(h_0\\) (8.5 = 8:30)", "min": 0, "max": 23.9, "paso": 0.5, "valor": 8.5 }
+  ],
+  "calculos": [
+    { "id": "T", "formula": "N * td / k / 3600" },
+    { "id": "q", "formula": "R - k" }
+  ],
+  "salidas": [
+    { "label": "1 · Lo que tarda el lote, \\(T\\)", "formula": "T", "formato": "num", "decimales": 2,
+      "nota": "horas",
+      "cuenta": "{{N|int}} × {{td|corto}} s ÷ {{k|int}} ÷ 3,600 = **{{T|num|2}} h**" },
+    { "label": "Hora en que termina", "formula": "h0 + T", "formato": "num", "decimales": 1,
+      "nota": "en horas del día; más de 24 es el día siguiente",
+      "cuenta": "{{h0|corto}} + {{T|num|2}} = **{{h0 + T|num|1}} h**" },
+    { "label": "2 · Lugares que les quedan a los demás, \\(R − k\\)", "formula": "q", "formato": "int",
+      "cuenta": "{{R|int}} − {{k|int}} = **{{q|int}}**" },
+    { "label": "Uso de los lugares con el lote", "formula": "(c + k) / R", "formato": "pct", "barra": true,
+      "cuenta": "({{c|corto}} + {{k|int}}) ÷ {{R|int}} = **{{(c + k) / R * 100|num|0}} %**" },
+    { "label": "¿Les quedan lugares a los demás?", "formula": "q - c",
+      "veredicto": { "si": "Sí, en promedio", "no": "No: la fila de los demás crece" },
+      "cuenta": "{{q|int}} − {{c|corto}} = {{q - c|num|1}} lugares de sobra; cerca de 0 la fila ya se nota (la simulación del caso)" },
+    { "label": "Holgura de los demás: lugares que quedan ÷ los que usan", "formula": "c > 0 ? q / c : 1 / 0", "formato": "x", "decimales": 2,
+      "cuenta": "{{q|int}} ÷ {{c|corto}} = **{{c > 0 ? q / c : 1 / 0|num|2}}×**" }
+  ],
+  "nota": "Prueba: sube el tope a 20 y mira cuántos lugares les quedan a los demás (6, contra 9 que usan): la simulación del caso da una espera p95 de 5.1 s. Después pon 13 lugares, como si una tarjeta estuviera caída: con el tope de 4 les quedan 9 para 9.0 y la espera p95 sube a 13.4 s. Por eso el lote se pausa cuando falla una tarjeta."
+}

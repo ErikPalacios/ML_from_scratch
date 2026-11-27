@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 432" role="img" aria-labelledby="f-caso-gobierno-ciclo-t" class="f-svg" style="max-width:420px">
+<title id="f-caso-gobierno-ciclo-t">Dónde se va el tiempo de un ciclo de entrada, en días hábiles de 8 horas (supuestos de la ficha). En la dependencia, ≈ 9 días hábiles en seis tramos: 2 de solicitud de cambio, 1 de bajar y verificar en la estación de entrada, 1 de escanear y grabar el medio, 1 de cruzar con dos personas y la cuarentena, 2 de staging y examen, y 2 de la ventana de instalación. Debajo, lo que hace la máquina: copiar ≈ 46 GB tarda ≈ 7 minutos y la huella SHA-256 ≈ 24 segundos, una línea casi invisible a esa escala. Y el despacho, con su máquina puente conectada: un parche de vLLM en ≈ 4.5 horas. Copiar y verificar no es el cuello; el procedimiento sí.</title>
+<text class="f-l" x="14" y="22">UN CICLO DE ENTRADA · ¿DÓNDE SE VA EL TIEMPO?</text>
+<text class="f-s" x="14" y="42" style="font-size:12px">en días hábiles de 8 h; supuestos de la ficha</text>
+<text class="f-s" x="20" y="70" style="font-size:12px;font-weight:700">Dependencia: ≈ 9 días hábiles</text>
+<rect class="f-b2" x="20" y="80" width="62" height="30" rx="4"/>
+<rect class="f-b" x="84" y="80" width="30" height="30" rx="4"/>
+<rect class="f-p" x="116" y="80" width="30" height="30" rx="4"/>
+<rect class="f-o" x="148" y="80" width="30" height="30" rx="4"/>
+<rect class="f-g" x="180" y="80" width="62" height="30" rx="4"/>
+<rect class="f-y" x="244" y="80" width="62" height="30" rx="4"/>
+<rect class="f-b2" x="20" y="121" width="14" height="14" rx="3"/>
+<text class="f-s" x="42" y="132" style="font-size:12px">solicitud · 2 días</text>
+<rect class="f-b" x="20" y="141" width="14" height="14" rx="3"/>
+<text class="f-s" x="42" y="152" style="font-size:12px">bajar y verificar · 1 día</text>
+<rect class="f-p" x="20" y="161" width="14" height="14" rx="3"/>
+<text class="f-s" x="42" y="172" style="font-size:12px">escanear y grabar · 1 día</text>
+<rect class="f-o" x="20" y="181" width="14" height="14" rx="3"/>
+<text class="f-s" x="42" y="192" style="font-size:12px">cruzar · 1 día</text>
+<rect class="f-g" x="20" y="201" width="14" height="14" rx="3"/>
+<text class="f-s" x="42" y="212" style="font-size:12px">staging y examen · 2 días</text>
+<rect class="f-y" x="20" y="221" width="14" height="14" rx="3"/>
+<text class="f-s" x="42" y="232" style="font-size:12px">ventana · 2 días</text>
+<text class="f-s" x="20" y="262" style="font-size:12px;font-weight:700">Lo que hace la máquina</text>
+<rect class="f-ink" x="20" y="272" width="1.5" height="22"/>
+<text class="f-s" x="28" y="288" style="font-size:12px">copiar ≈ 46 GB: ≈ 7 min · huella: ≈ 24 s</text>
+<text class="f-s" x="20" y="312" style="font-size:12px;font-weight:700">Despacho, con la puente conectada</text>
+<rect class="f-b2" x="20" y="322" width="18.0" height="22" rx="3"/>
+<text class="f-s" x="46.0" y="338" style="font-size:12px">un parche de vLLM: ≈ 4.5 h</text>
+<rect class="f-chip" x="14" y="362" width="332" height="56" rx="10"/>
+<text class="f-s" x="26" y="386" style="font-size:12.5px">Copiar y verificar no es el cuello.</text>
+<text class="f-s" x="26" y="406" style="font-size:12.5px">El procedimiento sí: por eso va en el calendario.</text>
+</svg>

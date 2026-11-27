@@ -183,7 +183,7 @@ En un despacho no todos pueden ver todo. La [[muralla-etica|muralla ética]] es 
 Cada chunk lleva la [[acl-por-chunk|ACL]] (*access control list*, lista de control de acceso) de su documento, copiada tal cual. Tres reglas:
 
 - **En grupos, no en personas.** «equipo-cliente-A, socios» en vez de 40 nombres. Las personas entran y salen de los grupos todos los días; los grupos de un expediente casi no cambian. Los grupos de cada persona se resuelven **al preguntar**, con su identidad del [[sso|SSO]] de [[entra-id|Entra ID]].
-- **Sin ACL, no se indexa.** Si un documento llega sin permisos o con permisos rotos, nadie lo ve (*fail-closed*, cerrado por omisión). Un documento que nadie encuentra es una molestia; uno que todos encuentran es un incidente.
+- **Sin ACL, no se indexa.** Si un documento llega sin permisos o con permisos rotos, nadie lo ve (*fail-closed*, cerrado por omisión). Un documento que nadie encuentra es una molestia; uno que todos encuentran es un incidente. Con varios clientes en la misma colección el permiso es el cliente, y que el índice lo pida (en Qdrant, `is_tenant`) no autoriza a nadie: el filtro lo pone el servidor, como en [la startup SaaS](/casos/saas/).
 - **El permiso nunca está en el prompt.** Escribirle al LLM «no uses los fragmentos del cliente B» no sirve: el fragmento ya llegó y el modelo lo puede repetir. El filtro va **dentro de la búsqueda**, y se revisa otra vez justo antes de armar el prompt.
 
 ### Filtrar antes o después de buscar

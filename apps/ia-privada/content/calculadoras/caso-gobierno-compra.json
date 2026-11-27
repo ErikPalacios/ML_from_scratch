@@ -1,0 +1,56 @@
+{
+  "titulo": "¿Licitación, invitación o adjudicación directa?",
+  "intro": "Aplica \\(M = n × K × (1 + s × a) × t\\) (el monto de **la operación**, en pesos sin IVA) y lo compara con los montos máximos del Anexo 9 del PEF 2026 para el presupuesto de adquisiciones de la dependencia (DOF 21-nov-2025). Arranca con la opción B de la dependencia: 1 servidor de US$74,779.28 con 3 años de soporte a 10 % al año, en el tramo de 50 a 100 millones.",
+  "entradas": [
+    { "id": "K", "label": "Precio de cada servidor, \\(K\\), en US$ sin IVA", "min": 1000, "max": 1000000, "paso": 1, "valor": 74779.28, "tipo": "numero" },
+    { "id": "n", "label": "Servidores en la misma operación, \\(n\\)", "min": 1, "max": 4, "paso": 1, "valor": 1 },
+    { "id": "s", "label": "Soporte al año, como parte del equipo, \\(s\\) (supuesto: 0.10)", "min": 0, "max": 0.3, "paso": 0.01, "valor": 0.1 },
+    { "id": "a", "label": "Años de soporte en el mismo contrato, \\(a\\)", "min": 0, "max": 5, "paso": 1, "valor": 3 },
+    { "id": "t", "label": "Tipo de cambio, \\(t\\), pesos por dólar (DOF 27-nov-2026)", "min": 10, "max": 40, "paso": 0.01, "valor": 19.7203, "tipo": "numero" },
+    { "id": "tr", "label": "Presupuesto de adquisiciones de la dependencia en el año (Anexo 9)", "tipo": "opcion", "valor": 3, "opciones": [
+      { "valor": 0, "label": "hasta 15 millones" },
+      { "valor": 1, "label": "de 15 a 30 millones" },
+      { "valor": 2, "label": "de 30 a 50 millones" },
+      { "valor": 3, "label": "de 50 a 100 millones" },
+      { "valor": 4, "label": "de 100 a 150 millones" },
+      { "valor": 5, "label": "de 150 a 250 millones" },
+      { "valor": 6, "label": "de 250 a 350 millones" },
+      { "valor": 7, "label": "de 350 a 450 millones" },
+      { "valor": 8, "label": "de 450 a 600 millones" },
+      { "valor": 9, "label": "de 600 a 750 millones" },
+      { "valor": 10, "label": "de 750 a 1,000 millones" },
+      { "valor": 11, "label": "de 1,000 a 1,250 millones" },
+      { "valor": 12, "label": "de 1,250 a 1,500 millones" },
+      { "valor": 13, "label": "más de 1,500 millones" }
+    ] }
+  ],
+  "calculos": [
+    { "id": "eq", "formula": "n * K * t" },
+    { "id": "sop", "formula": "eq * s * a" },
+    { "id": "M", "formula": "eq + sop" },
+    { "id": "tD", "formula": "[309, 343, 376, 391, 492, 554, 624, 686, 697, 777, 790, 902, 1023, 1145][tr] * 1000" },
+    { "id": "tI", "formula": "[2272, 2649, 2983, 3264, 4351, 5165, 6138, 7068, 7551, 8880, 9461, 11547, 13741, 16086][tr] * 1000" }
+  ],
+  "salidas": [
+    { "label": "1 · El equipo, en pesos", "formula": "eq", "formato": "int",
+      "nota": "\\(n × K × t\\)",
+      "cuenta": "{{n|int}} × US${{K|int}} × {{t|num|4}} = **${{eq|int}}**" },
+    { "label": "2 · El soporte del mismo contrato", "formula": "sop", "formato": "int",
+      "nota": "equipo × \\(s × a\\)",
+      "cuenta": "${{eq|int}} × {{s|corto}} × {{a|int}} años = **${{sop|int}}**" },
+    { "label": "3 · Monto de la operación, \\(M\\) (sin IVA)", "formula": "M", "formato": "int", "barra": true,
+      "nota": "lo que cuenta es la operación completa: partirla para bajar de nivel es fraccionamiento (LAASSP art. 55)",
+      "cuenta": "${{eq|int}} + ${{sop|int}} = **${{M|int}}**" },
+    { "label": "4 · Techo de adjudicación directa en este tramo", "formula": "tD", "formato": "int",
+      "nota": "Anexo 9, «de cada operación», sin IVA" },
+    { "label": "5 · Techo de invitación a cuando menos tres en este tramo", "formula": "tI", "formato": "int",
+      "nota": "Anexo 9, «de cada operación», sin IVA" },
+    { "label": "¿Cabe en invitación a cuando menos tres?", "formula": "tI - M",
+      "veredicto": { "si": "Sí cabe", "no": "No: licitación pública" },
+      "cuenta": "techo ${{tI|int}} − monto ${{M|int}} = {{tI - M|int}} pesos" },
+    { "label": "¿Cabe en adjudicación directa?", "formula": "tD - M",
+      "veredicto": { "si": "Sí cabe", "no": "No" },
+      "cuenta": "techo ${{tD|int}} − monto ${{M|int}} = {{tD - M|int}} pesos" }
+  ],
+  "nota": "Que quepa por monto no obliga a usar ese procedimiento: la regla general es la licitación pública (LAASSP art. 35) y la suma de lo que se compra por invitación o adjudicación en el año no pasa de 30 % del presupuesto de adquisiciones (art. 55). Prueba: sube a 2 servidores y mira cómo el contrato pasa a licitación; después baja el soporte a 0 años y mira que el equipo solo vuelve a caber. Separar el soporte en otro contrato para eso es justo lo que la ley prohíbe."
+}

@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 420" role="img" aria-labelledby="f-caso-saas-vecino-t" class="f-svg" style="max-width:420px">
+<title id="f-caso-saas-vecino-t">La espera en la fila, en el p95, de las preguntas de los demás despachos cuando uno sube 5,000 documentos a las 8:30, en la simulación del caso. Con el servidor de dos tarjetas y 26 lugares: sin vecino, 0.0 segundos; los 5,000 de golpe en una sola fila, 1,766 segundos, unos 29 minutos, fuera de escala, y el lote termina en 0.56 horas; con un tope de 4 documentos a la vez, 0.0 segundos y el lote tarda 3.63 horas; con tope de 13, 0.6 segundos y 1.12 horas; con tope de 20, 5.1 segundos y 0.73 horas. Con una tarjeta caída y 13 lugares: sin lote, 4.9 segundos; con el tope de 4, 13.4 segundos. Una línea punteada marca la meta: 2.3 segundos de espera, para que el primer token llegue en 3 segundos con los 0.68 de lectura.</title>
+<text class="f-l" x="14" y="24">ESPERA P95 DE LOS DEMÁS, EN SEGUNDOS</text>
+<text class="f-t" x="14" y="50" style="font-size:14px">Dos tarjetas · 26 lugares</text>
+<text class="f-s" x="14" y="78" style="font-size:12px;font-weight:700">Sin vecino</text>
+<text class="f-l" x="14" y="92">SIN LOTE</text>
+<rect class="f-g" x="130" y="68" width="2" height="14" rx="1"/>
+<text class="f-s" x="137" y="80" style="font-size:12px">0.0 s</text>
+<text class="f-s" x="14" y="116" style="font-size:12px;font-weight:700">5,000 de golpe</text>
+<text class="f-l" x="14" y="130">LOTE: 0.56 H</text>
+<rect class="f-o" x="130" y="106" width="166" height="14" rx="3"/>
+<path class="f-linea" d="M300,104 L306,113 L300,122" style="fill:none"/>
+<rect class="f-o" x="310" y="106" width="20" height="14" rx="3"/>
+<text class="f-s" x="130" y="136" style="font-size:12px">1,766 s ≈ 29 min (fuera de escala)</text>
+<text class="f-s" x="14" y="160" style="font-size:12px;font-weight:700">Tope de 4</text>
+<text class="f-l" x="14" y="174">LOTE: 3.63 H</text>
+<rect class="f-g" x="130" y="150" width="2" height="14" rx="1"/>
+<text class="f-s" x="137" y="162" style="font-size:12px">0.0 s</text>
+<text class="f-s" x="14" y="198" style="font-size:12px;font-weight:700">Tope de 13</text>
+<text class="f-l" x="14" y="212">LOTE: 1.12 H</text>
+<rect class="f-g" x="130" y="188" width="8" height="14" rx="2"/>
+<text class="f-s" x="143" y="200" style="font-size:12px">0.6 s</text>
+<text class="f-s" x="14" y="236" style="font-size:12px;font-weight:700">Tope de 20</text>
+<text class="f-l" x="14" y="250">LOTE: 0.73 H</text>
+<rect class="f-o" x="130" y="226" width="68" height="14" rx="3"/>
+<text class="f-s" x="203" y="238" style="font-size:12px">5.1 s</text>
+<text class="f-t" x="14" y="280" style="font-size:14px">Una tarjeta caída · 13 lugares</text>
+<text class="f-s" x="14" y="306" style="font-size:12px;font-weight:700">Sin lote</text>
+<text class="f-l" x="14" y="320">LOTE EN PAUSA</text>
+<rect class="f-y" x="130" y="296" width="65.3" height="14" rx="3"/>
+<text class="f-s" x="200" y="308" style="font-size:12px">4.9 s</text>
+<text class="f-s" x="14" y="344" style="font-size:12px;font-weight:700">Tope de 4</text>
+<text class="f-l" x="14" y="358">EL LOTE SIGUE</text>
+<rect class="f-o" x="130" y="334" width="178.7" height="14" rx="3"/>
+<text class="f-s" x="313" y="346" style="font-size:12px">13.4 s</text>
+<line x1="160.7" y1="60" x2="160.7" y2="122" style="stroke:var(--ink);stroke-width:1.5;stroke-dasharray:4 3"/>
+<line x1="160.7" y1="140" x2="160.7" y2="362" style="stroke:var(--ink);stroke-width:1.5;stroke-dasharray:4 3"/>
+<line class="f-linea" x1="130" y1="366" x2="330" y2="366"/>
+<line class="f-linea" x1="130" y1="363" x2="130" y2="369"/><text class="f-l" x="130" y="382" text-anchor="middle">0</text>
+<line class="f-linea" x1="196.7" y1="363" x2="196.7" y2="369"/><text class="f-l" x="196.7" y="382" text-anchor="middle">5</text>
+<line class="f-linea" x1="263.3" y1="363" x2="263.3" y2="369"/><text class="f-l" x="263.3" y="382" text-anchor="middle">10</text>
+<line class="f-linea" x1="330" y1="363" x2="330" y2="369"/><text class="f-l" x="330" y="382" text-anchor="middle">15 s</text>
+<text class="f-s" x="14" y="402" style="font-size:12px">Punteada: la meta, 2.3 s de espera (TTFT ≤ 3 s).</text>
+</svg>

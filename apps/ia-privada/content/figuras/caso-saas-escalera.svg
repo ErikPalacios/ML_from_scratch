@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 346" role="img" aria-labelledby="f-caso-saas-escalera-t" class="f-svg" style="max-width:420px">
+<title id="f-caso-saas-escalera-t">El ingreso y el costo de la startup al mes, en pesos, contra el número de despachos con la mezcla de hoy. El ingreso es una recta de 4,240 pesos por despacho. El costo con un servidor es plano, 81,243 pesos, y se cruza con el ingreso en unos 20 despachos; a los 65 despachos una tarjeta sola ya no aguanta el pico, se pierde el N+1 y el costo sube un escalón chico, a 91,721 pesos, con una tercera tarjeta en el mismo chasis. Si el segundo servidor se compra desde hoy para prometer 99.9 %, el costo es 125,353 desde el principio y el equilibrio llega en unos 30 despachos. Hoy, con 45 despachos y 190,805 pesos de ingreso, el margen bruto es 57 % con un servidor y 34 % con dos.</title>
+<text class="f-l" x="14" y="20">INGRESO Y COSTO AL MES, EN PESOS</text>
+<line x1="14" y1="36" x2="38" y2="36" style="stroke:var(--b);stroke-width:3"/>
+<text class="f-s" x="44" y="40" style="font-size:12px">ingreso: 4,240 por despacho</text>
+<line x1="14" y1="54" x2="38" y2="54" style="stroke:var(--o);stroke-width:3"/>
+<text class="f-s" x="44" y="58" style="font-size:12px">costo: 1 servidor; una 3.ª tarjeta al perder el N+1</text>
+<line x1="14" y1="72" x2="38" y2="72" style="stroke:var(--o);stroke-width:2;stroke-dasharray:5 4"/>
+<text class="f-s" x="44" y="76" style="font-size:12px">2 servidores desde hoy (para el 99.9 %)</text>
+<line class="f-linea" x1="60" y1="300" x2="330" y2="300"/>
+<line class="f-linea" x1="60" y1="86" x2="60" y2="300"/>
+<line class="f-linea" x1="56" y1="226.7" x2="330" y2="226.7" style="stroke-dasharray:2 4"/>
+<line class="f-linea" x1="56" y1="153.3" x2="330" y2="153.3" style="stroke-dasharray:2 4"/>
+<text class="f-l" x="54" y="230.7" text-anchor="end">100 MIL</text>
+<text class="f-l" x="54" y="157.3" text-anchor="end">200 MIL</text>
+<line x1="60" y1="208.1" x2="310.7" y2="208.1" style="stroke:var(--o);stroke-width:2;stroke-dasharray:5 4"/>
+<line x1="60" y1="240.4" x2="310.7" y2="240.4" style="stroke:var(--o);stroke-width:3"/>
+<line x1="310.7" y1="240.4" x2="310.7" y2="232.8" style="stroke:var(--o);stroke-width:3"/>
+<line x1="310.7" y1="232.8" x2="330" y2="232.8" style="stroke:var(--o);stroke-width:3"/>
+<line x1="60" y1="300" x2="330" y2="82.4" style="stroke:var(--b);stroke-width:3"/>
+<circle cx="134.1" cy="240.4" r="4" style="fill:var(--ink)"/>
+<text class="f-l" x="134.1" y="258" text-anchor="middle">≈ 20</text>
+<circle cx="174.2" cy="208.1" r="4" style="fill:var(--ink)"/>
+<text class="f-l" x="174.2" y="224" text-anchor="middle">≈ 30</text>
+<line x1="233.6" y1="300" x2="233.6" y2="160.1" style="stroke:var(--ink);stroke-width:1;stroke-dasharray:3 3"/>
+<circle cx="233.6" cy="160.1" r="4" style="fill:var(--b)"/>
+<text class="f-s" x="239" y="203" style="font-size:12px;font-weight:700">34 % con 2</text>
+<text class="f-s" x="239" y="235" style="font-size:12px;font-weight:700">57 % con 1</text>
+<line x1="310.7" y1="300" x2="310.7" y2="244" style="stroke:var(--ink);stroke-width:1;stroke-dasharray:3 3"/>
+<text class="f-l" x="60" y="316" text-anchor="middle">0</text>
+<text class="f-l" x="137.1" y="316" text-anchor="middle">20</text>
+<text class="f-l" x="233.6" y="316" text-anchor="middle">45 · HOY</text>
+<text class="f-l" x="310.7" y="316" text-anchor="middle">65</text>
+<text class="f-l" x="14" y="338">DESPACHOS · 65: UNA TARJETA YA NO AGUANTA</text>
+</svg>

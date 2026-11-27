@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 400" role="img" aria-labelledby="f-caso-financiera-noche-t" class="f-svg" style="max-width:420px">
+<title id="f-caso-financiera-noche-t">La noche de la financiera, de las 22:00 a las 6:00, con la cota baja de velocidad de la voz a texto en una L40S (85 veces tiempo real). Con las 4 GPUs repartiéndose todo, un día normal termina en 2.87 horas y el día pico, con el doble de llamadas, en 5.75: antes del límite con margen de las 4:48. Si falla una GPU, el día pico tarda 7.66 horas: termina antes de las 6:00, pero sin margen. Si el servidor se parte fijo en 2 GPUs para la voz y 2 para el LLM, la voz sola tarda 9.41 horas el día pico y no cabe.</title>
+<text class="f-l" x="14" y="24">LA NOCHE · CON LA COTA BAJA (85×)</text>
+<text class="f-s" x="14" y="44" style="font-size:12px">horas de reloj; primero la voz, después el LLM</text>
+<text class="f-s" x="14" y="70" style="font-size:12.5px;font-weight:700">4 GPUs juntas · día normal</text>
+<rect class="f-b" x="60" y="78" width="82.4" height="20" rx="3"/>
+<rect class="f-y" x="142.4" y="78" width="18.2" height="20" rx="3"/>
+<text class="f-s" x="166.6" y="93" style="font-size:12.5px;font-weight:700">2.87 h</text>
+<text class="f-s" x="14" y="126" style="font-size:12.5px;font-weight:700">4 GPUs juntas · día pico</text>
+<rect class="f-b" x="60" y="134" width="164.7" height="20" rx="3"/>
+<rect class="f-y" x="224.7" y="134" width="36.4" height="20" rx="3"/>
+<text class="f-s" x="142.4" y="149" text-anchor="middle" style="font-size:12.5px;font-weight:700;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">5.75 h</text>
+<text class="f-s" x="14" y="182" style="font-size:12.5px;font-weight:700">3 GPUs (falla una) · día pico</text>
+<rect class="f-b" x="60" y="190" width="219.6" height="20" rx="3"/>
+<rect class="f-y" x="279.6" y="190" width="48.6" height="20" rx="3"/>
+<text class="f-s" x="169.8" y="205" text-anchor="middle" style="font-size:12.5px;font-weight:700;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">7.66 h</text>
+<text class="f-s" x="14" y="238" style="font-size:12.5px;font-weight:700">2 de voz + 2 de LLM, fijas · día pico</text>
+<rect class="f-b" x="60" y="246" width="280.0" height="20" rx="3"/>
+<polygon points="340.0,243 352.0,256 340.0,269" style="fill:var(--o)"/>
+<text class="f-s" x="200.0" y="261" text-anchor="middle" style="font-size:12px;font-weight:700;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">9.41 h de voz: no cabe</text>
+<line x1="60" y1="280" x2="340.0" y2="280" style="stroke:var(--tm-line);stroke-width:1"/>
+<line class="f-linea" x1="60.0" y1="280" x2="60.0" y2="284"/>
+<text class="f-s" x="60.0" y="298" text-anchor="middle" style="font-size:12px">22:00</text>
+<line class="f-linea" x1="130.0" y1="280" x2="130.0" y2="284"/>
+<text class="f-s" x="130.0" y="298" text-anchor="middle" style="font-size:12px">0:00</text>
+<line class="f-linea" x1="200.0" y1="280" x2="200.0" y2="284"/>
+<text class="f-s" x="200.0" y="298" text-anchor="middle" style="font-size:12px">2:00</text>
+<line class="f-linea" x1="270.0" y1="280" x2="270.0" y2="284"/>
+<text class="f-s" x="270.0" y="298" text-anchor="middle" style="font-size:12px">4:00</text>
+<line class="f-linea" x1="340.0" y1="280" x2="340.0" y2="284"/>
+<text class="f-s" x="340.0" y="298" text-anchor="middle" style="font-size:12px">6:00</text>
+<line x1="298.0" y1="58" x2="298.0" y2="280" style="stroke:var(--g);stroke-width:2;stroke-dasharray:6 4"/>
+<text class="f-s" x="294.0" y="58" text-anchor="end" style="font-size:12px;font-weight:700">4:48 · margen</text>
+<line x1="340.0" y1="58" x2="340.0" y2="280" style="stroke:var(--ink);stroke-width:1.5"/>
+<rect class="f-b" x="14" y="309" width="12" height="12" rx="3"/><text class="f-s" x="32" y="320">voz a texto</text>
+<rect class="f-y" x="130" y="309" width="12" height="12" rx="3"/><text class="f-s" x="148" y="320">resumir y clasificar</text>
+<rect class="f-chip" x="14" y="336" width="332" height="50" rx="10"/>
+<text class="f-s" x="26" y="356" style="font-size:12.5px">Juntas, las 4 GPUs cierran el doble con margen.</text>
+<text class="f-s" x="26" y="374" style="font-size:12.5px">Partidas fijas en 2 y 2, el pico no cabe.</text>
+</svg>

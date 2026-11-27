@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 326" role="img" aria-labelledby="f-caso-gobierno-plazo-t" class="f-svg" style="max-width:420px">
+<title id="f-caso-gobierno-plazo-t">El plazo de una solicitud de acceso en la dependencia, en días hábiles desde el día siguiente a que llega. La solicitud llega el lunes 7 de junio de 2027, sin festivos en esas semanas (supuesto). Del día 0 al 12, en azul, el borrador: el asistente busca la normativa y propone qué partes de los ≈ 25 documentos testar, y el área lo arma; vence el miércoles 23 de junio. Del 12 al 17, en amarillo, la revisión del área: la persona titular decide la clasificación; miércoles 30 de junio. Del 17 al 20, en verde y sin texto, el Comité de Transparencia confirma y sale la respuesta: lunes 5 de julio. Del 20 al 30, punteada, la prórroga, que es la excepción: lunes 19 de julio. Una marca en el día 5 dice que la prevención se hace una sola vez, hasta ese día.</title>
+<text class="f-l" x="14" y="22">UNA SOLICITUD · 20 DÍAS HÁBILES (+10)</text>
+<text class="f-s" x="14" y="42" style="font-size:12px">llega el lunes 7 de junio de 2027 (sin festivos, supuesto)</text>
+<rect class="f-b" x="20.0" y="96" width="128.0" height="34" rx="6"/>
+<text class="f-s" x="84.0" y="118" text-anchor="middle" style="fill:#fff;font-size:12px;font-weight:700">borrador</text>
+<rect class="f-y" x="148.0" y="96" width="53.3" height="34" rx="6"/>
+<text class="f-s" x="174.7" y="118" text-anchor="middle" style="fill:#14183A;font-size:12px;font-weight:700">área</text>
+<rect class="f-g" x="201.3" y="96" width="32.0" height="34" rx="6"/>
+<rect class="f-card" x="233.3" y="96" width="106.7" height="34" rx="6" style="stroke-dasharray:4 3"/>
+<text class="f-s" x="286.7" y="118" text-anchor="middle" style="font-size:12px">prórroga</text>
+<line class="f-linea" x1="20.0" y1="130" x2="20.0" y2="138"/>
+<text class="f-s" x="20.0" y="152" text-anchor="middle" style="font-size:12px">0</text>
+<line class="f-linea" x1="73.3" y1="130" x2="73.3" y2="138"/>
+<text class="f-s" x="73.3" y="152" text-anchor="middle" style="font-size:12px">5</text>
+<line class="f-linea" x1="148.0" y1="130" x2="148.0" y2="138"/>
+<text class="f-s" x="148.0" y="152" text-anchor="middle" style="font-size:12px">12</text>
+<text class="f-s" x="148.0" y="168" text-anchor="middle" style="font-size:11px">23 jun</text>
+<line class="f-linea" x1="201.3" y1="130" x2="201.3" y2="138"/>
+<text class="f-s" x="201.3" y="152" text-anchor="middle" style="font-size:12px">17</text>
+<line class="f-linea" x1="233.3" y1="130" x2="233.3" y2="138"/>
+<text class="f-s" x="233.3" y="152" text-anchor="middle" style="font-size:12px">20</text>
+<text class="f-s" x="233.3" y="168" text-anchor="middle" style="font-size:11px">5 jul</text>
+<line class="f-linea" x1="340.0" y1="130" x2="340.0" y2="138"/>
+<text class="f-s" x="340.0" y="152" text-anchor="middle" style="font-size:12px">30</text>
+<text class="f-s" x="340.0" y="168" text-anchor="middle" style="font-size:11px">19 jul</text>
+<text class="f-l" x="20" y="192">DÍA HÁBIL (DESDE EL DÍA SIGUIENTE)</text>
+<line x1="73.3" y1="90" x2="73.3" y2="74" style="stroke:var(--o);stroke-width:2"/>
+<text class="f-s" x="69.3" y="68" style="font-size:12px">prevención: una vez, hasta el día 5</text>
+<rect class="f-chip" x="14" y="216" width="332" height="96" rx="10"/>
+<text class="f-s" x="26" y="240" style="font-size:12.5px">Azul: el borrador, donde ayuda el asistente</text>
+<text class="f-s" x="26" y="260" style="font-size:12.5px">(normativa y qué testar en ≈ 25 documentos).</text>
+<text class="f-s" x="26" y="280" style="font-size:12.5px">Amarillo: el área decide. Verde: el Comité</text>
+<text class="f-s" x="26" y="300" style="font-size:12.5px">confirma. Punteada: la prórroga, la excepción.</text>
+</svg>

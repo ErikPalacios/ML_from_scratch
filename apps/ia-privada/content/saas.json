@@ -1,0 +1,442 @@
+{
+  "nota": "La ficha de la startup del caso «Startup SaaS» de IA Privada (fase 9, 2026-11-27): cada número de la startup que usa el caso vive aquí y se usa tal cual. Es ficticia y no tiene nombre propio: es «la startup». Los hechos del mundo real (leyes, versiones, documentación de las piezas, precios, estadísticas) llevan su fuente y su fecha en la nota; los demás son supuestos del ejemplo y la nota lo dice. Las cuentas salen de las herramientas de IA Privada (sizing, VRAM, velocidad y TCO) y de las calculadoras del caso con los valores que dice cada nota. Lo jurídico es la lectura del caso, no asesoría: lo confirma un abogado.",
+  "hechos": [
+    {
+      "id": "que_es",
+      "dato": "Qué es",
+      "valor": "una startup de Monterrey, Nuevo León, que vende a despachos contables un asistente que contesta con cita sobre los documentos de cada despacho, con su propio modelo open weight en servidores suyos, en colocation en Querétaro",
+      "nota": "Ficticia, sin nombre propio: «la startup». Monterrey no lo usa ningún otro caso (despacho, CDMX; clínica, Zapopan; fábrica, Silao). Querétaro concentra más del 60 % de la capacidad de centros de datos del país (dato ya citado en la lección «El cuarto»)."
+    },
+    {
+      "id": "producto",
+      "dato": "Lo que hace el producto",
+      "valor": "cada despacho sube lo de sus clientes (CFDI en XML, estados de cuenta, constancias de situación fiscal, acuses y declaraciones, contratos de honorarios) y sus contadores preguntan; cada respuesta cita el documento y la página o el nodo del XML",
+      "nota": "Decisión del caso. Fuera del alcance: presentar declaraciones, timbrar o mandar nada al SAT; el asistente lee y contesta, el contador decide."
+    },
+    {
+      "id": "promesa",
+      "dato": "Lo que vende además del asistente",
+      "valor": "«los documentos de tu despacho no salen a un tercero ni los ve otro cliente»",
+      "nota": "Decisión del caso. Es la razón del servidor propio: la API equivalente cuesta ≈ 60 veces menos (hecho «api_equivalente»). Algunos clientes de los despachos lo exigen por contrato (supuesto)."
+    },
+    {
+      "id": "hoy",
+      "dato": "Cómo funciona hoy",
+      "valor": "el producto corre sobre la API de un tercero; 3 de los 5 despachos Empresa piden por contrato que los documentos no salgan a un tercero, y dos prospectos con clientes bancarios lo piden para firmar",
+      "nota": "Supuesto del caso: es lo que dispara el proyecto."
+    },
+    {
+      "id": "mercado",
+      "dato": "Cuántos despachos hay",
+      "valor": "16,924 unidades económicas de «Servicios de contabilidad, auditoría y servicios relacionados» (SCIAN 5412): 15,236 de 0 a 10 empleados (90.0 %), 1,551 de 11 a 50 (9.2 %), 67 de 51 a 100 y 70 de más de 100",
+      "nota": "DENUE, mayo de 2026, vía la Secretaría de Economía (DataMéxico), consultado 2026-11-27. El Censo Económico 2019 contaba 17,263. De ahí salen los tamaños de los planes: el despacho chico tiene ≤ 10 personas."
+    },
+    {
+      "id": "clientes",
+      "dato": "Clientes hoy",
+      "valor": "45 despachos: 25 en Básico, 15 en Pro y 5 en Empresa",
+      "unidad": "despachos",
+      "nota": "Supuesto del ejemplo, en pirámide. Cada despacho es un cliente (en inglés técnico, un *tenant*; no es el «tenant» de Microsoft Entra de la lección «Gateway»)."
+    },
+    {
+      "id": "usuarios_plan",
+      "dato": "Usuarios por despacho",
+      "valor": "Básico 3, Pro 8, Empresa 25",
+      "unidad": "usuarios",
+      "nota": "Supuesto, anclado en el DENUE (hecho «mercado»): el 90 % de los despachos tiene ≤ 10 personas; el de 25 está en el 9.2 % de 11 a 50."
+    },
+    {
+      "id": "usuarios_total",
+      "dato": "Usuarios en total",
+      "valor": "320",
+      "unidad": "usuarios",
+      "nota": "Derivado: 25 × 3 + 15 × 8 + 5 × 25 = 75 + 120 + 125."
+    },
+    {
+      "id": "preguntas_usuario",
+      "dato": "Preguntas por usuario al día",
+      "valor": "Básico 10, Pro 15, Empresa 20",
+      "nota": "Supuesto. 15 es el del despacho de abogados; más uso donde se preparan más declaraciones. No se encontró un patrón medido de uso en despachos contables."
+    },
+    {
+      "id": "horario",
+      "dato": "Horario y días",
+      "valor": "22 días al mes, 10 horas (8:00 a 18:00), con un factor de pico de 2.5",
+      "nota": "Supuesto: el pico y las horas del despacho de abogados. Los cierres de mes y los días de declaraciones suben el pico; el piloto lo mide."
+    },
+    {
+      "id": "preguntas_mes",
+      "dato": "Preguntas al mes",
+      "valor": "111,100: Básico 16,500, Pro 39,600, Empresa 55,000 (5,050 al día)",
+      "unidad": "preguntas/mes",
+      "nota": "Derivado: clientes × usuarios × preguntas × 22. En la herramienta de sizing se escribe como 320 usuarios × 15.78125 preguntas (el promedio ponderado: 5,050 ÷ 320)."
+    },
+    {
+      "id": "tokens_pregunta",
+      "dato": "Tokens por pregunta",
+      "valor": "6,000 de entrada y 500 de salida; tope de contexto de 8,192",
+      "unidad": "tokens",
+      "nota": "Supuesto: los del despacho de abogados (instrucciones, 5 fragmentos y el historial). Un CFDI en XML pesa más tokens por palabra que la prosa; se mide en el piloto con documentos sintéticos."
+    },
+    {
+      "id": "ttft_objetivo",
+      "dato": "Tiempo al primer token",
+      "valor": "≤ 3 s en el p95 del pico, para los clientes que no son el vecino ruidoso",
+      "nota": "Supuesto del caso, firmado antes de medir. El prefill solo tarda 0.68 s (hecho «prefill»); el resto es fila."
+    },
+    {
+      "id": "velocidad_objetivo",
+      "dato": "Velocidad por conversación",
+      "valor": "≥ 20 tokens por segundo",
+      "unidad": "tokens/s",
+      "nota": "El criterio del despacho de abogados y de la lección «De requisitos a hardware»."
+    },
+    {
+      "id": "documentos",
+      "dato": "Documentos por despacho",
+      "valor": "Básico ≈ 2,000; Pro ≈ 15,000; Empresa ≈ 120,000",
+      "unidad": "documentos",
+      "nota": "Supuesto sin fuente. Sirve para el tamaño del índice, no para la GPU."
+    },
+    {
+      "id": "lote_vecino",
+      "dato": "El vecino ruidoso",
+      "valor": "un despacho Empresa sube 5,000 documentos de golpe a las 8:30 (cierre del ejercicio); cada uno pasa por el modelo para sacar su ficha: ≈ 4,000 tokens de entrada y 200 de salida",
+      "nota": "Supuesto del caso. Cada documento ocupa un lugar ≈ 10.45 s (0.45 s de prefill + 200 ÷ 20, herramienta de velocidad)."
+    },
+    {
+      "id": "modelo",
+      "dato": "Modelo",
+      "valor": "Qwen3.8 27B (Alibaba) en FP8, sin razonamiento, con Qwen3-Embedding-0.6B para los embeddings",
+      "nota": "Qwen3.8 27B: creado 2026-08-05, última modificación 2026-11-07, Apache 2.0, sin acceso restringido, 27.78 mil millones de parámetros, arquitectura Qwen3_5ForConditionalGeneration (64 bloques: 16 de atención completa y 48 DeltaNet); existe el repo oficial Qwen/Qwen3.8-27B-FP8, también Apache 2.0. Qwen3-Embedding-0.6B: Apache 2.0, 595.8 M de parámetros (Hugging Face, consultado 2026-11-27). Es el mismo modelo de la clínica y la fábrica."
+    },
+    {
+      "id": "lora_soporte",
+      "dato": "LoRA con este modelo en vLLM",
+      "valor": "la tabla de modelos de vLLM 0.34.0 marca la arquitectura de Qwen3.8 con soporte de LoRA",
+      "nota": "docs/models/supported_models.md del tag v0.34.0 (consultado 2026-11-27). Que funcione con los pesos en FP8 y cuánto cuesta en velocidad no se verificó: se prueba antes de vendérselo a un cliente."
+    },
+    {
+      "id": "pesos",
+      "dato": "Pesos en FP8",
+      "valor": "30.32 GB; KV de 64 KiB por token",
+      "unidad": "GB",
+      "nota": "Herramienta de VRAM con los números de la clínica (P = 27.78, E = 2.543, 16 bloques, 4 juegos de 256)."
+    },
+    {
+      "id": "memoria",
+      "dato": "Memoria de una Server Edition con 13 conversaciones de 8,192 tokens",
+      "valor": "39.30 GB de 86.40 GB útiles; cabrían 100",
+      "nota": "Herramienta de VRAM (2026-11-27). La memoria no limita: limita la velocidad."
+    },
+    {
+      "id": "prefill",
+      "dato": "Prefill de una pregunta de 6,000 tokens",
+      "valor": "0.68 s en una RTX PRO 6000 Server Edition en FP8; 0.93 s en una L40S",
+      "unidad": "s",
+      "nota": "Herramientas de velocidad y sizing (η_c = 0.5)."
+    },
+    {
+      "id": "l40s_fp8",
+      "dato": "Una L40S en FP8",
+      "valor": "19.68 tokens/s con una sola conversación: no llega a 20",
+      "nota": "Herramienta de velocidad. En INT4 de AWQ llega con 4 conversaciones por tarjeta (herramienta de sizing)."
+    },
+    {
+      "id": "a_la_vez",
+      "dato": "Conversaciones a la vez en el pico",
+      "valor": "9.0",
+      "nota": "Herramienta de sizing: λ = 0.351 por segundo × 25.68 s (0.68 s de prefill + 500 ÷ 20)."
+    },
+    {
+      "id": "capacidad",
+      "dato": "Lugares por tarjeta a ≥ 20 tokens/s",
+      "valor": "13 por RTX PRO 6000 Server Edition (26 en el servidor); 4 por L40S en INT4; 0 por L40S en FP8",
+      "nota": "Herramienta de sizing con 6,000 + 500 tokens. Con los 12,000 de la clínica eran 7: el prompt más corto deja más lugares."
+    },
+    {
+      "id": "crecimiento",
+      "dato": "Hasta cuántos clientes alcanza",
+      "valor": "una tarjeta sola aguanta el pico hasta ≈ 65 despachos con la misma mezcla (13 lugares), o hasta 9 despachos Empresa con los mismos Básico y Pro; el servidor con 30 % de holgura, hasta ≈ 91; lleno, ≈ 130. Pasado el 65, el N+1 vuelve con una tercera tarjeta en el mismo chasis (hecho «tercera_tarjeta»)",
+      "nota": "Derivado de la herramienta de sizing (0.02814 conversaciones a la vez por usuario en el pico) y de la calculadora del caso «Margen por plan» (con 10 Empresa, 13.5 a la vez)."
+    },
+    {
+      "id": "decision_hardware",
+      "dato": "Hardware",
+      "valor": "1 servidor Exxact TensorEX 4U con 2 × RTX PRO 6000 Blackwell Server Edition, una copia del modelo en FP8 por tarjeta",
+      "nota": "Decisión del caso. Se compara con 4 × L40S en INT4 de AWQ y con dos servidores."
+    },
+    {
+      "id": "compra",
+      "dato": "Compra del servidor",
+      "valor": "US$74,779.28 (2 tarjetas × US$17,158.99 + US$40,461.30 del chasis)",
+      "unidad": "US$",
+      "nota": "equipos.json (precio calculado): la tarjeta a precio de CDW del 2026-11-26, sin existencias; el chasis del configurador de Exxact del 2026-11-25. Sin impuestos ni importación. 4 × L40S: US$76,101.30."
+    },
+    {
+      "id": "potencia",
+      "dato": "Potencia por servidor",
+      "valor": "2.3 kW de pico",
+      "unidad": "kW",
+      "nota": "equipos.json (estimada). Es lo que se contrata en el rack."
+    },
+    {
+      "id": "colocation",
+      "dato": "Colocation",
+      "valor": "US$250 por kW al mes (cota baja, mayorista) y US$500 (escenario alto, supuesto); energía incluida",
+      "unidad": "US$/kW/mes",
+      "nota": "US$250–270 por kW al mes es el mayorista de Querétaro en bloques de 250–500 kW (CBRE, 1T 2026, en la ficha del despacho, verificado 2026-11-26): un cliente de 2.3 kW no lo consigue. El doble es un supuesto. No incluye el tránsito de internet ni los cruces de fibra del sitio: se cotizan."
+    },
+    {
+      "id": "tercera_tarjeta",
+      "dato": "Una tercera tarjeta en el mismo chasis",
+      "valor": "US$17,158.99 más: ≈ US$531 al mes (381.31 de depreciación + 0.6 kW × 250); el mes con 3 tarjetas, US$4,651 ≈ MXN 91,721; 39 lugares, 26 con una caída",
+      "nota": "Herramienta de TCO (G = 3, rack de 2.9 kW). El configurador de Exxact lista 10 ranuras PCIe de doble ancho en el chasis (equipos.json, exxact-4xl40s-4u); que acepte la Server Edition sin otra placa no está verificado: se confirma con Exxact. Con 65 despachos de la misma mezcla el margen sería ≈ 66.7 % (ingreso ≈ MXN 275,607)."
+    },
+    {
+      "id": "fix",
+      "dato": "Tipo de cambio",
+      "valor": "19.7203",
+      "unidad": "MXN/US$",
+      "nota": "El FIX del Banco de México del 2026-11-26, el de la clínica y de la calculadora de colocation del despacho."
+    },
+    {
+      "id": "sre",
+      "dato": "Personas que operan",
+      "valor": "media persona de SRE: MXN 55,000 × 1.35 × 0.5 = MXN 37,125 al mes (≈ US$1,883)",
+      "nota": "Supuesto del ejemplo, con el método de carga del despacho (sueldo × 1.35). El soporte a los clientes no entra: es un gasto de la startup, no del servidor."
+    },
+    {
+      "id": "precios",
+      "dato": "Precio por usuario al mes",
+      "valor": "Básico MXN 349, Pro MXN 549, Empresa MXN 790, antes de IVA",
+      "nota": "Supuesto del caso, anclado en el mercado (hechos «contalink» y «copilot»)."
+    },
+    {
+      "id": "contalink",
+      "dato": "Lo que ya pagan por su contabilidad",
+      "valor": "Contalink, antes de IVA al mes: Start $590 (1 usuario, 5 RFC); Pro $790 (1 usuario, 10 RFC, + $290 por usuario extra); Flex $990 (1 usuario, 100 RFC por usuario, + $990 por usuario extra)",
+      "nota": "contalink.com/precios, consultado 2026-11-27. Con pago anual, descuento de al menos 16 %."
+    },
+    {
+      "id": "copilot",
+      "dato": "Un asistente genérico",
+      "valor": "Microsoft 365 Copilot: US$18.00 por usuario al mes con pago anual (promoción del primer año; «originalmente US$21.00»), US$25.20 con renovación mensual; ≈ MXN 355 y ≈ MXN 497",
+      "nota": "microsoft.com/es-mx/microsoft-365-copilot/pricing, consultado 2026-11-27, en dólares y sin dato de IVA. Conversión al FIX de la ficha."
+    },
+    {
+      "id": "ingreso",
+      "dato": "Ingreso al mes",
+      "valor": "MXN 190,805: Básico 26,175 (1,047 por despacho), Pro 65,880 (4,392), Empresa 98,750 (19,750)",
+      "unidad": "MXN/mes",
+      "nota": "Derivado: clientes × usuarios × precio. ≈ US$9,676 al mes; ≈ MXN 2.29 M al año (≈ US$116 mil)."
+    },
+    {
+      "id": "etapa",
+      "dato": "En qué etapa está",
+      "valor": "pre-semilla o semilla temprana: ≈ US$116 mil de ingreso al año",
+      "nota": "Una guía de EE. UU. de 2026 pone la expectativa de una ronda semilla de software B2B en US$300–500 mil al año con 10 a 20 clientes de pago (SaaS Rise; fuente secundaria). No se encontró el dato de México."
+    },
+    {
+      "id": "tco_1",
+      "dato": "Costo al mes con un servidor",
+      "valor": "US$4,120 ≈ MXN 81,243: depreciación 1,661.76 + colocation 575 + SRE 1,883",
+      "unidad": "US$/mes",
+      "nota": "Herramienta de TCO: 36 meses, 20 % de reventa (el método de la clínica), energía dentro del colocation (luz = 0), US$250/kW; la media persona entra como op = US$1,883 (37,125 ÷ 19.7203 = 1,882.6, redondeado). Con US$500/kW: US$4,695 ≈ MXN 92,582."
+    },
+    {
+      "id": "tco_2",
+      "dato": "Costo al mes con dos servidores",
+      "valor": "US$6,357 ≈ MXN 125,353 (con US$500/kW: US$7,507 ≈ MXN 148,031)",
+      "unidad": "US$/mes",
+      "nota": "Herramienta de TCO: 4 tarjetas en 2 servidores, 2 racks de 2.3 kW, la misma media persona."
+    },
+    {
+      "id": "margen",
+      "dato": "Margen bruto",
+      "valor": "1 servidor: 57.4 % (51.5 % en el escenario alto); 2 servidores: 34.3 % (22.4 %)",
+      "nota": "Derivado: 1 − costo ÷ ingreso. Calculadora del caso «Margen por plan»."
+    },
+    {
+      "id": "margen_plan",
+      "dato": "Margen por plan, con un servidor",
+      "valor": "Básico 53.9 %, Pro 56.0 %, Empresa 59.3 %; costo por despacho al mes: Básico MXN 483, Pro 1,931, Empresa 8,044",
+      "nota": "Derivado: el costo del mes repartido por preguntas (Básico 14.85 %, Pro 35.64 %, Empresa 49.50 %)."
+    },
+    {
+      "id": "costo_pregunta",
+      "dato": "Costo por pregunta",
+      "valor": "MXN 0.73 con un servidor; MXN 1.13 con dos",
+      "unidad": "MXN",
+      "nota": "Herramienta de TCO: el mes entre 111,100 preguntas."
+    },
+    {
+      "id": "equilibrio",
+      "dato": "Punto de equilibrio",
+      "valor": "≈ 20 despachos con un servidor (19.2); ≈ 30 con dos (29.6)",
+      "nota": "Derivado: el costo del mes ÷ MXN 4,240, el ingreso promedio por despacho con la mezcla de hoy."
+    },
+    {
+      "id": "api_equivalente",
+      "dato": "La misma carga por API",
+      "valor": "Qwen3 32B en DeepInfra: US$68.88 al mes (MXN 0.012 por pregunta), ≈ 60 veces menos que el servidor; GPT-5.4 Mini US$750; Claude Sonnet 5.5 US$1,889",
+      "nota": "Herramienta de TCO con apis.json (precios del 2026-11-25): 666.6 M de tokens de entrada y 55.55 M de salida al mes."
+    },
+    {
+      "id": "planes_cuota",
+      "dato": "Cuotas por plan en el gateway",
+      "valor": "requests a la vez: Básico 2, Pro 4, Empresa 6; tokens por minuto: 20,000, 60,000 y 100,000; preguntas al mes incluidas: 1,500, 6,000 y 25,000",
+      "nota": "Decisión del caso. Uso típico en el pico: Básico 0.05 a la vez, Pro 0.21, Empresa 0.89. Las preguntas al mes son ≈ 2.3 veces el uso típico de cada plan; LiteLLM las cuenta en dinero (max_budget con budget_duration), con un precio interno por token en model_info (input_cost_per_token, output_cost_per_token; docs.litellm.ai/docs/proxy/custom_pricing, consultado 2026-11-27)."
+    },
+    {
+      "id": "cuota_lote",
+      "dato": "Tope del lote",
+      "valor": "una llave aparte por despacho para cargar documentos: 4 a la vez de 7:00 a 19:00 y 13 de noche; 0 si una tarjeta está caída",
+      "nota": "Decisión del caso, con la simulación del caso (vecino.py): con 4 a la vez, el lote de 5,000 tarda 3.63 h y la espera p95 de los demás queda en 0.0 s. La llave va en un equipo aparte del despacho: los límites de un equipo de LiteLLM valen para la suma de sus llaves (docs.litellm.ai/docs/proxy/users, 2026-11-27), y 4 documentos a la vez son ≈ 96,000 tokens por minuto. Con 4,000 + 200 tokens la herramienta de sizing da 9 documentos por tarjeta a ≥ 20 tokens/s: cada documento ocupa ≈ 1.4 lugares de pregunta."
+    },
+    {
+      "id": "vecino_p95",
+      "dato": "Espera p95 de los demás con el vecino",
+      "valor": "sin vecino 0.0 s; los 5,000 de golpe en una sola fila 1,766.5 s (≈ 29 min); tope de 4: 0.0 s; tope de 13: 0.6 s; tope de 20: 5.1 s; con una tarjeta caída: 4.9 s sin lote y 13.4 s con tope de 4",
+      "nota": "Simulación del caso (vecino.py, 100 corridas, mediana del p95), con 13 lugares por tarjeta, 0.351 preguntas por segundo y el lote a las 8:30. Es un modelo de lugares, no vLLM: la prueba de carga lo reemplaza."
+    },
+    {
+      "id": "gateway",
+      "dato": "Gateway",
+      "valor": "LiteLLM 1.111.0 (2026-11-25, MIT salvo litellm/enterprise/): un equipo por despacho, con sus claves, sus límites y su presupuesto",
+      "nota": "PyPI y docs.litellm.ai, consultados 2026-11-27. Equipos y claves virtuales son de código abierto; las organizaciones, los administradores de equipo y los presupuestos por modelo de equipo son de pago. El «Customer Management» nuevo (desde 1.111.0) tiene un tope gratis de 5 organizaciones-cliente: para 45 no sirve."
+    },
+    {
+      "id": "motor",
+      "dato": "Motor",
+      "valor": "vLLM 0.34.0 (2026-11-16, Apache 2.0), una copia por tarjeta, FP8, prefix caching con cache_salt por cliente",
+      "nota": "PyPI y GitHub, consultados 2026-11-27. Su docs/usage/security.md dice que no aísla clientes que comparten un proceso; recomienda una instancia por cliente o un gateway que fije los identificadores de caché."
+    },
+    {
+      "id": "base_vectores",
+      "dato": "Base de vectores",
+      "valor": "Qdrant 1.20.2 (2026-11-16, Apache 2.0): una colección con el id del cliente en cada punto y un índice keyword con is_tenant: true; los despachos Empresa, en su propia pieza (tiered multitenancy)",
+      "nota": "qdrant.tech/documentation (multitenancy, multitenant-search y security), consultado 2026-11-27. is_tenant existe desde la 1.11.0; el multitenancy por niveles, desde la 1.16; el parámetro de búsqueda idf, que calcula las estadísticas de BM25 con los documentos de un solo cliente, desde la 1.19."
+    },
+    {
+      "id": "front",
+      "dato": "La aplicación",
+      "valor": "un front propio con el inicio de sesión de la startup; no Open WebUI",
+      "nota": "La licencia de Open WebUI 0.13.5 (2026-11-25) prohíbe quitar o reemplazar su marca salvo con ≤ 50 usuarios finales en 30 días, permiso por escrito o licencia enterprise (LICENSE del tag v0.13.5, consultado 2026-11-27). Con 320 usuarios y la marca de la startup no se puede sin pagar."
+    },
+    {
+      "id": "fuente_de_verdad",
+      "dato": "De dónde sale el id del cliente",
+      "valor": "de la sesión autenticada, en un solo servicio que fija el equipo del gateway, la sal del caché, el filtro de Qdrant y la etiqueta del registro",
+      "nota": "Decisión del caso, derivada de vLLM (security.md) y Qdrant (multitenant-search): ninguno confía en un campo que mande el cliente."
+    },
+    {
+      "id": "sal",
+      "dato": "La sal del caché",
+      "valor": "un secreto aleatorio de 256 bits por despacho (43 caracteres en base64), guardado en el servicio, nunca el id ni el nombre del despacho",
+      "nota": "vLLM 0.34.0, docs/usage/security.md y docs/design/prefix_caching.md (consultados 2026-11-27): la sal entra al hash del primer bloque; solo comparten bloques las peticiones con la misma sal. LiteLLM 1.111.0 no tiene ningún soporte de cache_salt (cero apariciones en su código): se pone con un hook propio (async_pre_call_hook). Que LiteLLM reenvíe el campo a vLLM no se verificó."
+    },
+    {
+      "id": "canal_lateral",
+      "dato": "El canal lateral del caché",
+      "valor": "CVE-2025-46570 (GHSA-4qjh-9fv9-r85r): con el caché compartido, el tiempo al primer token dice si un prefijo ya estaba en caché",
+      "nota": "vLLM, docs/usage/security.md (v0.34.0). La doc dice «AUC de 0.99 con prefijos de 8 tokens»; esa cifra no se verificó en el paper. Papers: arXiv 2411.18191 (InputSnatch, 2024-11-27), 2409.20002 (2024-09-30) y 2502.07776 (ICML 2025: caché compartido entre usuarios en 7 proveedores de API)."
+    },
+    {
+      "id": "avisos_vllm",
+      "dato": "Avisos de aislamiento en vLLM",
+      "valor": "5 avisos de 2026 sobre cache_salt, prompt_logprobs y planificación asíncrona con paralelismo de pipeline; la 0.34.0 es posterior a todos",
+      "nota": "api.github.com/repos/vllm-project/vllm/security-advisories, consultado 2026-11-27: GHSA-wpww-v874-ph2p (12-sep, sal sin largo máximo que traba a todos), GHSA-2823-qmq8-rwvj (23-sep), GHSA-935w-9g4m-p28p (28-sep), GHSA-rhcx-5729-88vg (9-oct, alta, DoS entre clientes) y GHSA-v97p-wpxp-px84 (9-nov, fuga de tokens entre usuarios, de la 0.16.0 a la 0.20.2)."
+    },
+    {
+      "id": "metricas_cliente",
+      "dato": "Métricas por cliente",
+      "valor": "las métricas de vLLM no traen etiqueta de cliente; el gasto y las trazas por despacho los lleva el gateway",
+      "nota": "vLLM 0.34.0, docs/usage/metrics.md; las solicitudes de etiquetas configurables (#66538 y #66579, 2026-11-09) siguen abiertas (consultado 2026-11-27)."
+    },
+    {
+      "id": "planificacion",
+      "dato": "Planificación en vLLM",
+      "valor": "--scheduling-policy fcfs (por omisión) o priority; sin equidad entre clientes",
+      "nota": "vllm/config/scheduler.py y vllm/v1/core/sched/scheduler.py (v0.34.0). Con priority, al faltar memoria se expulsa a la de menor prioridad. La prioridad de LiteLLM es una cola BETA de su router; que reenvíe priority a vLLM no se verificó."
+    },
+    {
+      "id": "lora",
+      "dato": "LoRA por cliente",
+      "valor": "solo en Empresa y a pedido: aísla el estilo, no los datos; el adaptador es un archivo del cliente y se borra con su contrato",
+      "nota": "vLLM 0.34.0, docs/features/lora.md: --max-loras (adaptadores en un mismo lote, 1 por omisión), --max-lora-rank (16 por omisión); cada adaptador tiene su propio caché de prefijos (consultado 2026-11-27)."
+    },
+    {
+      "id": "persona_encargada",
+      "dato": "El papel legal de la startup",
+      "valor": "persona encargada de cada despacho, que es el responsable",
+      "nota": "LFPDPPP vigente (DOF 20-mar-2025; última reforma 14-nov-2025), art. 2-XII: trata datos personales «por cuenta del responsable». La ley casi no dice más del encargado; el detalle sigue en el Reglamento de 2011 (arts. 49–55), que la Cámara publica como vigente. Qué tanto sigue vigente con la ley nueva no se verificó."
+    },
+    {
+      "id": "dpa",
+      "dato": "El contrato de encargo",
+      "valor": "qué datos y para qué (solo dar el asistente), medidas de seguridad, confidencialidad, borrado al terminar, no transferir y la lista de subencargados autorizados",
+      "nota": "Derivado del Reglamento de 2011, arts. 50, 51, 54 y 55 (consultado 2026-11-27): toda subcontratación la autoriza el responsable y el subcontratado asume las mismas obligaciones; basta que el contrato la prevea."
+    },
+    {
+      "id": "subencargados",
+      "dato": "Subencargados",
+      "valor": "el respaldo cifrado fuera del sitio y el correo de avisos; el colocation solo aloja equipo con discos cifrados (si llegara a ver datos, sería subencargado)",
+      "nota": "Decisión del caso."
+    },
+    {
+      "id": "conservacion",
+      "dato": "Cuánto guarda el despacho",
+      "valor": "5 años la contabilidad y su documentación (CFF, art. 30)",
+      "nota": "Código Fiscal de la Federación, art. 30, última reforma DOF 9-abr-2026 (consultado 2026-11-27): desde que se presentaron o debieron presentarse las declaraciones; más si hay recurso o juicio."
+    },
+    {
+      "id": "borrado",
+      "dato": "Borrado al terminar",
+      "valor": "al terminar el contrato, la startup entrega al despacho un respaldo completo y borra todo en 30 días (documentos, vectores, adaptador, sal y registros con contenido)",
+      "nota": "Supuesto del caso: el despacho es quien conserva los 5 años del CFF; la startup no puede guardar por él."
+    },
+    {
+      "id": "brecha",
+      "dato": "Aviso de una vulneración",
+      "valor": "la startup avisa al despacho en 24 horas; el despacho informa a sus titulares",
+      "nota": "Las 24 horas son supuesto del contrato. La ley (art. 19) pide informar «de inmediato» al titular las vulneraciones que afecten de forma significativa sus derechos; esa obligación es del responsable."
+    },
+    {
+      "id": "soc2",
+      "dato": "SOC 2 Tipo II",
+      "valor": "meta a 12–18 meses; primer año ≈ US$25,000–50,000; auditoría ≈ US$12,000–20,000",
+      "nota": "Cifras de vendedores (Drata, 2026-03-25, leído 2026-11-27): observación de 3 a 12 meses y proceso de 6 a 12; otros vendedores dicen 9 a 18 meses desde cero. Fuentes secundarias."
+    },
+    {
+      "id": "iso27001",
+      "dato": "ISO/IEC 27001:2022",
+      "valor": "la transición desde la versión 2013 terminó el 31-oct-2025; costo en México sin tarifa pública",
+      "nota": "BSI (leído 2026-11-27). Se cotiza con un organismo de certificación."
+    },
+    {
+      "id": "sla",
+      "dato": "SLA por plan",
+      "valor": "Básico sin SLA; Pro 99.5 % al mes (216 min); Empresa 99.5 % con un servidor y 99.9 % (43.2 min) cuando haya dos; créditos de 10 % (Pro) y de 25 %, 50 % y 100 % (Empresa, bajo 99.9 %, 99 % y 95 %)",
+      "nota": "Decisión del caso. Minutos de un mes de 30 días. Los escalones de crédito copian los de Microsoft 365 (99.9 % mensual por servicio; 25 %, 50 % y 100 % bajo 99.9 %, 99 % y 95 %, a reclamar; ejemplo del módulo de SLA de Microsoft Learn, consultado 2026-11-27; el texto que obliga es el SLA de Microsoft Online Services de cada edición)."
+    },
+    {
+      "id": "examen_fugas",
+      "dato": "Examen de fugas",
+      "valor": "2 clientes de prueba con documentos sintéticos marcados; 300 preguntas de cada uno hacia el otro, 100 intentos de quitar o cambiar el id del cliente y la prueba de tiempo del caché; criterio: 0",
+      "nota": "Diseño del caso sobre la guía de Qdrant («validate… with attempts to omit or change the tenant identifier»). Con 0 en 600, la tasa es ≤ 0.50 % al 95 %; corre en cada despliegue."
+    },
+    {
+      "id": "examen_calidad",
+      "dato": "Examen de calidad",
+      "valor": "200 preguntas comunes sobre un despacho sintético; criterio: ≥ 85 % bien y con cita, ≤ 2 % de citas inventadas, 0 montos o RFC cambiados",
+      "nota": "Supuesto del caso, con los criterios del despacho de abogados más uno propio: un monto o un RFC equivocado es la falla grave de un contador."
+    },
+    {
+      "id": "piloto",
+      "dato": "Piloto",
+      "valor": "6 semanas con 6 despachos (3 Básico, 2 Pro, 1 Empresa) antes de mover a los 45",
+      "nota": "Supuesto del caso."
+    }
+  ]
+}

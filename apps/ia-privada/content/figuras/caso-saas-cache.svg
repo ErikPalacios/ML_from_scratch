@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 372" role="img" aria-labelledby="f-caso-saas-cache-t" class="f-svg" style="max-width:420px">
+<title id="f-caso-saas-cache-t">El prefix cache como canal lateral y la sal que lo cierra. Arriba, sin sal: el despacho A manda instrucciones y el texto «Grupo X»; sus tres bloques se guardan con los hashes h1, h2 y h3. El despacho B manda el mismo texto, sus bloques dan los mismos hashes y vLLM los encuentra en caché: el primer token llega más rápido, y B deduce que A ya lo había mandado. Abajo, con una sal secreta por despacho: la sal de A se mezcla en el primer bloque y la cadena da a1, a2 y a3; la de B da b1, b2 y b3. No coinciden, el primer token de B tarda lo mismo que con un texto nuevo y B no aprende nada. La sal entra al hash del primer bloque y, como cada bloque encadena el anterior, cambia toda la cadena.</title>
+<rect class="f-card" x="8" y="8" width="344" height="150" rx="14"/>
+<text class="f-l" x="22" y="32">SIN SAL: UN CACHÉ PARA TODOS</text>
+<text class="f-s" x="22" y="62" style="font-weight:700">A</text>
+<rect class="f-chip" x="44" y="46" width="52" height="24" rx="5"/><text class="f-s" x="70" y="63" text-anchor="middle" style="font-size:12px">instr.</text>
+<rect class="f-chip" x="104" y="46" width="52" height="24" rx="5"/><text class="f-s" x="130" y="63" text-anchor="middle" style="font-size:12px">instr.</text>
+<rect class="f-b2" x="164" y="46" width="60" height="24" rx="5"/><text class="f-s" x="194" y="63" text-anchor="middle" style="font-size:12px">Grupo X</text>
+<text class="f-l" x="70" y="84" text-anchor="middle">H1</text><text class="f-l" x="130" y="84" text-anchor="middle">H2</text><text class="f-l" x="194" y="84" text-anchor="middle">H3</text>
+<text class="f-s" x="236" y="63" style="font-size:12px">se guardan</text>
+<text class="f-s" x="22" y="114" style="font-weight:700">B</text>
+<rect class="f-y" x="44" y="98" width="52" height="24" rx="5"/><text class="f-s" x="70" y="115" text-anchor="middle" style="font-size:12px">instr.</text>
+<rect class="f-y" x="104" y="98" width="52" height="24" rx="5"/><text class="f-s" x="130" y="115" text-anchor="middle" style="font-size:12px">instr.</text>
+<rect class="f-o" x="164" y="98" width="60" height="24" rx="5"/><text class="f-s" x="194" y="115" text-anchor="middle" style="font-size:12px">Grupo X</text>
+<text class="f-l" x="70" y="136" text-anchor="middle">H1</text><text class="f-l" x="130" y="136" text-anchor="middle">H2</text><text class="f-l" x="194" y="136" text-anchor="middle">H3</text>
+<text class="f-s" x="236" y="108" style="font-size:12px">ya estaban:</text>
+<text class="f-s" x="236" y="124" style="font-size:12px">primer token</text>
+<text class="f-s" x="236" y="140" style="font-size:12px;font-weight:700">más rápido</text>
+<rect class="f-card" x="8" y="172" width="344" height="150" rx="14"/>
+<text class="f-l" x="22" y="196">CON SAL: CADA DESPACHO CON LA SUYA</text>
+<text class="f-s" x="22" y="226" style="font-weight:700">A</text>
+<rect class="f-chip" x="44" y="210" width="52" height="24" rx="5"/><text class="f-s" x="70" y="227" text-anchor="middle" style="font-size:12px">instr.</text>
+<rect class="f-chip" x="104" y="210" width="52" height="24" rx="5"/><text class="f-s" x="130" y="227" text-anchor="middle" style="font-size:12px">instr.</text>
+<rect class="f-b2" x="164" y="210" width="60" height="24" rx="5"/><text class="f-s" x="194" y="227" text-anchor="middle" style="font-size:12px">Grupo X</text>
+<text class="f-l" x="70" y="248" text-anchor="middle">SAL A → A1</text><text class="f-l" x="130" y="248" text-anchor="middle">A2</text><text class="f-l" x="194" y="248" text-anchor="middle">A3</text>
+<text class="f-s" x="236" y="227" style="font-size:12px">se guardan</text>
+<text class="f-s" x="22" y="278" style="font-weight:700">B</text>
+<rect class="f-off" x="44" y="262" width="52" height="24" rx="5"/><text class="f-s" x="70" y="279" text-anchor="middle" style="font-size:12px">instr.</text>
+<rect class="f-off" x="104" y="262" width="52" height="24" rx="5"/><text class="f-s" x="130" y="279" text-anchor="middle" style="font-size:12px">instr.</text>
+<rect class="f-off" x="164" y="262" width="60" height="24" rx="5"/><text class="f-s" x="194" y="279" text-anchor="middle" style="font-size:12px">Grupo X</text>
+<text class="f-l" x="70" y="300" text-anchor="middle">SAL B → B1</text><text class="f-l" x="130" y="300" text-anchor="middle">B2</text><text class="f-l" x="194" y="300" text-anchor="middle">B3</text>
+<text class="f-s" x="236" y="272" style="font-size:12px">no coinciden:</text>
+<text class="f-s" x="236" y="288" style="font-size:12px">tarda como uno</text>
+<text class="f-s" x="236" y="304" style="font-size:12px;font-weight:700">nuevo</text>
+<text class="f-s" x="14" y="344" style="font-size:12px">La sal entra al hash del primer bloque y cada bloque</text>
+<text class="f-s" x="14" y="362" style="font-size:12px">encadena el anterior: cambia toda la cadena.</text>
+</svg>

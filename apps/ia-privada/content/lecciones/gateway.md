@@ -318,7 +318,7 @@ En LiteLLM, la clave **maestra** (empieza con `sk-` y va en una variable de ento
 
 Las mismas reglas existen por equipo y por usuario interno. Por omisión `max_budget` vale `null` y no se revisa: una clave sin límites puestos no tiene límites.
 
-Para el despacho, tres claves al empezar: una para Open WebUI (solo inferencia, con `chat-grande` y `embeddings`), una para la app de correos (su propio modelo y su propia cuota) y una para pruebas de TI. Si la de pruebas se filtra en un repositorio, se borra esa y las otras dos siguen.
+Para el despacho, tres claves al empezar: una para Open WebUI (solo inferencia, con `chat-grande` y `embeddings`), una para la app de correos (su propio modelo y su propia cuota) y una para pruebas de TI. Si la de pruebas se filtra en un repositorio, se borra esa y las otras dos siguen. Con varios clientes, un equipo por cliente; y los límites de un equipo valen para la suma de sus llaves, así que un trabajo por lote va en un equipo aparte (si no, se come la cuota del cliente): [la startup SaaS](/casos/saas/).
 
 ### Saber qué persona pidió, cuando quien llama es Open WebUI
 
