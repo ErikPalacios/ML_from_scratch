@@ -118,13 +118,14 @@ function stats(items) {
   return `<div class="d-stats" style="--n:${items.length}">${items.map(([n, t, href]) => `<a href="${href.includes('/') ? href : '#' + href}"><b>${n}</b><span>${esc(t)}</span></a>`).join('')}</div>`;
 }
 
-function hero({ volver, volverTxt, pill, h1, lead, tiles, botones, etapaIdx, num, tituloEstacion }) {
+function hero({ volver, volverTxt, pill, h1, lead, tiles, botones, etapaIdx, num, tituloEstacion, corre = '' }) {
   return `<section class="d-wrap d-hero">
   <div class="d-hero-txt">
     <a class="d-back" href="${volver}">← ${esc(volverTxt)}</a>
     <span class="d-pill">${esc(pill)}</span>
     <h1>${esc(h1)}</h1>
     <p class="d-lead">${esc(lead)}</p>
+    ${corre}
     ${tiles ? stats(tiles) : ''}
     <div class="d-btns">${botones}</div>
   </div>
@@ -359,12 +360,15 @@ function paginaEstacion(e, { total, kitBytes, kb }, modo) {
     : [...trabajo, S.repaso, S.contexto];
   const empezar = `<a class="d-btn" href="#${modo === 'estacion' ? 'ruta' : 'arranque'}">Empezar</a>`;
   const L = e.linea.corto, inicio = `/${e.linea.id}/`;
+  // En una rama, el hero dice dónde corre la estación y, si la rama tiene ruta sin GPU, cómo entra en ella.
+  const sLinea = e.linea.tipo === 'rama' ? e.linea.estaciones.find((s) => s.num === e.num) : null, sg = e.linea.rama?.sin_gpu;
+  const corre = sLinea ? `<div class="d-hero-corre"><span class="d-rama-donde d-donde-${sLinea.donde}">Corre en: ${DONDE[sLinea.donde]}</span>${sg ? `<a class="d-hero-singpu" href="${inicio}#caso">${sg.estaciones.includes(e.num) ? `Sin rentar GPU · ruta ${sg.estaciones.join(' → ')}` : sLinea.donde === 'mac' ? `Sin GPU, opcional: se suma a la ruta ${sg.estaciones.join(' → ')}` : `Fuera de la ruta sin GPU (${sg.estaciones.join(' → ')})`}</a>` : ''}</div>` : '';
   return `${modo === 'proyecto' ? `${barra({ ruta: `/ ${L} · ${e.num} · proyecto con kit`, indice })}
 ${hero({ volver: e.url + '#ruta', volverTxt: e.titulo, pill: `${L} · Estación ${e.num} · Proyecto con kit`, h1: 'El proyecto con kit', lead: e.mundo.resumen, etapaIdx: e.etapaIdx, num: e.num, tituloEstacion: e.titulo,
-    botones: empezar })}
+    botones: empezar, corre })}
 ` : `${barra({ ruta: `/ ${L} · ${e.num}`, indice })}
 ${hero({ volver: inicio, volverTxt: e.linea.entrenamiento, pill: `${L} · Estación ${e.num} de ${total}`, h1: e.titulo, lead: e.pregunta, etapaIdx: e.etapaIdx, num: e.num, tituloEstacion: e.titulo,
-    botones: empezar })}
+    botones: empezar, corre })}
 `}<main class="d-wrap d-main">
 ${main.join('\n\n')}
 </main>
@@ -710,7 +714,7 @@ ${bloqueT(LB, 'portada')}
 <section class="d-wrap d-sec d-sec-sola" id="viene">
   ${titulo('Lo que viene', 'más entrenamientos')}
   <div class="d-grid2">
-    ${despues.map((r) => `<a class="d-card d-viene" href="/${r.id}/"><span class="d-rama-h"><span class="d-lbl">Entrenamiento · patrón ${esc(r.patron_txt)}</span>${miniT([...new Set(r.estaciones.map((s) => s.etapa))])}</span><h3>${esc(r.entrenamiento || r.nombre)}</h3><p class="d-txt">${esc(r.resumen)}</p><span class="d-nota">${r.estaciones.length} estaciones · caso: ${esc(r.caso.nombre)} · ${r.estaciones.filter((s) => s.donde !== 'mac').length} necesitan GPU rentada</span><span class="d-ir">Ver su temario →</span></a>`).join('')}
+    ${despues.map((r) => `<a class="d-card d-viene" href="/${r.id}/"><span class="d-rama-h"><span class="d-lbl">Entrenamiento · patrón ${esc(r.patron_txt)}</span>${miniT([...new Set(r.estaciones.map((s) => s.etapa))])}</span><h3>${esc(r.entrenamiento || r.nombre)}</h3><p class="d-txt">${esc(r.resumen)}</p><span class="d-nota">${r.lista?.size ? `${r.lista.size} de ${r.estaciones.length} listas` : `${r.estaciones.length} estaciones`} · caso: ${esc(r.caso.nombre)} · ${r.estaciones.filter((s) => s.donde !== 'mac').length} necesitan GPU rentada</span>${r.sin_gpu ? `<span class="d-viene-sin"><b>Sin rentar GPU:</b> ${r.sin_gpu.estaciones.join(' → ')}</span>` : ''}<span class="d-ir">Ver su temario →</span></a>`).join('')}
     <div class="d-card"><h3>Los otros patrones</h3><p class="d-txt">Cada patrón de sistema de ML cambia solo algunas estaciones del camino, así que llegan como entrenamientos más cortos, después de estos dos.</p><div class="d-mini">${['batch', 'streaming', 'edge', 'asíncrono', 'híbrido'].map((x) => `<span>${x}</span>`).join('')}</div></div>
   </div>
 </section>

@@ -140,7 +140,7 @@ Cada fase cabe en una ventana de 5 horas y termina con la app construida, revisa
 | 8 ✓ | Casos 1–3: despacho, clínica, fábrica. Hecha el 2026-11-27: en vivo en ia.trueml.app/casos/ | 2, 5 |
 | 9 | Casos 4–6: financiera, gobierno, startup multi-tenant | 8 |
 | **Dojo IA Privada, primera parte** | | |
-| 10 | Molde de la rama y estaciones 1–2: un modelo local por API · medir y cuantizar (Mac) | 4 |
+| 10 ✓ | Molde de la rama y estaciones 1–2: un modelo local por API · medir y cuantizar (Mac). Hecha el 2026-11-27: en vivo en dojo.trueml.app/ia-privada/modelo-local/ y /ia-privada/cuantizacion/ | 4 |
 | 11 | Estación 3: vLLM bajo carga (primera sesión con GPU rentada; se elige el proveedor) | 10 |
 | 12 | Estación 4: gateway de modelos | 11 |
 | **Entrenamiento RAG** (lo que piden las estaciones 5–6) | | |
@@ -204,6 +204,12 @@ Opcional, después: las estaciones 10–12 del RAG (Docker, índice nuevo sin co
 - Queda anotado: la clínica dura 67 min de lo esencial (meta ≤ 55) sin quitar intentos ni ejercicios; «3 fragmentos = 3,500 o 4,000 tokens» difiere entre `rag-privado` y `requisitos-hardware`/`recorrido` (se dejó con el matiz); el diagrama de la fábrica se desliza a 375 px como todos los diagramas anchos. Detalle en las notas de la sesión (`fase8/integracion.md`).
 
 **Costo estimado:** ≈ 24 lecciones a 1.4–3.5 % del límite semanal cada una (lo medido en Sensei) son ≈ 35–85 % de una semana, repartido entre varias. Las herramientas, los casos y las estaciones se miden al terminar cada fase, igual que en Sensei.
+
+**Medido (fase 10, 2026-11-27):** el molde de la rama (el hero de cada estación de rama dice «Corre en» y cómo entra en la ruta sin GPU; la tarjeta de IA Privada en la portada del Dojo dice cuántas estaciones están listas y la ruta 1 → 5 → 6) y sus estaciones 1 y 2, cada una con kit, solución, `verificar.py` (10 y 6 checks), `romper.py` (6 fallas cada una, todas probadas contra el servidor real) y su página con salidas reales. Se hizo en dos ventanas, con una pausa por la regla del 90 %: la primera pasó de 80 % a 87 % (semanal 30 → 31 %) y la segunda de 0 % a 30 % (semanal 33 → 37 %), ≈ 5 puntos semanales en total; la estación 6 del RAG y la fase 8 corrieron en paralelo, así que la fase 10 sola costó algo menos. Fable no se usó. Todo en Opus en una sola sesión, sin escritores; la revisión de hechos, un subagente Sonnet con web (2 precisiones: el reparto del contexto con `-np` solo pasa sin KV unificado, y el contexto de Qwen3-0.6B es 32,768 en su tarjeta y 40,960 en su config). Lo que salió:
+
+- **Estación 1** (`modelo-local`): llama.cpp 1.1.0 de Homebrew (puerto 9931 por omisión, `--reasoning` en auto, `--jinja` y `--warmup` prendidos) con Qwen3-0.6B Q8_0 de ggml-org (commit afe8ad35, sha256). El cliente `pipeline/llm.py` (solo biblioteca estándar: chat, stream con TTFT, tokens, errores con nombre, `chat_json` con citas como enum de ids) es el contrato que reutiliza la estación 8 del RAG. Fallas reales: `-np 4` con `-c 8192` deja 2,048 por petición y el prompt de 6,013 tokens truena; sin `--reasoning` razona en inglés y se corta; sin `--api-key` el log avisa y contesta 200; `--chat-template llama3` mete la pregunta como 3 tokens. En la Mac (M4, 120 GB/s): ≈ 120 tokens/s al escribir (80 % del techo) y 4.7 s de prefill de 6,013 tokens.
+- **Estación 2** (`cuantizacion`): del f16 con `llama-quantize` (determinista: el mismo sha256 cada vez). Q8_0 805 MB, 120 tokens/s, perplejidad +0.1 %, examen 12/12; Q4_K_M 484 MB (5.09 bits por peso: 28.5 % en Q6_K), 164 tokens/s, +4.0 %, 12/12; Q2_K 347 MB, 161 tokens/s, ×6.6, 0/12. La regla elige Q4_K_M. Lo que no resultó falla real y se cambió: «sin calentar» (llama-server calienta solo) y «recuantizar desde Q8_0» (casi igual: 6.28 contra 6.30). `mundo/ficha.py` lee el encabezado de un GGUF (lo usan las dos).
+- `apps/trueml/sync.mjs` regeneró `apps/ia-privada/content/dojo.json` (IA Privada 2/8); es el único archivo de la app que tocó la fase.
 
 ## 8. Presupuesto: límites, reinicios y cómo aprovecharlos
 

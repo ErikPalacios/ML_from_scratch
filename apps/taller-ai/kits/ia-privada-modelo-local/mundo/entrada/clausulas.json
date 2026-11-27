@@ -1,0 +1,14 @@
+{
+  "nota": "Fragmentos ficticios de un contrato de arrendamiento del despacho, para las pruebas con citas (estación 8 del RAG). Ningún dato es real.",
+  "fragmentos": {
+    "C-04": "Cláusula cuarta. La renta mensual es de 48,500 pesos más IVA y se paga dentro de los primeros cinco días naturales de cada mes.",
+    "C-07": "Cláusula séptima. Si la renta se paga tarde, el arrendatario cubre una pena convencional del 3 % mensual sobre el saldo vencido.",
+    "C-11": "Cláusula undécima. El contrato dura 36 meses a partir del 1 de febrero de 2026 y se puede renovar por escrito con 60 días de aviso.",
+    "C-15": "Cláusula decimoquinta. Para cualquier controversia, las partes se someten a los tribunales de la Ciudad de México."
+  },
+  "preguntas": [
+    {"pregunta": "¿Cuánto dura el contrato?", "cita": "C-11"},
+    {"pregunta": "¿Qué pasa si la renta se paga tarde?", "cita": "C-07"},
+    {"pregunta": "¿Cuál es la renta mensual?", "cita": "C-04"}
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "nota": "Preguntas con respuesta exacta sobre fragmentos ficticios de expedientes del despacho. Cada respuesta se califica buscando el texto esperado (sin acentos ni mayúsculas). Ningún dato es real.",
+  "sistema": "Contesta solo con el dato que se pide, sin explicar.",
+  "preguntas": [
+    {"id": "E01", "fragmento": "Cláusula cuarta. La renta mensual es de 48,500 pesos más IVA y se paga dentro de los primeros cinco días naturales de cada mes.", "pregunta": "¿De cuántos pesos es la renta mensual, sin IVA?", "espera": ["48,500", "48500", "48 500"]},
+    {"id": "E02", "fragmento": "Cláusula undécima. El contrato dura 36 meses a partir del 1 de febrero de 2026.", "pregunta": "¿Cuántos meses dura el contrato?", "espera": ["36"]},
+    {"id": "E03", "fragmento": "Cláusula séptima. Si la renta se paga tarde, el arrendatario cubre una pena convencional del 3 % mensual sobre el saldo vencido.", "pregunta": "¿De qué porcentaje mensual es la pena convencional?", "espera": ["3 %", "3%", "tres por ciento"]},
+    {"id": "E04", "fragmento": "Cláusula decimoquinta. Para cualquier controversia, las partes se someten a los tribunales de la Ciudad de México.", "pregunta": "¿A los tribunales de qué ciudad se someten las partes?", "espera": ["ciudad de mexico", "cdmx"]},
+    {"id": "E05", "fragmento": "Expediente 2025-114. La audiencia de pruebas quedó fijada para el 14 de marzo de 2026 a las 10:30 horas en el Juzgado Tercero Civil.", "pregunta": "¿En qué juzgado es la audiencia?", "espera": ["tercero civil"]},
+    {"id": "E06", "fragmento": "Expediente 2025-114. La audiencia de pruebas quedó fijada para el 14 de marzo de 2026 a las 10:30 horas en el Juzgado Tercero Civil.", "pregunta": "¿A qué hora es la audiencia?", "espera": ["10:30"]},
+    {"id": "E07", "fragmento": "Contrato de prestación de servicios. El proveedor entrega el reporte mensual a más tardar el día 10 de cada mes; el despacho tiene 15 días hábiles para objetarlo.", "pregunta": "¿Cuántos días hábiles tiene el despacho para objetar el reporte?", "espera": ["15", "quince"]},
+    {"id": "E08", "fragmento": "Poder notarial. Se otorga ante el notario público número 211 de la Ciudad de México, licenciada Ana Paula Ríos.", "pregunta": "¿Qué número de notario otorga el poder?", "espera": ["211"]},
+    {"id": "E09", "fragmento": "Contrato de confidencialidad. La obligación de confidencialidad subsiste durante 5 años después de terminado el contrato.", "pregunta": "¿Cuántos años subsiste la confidencialidad después del contrato?", "espera": ["5", "cinco"]},
+    {"id": "E10", "fragmento": "Finiquito laboral. El monto total del finiquito es de 87,300 pesos e incluye la parte proporcional de aguinaldo y vacaciones.", "pregunta": "¿De cuántos pesos es el finiquito?", "espera": ["87,300", "87300", "87 300"]},
+    {"id": "E11", "fragmento": "Depósito en garantía. El arrendatario entrega un depósito equivalente a dos meses de renta, que se devuelve dentro de los 30 días siguientes a la entrega del inmueble.", "pregunta": "¿Dentro de cuántos días se devuelve el depósito?", "espera": ["30", "treinta"]},
+    {"id": "E12", "fragmento": "Demanda de amparo. El plazo para presentarla vence el 22 de abril de 2026.", "pregunta": "¿Qué día vence el plazo para presentar la demanda?", "espera": ["22 de abril"]}
+  ]
+}

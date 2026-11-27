@@ -1,0 +1,6 @@
+# lo que baja el mundo y lo que deja el servidor
+modelo/
+.taller/
+.respaldo/
+__pycache__/
+*.pyc

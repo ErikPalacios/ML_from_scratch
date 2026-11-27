@@ -1,0 +1,1016 @@
+{
+  "id": "modelo-local",
+  "patron": "llm",
+  "rama": "ia-privada",
+  "etapa": "api",
+  "num": 1,
+  "titulo": "Un modelo local por API",
+  "nav": "Modelo local",
+  "pregunta": "¿Cómo levantas un modelo open weight en tu propia máquina, detrás de una API que cualquier programa sepa usar, sin que nadie más llegue a él y sin que la plantilla, el contexto o el razonamiento te den respuestas malas en silencio?",
+  "version": "2026-11-27",
+  "mapa": {
+    "resumen": "El despacho quiere preguntarle a sus expedientes con un LLM, sin que un solo documento salga de su red. El primer paso es tener el modelo en una máquina propia y hablarle como se le habla a cualquier API de LLM. Se usa un modelo <b>open weight</b> (sus pesos se bajan y corren donde quieras) y un <b>servidor de inferencia</b>: el programa que carga los pesos en memoria, recibe mensajes por HTTP y devuelve texto. Aquí es <b>llama-server</b> de llama.cpp con <b>Qwen3-0.6B</b>, la versión chica de la familia del Qwen3 32B que el despacho piensa usar. Habla la <b>API compatible con OpenAI</b>: las mismas rutas (<code>/v1/chat/completions</code>, <code>/v1/models</code>) y el mismo JSON, así que el cliente de esta estación sirve igual contra vLLM en el servidor del despacho. Lo que se aprende es lo que nadie ve hasta que falla: escuchar solo en <code>127.0.0.1</code>, pedir <b>clave</b>, darle el <b>contexto</b> que pide el prompt del despacho, usar la <b>plantilla de chat</b> del modelo, apagar el <b>razonamiento</b>, y un cliente con <b>streaming</b>, <b>TTFT</b>, conteo de tokens, errores claros y <b>JSON con citas</b> que se pueden validar.",
+    "entra": [
+      "el modelo: Qwen3-0.6B en GGUF, cuantizado a Q8_0, de un commit fijo de Hugging Face (ggml-org/Qwen3-0.6B-GGUF) y con su sha256",
+      "llama.cpp 1.1.0 o más nuevo, de Homebrew: trae llama-server",
+      "las necesidades del despacho (su ficha): prompts de ≈ 6,000 tokens, 8,192 de contexto, nada fuera de su red, el razonamiento apagado"
+    ],
+    "sale": [
+      "<code>servidor.env</code> y <code>servir.sh</code>: el modelo servido en <code>http://127.0.0.1:9931/v1</code>, con clave, 8,192 tokens de contexto, la plantilla de Qwen3 y sin razonamiento",
+      "<code>pipeline/llm.py</code>: un cliente con chat, streaming (con su TTFT), conteo de tokens, errores con nombre y JSON con un schema; es el que usa la estación 8 del entrenamiento RAG",
+      "las cuentas de tu Mac, medidas: tokens por segundo al generar, segundos de prefill de un prompt del despacho y memoria del KV cache"
+    ],
+    "escala": [
+      {
+        "que": "El modelo",
+        "ref": "Qwen3 32B en INT4 de AWQ: 19.32 GB de pesos",
+        "taller": "Qwen3-0.6B en Q8_0: 0.80 GB"
+      },
+      {
+        "que": "El servidor",
+        "ref": "vLLM en una GPU NVIDIA del servidor del despacho",
+        "taller": "llama-server de llama.cpp en tu Mac (Metal)"
+      },
+      {
+        "que": "A la vez",
+        "ref": "8 conversaciones de 8,192 tokens",
+        "taller": "1 de 8,192"
+      },
+      {
+        "que": "Quién llega",
+        "ref": "la red interna, detrás de un gateway con TLS y llaves por persona (estación 4)",
+        "taller": "solo tu Mac: 127.0.0.1 y una clave"
+      },
+      {
+        "que": "Velocidad",
+        "ref": "≈ 31 tokens/s por conversación de techo; ≈ 2.2 s de prefill de 6,000 tokens",
+        "taller": "≈ 119 tokens/s medidos; 4.71 s de prefill de 6,013 tokens"
+      }
+    ]
+  },
+  "precalculos": {
+    "intro": "Antes de escribir nada, las cuentas de servilleta de un modelo servido: cuánto pesa, cuánta memoria pide el contexto, cuánto contexto le toca a cada petición, qué tan rápido puede escribir y cuánto tarda en leer el prompt. Cada una en el despacho (con su ficha) y en el dojo (medida en tu Mac).",
+    "cuentas": [
+      {
+        "id": "pesos",
+        "pregunta": "¿Cuánto pesa el modelo en memoria?",
+        "formula": "bytes de pesos = parámetros × bits por parámetro ÷ 8",
+        "ref": {
+          "cuenta": "Qwen3 32B: 32.76 mil millones de parámetros en INT4 de AWQ (4 bits por peso, más escalas y algunas capas en 16 bits)",
+          "valor": "19.32 GB: 4.72 bits por parámetro en promedio"
+        },
+        "taller": {
+          "cuenta": "Qwen3-0.6B: 751.6 millones de parámetros en Q8_0 (bloques de 32 pesos: 32 bytes + 2 de escala)",
+          "valor": "0.80 GB: 8.50 bits por parámetro"
+        },
+        "decide": "Los pesos se leen completos para escribir cada token, así que su tamaño decide la memoria mínima y la velocidad máxima. Cuantizar es elegir cuántos bits por peso (la estación 2 mide qué se pierde).",
+        "conceptos": [
+          "open-weight",
+          "gguf"
+        ],
+        "comprueba": {
+          "code": "python3 -c \"\nimport json, urllib.request\nh = {'Authorization': 'Bearer dojo-local-7f3a'}\nm = json.load(urllib.request.urlopen(urllib.request.Request('http://127.0.0.1:9931/v1/models', headers=h)))['data'][0]['meta']\nn, b = m['n_params'], m['size']\nprint(f'dojo:     Qwen3-0.6B en Q8_0: {n:,} parámetros, {b:,} bytes de pesos = {b * 8 / n:.2f} bits por parámetro ({b / 1e9:.2f} GB)')\nprint(f'          Q8_0 guarda bloques de 32 pesos: 32 bytes (1 por peso) + 2 de escala = 34 × 8 / 32 = {34 * 8 / 32} bits por peso')\nprint(f'despacho: Qwen3 32B en INT4 de AWQ: 19.32 GB de pesos (la ficha del despacho) × 8 ÷ 32.76 mil millones = {19.32e9 * 8 / 32.76e9:.2f} bits por parámetro: 4 de cada peso + escalas y lo que queda en 16 bits')\"",
+          "nota": "",
+          "donde": "mac",
+          "salida": "dojo:     Qwen3-0.6B en Q8_0: 751,632,384 parámetros, 798,801,920 bytes de pesos = 8.50 bits por parámetro (0.80 GB)\n          Q8_0 guarda bloques de 32 pesos: 32 bytes (1 por peso) + 2 de escala = 34 × 8 / 32 = 8.5 bits por peso\ndespacho: Qwen3 32B en INT4 de AWQ: 19.32 GB de pesos (la ficha del despacho) × 8 ÷ 32.76 mil millones = 4.72 bits por parámetro: 4 de cada peso + escalas y lo que queda en 16 bits"
+        }
+      },
+      {
+        "id": "kv",
+        "pregunta": "¿Cuánta memoria pide el contexto?",
+        "formula": "KV cache por token = 2 (K y V) × capas × cabezas K/V × dimensión de cada cabeza × 2 bytes; por conversación, × los tokens de contexto",
+        "ref": {
+          "cuenta": "Qwen3 32B: 64 capas, 8 cabezas K/V de 128; 8 conversaciones de 8,192 tokens",
+          "valor": "256 KiB por token · 2.15 GB por conversación · 17.18 GB las 8"
+        },
+        "taller": {
+          "cuenta": "Qwen3-0.6B: 28 capas, 8 cabezas K/V de 128 (lo dice el encabezado del GGUF); 8,192 tokens",
+          "valor": "112 KiB por token · 896 MiB"
+        },
+        "decide": "En el despacho, el contexto de las 8 conversaciones pesa casi lo mismo que el modelo. Prometer más contexto o más gente a la vez es pedir memoria: se calcula antes de prometerlo.",
+        "conceptos": [
+          "kv-cache",
+          "contexto"
+        ],
+        "comprueba": {
+          "code": "python3 mundo/ficha.py\npython3 -c \"\ndef kv(capas, cabezas_kv, dim):\n    return 2 * capas * cabezas_kv * dim * 2          # K y V · cada capa · cada cabeza KV · su dimensión · 2 bytes (f16)\nd, g = kv(28, 8, 128), kv(64, 8, 128)\nprint(f'dojo:     Qwen3-0.6B (28 capas, 8 cabezas KV de 128): {d:,} B = {d / 1024:.0f} KiB por token · × 8,192 = {d * 8192 / 2**20:,.0f} MiB')\nprint(f'despacho: Qwen3 32B (64 capas, 8 cabezas KV de 128): {g:,} B = {g / 1024:.0f} KiB por token · × 8,192 = {g * 8192 / 1e9:.2f} GB por conversación · × 8 = {g * 8192 * 8 / 1e9:.2f} GB')\"",
+          "nota": "La ficha lee el encabezado del archivo GGUF sin cargar los pesos: capas y cabezas salen de ahí, no de la memoria.",
+          "donde": "mac",
+          "salida": "Qwen3-0.6B-Q8_0.gguf: Qwen3-0.6B · arquitectura qwen3 · GGUF v3\n  28 capas · 16 cabezas de atención, 8 de K/V, de 128 · embedding 1,024 · contexto de entrenamiento 40,960\n  311 tensores · 751,632,384 pesos · plantilla de chat: sí, 4168 caracteres\n  KV cache en f16: 2 × 28 × 8 × 128 × 2 B = 114,688 B por token (112 KiB)\n\ndojo:     Qwen3-0.6B (28 capas, 8 cabezas KV de 128): 114,688 B = 112 KiB por token · × 8,192 = 896 MiB\ndespacho: Qwen3 32B (64 capas, 8 cabezas KV de 128): 262,144 B = 256 KiB por token · × 8,192 = 2.15 GB por conversación · × 8 = 17.18 GB"
+        }
+      },
+      {
+        "id": "reparto",
+        "pregunta": "¿Cuánto contexto le toca a cada petición?",
+        "formula": "contexto por petición = contexto del servidor ÷ peticiones a la vez (llama-server con -np fijo, sin KV unificado); tiene que caber el prompt más la respuesta",
+        "ref": {
+          "cuenta": "≈ 6,000 tokens de entrada + ≈ 500 de salida, 8 conversaciones a la vez",
+          "valor": "8,192 por conversación: en llama-server serían -c 65536 -np 8; vLLM reparte su memoria en bloques (estación 3)"
+        },
+        "taller": {
+          "cuenta": "-c 8192 con -np 1; y lo que pasa con -np 4",
+          "valor": "8,192 con una; 2,048 cada una con 4, y el prompt del despacho ya no cabe"
+        },
+        "decide": "PARALELO no es gratis: con el mismo -c, cada petición recibe menos. Si hacen falta 4 a la vez de 8,192, el servidor necesita -c 32768 y 4 veces el KV cache.",
+        "conceptos": [
+          "contexto",
+          "slots"
+        ],
+        "confirma": "Paso 2 (<code>/v1/models</code> dice <code>n_ctx</code> y el log dice <code>n_ctx_slot</code>) y la falla «paralelo-reparte»."
+      },
+      {
+        "id": "decode",
+        "pregunta": "¿Qué tan rápido puede escribir el modelo?",
+        "formula": "tokens por segundo (una conversación) ≤ ancho de banda de memoria ÷ bytes de pesos; en la práctica, una fracción (≈ 0.7)",
+        "ref": {
+          "cuenta": "0.7 × 864 GB/s de la L40S ÷ 19.32 GB",
+          "valor": "≈ 31.3 tokens/s por conversación (el objetivo es ≥ 20)"
+        },
+        "taller": {
+          "cuenta": "120 GB/s de memoria del M4 de esta Mac ÷ 0.80 GB",
+          "valor": "techo ≈ 150 tokens/s; medido ≈ 119 (79%)"
+        },
+        "decide": "Escribir es leer los pesos completos una vez por token: manda la memoria, no los FLOPs. Un modelo más chico o menos bits por peso escribe más rápido; una GPU con más ancho de banda, también.",
+        "conceptos": [
+          "decode-prefill",
+          "tokens"
+        ],
+        "comprueba": {
+          "code": "python3 -c \"\nimport json, urllib.request\nh = {'Content-Type': 'application/json', 'Authorization': 'Bearer dojo-local-7f3a'}\nc = {'model': 'qwen3-0.6b', 'messages': [{'role': 'user', 'content': 'Explica qué es un contrato de arrendamiento.'}], 'max_tokens': 300, 'temperature': 0, 'seed': 7}\nt = json.load(urllib.request.urlopen(urllib.request.Request('http://127.0.0.1:9931/v1/chat/completions', json.dumps(c).encode(), h)))['timings']\npesos, ancho = 0.7988, 120          # GB de pesos (pc pesos) · GB/s de memoria de un M4 (el de esta Mac)\nv = t[\"predicted_per_second\"]\nprint(f'dojo:     techo {ancho} GB/s ÷ {pesos} GB = {ancho / pesos:.0f} tokens/s · medido {v:.0f} tokens/s ({t[\"predicted_n\"]} tokens) = {v / (ancho / pesos):.0%} del techo')\nprint(f'despacho: techo 0.7 × 864 GB/s de la L40S ÷ 19.32 GB = {0.7 * 864 / 19.32:.1f} tokens/s por conversación (objetivo ≥ 20)')\"",
+          "nota": "",
+          "donde": "mac",
+          "salida": "dojo:     techo 120 GB/s ÷ 0.7988 GB = 150 tokens/s · medido 119 tokens/s (298 tokens) = 79% del techo\ndespacho: techo 0.7 × 864 GB/s de la L40S ÷ 19.32 GB = 31.3 tokens/s por conversación (objetivo ≥ 20)"
+        }
+      },
+      {
+        "id": "prefill",
+        "pregunta": "¿Cuánto tarda en leer el prompt del despacho (el tiempo al primer token)?",
+        "formula": "prefill ≈ 2 × parámetros × tokens del prompt ÷ FLOPs que la máquina hace de verdad",
+        "ref": {
+          "cuenta": "2 × 32.76 mil millones × 6,000 tokens ÷ (0.5 × 362 TFLOPS de la L40S)",
+          "valor": "≈ 2.17 s: ya pasa el objetivo de TTFT ≤ 2 s con una sola pregunta"
+        },
+        "taller": {
+          "cuenta": "un prompt de 6,013 tokens en tu Mac, medido por llama-server",
+          "valor": "4.71 s (1,277 tokens/s)"
+        },
+        "decide": "Leer el prompt sí es cuestión de FLOPs: los tokens del prompt se procesan juntos. Un prompt de 6,000 tokens marca el TTFT, no la pregunta del usuario: menos fragmentos o una GPU con más FLOPs.",
+        "conceptos": [
+          "decode-prefill",
+          "ttft"
+        ],
+        "comprueba": {
+          "code": "python3 -c \"\nimport json, urllib.request\nh = {'Content-Type': 'application/json', 'Authorization': 'Bearer dojo-local-7f3a'}\nc = {'model': 'qwen3-0.6b', 'messages': [{'role': 'user', 'content': 'cláusula ' * 1500}], 'max_tokens': 1, 'cache_prompt': False}\nfor _ in range(2):                  # la primera calienta; se reporta la segunda\n    t = json.load(urllib.request.urlopen(urllib.request.Request('http://127.0.0.1:9931/v1/chat/completions', json.dumps(c).encode(), h)))['timings']\nprint(f'dojo:     un prompt de {t[\"prompt_n\"]:,} tokens: prefill en {t[\"prompt_ms\"] / 1000:.2f} s ({t[\"prompt_per_second\"]:,.0f} tokens/s) en tu Mac')\nprint(f'despacho: 2 × 32.76 mil millones × 6,000 tokens ÷ (0.5 × 362 TFLOPS de la L40S) = {2 * 32.76e9 * 6000 / (0.5 * 362e12):.2f} s (objetivo de TTFT ≤ 2 s)')\"",
+          "nota": "Se corre dos veces y se reporta la segunda (la primera calienta). <code>cache_prompt: false</code> obliga a leerlo completo.",
+          "donde": "mac",
+          "salida": "dojo:     un prompt de 6,013 tokens: prefill en 4.71 s (1,277 tokens/s) en tu Mac\ndespacho: 2 × 32.76 mil millones × 6,000 tokens ÷ (0.5 × 362 TFLOPS de la L40S) = 2.17 s (objetivo de TTFT ≤ 2 s)"
+        }
+      }
+    ]
+  },
+  "conceptos": [
+    {
+      "id": "open-weight",
+      "termino": "Modelo de pesos abiertos",
+      "en": "open-weight model",
+      "def": "Un modelo cuyos pesos (los números que aprendió) se publican para bajarlos y correrlos en tu máquina, bajo una licencia. Qwen3 es Apache 2.0.",
+      "analogia": "Como una receta publicada en vez de un restaurante: cocinas en tu casa, con tus ingredientes, y nadie ve lo que comes.",
+      "importa": "Es lo que deja al despacho tener el modelo en su red: los documentos nunca viajan a un tercero.",
+      "trampa": "Confundir «se puede bajar» con «se puede usar para todo»: cada modelo tiene su licencia, y algunas limitan el uso comercial."
+    },
+    {
+      "id": "gguf",
+      "termino": "GGUF y Q8_0",
+      "en": "GGUF file, Q8_0 quantization",
+      "def": "GGUF es el formato de llama.cpp: un solo archivo con los pesos, el tokenizer y la plantilla de chat. Q8_0 guarda cada peso en 8 bits, por bloques de 32 con su escala.",
+      "analogia": "Como un libro que trae su propio diccionario y sus instrucciones de lectura, en un solo tomo.",
+      "importa": "Un archivo, con su sha256, es todo lo que hay que llevar al servidor. Q8_0 pierde casi nada contra los pesos originales y pesa la mitad.",
+      "trampa": "Bajar un GGUF de cualquier repositorio sin fijar el commit ni comprobar el sha256: el mismo nombre de archivo puede cambiar mañana."
+    },
+    {
+      "id": "servidor-inferencia",
+      "termino": "Servidor de inferencia",
+      "en": "inference server",
+      "def": "El programa que carga los pesos en memoria una vez y contesta peticiones por HTTP: arma el prompt, lo lee, genera los tokens y los devuelve.",
+      "analogia": "Como la cocina de un restaurante: la estufa se prende una vez en la mañana y de ahí salen todos los platillos.",
+      "importa": "Separa el modelo de quien lo usa: el asistente, el RAG o un script hablan HTTP, sin cargar nada.",
+      "trampa": "Cargar el modelo dentro de cada script: cada uno tarda en arrancar y se come su propia copia de memoria."
+    },
+    {
+      "id": "api-openai",
+      "termino": "API compatible con OpenAI",
+      "en": "OpenAI-compatible API",
+      "def": "Las rutas y el JSON que popularizó OpenAI: POST /v1/chat/completions con «messages», GET /v1/models. llama-server, vLLM y Ollama la hablan.",
+      "analogia": "Como el contacto eléctrico estándar: cualquier aparato se conecta, sin importar quién hizo la planta de luz.",
+      "importa": "El mismo cliente sirve contra tu Mac, contra vLLM en el despacho o contra una API pública: solo cambia la URL base.",
+      "trampa": "Olvidar el /v1 de la URL base o poner el puerto equivocado: el cliente no encuentra a nadie y el servidor está sano."
+    },
+    {
+      "id": "host-puerto",
+      "termino": "Host y puerto",
+      "en": "bind address, port",
+      "def": "El host es en qué interfaz de red escucha el servidor: 127.0.0.1 es solo esta máquina; 0.0.0.0, todas (cualquiera en la red). El puerto es la puerta: llama-server usa 9931.",
+      "analogia": "Como el timbre de un departamento: 127.0.0.1 es el interfón que solo suena adentro; 0.0.0.0, un timbre en la calle.",
+      "importa": "En el despacho, el modelo vive detrás de un gateway con TLS y llaves por persona. En la Mac, nadie más tiene por qué llegar.",
+      "trampa": "Abrir a 0.0.0.0 «para probar»: funciona, nadie se queja, y el modelo queda en la red Wi-Fi con la clave viajando en texto plano."
+    },
+    {
+      "id": "api-key",
+      "termino": "Clave de la API",
+      "en": "API key, bearer token",
+      "def": "Un texto que el servidor pide en cada petición, en el encabezado «Authorization: Bearer …». Sin la clave correcta contesta 401.",
+      "analogia": "Como el gafete de la oficina: el guardia no pregunta quién eres, solo si traes uno válido.",
+      "importa": "Es la primera barrera: un programa que llega al puerto no usa el modelo sin ella. /health queda abierto porque solo dice si está vivo.",
+      "trampa": "Probar solo que «con la clave funciona»: si nadie prueba sin clave, nadie se entera el día que se quita."
+    },
+    {
+      "id": "tokens",
+      "termino": "Tokens y tokenizer",
+      "en": "tokens, tokenizer",
+      "def": "Los pedazos en que el modelo parte el texto (palabras, partes de palabra, signos). Todo se cuenta en tokens: el contexto, la velocidad y el costo.",
+      "analogia": "Como las piezas de un rompecabezas: «arrendamiento» son 3 piezas; «Clause four.» en inglés, 3 en total.",
+      "importa": "El contexto, el tiempo de prefill y los tokens por segundo se miden en tokens, no en palabras ni caracteres. El español gasta más tokens que el inglés.",
+      "trampa": "Calcular el contexto en palabras: «Cláusula cuarta.» son 2 palabras y 7 tokens."
+    },
+    {
+      "id": "contexto",
+      "termino": "Contexto",
+      "en": "context window, n_ctx",
+      "def": "Cuántos tokens caben en una petición: el prompt completo (instrucciones, fragmentos, pregunta) más la respuesta. llama-server lo fija al arrancar con -c.",
+      "analogia": "Como la mesa de trabajo: lo que no cabe en la mesa, el modelo no lo ve.",
+      "importa": "El prompt del despacho (≈ 6,000 tokens) más la respuesta pide 8,192. Si no cabe, el servidor contesta 400 en vez de cortar en silencio.",
+      "trampa": "Creer que el máximo del modelo (40,960 según su GGUF y su config; su tarjeta dice 32,768) es el que usa el servidor: usa el que le das con -c."
+    },
+    {
+      "id": "slots",
+      "termino": "Peticiones a la vez",
+      "en": "parallel slots (-np)",
+      "def": "Cuántas peticiones atiende llama-server a la vez, cada una en su lugar (slot). Con -np fijo, el KV no se comparte (kv_unified false) y cada lugar recibe -c ÷ -np.",
+      "analogia": "Como partir una mesa grande en cuatro lugares: caben cuatro personas, pero cada una con un cuarto de mesa.",
+      "importa": "Con -c 8192 y -np 4, cada petición tiene 2,048 tokens: las preguntas cortas siguen bien y el prompt del despacho truena.",
+      "trampa": "Subir PARALELO sin subir el contexto: nada da error al arrancar; truena después, con los prompts largos. (Con -np en automático, llama-server comparte un solo KV entre todos: --kv-unified.)"
+    },
+    {
+      "id": "kv-cache",
+      "termino": "KV cache",
+      "en": "key-value cache",
+      "def": "Lo que el modelo guarda de cada token ya leído (sus claves y valores de atención) para no recalcularlo al escribir el siguiente. Crece con cada token del contexto.",
+      "analogia": "Como los apuntes de una junta: para seguir la conversación no relees todo, consultas tus notas; pero las notas ocupan espacio.",
+      "importa": "Es la otra mitad de la memoria: en el despacho, 8 conversaciones de 8,192 tokens piden 17.18 GB, casi lo que pesa el modelo.",
+      "trampa": "Calcular la memoria solo con los pesos: el modelo arranca, y la memoria se acaba con la quinta conversación larga."
+    },
+    {
+      "id": "plantilla",
+      "termino": "Plantilla de chat",
+      "en": "chat template (ChatML)",
+      "def": "Cómo se convierten los mensajes (system, user, assistant) en el texto que el modelo leyó al entrenarse. Qwen3 usa ChatML: <|im_start|>user … <|im_end|>.",
+      "analogia": "Como el formato de un formulario oficial: la misma información, en otro orden o sin los recuadros, ya no la procesan.",
+      "importa": "Viene dentro del GGUF y llama-server la usa por omisión (--jinja). Con la de otro modelo, la pregunta entra rota y la respuesta no tiene que ver.",
+      "trampa": "Copiar --chat-template de un tutorial de otro modelo: nada da error; la pregunta de prueba entra como 3 tokens en vez de 33."
+    },
+    {
+      "id": "razonamiento",
+      "termino": "Razonamiento",
+      "en": "reasoning / thinking mode",
+      "def": "Qwen3 puede «pensar» antes de contestar: escribe un razonamiento (reasoning_content) y luego la respuesta. llama-server lo controla con --reasoning on, off o auto.",
+      "analogia": "Como un abogado que dicta en voz alta todo lo que piensa antes de darte la respuesta: a veces ayuda; casi siempre, tarda.",
+      "importa": "Esos tokens cuestan tiempo y contexto. El despacho lo quiere apagado: sus respuestas salen de los fragmentos, no de un razonamiento largo.",
+      "trampa": "Dejarlo «por omisión»: es auto, el modelo razona, y con max_tokens chico la respuesta se corta antes de empezar."
+    },
+    {
+      "id": "decode-prefill",
+      "termino": "Prefill y decode",
+      "en": "prefill vs decode",
+      "def": "Prefill: leer el prompt completo de un jalón (manda la capacidad de cálculo). Decode: escribir la respuesta token por token (manda leer los pesos de memoria cada vez).",
+      "analogia": "Como leer un expediente y después dictar la respuesta: leer es rápido y en bloque; dictar va palabra por palabra.",
+      "importa": "Son dos números distintos: el prefill marca el tiempo al primer token; el decode, qué tan rápido sale el resto.",
+      "trampa": "Medir «tokens por segundo» mezclando los dos: un prompt largo hace ver lento a un modelo que escribe rápido (la estación 2)."
+    },
+    {
+      "id": "streaming",
+      "termino": "Streaming (SSE)",
+      "en": "server-sent events",
+      "def": "Con stream: true, el servidor manda la respuesta en pedazos conforme la escribe, cada uno en una línea «data: {…}», y termina con «data: [DONE]».",
+      "analogia": "Como un intérprete simultáneo: oyes la traducción mientras habla, no al final del discurso.",
+      "importa": "Una respuesta de 500 tokens tarda ≈ 25 s en escribirse en el despacho: con streaming se empieza a leer en 2.",
+      "trampa": "Olvidar stream_options include_usage: sin él, el último evento no trae los tokens y no sabes cuánto gastaste."
+    },
+    {
+      "id": "ttft",
+      "termino": "Tiempo al primer token",
+      "en": "TTFT, time to first token",
+      "def": "Los segundos entre mandar la pregunta y recibir el primer pedazo de texto. Lo marca el prefill más la espera en fila.",
+      "analogia": "Como el tiempo que tarda el mesero en traer el primer platillo: aunque todo llegue después, ese es el que se siente.",
+      "importa": "Es el número que siente la persona: el objetivo del despacho es ≤ 2 s en el p95.",
+      "trampa": "Medirlo sin stream: sin pedazos, solo se ve el total."
+    },
+    {
+      "id": "errores",
+      "termino": "Errores con nombre",
+      "en": "typed errors",
+      "def": "Distinguir por qué falló una llamada: no hay nadie en esa URL (SinConexion), la clave no sirve (NoAutorizado, 401), el prompt no cabe (ContextoExcedido, 400) u otra cosa.",
+      "analogia": "Como los focos del tablero del coche: no es lo mismo «sin gasolina» que «motor caliente», aunque en los dos casos no avanzas.",
+      "importa": "Quien usa el cliente (el RAG, la API con citas) decide distinto en cada caso: reintentar, avisar a TI o recortar fragmentos.",
+      "trampa": "Atrapar todo con un except genérico: el asistente dice «error» y nadie sabe si fue el puerto, la clave o el contexto."
+    },
+    {
+      "id": "json-schema",
+      "termino": "Salida con schema",
+      "en": "structured output, JSON schema",
+      "def": "Pedirle al servidor que la respuesta cumpla un JSON schema. llama-server lo convierte en una gramática y solo deja escribir tokens que la respeten.",
+      "analogia": "Como un formulario con casillas de opción: no puedes escribir cualquier cosa, solo marcar una de las que hay.",
+      "importa": "Con citas = enum de los ids de los fragmentos, el modelo no puede citar uno que no existe. La estación 8 del RAG lo usa para validar citas.",
+      "trampa": "Creer que el schema hace correcta la respuesta: garantiza la forma, no el fondo. Aquí citó C-07 bien, y además C-11 y C-15, que no venían al caso."
+    },
+    {
+      "id": "determinismo",
+      "termino": "Temperatura y semilla",
+      "en": "temperature, seed",
+      "def": "La temperatura decide cuánto azar hay al elegir cada token (0 = el más probable). La semilla fija ese azar para que se pueda repetir.",
+      "analogia": "Como tirar un dado cargado: con temperatura 0 siempre sale el mismo número; con la misma semilla, la misma secuencia de tiros.",
+      "importa": "Con temperatura 0 y la misma semilla, la misma pregunta da el mismo texto: así se puede probar y comparar.",
+      "trampa": "Esperar lo mismo entre máquinas o versiones: otra cuantización, otro build o varias peticiones a la vez pueden cambiar el resultado."
+    }
+  ],
+  "mundo": {
+    "resumen": "El kit trae lo justo para servir un modelo en tu Mac como lo haría el despacho en su servidor: el catálogo con el modelo fijado (<b>Qwen3-0.6B en Q8_0</b>, de <b>ggml-org/Qwen3-0.6B-GGUF</b>, commit <code>afe8ad35</code>, 805 MB, con su sha256), lo que lo baja y lo comprueba, lo que arranca y para tu servidor con su log, y cuatro <b>cláusulas ficticias de un contrato de arrendamiento</b> del despacho para las preguntas con cita. Tú escribes cómo se sirve (<code>servidor.env</code> y <code>servir.sh</code>) y el cliente (<code>pipeline/llm.py</code>). Todo usa solo la biblioteca estándar de Python: sin entorno virtual, sin Docker y sin internet después de bajar el modelo.",
+    "trae": [
+      {
+        "que": "mundo/modelos.json y modelos.py",
+        "detalle": "El catálogo (repositorio, commit, archivo, bytes, sha256 y licencia) y lo que baja el modelo a <code>modelo/</code>, una vez. Si el sha256 no coincide, no se guarda. Con <code>TRUEML_MODELOS=&lt;carpeta&gt;</code> lo copia de otra carpeta en vez de bajarlo."
+      },
+      {
+        "que": "mundo/servidor.py",
+        "detalle": "<code>arrancar</code> corre tu <code>servir.sh</code> en segundo plano y espera a que <code>/health</code> diga ok; <code>parar</code>, <code>estado</code> y <code>log</code> (el log queda en <code>.taller/servidor.log</code>). Es lo que en el despacho haría systemd o el contenedor."
+      },
+      {
+        "que": "mundo/ficha.py",
+        "detalle": "Lee el encabezado de un GGUF sin cargar los pesos: arquitectura, capas, cabezas, contexto de entrenamiento, plantilla de chat y, con <code>--tipos</code>, cuántos pesos hay de cada tipo de cuantización."
+      },
+      {
+        "que": "mundo/entrada/clausulas.json",
+        "detalle": "Cuatro fragmentos ficticios de un contrato (C-04, C-07, C-11 y C-15) y tres preguntas con el fragmento que las contesta."
+      },
+      {
+        "que": "pipeline/preguntar.py y citar.py",
+        "detalle": "Usan tu cliente desde la terminal: una pregunta en streaming con sus tiempos, y las tres preguntas con citas."
+      },
+      {
+        "que": "verificar.py y romper.py",
+        "detalle": "Los 10 checks de la estación (de <code>mundo</code> a <code>citas</code>) contra tu servidor de verdad, y las 6 fallas: el puerto movido, el servidor abierto a la red, 4 peticiones a la vez que reparten el contexto, sin clave, el razonamiento de vuelta y la plantilla de otro modelo."
+      }
+    ],
+    "tu_pipeline": [
+      {
+        "archivo": "servidor.env",
+        "hace": "Paso 1: el modelo, el alias, host y puerto, el contexto, cuántas a la vez, el razonamiento, la clave y la URL del cliente."
+      },
+      {
+        "archivo": "servir.sh",
+        "hace": "Paso 2: el comando de llama-server con todo eso."
+      },
+      {
+        "archivo": "pipeline/llm.py",
+        "hace": "Pasos 3 a 6: modelos, tokens y chat; el streaming con su TTFT; los errores con nombre; y el JSON con schema."
+      }
+    ],
+    "requisitos": [
+      "Una Mac con chip Apple (M1 o más nuevo) y ≈ 2 GB de RAM libre; se probó en un MacBook Air M4 de 16 GB",
+      "llama.cpp 1.1.0 o más nuevo (<code>brew install llama.cpp</code>; se probó con 1.1.0, build 12774) y Python 3 (se probó con 3.14.3)",
+      "≈ 805 MB de disco para el modelo e internet para bajarlo una vez; después, nada"
+    ],
+    "sustituciones": [
+      {
+        "nube": "vLLM en una GPU NVIDIA del servidor del despacho",
+        "local": "llama-server de llama.cpp en tu Mac, con Metal",
+        "diferencia": "Los dos hablan la API compatible con OpenAI y tu cliente no cambia. vLLM está hecho para muchas conversaciones a la vez en una GPU (la estación 3); llama-server, para correr bien en una máquina chica."
+      },
+      {
+        "nube": "Qwen3 32B en INT4 de AWQ (19.32 GB)",
+        "local": "Qwen3-0.6B en Q8_0 (0.80 GB)",
+        "diferencia": "La misma familia: el mismo tokenizer y la misma plantilla de chat, en chico. Contesta mucho peor (se equivoca en derecho), y escribe mucho más rápido."
+      },
+      {
+        "nube": "La red interna, detrás de un gateway con TLS y llaves por persona",
+        "local": "127.0.0.1 y una sola clave en <code>servidor.env</code>",
+        "diferencia": "La idea es la misma: el modelo no queda a la vista. El gateway (la estación 4) agrega llaves por persona, límites y bitácora."
+      },
+      {
+        "nube": "systemd o un contenedor que mantienen vivo el servidor",
+        "local": "<code>mundo/servidor.py arrancar|parar</code>",
+        "diferencia": "Lo mismo en chico: un proceso en segundo plano con su log en un lugar fijo."
+      }
+    ],
+    "arranque": "unzip ia-privada-modelo-local.zip && cd ia-privada-modelo-local\nbrew install llama.cpp\npython3 mundo/modelos.py\npython3 verificar.py mundo",
+    "python": "python3"
+  },
+  "guiado": [
+    {
+      "n": 0,
+      "id": "mundo",
+      "titulo": "Levantar el mundo",
+      "objetivo": "llama.cpp instalado y el modelo en <code>modelo/</code>, con su sha256.",
+      "conceptos": [
+        "open-weight",
+        "gguf"
+      ],
+      "explica": "<code>brew install llama.cpp</code> instala <code>llama-server</code> (y otras herramientas: <code>llama-quantize</code> y <code>llama-bench</code> salen en la estación 2). <code>mundo/modelos.py</code> baja el GGUF de un commit fijo de Hugging Face y comprueba su sha256 contra <code>mundo/modelos.json</code>: si no coincide, no lo guarda. No hace falta entorno virtual: el kit solo usa la biblioteca estándar.",
+      "codigo": [],
+      "comandos": [
+        {
+          "code": "brew install llama.cpp\nllama-server --version\npython3 --version",
+          "nota": "Si ya lo tenías, <code>brew upgrade llama.cpp</code>. El kit se probó con 1.1.0.",
+          "donde": "mac",
+          "salida": "version: 1.1.0 (build 12774, commit 171527522)\nPython 3.14.3"
+        },
+        {
+          "code": "python3 mundo/modelos.py",
+          "nota": "Con internet tarda lo que tarden 805 MB. Aquí se copió de otra carpeta (<code>TRUEML_MODELOS</code>), con el mismo sha256.",
+          "donde": "mac",
+          "salida": "  qwen3-0.6b-q8: copiando de /Users/erikpalacios/.cache/trueml-dojo/qwen3-0.6b\n✓ qwen3-0.6b-q8: Qwen3-0.6B-Q8_0.gguf · 804,753,632 bytes · sha256 361cc6815904… · ggml-org/Qwen3-0.6B-GGUF@afe8ad35"
+        },
+        {
+          "code": "python3 mundo/modelos.py --listar",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ qwen3-0.6b-q8    Qwen3-0.6B-Q8_0.gguf · 805 MB · ggml-org/Qwen3-0.6B-GGUF@afe8ad35"
+        },
+        {
+          "code": "python3 verificar.py mundo",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ mundo      llama.cpp 1.1.0 (build 12774, commit 171527522) · Qwen3-0.6B-Q8_0.gguf (805 MB, sha256 361cc6815904…)\n\n1/1 en verde"
+        },
+        {
+          "code": "python3 verificar.py config",
+          "nota": "Es lo esperado: <code>servidor.env</code> viene vacío. Cada check se pone en verde en su paso.",
+          "donde": "mac",
+          "salida": "✗ config     servidor.env: faltan MODELO, ALIAS, HOST, PUERTO, CONTEXTO, PARALELO, RAZONAMIENTO, CLAVE, LLM_URL (paso 1)\n\n0/1 en verde · falta: config\n[código 1]"
+        }
+      ],
+      "verifica": "<code>verificar.py mundo</code> en verde: llama-server 1.1.0 o más nuevo y el modelo con el sha256 del catálogo.",
+      "ojo": "<code>modelo/</code> no va en el .zip ni en git: se baja. El mismo nombre de archivo en otro repositorio (Qwen/Qwen3-0.6B-GGUF trae su propio Q8_0, de 639 MB) es otro archivo, con otro sha256."
+    },
+    {
+      "n": 1,
+      "id": "config",
+      "titulo": "Decidir cómo se sirve",
+      "objetivo": "<code>servidor.env</code>: qué modelo, con qué nombre, dónde escucha, cuánto contexto, cuántas peticiones a la vez, sin razonamiento, con clave, y la URL que usa el cliente.",
+      "conceptos": [
+        "host-puerto",
+        "api-key",
+        "contexto",
+        "slots",
+        "razonamiento",
+        "api-openai"
+      ],
+      "explica": "Cada línea es una decisión. <b>MODELO</b>: el archivo, relativo al kit. <b>ALIAS</b>: el nombre con el que la API anuncia el modelo y que va en el campo «model» de cada petición. <b>HOST=127.0.0.1</b>: solo esta Mac. <b>PUERTO=9931</b>: el que usa llama-server por omisión. <b>CONTEXTO=8192</b>: el prompt del despacho (≈ 6,000) más la respuesta. <b>PARALELO=1</b>: una petición a la vez, con todo el contexto para ella. <b>RAZONAMIENTO=off</b>. <b>CLAVE</b>: una de práctica, de 8 caracteres o más. <b>LLM_URL</b>: lo que usa el cliente, armado con el mismo host y puerto, y con /v1 al final. El mismo archivo lo leen <code>servir.sh</code> (con <code>source</code>), tu cliente y <code>verificar.py</code>: una sola fuente de verdad.",
+      "codigo": [
+        {
+          "lang": "bash",
+          "path": "servidor.env",
+          "code": "# servidor.env: qué sirve llama-server y cómo. Lo leen servir.sh (con source), pipeline/llm.py y verificar.py.\n# El archivo del modelo, relativo a esta carpeta (el del catálogo: mundo/modelos.json)\nMODELO=modelo/Qwen3-0.6B-Q8_0.gguf\n# El nombre con el que la API anuncia el modelo (el «model» de cada petición)\nALIAS=qwen3-0.6b\n# Dónde escucha: 127.0.0.1 es solo esta Mac; nadie más en la red llega\nHOST=127.0.0.1\nPUERTO=9931\n# Tokens que caben por petición (prompt + respuesta): el despacho pide 8,192\nCONTEXTO=8192\n# Cuántas peticiones a la vez; el contexto se reparte entre ellas\nPARALELO=1\n# El razonamiento de Qwen3 (on, off o auto): apagado\nRAZONAMIENTO=off\n# La llave de la API: cada petición manda «Authorization: Bearer <CLAVE>»\nCLAVE=dojo-local-7f3a\n# Lo que usa el cliente: la URL base de la API compatible con OpenAI (host, puerto y /v1)\nLLM_URL=http://127.0.0.1:9931/v1",
+          "nota": ""
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python3 verificar.py config",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ config     qwen3-0.6b en http://127.0.0.1:9931/v1 · contexto 8,192 · 1 a la vez · razonamiento off\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "<code>verificar.py config</code> en verde: el modelo del catálogo, 127.0.0.1, la URL armada con el mismo host y puerto y /v1, contexto ≥ 8,192, razonamiento off y una clave.",
+      "ojo": "LLM_URL repite HOST y PUERTO. Si un día se cambia el puerto, se cambian los dos: es justo lo que rompe la primera falla.",
+      "en_pagina": {
+        "conceptos": [
+          "host-puerto",
+          "api-key",
+          "contexto",
+          "slots",
+          "razonamiento",
+          "api-openai"
+        ],
+        "precalculos": [
+          "reparto"
+        ]
+      }
+    },
+    {
+      "n": 2,
+      "id": "servir",
+      "titulo": "Arrancar el servidor",
+      "objetivo": "<code>servir.sh</code>: llama-server con todo lo de <code>servidor.env</code>; arrancarlo, y ver con <code>curl</code> que contesta, que pide clave y que arma bien los mensajes.",
+      "conceptos": [
+        "servidor-inferencia",
+        "plantilla",
+        "api-key",
+        "tokens",
+        "kv-cache"
+      ],
+      "explica": "<code>servir.sh</code> lee <code>servidor.env</code> y termina en <code>exec llama-server</code> (exec: el proceso de bash se vuelve el servidor, así <code>parar</code> le llega directo). Las opciones: <code>-m</code> el modelo, <code>--alias</code>, <code>--host</code> y <code>--port</code>, <code>-c</code> el contexto, <code>-np</code> cuántas a la vez, <code>--reasoning</code> y <code>--api-key</code>. La <b>plantilla de chat</b> no se pone: viene dentro del GGUF y llama-server la usa por omisión. <code>python3 mundo/servidor.py arrancar</code> lo corre en segundo plano y espera a <code>/health</code>. Después se revisa con <code>curl</code>: <code>/health</code> abierto, <code>/v1/models</code> con y sin clave, <code>/props</code> (qué cargó y su plantilla) y una pregunta cruda.",
+      "codigo": [
+        {
+          "lang": "bash",
+          "path": "servir.sh",
+          "code": "#!/usr/bin/env bash\n# Paso 2: arrancar llama-server con lo que dice servidor.env. Lo lanza python mundo/servidor.py arrancar.\nset -euo pipefail\ncd \"$(dirname \"$0\")\"\nsource servidor.env\nexec llama-server \\\n  -m \"$MODELO\" \\\n  --alias \"$ALIAS\" \\\n  --host \"$HOST\" --port \"$PUERTO\" \\\n  -c \"$CONTEXTO\" -np \"$PARALELO\" \\\n  --reasoning \"$RAZONAMIENTO\" \\\n  --api-key \"$CLAVE\"",
+          "nota": ""
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python3 mundo/servidor.py arrancar",
+          "nota": "Tarda menos de un segundo: 0.8 GB se leen rápido del SSD.",
+          "donde": "mac",
+          "salida": "▶ servidor arriba (pid 88725) en http://127.0.0.1:9931 · log en .taller/servidor.log"
+        },
+        {
+          "code": "curl -s http://127.0.0.1:9931/health",
+          "nota": "",
+          "donde": "mac",
+          "salida": "{\"status\":\"ok\"}"
+        },
+        {
+          "code": "curl -s http://127.0.0.1:9931/v1/models",
+          "nota": "Sin clave: 401. Es lo que ve cualquier programa que llegue al puerto.",
+          "donde": "mac",
+          "salida": "{\"error\":{\"message\":\"Invalid API Key\",\"type\":\"authentication_error\",\"code\":401}}\n[HTTP 401]"
+        },
+        {
+          "code": "curl -s -H \"Authorization: Bearer dojo-local-7f3a\" http://127.0.0.1:9931/v1/models",
+          "nota": "Recortado a lo que importa: el alias, el contexto que cargó (n_ctx), los parámetros y el tamaño de los pesos.",
+          "donde": "mac",
+          "salida": "{\n \"id\": \"qwen3-0.6b\",\n \"owned_by\": \"llamacpp\",\n \"meta\": {\n  \"vocab_type\": 2,\n  \"n_vocab\": 151936,\n  \"n_ctx\": 8192,\n  \"n_ctx_train\": 40960,\n  \"n_embd\": 1024,\n  \"n_params\": 751632384,\n  \"size\": 798801920,\n  \"ftype\": \"Q8_0\"\n }\n}"
+        },
+        {
+          "code": "curl -s -H \"Authorization: Bearer dojo-local-7f3a\" http://127.0.0.1:9931/props",
+          "nota": "Recortado: la plantilla de chat es la del GGUF (ChatML, con <code>&lt;|im_start|&gt;</code>).",
+          "donde": "mac",
+          "salida": "{\n \"model_alias\": \"qwen3-0.6b\",\n \"model_ftype\": \"Q8_0\",\n \"total_slots\": 1,\n \"build_info\": \"b12774-171527522\"\n}\nchat_template: {%- if tools %}     {{- '<|im_start|>system\\n' }}     {%- if messages[0].role == 'system' %}         {{- messages[0].content + '\\n\\n' }}     {%- endif %}     {{- \"# Tools\\n\\nYou may call one or more functions to assist with the user query.\\n\\nYou are provided with function signatures within <tools>< …"
+        },
+        {
+          "code": "grep -E \"n_ctx_slot|listening\" .taller/servidor.log",
+          "nota": "Una petición a la vez, con los 8,192 tokens para ella.",
+          "donde": "mac",
+          "salida": "srv    load_model: initializing, n_slots = 1, n_ctx_slot = 8192, kv_unified = 'false'\nsrv  server_on_li: listening on http://127.0.0.1:9931"
+        },
+        {
+          "code": "curl -s http://127.0.0.1:9931/v1/chat/completions \\\n  -H \"Authorization: Bearer dojo-local-7f3a\" -H \"Content-Type: application/json\" \\\n  -d '{\"model\": \"qwen3-0.6b\", \"messages\": [{\"role\": \"system\", \"content\": \"Contesta en una frase.\"}, {\"role\": \"user\", \"content\": \"¿Qué es un contrato de arrendamiento?\"}], \"temperature\": 0, \"seed\": 7, \"max_tokens\": 120}'",
+          "nota": "Recortado a lo que importa. Los dos mensajes entraron como 33 tokens (la plantilla agrega sus marcas), no hubo razonamiento y terminó solo (stop). <code>timings</code> trae lo que midió el servidor: 33 tokens leídos y los de la respuesta, en milisegundos.",
+          "donde": "mac",
+          "salida": "{\n \"choices\": [\n  {\n   \"message\": {\n    \"content\": \"Un contrato de arrendamiento es un acuerdo entre un arrendatario y un arrendatario para el uso de un espacio o servicio.\",\n    \"reasoning_content\": null\n   },\n   \"finish_reason\": \"stop\"\n  }\n ],\n \"usage\": {\n  \"prompt_tokens\": 33,\n  \"completion_tokens\": 31,\n  \"total_tokens\": 64\n },\n \"timings\": {\n  \"prompt_n\": 33,\n  \"prompt_ms\": 36.3,\n  \"predicted_n\": 31,\n  \"predicted_ms\": 253.6,\n  \"predicted_per_second\": 118.3\n }\n}"
+        },
+        {
+          "code": "python3 verificar.py servidor clave plantilla",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ servidor   /health ok · qwen3-0.6b (Q8_0) · contexto 8,192 · build b12774-171527522\n✓ clave      sin clave → 401 · clave equivocada → 401 · tu clave → 200 (/health sigue abierto: solo dice si está vivo)\n✓ plantilla  33 tokens de entrada (plantilla ChatML de Qwen3) · sin razonamiento · 31 de salida · terminó solo\n\n3/3 en verde"
+        }
+      ],
+      "verifica": "<code>verificar.py servidor</code>, <code>clave</code> y <code>plantilla</code> en verde: el servidor sirve el alias y el archivo del catálogo con el contexto de <code>servidor.env</code>; sin clave o con otra, 401; la pregunta de prueba entra como 33 tokens, sin razonamiento, y la respuesta termina sola.",
+      "ojo": "Al terminar la sesión, <code>python3 mundo/servidor.py parar</code>: el servidor sigue vivo en segundo plano aunque cierres la terminal. Y la clave de práctica no se reusa en ningún lado.",
+      "en_pagina": {
+        "conceptos": [
+          "open-weight",
+          "gguf",
+          "servidor-inferencia",
+          "plantilla",
+          "tokens",
+          "kv-cache"
+        ],
+        "precalculos": [
+          "pesos",
+          "kv"
+        ]
+      }
+    },
+    {
+      "n": 3,
+      "id": "cliente",
+      "titulo": "El cliente",
+      "objetivo": "<code>Cliente</code> en <code>pipeline/llm.py</code>: listar los modelos, contar tokens y mandar un chat sin stream, todo con la biblioteca estándar.",
+      "conceptos": [
+        "api-openai",
+        "tokens",
+        "determinismo"
+      ],
+      "explica": "<code>Cliente()</code> toma <code>LLM_URL</code>, <code>CLAVE</code> y <code>ALIAS</code> de <code>servidor.env</code> (viene dado). Cada llamada es una petición HTTP con <code>urllib</code>: el encabezado <code>Authorization: Bearer</code> y el cuerpo en JSON. <code>modelos()</code> es <code>GET /v1/models</code>. <code>contar_tokens()</code> es <code>POST /tokenize</code>, que vive en la raíz del servidor, sin /v1 (no es parte de la API de OpenAI: es de llama-server). <code>chat()</code> es <code>POST /v1/chat/completions</code> con model, messages, max_tokens, temperature y seed, y devuelve una <code>Respuesta</code> con el texto, los tokens de entrada y de salida, por qué terminó y cuánto tardó. Se usa urllib y no el SDK de openai para que se vea lo que viaja; el SDK hace lo mismo con <code>base_url</code>.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "pipeline/llm.py",
+          "code": "\"\"\"Paso 3 a 6: un cliente chico para cualquier API compatible con OpenAI (aquí, tu llama-server).\n\nContrato (lo usa también la estación 8 del entrenamiento RAG, la API con citas):\n- Cliente(url=None, clave=None, modelo=None, timeout=60): sin argumentos, toma LLM_URL, CLAVE y ALIAS de servidor.env.\n  url es la base con /v1 al final (http://127.0.0.1:9931/v1).\n- Cliente.modelos() → lista de ids de GET {url}/models.\n- Cliente.contar_tokens(texto) → int, con POST /tokenize del servidor (en la raíz, sin /v1).\n- Cliente.chat(mensajes, max_tokens=256, temperatura=0.0, semilla=7, formato=None) → Respuesta: POST\n  {url}/chat/completions sin stream. formato es un JSON schema (dict) o None.\n- Cliente.chat_stream(mensajes, ...) → generador de pedazos de texto (stream=True, eventos SSE «data: …»); al terminar\n  deja la Respuesta completa en Cliente.ultima, con ttft_s (segundos hasta el primer pedazo con texto).\n- Cliente.chat_json(mensajes, schema, ...) → dict: chat() con formato=schema y la respuesta ya leída como JSON.\n- Errores: SinConexion (no hay servidor en esa URL o no contesta a tiempo), NoAutorizado (401), ContextoExcedido\n  (el prompt no cabe: lleva n_prompt y n_ctx) y ErrorLLM para lo demás (con el código HTTP y el mensaje).\nSolo biblioteca estándar: así se ve lo que viaja por HTTP. El SDK de openai hace lo mismo con base_url=url.\n\"\"\"\nfrom __future__ import annotations\n\nimport json\nimport socket\nimport sys\nimport time\nimport urllib.error\nimport urllib.request\nfrom dataclasses import dataclass, field\nfrom pathlib import Path\n\nRAIZ = Path(__file__).resolve().parent.parent\nsys.path.insert(0, str(RAIZ))\nfrom mundo.comun import leer_env  # noqa: E402\n\n\nclass ErrorLLM(Exception):\n    def __init__(self, msg: str, codigo: int | None = None):\n        super().__init__(msg)\n        self.codigo = codigo\n\n\nclass SinConexion(ErrorLLM):\n    pass\n\n\nclass NoAutorizado(ErrorLLM):\n    pass\n\n\nclass ContextoExcedido(ErrorLLM):\n    def __init__(self, msg: str, n_prompt: int, n_ctx: int):\n        super().__init__(msg, 400)\n        self.n_prompt, self.n_ctx = n_prompt, n_ctx\n\n\n@dataclass\nclass Respuesta:\n    texto: str\n    tokens_prompt: int\n    tokens_salida: int\n    fin: str                       # \"stop\" (terminó solo) o \"length\" (se cortó en max_tokens)\n    segundos: float                # de la petición a la última palabra, medido aquí\n    ttft_s: float | None = None    # solo en stream: hasta el primer pedazo con texto\n    razonamiento: str = \"\"         # si el modelo «pensó» (reasoning_content), aquí queda\n    tiempos: dict = field(default_factory=dict)   # los timings que reporta llama-server\n\n\nclass Cliente:\n    def __init__(self, url: str | None = None, clave: str | None = None, modelo: str | None = None, timeout: float = 60):\n        e = leer_env()\n        self.url = (url or e.get(\"LLM_URL\", \"\")).rstrip(\"/\")\n        self.clave = clave if clave is not None else e.get(\"CLAVE\", \"\")\n        self.modelo = modelo or e.get(\"ALIAS\", \"\")\n        self.timeout = timeout\n        self.ultima: Respuesta | None = None\n\n    # ---------------------------------------------------------------- HTTP\n    def _pedir(self, metodo: str, url: str, cuerpo: dict | None = None):\n        h = {\"Content-Type\": \"application/json\"}\n        if self.clave:\n            h[\"Authorization\"] = f\"Bearer {self.clave}\"\n        datos = json.dumps(cuerpo).encode() if cuerpo is not None else None\n        try:\n            return urllib.request.urlopen(urllib.request.Request(url, datos, h, method=metodo), timeout=self.timeout)\n        except urllib.error.HTTPError as err:\n            texto = err.read().decode(errors=\"replace\")\n            try:\n                e = json.loads(texto).get(\"error\", {})\n            except json.JSONDecodeError:\n                e = {\"message\": texto[:200]}\n            msg = f\"HTTP {err.code} en {url}: {e.get('message', texto[:200])}\"\n            if err.code == 401:\n                raise NoAutorizado(msg, 401) from None\n            if e.get(\"type\") == \"exceed_context_size_error\":\n                raise ContextoExcedido(msg, e.get(\"n_prompt_tokens\", 0), e.get(\"n_ctx\", 0)) from None\n            raise ErrorLLM(msg, err.code) from None\n        except (urllib.error.URLError, ConnectionError, socket.timeout, TimeoutError) as err:\n            raise SinConexion(f\"sin respuesta de {url}: {getattr(err, 'reason', err)}\") from None\n\n    def _json(self, metodo: str, url: str, cuerpo: dict | None = None) -> dict:\n        with self._pedir(metodo, url, cuerpo) as r:\n            return json.load(r)\n\n    def _cuerpo(self, mensajes, max_tokens, temperatura, semilla, formato, stream=False) -> dict:\n        c = {\"model\": self.modelo, \"messages\": mensajes, \"max_tokens\": max_tokens, \"temperature\": temperatura, \"seed\": semilla}\n        if formato is not None:\n            c[\"response_format\"] = {\"type\": \"json_schema\", \"json_schema\": {\"name\": \"respuesta\", \"schema\": formato}}\n        if stream:\n            c[\"stream\"], c[\"stream_options\"] = True, {\"include_usage\": True}\n        return c\n\n    # ---------------------------------------------------------------- API\n    def modelos(self) -> list[str]:\n        return [m[\"id\"] for m in self._json(\"GET\", f\"{self.url}/models\")[\"data\"]]\n\n    def contar_tokens(self, texto: str) -> int:\n        raiz = self.url.removesuffix(\"/v1\")\n        return len(self._json(\"POST\", f\"{raiz}/tokenize\", {\"content\": texto})[\"tokens\"])\n\n    def chat(self, mensajes: list[dict], max_tokens: int = 256, temperatura: float = 0.0, semilla: int = 7, formato: dict | None = None) -> Respuesta:\n        t0 = time.perf_counter()\n        d = self._json(\"POST\", f\"{self.url}/chat/completions\", self._cuerpo(mensajes, max_tokens, temperatura, semilla, formato))\n        c, u = d[\"choices\"][0], d.get(\"usage\", {})\n        self.ultima = Respuesta(c[\"message\"].get(\"content\") or \"\", u.get(\"prompt_tokens\", 0), u.get(\"completion_tokens\", 0), c.get(\"finish_reason\", \"\"),\n                                time.perf_counter() - t0, None, c[\"message\"].get(\"reasoning_content\") or \"\", d.get(\"timings\", {}))\n        return self.ultima\n\n    def chat_stream(self, mensajes: list[dict], max_tokens: int = 256, temperatura: float = 0.0, semilla: int = 7):\n        t0, ttft, partes, razon, fin, u, tiempos = time.perf_counter(), None, [], [], \"\", {}, {}\n        with self._pedir(\"POST\", f\"{self.url}/chat/completions\", self._cuerpo(mensajes, max_tokens, temperatura, semilla, None, stream=True)) as r:\n            for linea in r:\n                linea = linea.decode().strip()\n                if not linea.startswith(\"data: \") or linea == \"data: [DONE]\":\n                    continue\n                d = json.loads(linea[6:])\n                u, tiempos = d.get(\"usage\") or u, d.get(\"timings\") or tiempos\n                for c in d.get(\"choices\", []):\n                    fin = c.get(\"finish_reason\") or fin\n                    razon.append(c[\"delta\"].get(\"reasoning_content\") or \"\")\n                    pedazo = c[\"delta\"].get(\"content\") or \"\"\n                    if pedazo:\n                        if ttft is None:\n                            ttft = time.perf_counter() - t0\n                        partes.append(pedazo)\n                        yield pedazo\n        self.ultima = Respuesta(\"\".join(partes), u.get(\"prompt_tokens\", 0), u.get(\"completion_tokens\", 0), fin,\n                                time.perf_counter() - t0, ttft, \"\".join(razon), tiempos)\n\n    def chat_json(self, mensajes: list[dict], schema: dict, max_tokens: int = 256, temperatura: float = 0.0, semilla: int = 7) -> dict:\n        r = self.chat(mensajes, max_tokens, temperatura, semilla, formato=schema)\n        try:\n            return json.loads(r.texto)\n        except json.JSONDecodeError as e:\n            raise ErrorLLM(f\"la respuesta no es JSON válido ({e}): {r.texto[:120]!r}\") from None",
+          "nota": "En este paso escribes <code>_pedir</code>, <code>_json</code>, <code>_cuerpo</code>, <code>modelos</code>, <code>contar_tokens</code> y <code>chat</code>. El streaming es el paso 4, los errores con nombre el 5 y <code>chat_json</code> el 6: aquí va el archivo completo, como queda al final."
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python3 -c \"\nimport sys; sys.path.insert(0, 'pipeline')\nfrom llm import Cliente\nc = Cliente()\nprint('modelos():', c.modelos())\nprint('contar_tokens(\"Cláusula cuarta.\"):', c.contar_tokens('Cláusula cuarta.'))\nr = c.chat([{'role': 'user', 'content': '¿Qué es una pena convencional? Una frase.'}], max_tokens=80)\nprint(r.texto)\nprint(f'tokens {r.tokens_prompt} → {r.tokens_salida} · fin {r.fin} · {r.segundos:.2f} s')\"",
+          "nota": "Funciona, y la respuesta está mal: una pena convencional es lo que se paga por incumplir un contrato, no un castigo por un delito. Un modelo de 0.6B no sabe derecho; por eso el despacho usa uno de 32B y el RAG le da los fragmentos.",
+          "donde": "mac",
+          "salida": "modelos(): ['qwen3-0.6b']\ncontar_tokens(\"Cláusula cuarta.\"): 7\nUna pena convencional es una forma de castigo administrativo o judicial que se impone a un individuo por un delito, con el objetivo de reforzar la lealtad delictiva o de reforzar la norma legal.\ntokens 24 → 53 · fin stop · 0.51 s"
+        },
+        {
+          "code": "python3 -c \"\nimport sys; sys.path.insert(0, 'pipeline')\nfrom llm import Cliente\nc = Cliente()\nfor t in ('Cláusula cuarta.', 'Clause four.', 'arrendamiento', 'arrendatario', 'LFPDPPP'):\n    print(f'{t!r:>20}: {c.contar_tokens(t)} tokens')\"",
+          "nota": "El mismo sentido en inglés cuesta menos de la mitad. Las cuentas de contexto y velocidad del despacho se hacen en tokens de su español.",
+          "donde": "mac",
+          "salida": "  'Cláusula cuarta.': 7 tokens\n      'Clause four.': 3 tokens\n     'arrendamiento': 3 tokens\n      'arrendatario': 4 tokens\n           'LFPDPPP': 4 tokens"
+        },
+        {
+          "code": "python3 verificar.py cliente",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ cliente    modelos() ['qwen3-0.6b'] · contar_tokens 7 · chat(): 33 → 31 tokens en 0.26 s, igual dos veces\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "<code>verificar.py cliente</code> en verde: <code>modelos()</code> trae el alias, «Cláusula cuarta.» son 7 tokens, y la misma pregunta con temperatura 0 y la misma semilla da el mismo texto dos veces.",
+      "ojo": "<code>/tokenize</code> está en la raíz y lo demás bajo /v1: si armas la URL de <code>/tokenize</code> con LLM_URL, da 404.",
+      "en_pagina": {
+        "conceptos": [
+          "determinismo"
+        ],
+        "precalculos": []
+      }
+    },
+    {
+      "n": 4,
+      "id": "stream",
+      "titulo": "Streaming y tiempo al primer token",
+      "objetivo": "<code>chat_stream()</code>: ir soltando el texto conforme llega y medir el tiempo al primer token.",
+      "conceptos": [
+        "streaming",
+        "ttft",
+        "decode-prefill"
+      ],
+      "explica": "Con <code>\"stream\": true</code> la respuesta llega como <b>server-sent events</b>: líneas <code>data: {…}</code>, cada una con un pedazo en <code>choices[0].delta.content</code>, y al final <code>data: [DONE]</code>. Con <code>stream_options: {\"include_usage\": true}</code>, el último evento trae los tokens y los <code>timings</code>. <code>chat_stream()</code> es un generador: lee línea por línea, suelta cada pedazo con <code>yield</code>, anota cuánto tardó el primero (<b>TTFT</b>) y, al terminar, deja la <code>Respuesta</code> completa en <code>Cliente.ultima</code>. <code>pipeline/preguntar.py</code> (viene dado) lo usa desde la terminal.",
+      "codigo": [],
+      "comandos": [
+        {
+          "code": "python3 pipeline/preguntar.py \"¿Qué es una pena convencional en un contrato?\"",
+          "nota": "El texto aparece conforme se escribe. TTFT de 44 ms: el prompt es corto (55 tokens). Con uno del despacho serían segundos (el precálculo del prefill).",
+          "donde": "mac",
+          "salida": "Una pena convencional en un contrato es una forma de penalización que se aplica a un contrato por la falta de cumplimiento de obligaciones, generalmente en el contexto de la administración judicial.\n\n— 55 tokens de entrada · 43 de salida · fin: stop · TTFT 44 ms · total 0.40 s · 119 tokens/s al generar"
+        },
+        {
+          "code": "python3 verificar.py stream",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ stream     30 pedazos · TTFT 21 ms de 271 ms · 31 tokens\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "<code>verificar.py stream</code> en verde: varios pedazos, un TTFT mayor que 0 y menor que el total, y la Respuesta del final con el texto completo y sus tokens.",
+      "ojo": "El primer evento del stream puede venir sin texto (solo el rol): el TTFT se mide con el primer pedazo que trae texto.",
+      "en_pagina": {
+        "conceptos": [
+          "streaming",
+          "ttft",
+          "decode-prefill"
+        ],
+        "precalculos": [
+          "decode",
+          "prefill"
+        ]
+      }
+    },
+    {
+      "n": 5,
+      "id": "errores",
+      "titulo": "Cuando algo sale mal",
+      "objetivo": "Errores con nombre: <code>SinConexion</code>, <code>NoAutorizado</code> y <code>ContextoExcedido</code> (con cuántos tokens traía el prompt y cuántos caben).",
+      "conceptos": [
+        "errores",
+        "contexto"
+      ],
+      "explica": "<code>_pedir()</code> convierte lo que pasa en HTTP en un error de tu dominio. Sin servidor (<code>URLError</code>, conexión rechazada, timeout): <code>SinConexion</code>. Un 401: <code>NoAutorizado</code>. Un 400 cuyo cuerpo trae <code>\"type\": \"exceed_context_size_error\"</code>: <code>ContextoExcedido</code>, con <code>n_prompt_tokens</code> y <code>n_ctx</code> del cuerpo. Lo demás: <code>ErrorLLM</code> con el código y el mensaje. Así quien usa el cliente decide: si es <code>ContextoExcedido</code>, mandar menos fragmentos; si es <code>SinConexion</code>, avisar que el servidor no está.",
+      "codigo": [],
+      "comandos": [
+        {
+          "code": "python3 -c \"\nimport sys; sys.path.insert(0, 'pipeline')\nfrom llm import Cliente, ContextoExcedido\ntry:\n    Cliente().chat([{'role': 'user', 'content': 'cláusula ' * 9000}], max_tokens=5)\nexcept ContextoExcedido as e:\n    print(f'ContextoExcedido: {e}\\n  n_prompt={e.n_prompt:,} n_ctx={e.n_ctx:,}')\"",
+          "nota": "El servidor no corta el prompt en silencio: contesta 400 y dice cuánto traía. Eso es mejor que una respuesta hecha con medio prompt.",
+          "donde": "mac",
+          "salida": "ContextoExcedido: HTTP 400 en http://127.0.0.1:9931/v1/chat/completions: request (36013 tokens) exceeds the available context size (8192 tokens), try increasing it\n  n_prompt=36,013 n_ctx=8,192"
+        },
+        {
+          "code": "python3 mundo/servidor.py parar\npython3 pipeline/preguntar.py \"¿Sigues ahí?\"",
+          "nota": "",
+          "donde": "mac",
+          "salida": "■ servidor parado (pid 88725)\n✗ SinConexion: sin respuesta de http://127.0.0.1:9931/v1/chat/completions: [Errno 61] Connection refused\n[código 1]"
+        },
+        {
+          "code": "python3 mundo/servidor.py arrancar",
+          "nota": "",
+          "donde": "mac",
+          "salida": "▶ servidor arriba (pid 88805) en http://127.0.0.1:9931 · log en .taller/servidor.log"
+        },
+        {
+          "code": "python3 -c \"\nimport sys; sys.path.insert(0, 'pipeline')\nfrom llm import Cliente, ErrorLLM\ntry:\n    Cliente(clave='otra').modelos()\nexcept ErrorLLM as e:\n    print(type(e).__name__, '·', e)\"",
+          "nota": "",
+          "donde": "mac",
+          "salida": "NoAutorizado · HTTP 401 en http://127.0.0.1:9931/v1/models: Invalid API Key"
+        },
+        {
+          "code": "python3 verificar.py contexto caido",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ contexto   prompt de 33,181 tokens > contexto 8,192 → ContextoExcedido en 0.02 s · uno de ≈ 6,000 sí cabe (6,001)\n✓ caido      sin servidor → SinConexion en 0.00 s · clave equivocada → NoAutorizado\n\n2/2 en verde"
+        }
+      ],
+      "verifica": "<code>verificar.py contexto</code> y <code>caido</code> en verde: un prompt más largo que el contexto da <code>ContextoExcedido</code> con sus dos números; un puerto sin servidor da <code>SinConexion</code>; una clave equivocada, <code>NoAutorizado</code>.",
+      "ojo": "Un timeout también es <code>SinConexion</code>, pero no siempre quiere decir que el servidor no está: puede estar ocupado. En el despacho, con 8 a la vez, se distingue con la cola del servidor (la estación 3).",
+      "en_pagina": {
+        "conceptos": [
+          "errores"
+        ],
+        "precalculos": []
+      }
+    },
+    {
+      "n": 6,
+      "id": "citas",
+      "titulo": "Citas que se pueden validar",
+      "objetivo": "<code>chat_json()</code>: pedir la respuesta como JSON con un schema, con las citas restringidas a los ids de los fragmentos.",
+      "conceptos": [
+        "json-schema"
+      ],
+      "explica": "<code>chat_json(mensajes, schema)</code> manda <code>response_format: {\"type\": \"json_schema\", \"json_schema\": {\"name\": …, \"schema\": …}}</code> y lee la respuesta como JSON. llama-server convierte el schema en una <b>gramática</b>: al escribir cada token, solo deja los que mantienen el JSON válido. Si en el schema las citas son <code>{\"enum\": [\"C-04\", \"C-07\", \"C-11\", \"C-15\"]}</code>, el modelo no puede citar un fragmento que no le diste. <code>pipeline/citar.py</code> (viene dado) le pasa los fragmentos de <code>mundo/entrada/clausulas.json</code> y hace las tres preguntas: con citas de texto libre (<code>--libre</code>) y con el enum. Es lo que usa la estación 8 del RAG para su API con citas.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "pipeline/citar.py",
+          "code": "\"\"\"Paso 6: contestar con citas que se puedan validar. Le pasa al modelo los fragmentos de mundo/entrada/clausulas.json\ny le pide JSON con un schema: la respuesta y los ids de los fragmentos que usó.\n\n    python pipeline/citar.py            # citas = enum de los ids: el servidor solo deja escribir un id que exista\n    python pipeline/citar.py --libre    # citas = cualquier texto: a ver qué escribe el modelo\n\"\"\"\nfrom __future__ import annotations\n\nimport json\nimport sys\nfrom pathlib import Path\n\nsys.path.insert(0, str(Path(__file__).resolve().parent))\nfrom llm import Cliente, ErrorLLM  # noqa: E402\n\nDATOS = json.loads((Path(__file__).resolve().parent.parent / \"mundo\" / \"entrada\" / \"clausulas.json\").read_text())\nSISTEMA = \"Contesta solo con los fragmentos y cita el id de cada fragmento que uses.\"\n\n\ndef schema(ids: list[str] | None) -> dict:\n    \"\"\"ids=None: citas de texto libre. Con ids, cada cita tiene que ser uno de ellos.\"\"\"\n    item = {\"type\": \"string\"} if ids is None else {\"enum\": ids}\n    return {\"type\": \"object\", \"required\": [\"respuesta\", \"citas\"],\n            \"properties\": {\"respuesta\": {\"type\": \"string\"}, \"citas\": {\"type\": \"array\", \"items\": item, \"minItems\": 1}}}\n\n\nif __name__ == \"__main__\":\n    libre = \"--libre\" in sys.argv\n    fr = DATOS[\"fragmentos\"]\n    ctx = \"\\n\".join(f\"[{k}] {v}\" for k, v in fr.items())\n    cli, bien = Cliente(), 0\n    for q in DATOS[\"preguntas\"]:\n        try:\n            r = cli.chat_json([{\"role\": \"system\", \"content\": SISTEMA}, {\"role\": \"user\", \"content\": f\"{ctx}\\n\\nPregunta: {q['pregunta']}\"}],\n                              schema(None if libre else list(fr)), max_tokens=150)\n        except ErrorLLM as e:\n            sys.exit(f\"✗ {type(e).__name__}: {e}\")\n        ok = q[\"cita\"] in r[\"citas\"]\n        bien += ok\n        print(f\"{'✓' if ok else '✗'} {q['pregunta']}\\n    {r['respuesta']}\\n    citas: {r['citas']} (la buena: {q['cita']})\")\n    print(f\"\\n{bien}/{len(DATOS['preguntas'])} con la cita correcta\" + (\" · citas de texto libre\" if libre else \" · citas = enum de ids\"))",
+          "nota": "Viene dado: lo importante es el schema."
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python3 pipeline/citar.py --libre",
+          "nota": "Aquí el modelo escribió ids aunque podía escribir cualquier texto, porque los fragmentos van marcados con <code>[C-04]</code>. Nada lo obligaba.",
+          "donde": "mac",
+          "salida": "✓ ¿Cuánto dura el contrato?\n    36 meses\n    citas: ['C-11'] (la buena: C-11)\n✓ ¿Qué pasa si la renta se paga tarde?\n    Si la renta se paga tarde, el arrendatario cubre una pena convencional del 3% mensual sobre el saldo vencido.\n    citas: ['C-07', 'C-11', 'C-15'] (la buena: C-07)\n✓ ¿Cuál es la renta mensual?\n    La renta mensual es de 48,500 pesos más IVA.\n    citas: ['C-04'] (la buena: C-04)\n\n3/3 con la cita correcta · citas de texto libre"
+        },
+        {
+          "code": "python3 pipeline/citar.py",
+          "nota": "Con el enum, citar algo que no es un id es imposible. Y aun así, en la segunda pregunta citó C-11 y C-15, que no tienen que ver: el schema garantiza la forma, no que la cita sea la justa. Validar eso es trabajo de la estación 8 y de las evals.",
+          "donde": "mac",
+          "salida": "✓ ¿Cuánto dura el contrato?\n    36 meses\n    citas: ['C-11'] (la buena: C-11)\n✓ ¿Qué pasa si la renta se paga tarde?\n    Si la renta se paga tarde, el arrendatario cubre una pena convencional del 3% mensual sobre el saldo vencido.\n    citas: ['C-07', 'C-11', 'C-15'] (la buena: C-07)\n✓ ¿Cuál es la renta mensual?\n    La renta mensual es de 48,500 pesos más IVA.\n    citas: ['C-04'] (la buena: C-04)\n\n3/3 con la cita correcta · citas = enum de ids"
+        },
+        {
+          "code": "python3 verificar.py citas",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ citas      3/3 preguntas con la cita correcta · JSON válido con el schema (citas = enum de ids)\n\n1/1 en verde"
+        },
+        {
+          "code": "python3 verificar.py",
+          "nota": "Todo en verde. Al terminar: <code>python3 mundo/servidor.py parar</code>.",
+          "donde": "mac",
+          "salida": "✓ mundo      llama.cpp 1.1.0 (build 12774, commit 171527522) · Qwen3-0.6B-Q8_0.gguf (805 MB, sha256 361cc6815904…)\n✓ config     qwen3-0.6b en http://127.0.0.1:9931/v1 · contexto 8,192 · 1 a la vez · razonamiento off\n✓ servidor   /health ok · qwen3-0.6b (Q8_0) · contexto 8,192 · build b12774-171527522\n✓ clave      sin clave → 401 · clave equivocada → 401 · tu clave → 200 (/health sigue abierto: solo dice si está vivo)\n✓ plantilla  33 tokens de entrada (plantilla ChatML de Qwen3) · sin razonamiento · 31 de salida · terminó solo\n✓ cliente    modelos() ['qwen3-0.6b'] · contar_tokens 7 · chat(): 33 → 31 tokens en 0.26 s, igual dos veces\n✓ stream     30 pedazos · TTFT 9 ms de 258 ms · 31 tokens\n✓ contexto   prompt de 33,181 tokens > contexto 8,192 → ContextoExcedido en 0.01 s · uno de ≈ 6,000 sí cabe (6,001)\n✓ caido      sin servidor → SinConexion en 0.00 s · clave equivocada → NoAutorizado\n✓ citas      3/3 preguntas con la cita correcta · JSON válido con el schema (citas = enum de ids)\n\n10/10 en verde"
+        }
+      ],
+      "verifica": "<code>verificar.py citas</code> en verde: las tres respuestas son JSON válido con el schema, cada cita es un id que existe y cada una incluye el fragmento correcto.",
+      "ojo": "El schema no es un permiso: si el modelo no tiene en el prompt lo que necesita, contesta igual, con JSON perfecto. Por eso el RAG valida que cada cita exista y que diga lo que la respuesta dice.",
+      "en_pagina": {
+        "conceptos": [
+          "json-schema"
+        ],
+        "precalculos": []
+      }
+    }
+  ],
+  "solo": {
+    "reglas": [
+      "Empieza con <code>python3 mundo/reiniciar.py</code>: para el servidor, respalda tus archivos en <code>.respaldo/</code> y deja el esqueleto (el modelo se queda).",
+      "Sin GUION.md: solo los contratos de arriba de cada archivo y estos objetivos.",
+      "Claude corre <code>verificar.py</code> y te dice qué falla; no te da código."
+    ],
+    "objetivos": [
+      {
+        "n": 1,
+        "objetivo": "llama-server 1.1.0 o más nuevo y el modelo del catálogo con su sha256.",
+        "check": "mundo"
+      },
+      {
+        "n": 2,
+        "objetivo": "Un servidor.env con el modelo, solo en esta Mac, con el contexto del despacho, sin razonamiento, con clave y con la URL del cliente que apunte a él.",
+        "check": "config",
+        "pista": "¿Qué tienen que repetir LLM_URL y las otras líneas?"
+      },
+      {
+        "n": 3,
+        "objetivo": "El servidor arriba con el alias, el archivo y el contexto de servidor.env.",
+        "check": "servidor"
+      },
+      {
+        "n": 4,
+        "objetivo": "Sin clave o con otra, nadie usa el modelo.",
+        "check": "clave"
+      },
+      {
+        "n": 5,
+        "objetivo": "La pregunta de prueba entra como la arma la plantilla de Qwen3 y el modelo contesta sin razonar.",
+        "check": "plantilla",
+        "pista": "¿Qué viene por omisión en llama-server, y qué quieres tú?"
+      },
+      {
+        "n": 6,
+        "objetivo": "Un cliente que lista los modelos, cuenta tokens y contesta igual dos veces la misma pregunta.",
+        "check": "cliente",
+        "pista": "¿/tokenize vive bajo /v1?"
+      },
+      {
+        "n": 7,
+        "objetivo": "La respuesta en streaming, con su tiempo al primer token y sus tokens al final.",
+        "check": "stream"
+      },
+      {
+        "n": 8,
+        "objetivo": "Un prompt que no cabe da un error que dice cuánto traía y cuánto cabe.",
+        "check": "contexto"
+      },
+      {
+        "n": 9,
+        "objetivo": "Sin servidor y con la clave equivocada, errores distintos.",
+        "check": "caido"
+      },
+      {
+        "n": 10,
+        "objetivo": "Respuestas en JSON con un schema, con citas que solo pueden ser ids de los fragmentos.",
+        "check": "citas"
+      }
+    ]
+  },
+  "fallas": [
+    {
+      "id": "puerto-movido",
+      "titulo": "El asistente dice «sin respuesta» y el servidor está arriba",
+      "tipo": "config",
+      "historia": "Sistemas pidió mover el servidor del modelo al puerto 8080, «el que usan todos los servicios internos», y lo reinició.",
+      "sintoma": "<code>verificar.py config</code> falla (LLM_URL no apunta a HOST:PUERTO) y <code>cliente</code> da <code>SinConexion</code>. El servidor está sano.",
+      "hipotesis": [
+        "El servidor se cayó.",
+        "El cliente pregunta en otro lado que donde escucha el servidor.",
+        "La clave cambió."
+      ],
+      "confirma": {
+        "code": "python3 verificar.py config cliente\npython3 pipeline/preguntar.py \"¿Sigues ahí?\"",
+        "nota": "El servidor escucha en 8080; el cliente sigue preguntando en 9931.",
+        "donde": "mac",
+        "salida": "✗ config     LLM_URL=http://127.0.0.1:9931/v1 no apunta a tu servidor: tiene que ser http://127.0.0.1:8080/v1 (host, puerto y /v1)\n✗ cliente    SinConexion: sin respuesta de http://127.0.0.1:9931/v1/models: [Errno 61] Connection refused\n\n0/2 en verde · falta: config, cliente\n[código 1]\n\n✗ SinConexion: sin respuesta de http://127.0.0.1:9931/v1/chat/completions: [Errno 61] Connection refused\n[código 1]"
+      },
+      "arreglo": "Que los dos digan lo mismo: <code>PUERTO=9931</code> otra vez (o <code>LLM_URL=http://127.0.0.1:8080/v1</code>) y <code>python3 mundo/servidor.py arrancar</code>. La URL del cliente sale de dónde escucha el servidor: si se cambia uno, se cambia el otro, en el mismo archivo.",
+      "concepto": "host-puerto",
+      "check": "config"
+    },
+    {
+      "id": "expuesto",
+      "titulo": "Una persona de otra área usó el modelo desde su laptop",
+      "tipo": "config",
+      "historia": "Para que un compañero lo probara desde su laptop, alguien cambió HOST en servidor.env y reinició el servidor. Funcionó.",
+      "sintoma": "<code>verificar.py config</code> falla: <code>HOST=0.0.0.0</code>. Todo lo demás pasa.",
+      "hipotesis": [
+        "Alguien tiene la clave.",
+        "El servidor escucha en toda la red, no solo en la Mac.",
+        "El firewall está apagado."
+      ],
+      "confirma": {
+        "code": "lsof -nP -iTCP:9931 -sTCP:LISTEN",
+        "nota": "<code>*:9931</code> es cualquier interfaz: la Wi-Fi también.",
+        "donde": "mac",
+        "salida": "COMMAND NODE NAME \nllama-ser TCP *:9931 (LISTEN)\n\n— después del arreglo:\nCOMMAND NODE NAME \nllama-ser TCP 127.0.0.1:9931 (LISTEN)"
+      },
+      "arreglo": "<code>HOST=127.0.0.1</code> (y la LLM_URL con él) y <code>python3 mundo/servidor.py arrancar</code>. La clave seguía pidiéndose, pero viaja en texto plano (HTTP, sin TLS) por la red y <code>/health</code> contesta a todos. En el despacho, abrirlo a la red es una decisión: detrás de un gateway con TLS, llaves por persona y firewall (la estación 4).",
+      "concepto": "host-puerto",
+      "check": "config"
+    },
+    {
+      "id": "paralelo-reparte",
+      "titulo": "Desde que «aguanta 4 a la vez», las preguntas largas truenan",
+      "tipo": "infra",
+      "historia": "Para que cuatro abogados pudieran preguntar al mismo tiempo, alguien subió PARALELO a 4 en servidor.env y reinició el servidor.",
+      "sintoma": "<code>verificar.py servidor</code> falla (el servidor cargó 2,048 tokens de contexto y servidor.env dice 8,192) y <code>contexto</code> también. Las preguntas cortas siguen bien.",
+      "hipotesis": [
+        "El modelo cambió.",
+        "El contexto se repartió entre las 4 peticiones.",
+        "El prompt del despacho creció."
+      ],
+      "confirma": {
+        "code": "grep -E \"n_ctx_slot\" .taller/servidor.log",
+        "nota": "Con -c 8192 y -np 4, cada lugar tiene 2,048.",
+        "donde": "mac",
+        "salida": "srv    load_model: initializing, n_slots = 4, n_ctx_slot = 2048, kv_unified = 'false'\n\nel prompt del despacho (6,013 tokens) no cabe en 2,048"
+      },
+      "arreglo": "<code>PARALELO=1</code> y <code>python3 mundo/servidor.py arrancar</code>. Si de verdad hacen falta 4 a la vez de 8,192 cada una, <code>CONTEXTO=32768</code>: 4 veces el KV cache (≈ 3.5 GiB en el dojo; en el despacho, la cuenta de su servidor). Cada lugar a la vez cuesta contexto y memoria.",
+      "concepto": "slots",
+      "check": "servidor"
+    },
+    {
+      "id": "sin-clave",
+      "titulo": "El servidor contesta sin pedir clave",
+      "tipo": "infra",
+      "historia": "Para «simplificar», alguien limpió servir.sh de las opciones que «no hacían nada» y reinició el servidor. El asistente sigue contestando igual.",
+      "sintoma": "<code>verificar.py clave</code> falla: sin clave, <code>/v1/models</code> contesta 200. <code>cliente</code> pasa: tu cliente manda su clave y nadie la revisa.",
+      "hipotesis": [
+        "El cliente perdió la clave.",
+        "El servidor ya no pide clave.",
+        "Alguien cambió la clave."
+      ],
+      "confirma": {
+        "code": "curl -s http://127.0.0.1:9931/v1/models\ncat servir.sh\ngrep security .taller/servidor.log",
+        "nota": "El mismo llama-server avisa en su log que no tiene clave.",
+        "donde": "mac",
+        "salida": "{\"models\":[{\"name\":\"qwen3-0.6b\",\"model\":\"qwen3-0.6b\",\"modified_at\":\"\",\"size\":\"\",\"digest\":\"\",\"type\":\"model\",\"description\":\"\",\"tags\":[\"\"],\"capabilities\":[\"completion\"],\"parameters\":\"\",\"details\":{\"parent_model\":\"\",\"format\": …\n[HTTP 200]\n\n#!/usr/bin/env bash\n# Paso 2: arrancar llama-server con lo que dice servidor.env. Lo lanza python mundo/servidor.py arrancar.\nset -euo pipefail\ncd \"$(dirname \"$0\")\"\nsource servidor.env\nexec llama-server -m \"$MODELO\" --alias \"$ALIAS\" --host \"$HOST\" --port \"$PUERTO\" -c \"$CONTEXTO\" -np \"$PARALELO\" --reasoning \"$RAZONAMIENTO\"\n\nsrv  server_setup: security: no API key is set and CORS allows all origins (see https://github.com/ggml-org/llama.cpp/pull/25655)"
+      },
+      "arreglo": "<code>--api-key \"$CLAVE\"</code> de vuelta en <code>servir.sh</code> y <code>python3 mundo/servidor.py arrancar</code>. Nada truena cuando se quita una barrera: por eso se prueba el lado de «sin permiso» (el check <code>clave</code>), no solo que con la clave funciona.",
+      "concepto": "api-key",
+      "check": "clave"
+    },
+    {
+      "id": "razonamiento-auto",
+      "titulo": "Las respuestas tardan más y salen cortadas a la mitad",
+      "tipo": "infra",
+      "historia": "Para «simplificar», alguien limpió servir.sh de las opciones que «venían por omisión» y reinició el servidor.",
+      "sintoma": "<code>verificar.py plantilla</code> falla: el modelo razonó antes de contestar.",
+      "hipotesis": [
+        "Cambió el modelo.",
+        "El servidor ya no apaga el razonamiento.",
+        "max_tokens es muy chico."
+      ],
+      "confirma": {
+        "code": "curl -s http://127.0.0.1:9931/v1/chat/completions \\\n  -H \"Authorization: Bearer dojo-local-7f3a\" -H \"Content-Type: application/json\" \\\n  -d '{\"model\": \"qwen3-0.6b\", \"messages\": [{\"role\": \"system\", \"content\": \"Contesta en una frase.\"}, {\"role\": \"user\", \"content\": \"¿Qué es un contrato de arrendamiento?\"}], \"temperature\": 0, \"seed\": 7, \"max_tokens\": 120}'",
+        "nota": "Razonó en inglés, gastó los 120 tokens y la respuesta se cortó (finish_reason length). Sin razonar, la misma pregunta usa 31.",
+        "donde": "mac",
+        "salida": "{\n \"choices\": [\n  {\n   \"message\": {\n    \"content\": \"Un contrato de arrendamiento es un acuerdo entre el dueño de un lugar y el arrendatario que establece los términos del uso y la\",\n    \"reasoning_content\": \"Okay, the user is asking what a lease agreement is. I need to explain it in one sentence. Let me start by defining it. A lease agreement is a contract between a …\"\n   },\n   \"finish_reason\": \"length\"\n  }\n ],\n \"usage\": {\n  \"prompt_tokens\": 29,\n  \"completion_tokens\": 120,\n  \"total_tokens\": 149\n },\n \"timings\": {\n  \"prompt_n\": 1,\n  \"prompt_ms\": 8.5,\n  \"predicted_n\": 120,\n  \"predicted_ms\": 987.9,\n  \"predicted_per_second\": 120.5\n }\n}"
+      },
+      "arreglo": "<code>--reasoning \"$RAZONAMIENTO\"</code> de vuelta en <code>servir.sh</code> y <code>python3 mundo/servidor.py arrancar</code>. Por omisión es auto, y lo que viene por omisión cambia entre versiones: lo que importa se escribe explícito. Ojo: aun apagado en el servidor, una petición lo puede volver a pedir con <code>chat_template_kwargs</code>; el gateway (estación 4) es donde se impide.",
+      "concepto": "razonamiento",
+      "check": "plantilla"
+    },
+    {
+      "id": "plantilla-ajena",
+      "titulo": "El modelo contesta cosas sin relación con la pregunta",
+      "tipo": "infra",
+      "historia": "Siguiendo un tutorial de Llama, alguien agregó una opción a servir.sh «para que el chat salga mejor» y reinició el servidor.",
+      "sintoma": "<code>verificar.py plantilla</code> falla: la pregunta de prueba entró como 3 tokens y con la plantilla de Qwen3 son 33.",
+      "hipotesis": [
+        "El modelo se dañó.",
+        "El servidor arma los mensajes con la plantilla de otro modelo.",
+        "El tokenizer cambió."
+      ],
+      "confirma": {
+        "code": "python3 pipeline/preguntar.py --max 60 \"¿Qué es una pena convencional en un contrato?\"",
+        "nota": "3 tokens de entrada: el modelo no leyó la pregunta. Escribe sobre cualquier cosa hasta cortarse.",
+        "donde": "mac",
+        "salida": ": The Future of Language Models\n\nThe latest advancements in language models, such as those developed by Llama 3, are revolutionizing the field of natural language processing. These models are not only capable of understanding and generating text but also have the potential to revolutionize various industries. As the technology continues\n\n— 3 tokens de entrada · 60 de salida · fin: length · TTFT 20 ms · total 0.51 s · 121 tokens/s al generar"
+      },
+      "arreglo": "Quitar <code>--chat-template llama3</code> de <code>servir.sh</code> y <code>python3 mundo/servidor.py arrancar</code>. La plantilla de chat es parte del modelo y viene en su GGUF: llama-server la usa por omisión. <code>curl /props</code> dice cuál cargó (con la falla decía solo «llama3»).",
+      "concepto": "plantilla",
+      "check": "plantilla"
+    }
+  ],
+  "listo": [
+    "El modelo viene de un commit fijo, con su sha256, y el servidor dice qué archivo y qué alias cargó.",
+    "El servidor escucha solo en 127.0.0.1, pide clave (y se prueba que sin ella contesta 401), con el contexto que pide el prompt del despacho y el razonamiento apagado.",
+    "La pregunta de prueba entra con la plantilla de chat del modelo: 33 tokens, ni uno más.",
+    "Un cliente con la biblioteca estándar: modelos, tokens, chat, streaming con su TTFT, y errores con nombre (sin servidor, sin permiso, contexto excedido).",
+    "Respuestas en JSON con un schema, con citas que solo pueden ser ids de los fragmentos.",
+    "Las cuentas de tu Mac medidas: tokens por segundo al escribir, segundos de prefill de un prompt del despacho y el KV cache."
+  ],
+  "repaso": {
+    "memo": "<b>Un modelo open weight en un servidor de inferencia (llama-server) que habla la API compatible con OpenAI: solo en 127.0.0.1, con clave, con el contexto que pide el prompt, la plantilla de chat del modelo y el razonamiento apagado; y un cliente con streaming, TTFT, tokens, errores con nombre y JSON con schema.</b> En el dojo: Qwen3-0.6B en Q8_0 (0.80 GB), ≈ 119 tokens/s al escribir, 4.71 s de prefill de 6,013 tokens y 112 KiB de KV cache por token.",
+    "trampa": "Lo que falla sin dar error. Sin clave, todo sigue funcionando; con la plantilla de otro modelo, la pregunta entra como 3 tokens y el modelo contesta cualquier cosa; con 4 a la vez, el contexto se reparte y solo truenan los prompts largos; sin --reasoning, vuelve a razonar. Lo que los atrapa es probar el lado de «sin permiso», contar los tokens de una pregunta conocida y comparar lo que cargó el servidor con lo que dice la configuración.",
+    "entrevista": [
+      {
+        "q": "¿Por qué un servidor de inferencia y no cargar el modelo en tu aplicación?",
+        "a": "Porque el modelo se carga una vez y todos le hablan por HTTP: el asistente, el RAG o un script. La aplicación no carga gigas de pesos ni compite por la GPU, y el servidor se puede cambiar (llama-server en una Mac, vLLM en una GPU) sin tocar el cliente, porque los dos hablan la API compatible con OpenAI."
+      },
+      {
+        "q": "Levantaste un modelo local. ¿Qué revisas antes de dárselo a alguien?",
+        "a": "Dónde escucha (127.0.0.1 o detrás de un gateway, nunca 0.0.0.0 a pelo), que pida clave y que sin ella conteste 401, que el contexto alcance para el prompt real más la respuesta, que la plantilla de chat sea la del modelo (cuento los tokens de una pregunta conocida: en mi caso, 33), y el razonamiento como lo quiero. Y comparo lo que dice /props con mi configuración."
+      },
+      {
+        "q": "¿Qué pasa si subes las peticiones a la vez en llama-server?",
+        "a": "El contexto se reparte: con -c 8192 y -np 4, cada una tiene 2,048. Las preguntas cortas siguen bien y las de 6,000 tokens truenan con un 400. Para 4 de 8,192 necesito -c 32768, y eso es 4 veces el KV cache: con el 32B del despacho, ≈ 8.6 GB en vez de 2.15. vLLM lo maneja distinto, con bloques de memoria que se asignan conforme se usan."
+      },
+      {
+        "q": "¿Qué decide qué tan rápido escribe un modelo en una máquina?",
+        "a": "Al escribir, cada token lee todos los pesos de memoria, así que el techo es el ancho de banda entre los bytes de pesos: en mi Mac, 120 GB/s entre 0.8 GB, unos 150 tokens/s, y medí 119. Leer el prompt es otra cosa: se procesan muchos tokens juntos y manda la capacidad de cálculo. Por eso reporto los dos por separado: el TTFT y los tokens por segundo."
+      },
+      {
+        "q": "¿Cómo garantizas que el modelo cite solo documentos que existen?",
+        "a": "Le pido la respuesta con un JSON schema donde las citas son un enum de los ids de los fragmentos que le di. El servidor lo convierte en una gramática y el modelo no puede escribir otro id. Eso garantiza la forma, no el fondo: en mi prueba citó el fragmento correcto y dos de más. Validar que cada cita diga lo que la respuesta dice es otra capa (evals)."
+      },
+      {
+        "q": "Tu cliente recibe un error. ¿Qué hace?",
+        "a": "Depende de cuál. Sin conexión: el servidor no está o está saturado, reintento con espera o aviso. 401: la clave está mal, no reintento. Contexto excedido: el error trae cuántos tokens traía el prompt y cuántos caben, así que mando menos fragmentos. Por eso cada uno es una excepción con nombre, no un error genérico."
+      }
+    ]
+  },
+  "prompts": {
+    "claude_md": "kits/ia-privada-modelo-local/CLAUDE.md",
+    "guiado": "content/estaciones/ia-privada-modelo-local/prompts/guiado.md",
+    "solo": "content/estaciones/ia-privada-modelo-local/prompts/solo.md",
+    "romper_ayuda": "content/estaciones/ia-privada-modelo-local/prompts/romper-ayuda.md",
+    "romper_solo": "content/estaciones/ia-privada-modelo-local/prompts/romper-solo.md"
+  }
+}
