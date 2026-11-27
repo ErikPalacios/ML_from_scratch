@@ -21,7 +21,7 @@ from mundo.comun import ALMACEN, CACHE, ENTRADA, INDICES, MUNDO, RELOJ, escribir
 
 def golden() -> tuple[str, int]:
     shutil.rmtree(ALMACEN / "golden", ignore_errors=True)
-    shutil.copytree(ENTRADA / "golden", ALMACEN / "golden")
+    shutil.copytree(ENTRADA / "registro-golden", ALMACEN / "golden")
     v = (ALMACEN / "golden" / "VIGENTE").read_text().strip()
     return v, len(leer_jsonl(ALMACEN / "golden" / v / "preguntas.jsonl"))
 
