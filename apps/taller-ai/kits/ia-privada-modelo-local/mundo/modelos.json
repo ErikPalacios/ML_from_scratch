@@ -1,0 +1,11 @@
+{
+  "qwen3-0.6b-q8": {
+    "repo": "ggml-org/Qwen3-0.6B-GGUF",
+    "revision": "afe8ad3577aa22500b3cd1c880f153b3b0e1cae8",
+    "archivo": "Qwen3-0.6B-Q8_0.gguf",
+    "bytes": 804753632,
+    "sha256": "361cc68159042c36ebff7715dc5a2e4612153e88f3e9c9c234820849d6dc9e1d",
+    "licencia": "apache-2.0",
+    "nota": "Qwen3 0.6B en Q8_0: el mismo tokenizador y la misma plantilla de chat que el Qwen3 32B del despacho, en chico."
+  }
+}
