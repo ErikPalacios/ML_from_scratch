@@ -52,12 +52,16 @@ paso "p2 verificar" python verificar.py fusion candidatos
 # paso 3 · el reranker
 usa reranker.py
 paso "p3 pares" python pipeline/reranker.py "$Q" "Los reembolsos a tarjeta de débito tardan de 5 a 10 días hábiles." "El calendario de pagos a vendedores sale los lunes." "Para devolver un producto tienes 30 días desde que lo recibiste."
+paso "p3 tokens" python -c "
+from tokenizers import Tokenizer
+t = Tokenizer.from_file('modelo/reranker/tokenizer.json')
+e = t.encode('¿Cuánto tarda un reembolso?', 'Los reembolsos tardan de 5 a 10 días.')
+print(' '.join(e.tokens)); print(f'{len(e.ids)} tokens: la pregunta y el pasaje van juntos, en una sola entrada')"
 paso "pc latencia" python -c "
 import sys, time; sys.path.insert(0, 'pipeline')
 from buscar import abrir; from recuperar import Recuperador; from reranker import Reranker
 r = Recuperador(abrir(), Reranker()); rr = r.reranker
-pool = [c for c, _ in r.recuperar('$Q', '$P', 'fusion')['top']]
-import fusion, yaml
+import fusion
 bm, ve = r.candidatos('$Q', '$P'); pool = [c for c, _ in fusion.rrf([bm, ve])]
 rr.puntuar('$Q', [r.textos[c] for c in pool[:8]])
 ms = {}
