@@ -48,7 +48,7 @@
         { "num": 4, "id": "golden", "titulo": "Golden set", "sale": "preguntas con su respuesta y sus fuentes, versionadas", "etapa": "datos", "donde": "mac" },
         { "num": 5, "id": "indice", "titulo": "Embeddings e índice híbrido", "sale": "BM25 y vectores en un índice detrás de un alias", "etapa": "modelo", "donde": "mac" },
         { "num": 6, "id": "retrieval", "titulo": "Retrieval y reranker", "sale": "el top-8 por fusión RRF y reranker, con su recall@8", "etapa": "modelo", "donde": "mac" },
-        { "num": 7, "id": "llm-local", "titulo": "Un LLM local por API", "sale": "un modelo chico que contesta por una API compatible con OpenAI", "etapa": "api", "donde": "mac" },
+        { "num": 7, "id": "llm-local", "titulo": "Un LLM local por API", "sale": "un modelo chico que contesta por una API compatible con OpenAI", "etapa": "api", "donde": "mac", "misma": "ia-privada/modelo-local", "misma_txt": "es la estación 1 de IA Privada: se hace una vez y sirve para los dos" },
         { "num": 8, "id": "rag-api", "titulo": "La API con citas", "sale": "POST /v1/ask con streaming y citas validadas", "etapa": "api", "donde": "mac" },
         { "num": 9, "id": "gate", "titulo": "Gate de evals", "sale": "recall@8, faithfulness, citas y permisos al 100 %", "etapa": "modelo", "donde": "mac" },
         { "num": 10, "id": "empaquetado", "titulo": "Empaquetado (Docker)", "sale": "rag-api, índice y modelo en un compose probado", "etapa": "contenedor", "donde": "mac" },

@@ -586,8 +586,9 @@ function lineaMini(ests, et, lista) {
 function filaEstacion(s, e, { enlace, sensei, rama }) {
   const tags = rama ? `<span class="d-rama-tags"><span class="d-rama-donde d-donde-${s.donde}">${DONDE[s.donde]}</span></span>` : '';
   const extra = e && e.practicas && e.practicas.length ? `<span class="d-est-x">+ ${e.practicas.length} prácticas desde cero</span>` : '';
+  const misma = s.misma_txt && e ? `<span class="d-est-x">${esc(s.misma_txt)}</span>` : '';
   const fin = e ? '<span class="d-est-b">Entrar →</span>' : rama ? '<span class="d-est-p">próximamente</span>' : '<span class="d-est-p">próximamente <br>hoja ↗</span>';
-  const cuerpo = `<span class="d-est-n">${s.num}</span><span class="d-est-t"><span>${esc(s.titulo)}</span><span>sale: ${esc(s.sale)}</span>${extra}${tags}</span>${fin}`;
+  const cuerpo = `<span class="d-est-n">${s.num}</span><span class="d-est-t"><span>${esc(s.titulo)}</span><span>sale: ${esc(s.sale)}</span>${extra}${misma}${tags}</span>${fin}`;
   const id = rama ? ` id="est-${rama}-${s.id}"` : '';
   const fila = e || !rama ? `<a class="d-est${e ? ' lista' : ''}"${id} href="${enlace(s)}">${cuerpo}</a>` : `<div class="d-est"${id}>${cuerpo}</div>`;
   return fila + (sensei && sensei.has(s.num) ? `<a class="d-est-sensei" ${fuera(sensei.get(s.num).leccion.url)}>Teoría en Sensei: ${esc(sensei.get(s.num).leccion.titulo)} ↗</a>` : '');

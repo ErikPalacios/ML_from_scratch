@@ -107,7 +107,19 @@ ${body}
 }
 
 // ---------------------------------------------------------------- portada y entrenamientos
-const deLinea = (id) => new Map(ESTACIONES.filter((e) => e.linea.id === id).map((e) => [e.id, e]));
+// Una estación de una rama puede ser la misma que la de otra línea («misma»: "<línea>/<id>"): no tiene página propia,
+// abre la de la otra línea (la 7 del RAG es la 1 de IA Privada).
+const deLinea = (id) => {
+  const m = new Map(ESTACIONES.filter((e) => e.linea.id === id).map((e) => [e.id, e]));
+  for (const s of (RAMAS.find((r) => r.id === id) || {}).estaciones || []) {
+    if (!s.misma) continue;
+    const [l, sid] = s.misma.split('/');
+    const e = ESTACIONES.find((x) => x.linea.id === l && x.id === sid);
+    if (!e) throw new Error(`ramas.json: la estación ${s.num} de ${id} dice ser la misma que ${s.misma}, y esa no existe`);
+    m.set(s.id, e);
+  }
+  return m;
+};
 const RAMAS_L = RAMAS.map((r) => ({ ...r, lista: deLinea(r.id) }));
 function portada() {
   return pagina({ path: '/', title: `${SITE_NAME} · TrueML`, desc: 'Elige un entrenamiento (clasificación de imágenes o RAG) y constrúyelo de punta a punta en tu Mac, estación por estación: con ayuda, solo y rompiéndolo. En español, gratis.',

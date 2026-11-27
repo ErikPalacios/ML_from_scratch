@@ -38,6 +38,7 @@ export function revisarRamas(ramas = RAMAS, tronco = TRONCO) {
       if (!ID.test(s.id || '')) errs.push(`${q}.id: «${s.id}» no es un id`);
       if (!s.titulo || !s.sale) errs.push(`${q}: le falta título o lo que sale`);
       if (!IDS.includes(s.etapa)) errs.push(`${q}.etapa: «${s.etapa}» no es una etapa de la T (${IDS.join(', ')})`);
+      if (s.misma && !/^[a-z0-9-]+\/[a-z0-9-]+$/.test(s.misma)) errs.push(`${q}.misma: «${s.misma}» tiene que ser <línea>/<id>`);
       if (!DONDE[s.donde]) errs.push(`${q}.donde: «${s.donde}» no es uno de ${Object.keys(DONDE).join(', ')}`);
     });
     const sids = r.estaciones.map((s) => s.id);

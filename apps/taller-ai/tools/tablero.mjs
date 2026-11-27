@@ -27,7 +27,7 @@ export function plantillaTablero(estaciones, lineas) {
       objetivos: e.solo.objetivos.map((o) => ({ n: o.n, check: o.check, objetivo: sinHtml(o.objetivo) })),
       fallas: e.fallas.map((f) => ({ id: f.id, titulo: f.titulo })),
     })),
-    proximas: [...lineas.values()].flatMap((l) => l.estaciones.filter((s) => !slugs.has(`${l.id}-${s.id}`))
+    proximas: [...lineas.values()].flatMap((l) => l.estaciones.filter((s) => !s.misma && !slugs.has(`${l.id}-${s.id}`))
       .map((s) => ({ grupo: l.id, num: s.num, titulo: s.titulo, etapa: ETAPA_ID[s.etapa], color: COLOR_ETAPA[s.etapa] }))),
   };
 }
