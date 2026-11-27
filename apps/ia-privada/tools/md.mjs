@@ -34,7 +34,7 @@ export function contar(texto) {
   const nueva = () => ({ palabras: 0, profundo: 0, piezas: pz(), piezasProfundo: pz() });
   const intro = nueva(), secs = [];
   let cur = intro, prof = 0, profDesde = -1, ejercicios = 0, codigo = false;
-  const PIEZA = { diagrama: 'diagramas', figura: 'figuras', calculadora: 'calculadoras', cuenta: 'cuentas' };
+  const PIEZA = { diagrama: 'diagramas', figura: 'figuras', calculadora: 'calculadoras', cuenta: 'cuentas', intenta: 'ejercicios' };
   for (const l of texto.replace(/\r/g, '').split('\n')) {
     if (l.startsWith('```')) { codigo = !codigo; continue; }
     if (codigo) continue;
@@ -288,6 +288,15 @@ export function crear({ glosario, diagrama, figura, calculadora, extras = {}, co
           estado.terminos.add(id);
         }
         return `<div class="c-conceptos">${ids.map((id) => tarjeta(glosario.get(id))).join('')}</div>`;
+      }
+      case 'intenta': {
+        // :::intenta Título — la pregunta, una línea «???» y lo que sigue es la solución (cerrada hasta que la abres).
+        // Es el «inténtalo antes de ver la solución» de los casos.
+        if (!arg) fallar(':::intenta necesita un título');
+        const partes = dentro.split(/^\?\?\?\s*$/m);
+        if (partes.length !== 2 || !partes[0].trim() || !partes[1].trim()) fallar(':::intenta lleva la pregunta, una línea «???» y la solución');
+        estado.cuenta.intentos = (estado.cuenta.intentos || 0) + 1;
+        return `<div class="c-intenta"><span class="c-lbl">Inténtalo antes de seguir</span><h4>${inline(arg, estado.terminos)}</h4><div class="c-intenta-q">${bloques(partes[0], estado)}</div><details class="c-ej-sol c-intenta-sol"><summary>Ver cómo lo resolvemos</summary><div class="c-a">${bloques(partes[1], estado)}</div></details></div>`;
       }
       case 'chequeo': {
         // «? pregunta» abre una pregunta; las líneas siguientes son su respuesta

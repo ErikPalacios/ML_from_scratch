@@ -7,6 +7,7 @@
 //   2b. el globo de una palabra del glosario abre, dice su definición y se cierra con Escape;
 //   2c. cada calculadora con preajustes: elegir otro preajuste cambia sus resultados y su cuenta paso a paso, sin
 //      ningún «—» ni «undefined»;
+//   2d. una herramienta abierta con valores en la dirección (como la enlazan los casos) los toma;
 //   3. el service worker se instala, guarda todas las páginas y las sirve sin conexión, y una calculadora también
 //      funciona sin red.
 // Sirve dist/ con un servidor local que imita a Vercel (trailingSlash) y que puede "cortar la red".
@@ -22,10 +23,12 @@ const DIST = join(ROOT, 'dist');
 const BC = join(ROOT, '..', 'ml-system-design', 'tools', 'browser-check.mjs');
 if (!existsSync(join(DIST, 'index.html'))) { console.error('[check] falta dist/: corre antes node tools/build.mjs'); process.exit(1); }
 // las páginas: la portada, el glosario, cada herramienta y cada lección que existen
-const md = (dir) => readdirSync(join(ROOT, 'content', dir)).filter((f) => f.endsWith('.md')).map((f) => f.slice(0, -3));
+const md = (dir) => (existsSync(join(ROOT, 'content', dir)) ? readdirSync(join(ROOT, 'content', dir)) : []).filter((f) => f.endsWith('.md')).map((f) => f.slice(0, -3));
 const HERRAMIENTAS = md('herramientas').map((id) => `/herramientas/${id}/`);
 const LECCIONES = md('lecciones').map((id) => `/${id}/`);
-const PAGES = ['/', '/glosario/', ...HERRAMIENTAS, ...LECCIONES];
+const CASOS = md('casos').map((id) => `/casos/${id}/`);
+// y la herramienta de sizing abierta desde un caso con valores en la dirección (?p1=…&r=…)
+const PAGES = ['/', '/glosario/', ...HERRAMIENTAS, ...LECCIONES, ...CASOS];
 const SITIO = JSON.parse(readFileSync(join(ROOT, 'content', 'sitio.json'), 'utf8'));
 const TYPES = { '.json': 'application/json', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
 
@@ -191,6 +194,14 @@ for (const [label, args] of [['375', ['--width', '375', '--height', '812', '--mo
     if (!ok) bad++;
     console.log(`${ok ? 'ok ' : 'MAL'} ${p.padEnd(16)} calculadora ${label.padEnd(11)} ${v ? JSON.stringify(v) : 'sin resultado'}`);
   }
+}
+// 2d. la herramienta abierta desde un caso: la dirección pone el modelo, la GPU y una entrada, y lo avisa
+{
+  const URLV = `(async () => { const fig = document.querySelector('.cx-calc.is-viva'); const pres = fig ? fig.querySelectorAll('[data-preajuste]') : []; const r = fig && fig.querySelector('[data-id="r"]');
+    return JSON.stringify({ ok: !!fig && pres[0].value === '2' && pres[1].selectedOptions[0].textContent.includes('RTX PRO 6000') && r.value === '7' && !!fig.querySelector('.cx-url'), modelo: pres[0] && pres[0].value, gpu: pres[1] && pres[1].selectedOptions[0].textContent, r: r && r.value }); })()`;
+  const v = await run(['--url', BASE + '/herramientas/sizing/?p0=2&p1=rtx-pro-6000-blackwell-server&r=7', '--wait', '1200', '--width', '375', '--height', '812', '--mobile', '--light'], URLV), ok = !!(v && v.ok);
+  if (!ok) bad++;
+  console.log(`${ok ? 'ok ' : 'MAL'} /herramientas/sizing/?… valores de la dirección ${v ? JSON.stringify(v) : 'sin resultado'}`);
 }
 const s = await run(['--url', BASE + '/', '--wait', '2500', '--width', '1024', '--height', '800', '--light'], SW);
 const swOk = s && s.controller && PAGES.every((p) => s.cached.includes(p)) && PAGES.slice(1).every((p) => s.offline[p] && s.offline[p].includes(SITIO.nombre)) && s.calc && s.calc.ok;

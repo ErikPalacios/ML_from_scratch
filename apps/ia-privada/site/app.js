@@ -247,6 +247,40 @@
         recalcular();
       });
     });
+    // Abierta desde un caso: la dirección trae valores (?r=200&p1=l40s). Primero los preajustes (p0, p1…: por id de datos o
+    // por índice), después las entradas, que pisan. Solo en las páginas de herramientas, que tienen una calculadora.
+    var q = null; try { q = new URLSearchParams(location.search); } catch (e) {}
+    if (q && /^\/herramientas\//.test(location.pathname) && q.toString()) {
+      var usado = false;
+      pres.forEach(function (pre) {
+        var j = parseInt(pre.getAttribute('data-preajuste'), 10) || 0, x = q.get('p' + j), lst = listas[j] || [], k = -1;
+        if (x === null) return;
+        lst.forEach(function (o, n) { if (o.id === x) k = n; });
+        if (k < 0 && /^\d+$/.test(x) && +x < lst.length) k = +x;
+        if (k < 0) return;
+        var p = lst[k];
+        pre.value = String(k);
+        ins.forEach(function (i) { var id = i.getAttribute('data-id'); if (Object.prototype.hasOwnProperty.call(p.valores, id)) i.value = String(p.valores[id]); });
+        var nt = fig.querySelector('[data-preajuste-nota="' + j + '"]'); if (nt) nt.innerHTML = p.nota || '';
+        usado = true;
+      });
+      ins.forEach(function (i) {
+        var id = i.getAttribute('data-id'), x = q.get(id);
+        if (x === null) return;
+        if (i.tagName === 'SELECT') {
+          var e = spec.entradas.filter(function (z) { return z.id === id; })[0] || {}, k = (e.ids || []).indexOf(x);
+          if (k < 0) Array.prototype.forEach.call(i.options, function (o, n) { if (k < 0 && parseFloat(o.value) === parseFloat(x)) k = n; });
+          if (k >= 0) { i.selectedIndex = k; usado = true; }
+        } else if (isFinite(parseFloat(x))) { i.value = x; usado = true; }
+      });
+      if (usado) {
+        recalcular();
+        var aviso = document.createElement('p');
+        aviso.className = 'cx-url';
+        aviso.innerHTML = 'Abierta con los valores de un caso. <a href="' + location.pathname + '">Volver a los valores de la herramienta</a>.';
+        fig.insertBefore(aviso, fig.firstChild);
+      }
+    }
     fig.classList.add('is-viva');
   });
 

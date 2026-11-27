@@ -19,6 +19,7 @@ node tools/check.mjs        # anchos (375, 768, 1024 y oscuro), tema, globos, ca
 | `content/temario.json` | Los 11 módulos y sus lecciones, con las lecciones de Sensei que cada uno da por leídas |
 | `content/herramientas.json` · `content/herramientas/<id>.md` | Las herramientas; cada una es una página con su calculadora y sus conceptos |
 | `content/casos.json` | Los 6 casos de dimensionamiento |
+| `content/casos/<id>.md` · `content/<id>.json` | Los casos (una página por caso en `/casos/<id>/`) y la ficha de cada empresa: `despacho.json`, `clinica.json`, `fabrica.json`. Cada número de un caso sale de su ficha. El bloque `:::intenta` (pregunta, `???`, solución) es el «inténtalo antes de ver la solución»; los enlaces `/herramientas/<id>/?entrada=valor&p1=<gpu>` abren la herramienta con los valores del caso (el build revisa cada nombre) |
 | `content/calculadoras/<id>.json` | Las calculadoras (formato de Sensei más listas, preajustes, cuenta paso a paso y veredicto: ver `tools/calculadora.mjs`) |
 | `content/glosario/<id>.json` | Los conceptos que presenta cada página; `sensei` enlaza su lección a fondo |
 | `content/datos/gpus.json` · `content/datos/sensei.json` · `content/dojo.json` | **Generados** por `apps/trueml/sync.mjs`: las GPUs de Sensei (la única fuente), los títulos de Sensei y la rama del Dojo. No se editan a mano |

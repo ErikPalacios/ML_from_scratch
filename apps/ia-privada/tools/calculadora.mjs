@@ -34,6 +34,10 @@
 //     "orden": 0, "nota": "…" }: una tabla con una fila por cada opción de esa lista de preajustes, recalculada con los
 //     controles del momento (todo lo demás igual, solo cambian los valores de esa opción). «orden» ordena de menor a mayor
 //     por esa columna (con "desc": true, de mayor a menor; los «—» al final).
+//   Una página de herramienta toma valores de la dirección (así la abren los casos): /herramientas/sizing/?p1=l40s&r=200.
+//     «p<k>» elige la opción de la lista de preajustes k (por su id de datos o su índice); cada otro nombre es el id de una
+//     entrada (en una lista de GPUs, su id o su VRAM). Primero los preajustes, después las entradas. El build revisa cada
+//     enlace (tools/build.mjs, enlacesHerramienta) y app.js los aplica.
 import { esc } from './md.mjs';
 
 const MATH = ['exp', 'log', 'log2', 'log10', 'sqrt', 'pow', 'min', 'max', 'abs', 'round', 'floor', 'ceil', 'sin', 'cos', 'PI', 'E'];
@@ -186,9 +190,9 @@ export function dibujar(c, id, pie, inline) {
   const preajustes = listas.map((pa, j) => { const ini = pa.inicial ?? 0; return `<div class="cx-pre"><label class="cx-in cx-in--opcion"><span class="cx-in__l">${inline(pa.label)}</span><select data-preajuste="${j}" aria-label="${esc(pa.label.replace(/\\[()]/g, '').replace(/[*`[\]]/g, ''))}">${pa.opciones.map((o, k) => `<option value="${k}"${k === ini ? ' selected' : ''}>${esc(o.label)}</option>`).join('')}<option value="-1">Otro (mueve los controles)</option></select></label>${pa.opciones.some((o) => o.nota) ? `<p class="cx-pre__nota" data-preajuste-nota="${j}">${pa.opciones[ini].nota ? inline(pa.opciones[ini].nota) : ''}</p>` : ''}</div>`; }).join('');
   const cm = c.comparar;
   const tabla = cm ? `<div class="cx-cmp"><p class="cx-cmp__t">${inline(cm.titulo || 'Comparación')}</p><div class="cx-cmp__scroll"><table><thead><tr><th scope="col">${esc(listas[cm.lista].label.replace(/\s*\(.*$/, ''))}</th>${cm.columnas.map((col) => `<th scope="col">${inline(col.label)}</th>`).join('')}</tr></thead><tbody data-comparar>${filasComparar(c, valores).map((f) => `<tr data-fila="${f.k}"${f.k === (listas[cm.lista].inicial ?? 0) ? ' class="is-sel"' : ''}><th scope="row">${esc(f.label)}</th>${f.celdas.map((t) => `<td>${esc(t)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>${cm.nota ? `<p class="cx-cmp__nota">${inline(cm.nota)}</p>` : ''}</div>` : '';
-  const spec = { entradas: c.entradas.map((x) => ({ id: x.id, unidad: x.unidad || '', paso: x.paso })), calculos: c.calculos || [],
+  const spec = { entradas: c.entradas.map((x) => ({ id: x.id, unidad: x.unidad || '', paso: x.paso, ...(x.opciones?.some((o) => o.id) ? { ids: x.opciones.map((o) => o.id || null) } : {}) })), calculos: c.calculos || [],
     salidas: c.salidas.map((s) => ({ formula: s.formula, formato: s.formato || 'num', decimales: s.decimales, barra: !!s.barra, veredicto: s.veredicto || null, sinValor: s.sin_valor || null, cuenta: trozos(s.cuenta) })),
-    preajustes: listas.map((pa) => pa.opciones.map((o) => ({ valores: o.valores, nota: o.nota ? inline(o.nota) : '', label: o.label }))),
+    preajustes: listas.map((pa) => pa.opciones.map((o) => ({ ...(o.id ? { id: o.id } : {}), valores: o.valores, nota: o.nota ? inline(o.nota) : '', label: o.label }))),
     comparar: cm ? { lista: cm.lista, orden: cm.orden ?? null, desc: !!cm.desc, columnas: cm.columnas.map((col) => ({ formula: col.formula, formato: col.formato || 'num', decimales: col.decimales })) } : null };
   return `<figure class="cx-calc" id="calc-${esc(id)}" data-calc="${esc(JSON.stringify(spec))}">
 <figcaption class="calc__head"><span class="calc__icon" aria-hidden="true">⇄</span><span class="calc__title">${inline(c.titulo)}</span><span class="calc__tag">Calculadora</span></figcaption>
