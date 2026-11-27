@@ -137,8 +137,8 @@ def check_plantilla() -> str:
     st, d = directo("/v1/chat/completions", {"model": e["ALIAS"], "messages": PRUEBA, "temperature": 0, "seed": 7, "max_tokens": 120}, e["CLAVE"])
     exige(st == 200, f"/v1/chat/completions contesta {st}: {d}")
     u, c = d["usage"], d["choices"][0]
-    exige(u["prompt_tokens"] == TOKENS_PRUEBA, f"la pregunta de prueba entró como {u['prompt_tokens']} tokens y con la plantilla de Qwen3 son {TOKENS_PRUEBA}: el servidor arma mal los mensajes (¿--chat-template?)")
     exige(not c["message"].get("reasoning_content"), lambda: f"el modelo razonó ({len(c['message']['reasoning_content'])} caracteres) antes de contestar: RAZONAMIENTO=off y --reasoning en servir.sh")
+    exige(u["prompt_tokens"] == TOKENS_PRUEBA, f"la pregunta de prueba entró como {u['prompt_tokens']} tokens y con la plantilla de Qwen3 son {TOKENS_PRUEBA}: el servidor arma mal los mensajes (¿--chat-template?)")
     exige(c["finish_reason"] == "stop", f"la respuesta no terminó sola (finish_reason {c['finish_reason']}, {u['completion_tokens']} tokens)")
     exige("arrend" in c["message"]["content"].lower(), f"la respuesta no habla de arrendamiento: {c['message']['content'][:80]!r}")
     return f"{u['prompt_tokens']} tokens de entrada (plantilla ChatML de Qwen3) · sin razonamiento · {u['completion_tokens']} de salida · terminó solo"
