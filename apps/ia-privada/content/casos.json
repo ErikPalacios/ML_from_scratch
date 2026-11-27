@@ -1,12 +1,56 @@
 {
   "nota": "Los casos de dimensionamiento (docs/plan-ia-privada.md, sección 5): empresas ficticias resueltas de principio a fin. Mientras no tengan su página, salen como «próximamente» con su fase.",
-  "pasos": ["Requisitos", "Cálculos con las herramientas", "Propuesta de hardware y stack", "Evals", "Riesgos", "Costo"],
+  "indice": "Empresas ficticias, cada una con su ficha de números fijos y verificados, resueltas de principio a fin con las herramientas y las lecciones. Cada una enseña algo que las otras no.",
+  "pasos": [
+    "Requisitos",
+    "Cálculos con las herramientas",
+    "Propuesta de hardware y stack",
+    "Evals",
+    "Riesgos",
+    "Costo"
+  ],
   "casos": [
-    { "id": "despacho", "titulo": "Despacho de abogados", "resumen": "RAG sobre sus expedientes.", "fase": 8 },
-    { "id": "clinica", "titulo": "Clínica", "resumen": "Datos de salud que no pueden salir de su red.", "fase": 8 },
-    { "id": "fabrica", "titulo": "Fábrica", "resumen": "Un asistente sobre los manuales técnicos, en la planta.", "fase": 8 },
-    { "id": "financiera", "titulo": "Financiera", "resumen": "Resumir y clasificar llamadas, a escala.", "fase": 9 },
-    { "id": "gobierno", "titulo": "Dependencia de gobierno", "resumen": "Todo sin internet (air-gapped).", "fase": 9 },
-    { "id": "saas", "titulo": "Startup SaaS", "resumen": "Varios clientes sobre el mismo servidor (multi-tenant).", "fase": 9 }
+    {
+      "id": "despacho",
+      "titulo": "Despacho de abogados",
+      "resumen": "RAG sobre sus expedientes.",
+      "fase": 8,
+      "aprende": "el caso de referencia: RAG interactivo, TTFT con cola y la decisión entre L40S y RTX PRO 6000."
+    },
+    {
+      "id": "clinica",
+      "titulo": "Clínica",
+      "resumen": "Datos de salud que no pueden salir de su red.",
+      "fase": 8,
+      "aprende": "datos de salud, operación 24/7 y expedientes largos."
+    },
+    {
+      "id": "fabrica",
+      "titulo": "Fábrica",
+      "resumen": "Un asistente sobre los manuales técnicos, en la planta.",
+      "fase": 8,
+      "aprende": "la red de planta separada de la de oficina, manuales escaneados en varios idiomas y respuestas rápidas en la línea."
+    },
+    {
+      "id": "financiera",
+      "titulo": "Financiera",
+      "resumen": "Resumir y clasificar llamadas, a escala.",
+      "fase": 9,
+      "aprende": "trabajo por lote: voz a texto y clasificación de miles de llamadas en una ventana nocturna."
+    },
+    {
+      "id": "gobierno",
+      "titulo": "Dependencia de gobierno",
+      "resumen": "Todo sin internet (air-gapped).",
+      "fase": 9,
+      "aprende": "sin internet de principio a fin y la compra pública."
+    },
+    {
+      "id": "saas",
+      "titulo": "Startup SaaS",
+      "resumen": "Varios clientes sobre el mismo servidor (multi-tenant).",
+      "fase": 9,
+      "aprende": "varios clientes en el mismo servidor: aislamiento, cuotas y el vecino ruidoso."
+    }
   ]
 }

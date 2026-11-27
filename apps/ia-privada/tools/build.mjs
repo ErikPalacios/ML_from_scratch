@@ -406,7 +406,7 @@ function paginaLeccion(l) {
   const secciones = l.secciones.map((x, k) => `<li><a class="toc__link${x.extra ? ' is-extra' : ''}" href="#${x.id}"><span class="toc__n">${String(k + 1).padStart(2, '0')}</span><span>${esc(x.t)}${x.extra ? ' <small>extra</small>' : ''}</span></a></li>`).join('');
   const ceja = l.herramienta
     ? `<a href="/#herramientas">Herramientas</a><span aria-hidden="true">·</span><span>${i + 1} de ${HERR.length}</span>`
-    : l.caso ? `<a href="/#casos">Casos</a><span aria-hidden="true">·</span><span>Caso ${l.num} de ${CASOS.casos.length}</span>`
+    : l.caso ? `<a href="/casos/">Casos</a><span aria-hidden="true">·</span><span>Caso ${l.num} de ${CASOS.casos.length}</span>`
     : `<a href="/#m-${mod.id}">${mod.num} · ${esc(mod.titulo)}</a><span aria-hidden="true">·</span><span>Lección ${mod.lecciones.indexOf(l) + 1} de ${mod.lecciones.length}</span>`;
   const est = DOJO.estaciones.find((e) => (m.dojo || '') === e.id);
   const contenido = `<article class="page">
@@ -424,7 +424,7 @@ function paginaLeccion(l) {
   </div>
   <section class="cierre" aria-label="Al terminar">
     ${l.herramienta || l.caso ? '' : `<button type="button" class="btn c-leida" data-leida="${l.id}" aria-pressed="false"><span class="no">Marcar como leída</span><span class="si">Leída ✓</span></button>`}
-    ${siguiente ? `<a class="card${siguiente.lista ? '' : ' card--pronto'}" href="${siguiente.lista ? siguiente.url : (l.herramienta ? '/#herramientas' : l.caso ? '/#casos' : '/#lecciones')}"><span class="lbl">Sigue · ${siguiente.caso ? `Caso ${siguiente.num}` : siguiente.n}</span><b>${esc(siguiente.titulo)}</b><span class="txt">${siguiente.lista ? esc(siguiente.resumen || siguiente.modulo?.titulo || '') : `Próximamente (fase ${siguiente.fase || siguiente.modulo?.fase}). ${esc(siguiente.resumen || '')}`}</span></a>` : ''}
+    ${siguiente ? `<a class="card${siguiente.lista ? '' : ' card--pronto'}" href="${siguiente.lista ? siguiente.url : (l.herramienta ? '/#herramientas' : l.caso ? '/casos/' : '/#lecciones')}"><span class="lbl">Sigue · ${siguiente.caso ? `Caso ${siguiente.num}` : siguiente.n}</span><b>${esc(siguiente.titulo)}</b><span class="txt">${siguiente.lista ? esc(siguiente.resumen || siguiente.modulo?.titulo || '') : `Próximamente (fase ${siguiente.fase || siguiente.modulo?.fase}). ${esc(siguiente.resumen || '')}`}</span></a>` : ''}
     <a class="card card--dojo" href="${est && est.url ? est.url : DOJO.url}"><span class="lbl">Practícalo con código</span><b>${est ? `Estación ${est.num} del Dojo: ${esc(est.titulo)}` : `Dojo · rama ${esc(DOJO.nombre)}`}</b><span class="txt">${est && est.lista ? 'Constrúyelo, rómpelo y arréglalo con Claude Code.' : `En el Dojo levantas un modelo en tu Mac, lo mides, lo cuantizas y lo sirves. ${DOJO.estaciones.filter((e) => e.lista).length ? '' : 'Sus estaciones todavía están en camino.'}`}</span></a>
     ${anterior ? `<a class="c-ant" href="${anterior.url}">← ${anterior.caso ? `Caso ${anterior.num}` : anterior.n} · ${esc(anterior.titulo)}</a>` : ''}
   </section>
@@ -492,6 +492,7 @@ function portada() {
   <h2 id="h-casos">Casos</h2>
   <p>Empresas ficticias resueltas de principio a fin: ${CASOS.pasos.map((p) => p.toLowerCase()).join(' → ')}. Cada caso usa las herramientas de arriba con sus propios números.</p>
   <ol class="ruta">${casos}</ol>
+  <div class="conecta"><a class="btn btn--2" href="/casos/">Ver los casos y qué enseña cada uno →</a></div>
 </section>
 <section class="home-sec" id="dojo" aria-labelledby="h-dojo">
   <h2 id="h-dojo">Dojo · rama ${esc(DOJO.nombre)}</h2>
@@ -502,6 +503,26 @@ function portada() {
   <div class="conecta"><a class="btn btn--2" href="${DOJO.url}">Abrir la rama en el Dojo →</a></div>
 </section>`;
   return pagina({ path: '/', title: `${SITIO.nombre} · ${SITIO.subtitulo} · TrueML`, desc: SITIO.descripcion, actual: 'inicio', contenido, ancho: true });
+}
+
+// ================================================================ casos: el índice de los casos
+function paginaCasos() {
+  const fila = (c, k) => {
+    const cab = `<span class="lbl">Caso ${k + 1} · ${c.lista ? 'listo' : pronto(c.fase)}</span><b>${esc(c.titulo)}</b><span class="txt">${esc(c.resumen)}${c.aprende ? ` <em>Lo nuevo: ${esc(c.aprende)}</em>` : ''}</span>`;
+    return c.lista ? `<li><a class="card card--caso" href="${c.url}">${cab}</a></li>` : `<li><div class="card card--pronto">${cab}</div></li>`;
+  };
+  const listos = CASOS.casos.filter((c) => c.lista).length;
+  const contenido = `<header class="phead">
+  <p class="eyebrow">Casos</p>
+  <h1 class="phead__title" id="titulo">Casos de dimensionamiento</h1>
+  <p class="phead__en">Sizing cases · six companies, end to end</p>
+  <p class="phead__summary">${esc(CASOS.indice || '')} Van ${listos} de ${CASOS.casos.length}.</p>
+</header>
+<section class="home-sec" aria-label="Los pasos">
+  <p>Cada caso sigue los mismos pasos: ${CASOS.pasos.map((p) => p.toLowerCase()).join(' → ')}. Cada paso abre con una pregunta para intentar antes de ver la solución, y cada cálculo abre la herramienta con los números de la empresa.</p>
+  <ol class="ruta">${CASOS.casos.map(fila).join('')}</ol>
+</section>`;
+  return pagina({ path: '/casos/', title: `Casos · ${SITIO.nombre} · TrueML`, desc: `${CASOS.casos.length} empresas ficticias resueltas de principio a fin con las herramientas de ${SITIO.nombre}: requisitos, cálculos, hardware, evals, riesgos y costo.`, actual: 'casos', contenido, ancho: true });
 }
 
 // ================================================================ glosario
@@ -540,7 +561,7 @@ ${letras.map((x) => `<section class="letra" id="l-${x}"><h2>${x}</h2><div class=
 // ================================================================ escribir
 rmSync(OUT, { recursive: true, force: true });
 mkdirSync(OUT, { recursive: true });
-const pages = SOLO ? {} : { '/': portada(), '/glosario/': paginaGlosario() };
+const pages = SOLO ? {} : { '/': portada(), '/glosario/': paginaGlosario(), '/casos/': paginaCasos() };
 for (const l of LISTAS) pages[l.url] = paginaLeccion(l);
 for (const [path, html] of Object.entries(pages)) {
   mkdirSync(join(OUT, path), { recursive: true });
