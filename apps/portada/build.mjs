@@ -15,6 +15,7 @@ const fail = (m) => { console.error('[build] ERROR: ' + m); process.exit(1); };
 const site = JSON.parse(readFileSync(join(ROOT, 'site.json'), 'utf8'));
 const dojo = JSON.parse(readFileSync(join(ROOT, 'data', 'dojo.json'), 'utf8'));
 const sensei = JSON.parse(readFileSync(join(ROOT, 'data', 'sensei.json'), 'utf8'));
+const iaPrivada = JSON.parse(readFileSync(join(ROOT, 'data', 'ia-privada.json'), 'utf8'));
 // Las apps principales: Sensei (entender) y el Dojo (practicar), cada una con su avance. site.destacada sigue sirviendo.
 const DEST = site.destacadas || [site.destacada];
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -39,13 +40,16 @@ const AVANCE = {
   dojo: () => ({ n: dojo.total, pips: dojo.estaciones.map((s) => `<i class="tm-c-${s.etapa}${s.lista ? '' : ' p-off'}" title="${esc(`${s.num} · ${s.titulo}${s.lista ? '' : ' (próximamente)'}`)}"></i>`).join(''),
     texto: listas.length === 1 ? `Estación ${listas[0].num} de ${dojo.total} lista · ${listas[0].titulo}`
       : `${listas.length} de ${dojo.total} estaciones listas · ${listas.map((s) => `${s.num} ${s.titulo}`).join(' · ')}` }),
-  sensei: () => {
-    const hechas = sensei.lecciones.filter((l) => l.lista);
-    const modulos = [...new Set(hechas.map((l) => l.modulo.replace(/^\d+ · /, '')))];
-    return { n: sensei.total, pips: sensei.lecciones.map((l) => `<i class="${l.etapa === 'todas' ? 'p-pip-todas' : `tm-c-${l.etapa}`}${l.lista ? '' : ' p-off'}" title="${esc(`${l.titulo}${l.lista ? '' : ` (fase ${l.fase})`}`)}"></i>`).join(''),
-      texto: `${hechas.length} de ${sensei.total} lecciones listas · ${modulos.join(' · ')}` };
-  },
+  sensei: () => lecciones(sensei),
+  ia: () => lecciones(iaPrivada),
 };
+// Sensei e IA Privada: una celda por lección de su temario
+function lecciones(app) {
+  const hechas = app.lecciones.filter((l) => l.lista);
+  const modulos = [...new Set(hechas.map((l) => l.modulo.replace(/^\d+ · /, '')))];
+  return { n: app.total, pips: app.lecciones.map((l) => `<i class="${l.etapa === 'todas' ? 'p-pip-todas' : `tm-c-${l.etapa}`}${l.lista ? '' : ' p-off'}" title="${esc(`${l.titulo}${l.lista ? '' : ` (fase ${l.fase})`}`)}"></i>`).join(''),
+    texto: `${hechas.length} de ${app.total} lecciones listas · ${modulos.join(' · ')}` };
+}
 const destacada = DEST.map((d, k) => {
   const av = AVANCE[d.avance || 'dojo']();
   return `<article class="p-dojo" id="${esc(d.id === 'taller' ? 'dojo' : d.id)}" data-etapas="${etapas(d.etapas).join(' ')}" data-nombre="${esc(d.title)}" data-resumen="${esc(resumen(d.etapas))}">

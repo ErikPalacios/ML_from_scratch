@@ -36,6 +36,16 @@
       "cta": "Entrar al dojo",
       "etapas": "todas",
       "avance": "dojo"
+    },
+    {
+      "id": "ia-privada",
+      "tag": "Nuevo · IA en hardware propio",
+      "title": "IA Privada",
+      "text": "Cómo llevar un LLM abierto al hardware de una empresa sin que sus datos salgan de su red: qué modelo, cuánta memoria, qué GPU comprar, cómo servirlo y cuánto cuesta. Lecciones desde cero, calculadoras con la cuenta a la vista y un catálogo de hardware con precios.",
+      "url": "https://ia.trueml.app",
+      "cta": "Entrar a IA Privada",
+      "etapas": "todas",
+      "avance": "ia"
     }
   ],
   "apps": [

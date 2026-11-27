@@ -1,0 +1,196 @@
+{
+  "nota": "Generado por apps/trueml/sync.mjs desde apps/ia-privada/content. No se edita a mano.",
+  "url": "https://ia.trueml.app",
+  "total": 21,
+  "lecciones": [
+    {
+      "id": "recorrido",
+      "titulo": "El recorrido de un proyecto de IA privada",
+      "modulo": "0 · El mapa",
+      "fase": 3,
+      "etapa": "todas",
+      "lista": true,
+      "url": "https://ia.trueml.app/recorrido/"
+    },
+    {
+      "id": "licencias",
+      "titulo": "Open weight, open source y licencias",
+      "modulo": "1 · Los modelos abiertos",
+      "fase": 3,
+      "etapa": "modelo",
+      "lista": true,
+      "url": "https://ia.trueml.app/licencias/"
+    },
+    {
+      "id": "elegir-modelo",
+      "titulo": "Elegir un modelo para la tarea",
+      "modulo": "1 · Los modelos abiertos",
+      "fase": 3,
+      "etapa": "modelo",
+      "lista": true,
+      "url": "https://ia.trueml.app/elegir-modelo/"
+    },
+    {
+      "id": "batching",
+      "titulo": "Batching continuo y PagedAttention",
+      "modulo": "2 · La inferencia por dentro",
+      "fase": 3,
+      "etapa": "api",
+      "lista": true,
+      "url": "https://ia.trueml.app/batching/"
+    },
+    {
+      "id": "concurrencia",
+      "titulo": "Concurrencia: la curva de usuarios contra latencia",
+      "modulo": "2 · La inferencia por dentro",
+      "fase": 3,
+      "etapa": "api",
+      "lista": true,
+      "url": "https://ia.trueml.app/concurrencia/"
+    },
+    {
+      "id": "formatos-cuantizacion",
+      "titulo": "Formatos de cuantización en la práctica",
+      "modulo": "3 · Que quepa y que vuele",
+      "fase": 4,
+      "etapa": "modelo",
+      "lista": true,
+      "url": "https://ia.trueml.app/formatos-cuantizacion/"
+    },
+    {
+      "id": "speculative",
+      "titulo": "Speculative decoding y contexto largo",
+      "modulo": "3 · Que quepa y que vuele",
+      "fase": 4,
+      "etapa": "modelo",
+      "lista": true,
+      "url": "https://ia.trueml.app/speculative/"
+    },
+    {
+      "id": "comprar-hardware",
+      "titulo": "Comprar hardware: de la workstation al rack",
+      "modulo": "4 · El hardware",
+      "fase": 4,
+      "etapa": "contenedor",
+      "lista": true,
+      "url": "https://ia.trueml.app/comprar-hardware/"
+    },
+    {
+      "id": "el-cuarto",
+      "titulo": "El cuarto: energía, enfriamiento y red",
+      "modulo": "4 · El hardware",
+      "fase": 4,
+      "etapa": "contenedor",
+      "lista": true,
+      "url": "https://ia.trueml.app/el-cuarto/"
+    },
+    {
+      "id": "requisitos-hardware",
+      "titulo": "De requisitos a hardware",
+      "modulo": "5 · Dimensionar",
+      "fase": 5,
+      "etapa": "orquestacion",
+      "lista": true,
+      "url": "https://ia.trueml.app/requisitos-hardware/"
+    },
+    {
+      "id": "varias-gpus",
+      "titulo": "Varias GPUs: tensor y pipeline parallel",
+      "modulo": "5 · Dimensionar",
+      "fase": 5,
+      "etapa": "orquestacion",
+      "lista": true,
+      "url": "https://ia.trueml.app/varias-gpus/"
+    },
+    {
+      "id": "stack-serving",
+      "titulo": "Del laptop al servidor: llama.cpp, Ollama, vLLM, SGLang y TensorRT-LLM",
+      "modulo": "6 · El stack de serving",
+      "fase": 5,
+      "etapa": "api",
+      "lista": true,
+      "url": "https://ia.trueml.app/stack-serving/"
+    },
+    {
+      "id": "gateway",
+      "titulo": "Gateway, API compatible con OpenAI, autenticación y varios modelos",
+      "modulo": "6 · El stack de serving",
+      "fase": 5,
+      "etapa": "api",
+      "lista": true,
+      "url": "https://ia.trueml.app/gateway/"
+    },
+    {
+      "id": "rag-privado",
+      "titulo": "RAG privado: embeddings y vector DB locales",
+      "modulo": "7 · Lo que el cliente pide encima",
+      "fase": 6,
+      "etapa": "datos",
+      "lista": true,
+      "url": "https://ia.trueml.app/rag-privado/"
+    },
+    {
+      "id": "agentes",
+      "titulo": "Agentes, tools y guardrails",
+      "modulo": "7 · Lo que el cliente pide encima",
+      "fase": 6,
+      "etapa": "api",
+      "lista": true,
+      "url": "https://ia.trueml.app/agentes/"
+    },
+    {
+      "id": "evals",
+      "titulo": "Demostrar que el modelo abierto sirve",
+      "modulo": "8 · Evals",
+      "fase": 6,
+      "etapa": "modelo",
+      "lista": true,
+      "url": "https://ia.trueml.app/evals/"
+    },
+    {
+      "id": "pruebas-carga",
+      "titulo": "Pruebas de carga y benchmarks honestos",
+      "modulo": "8 · Evals",
+      "fase": 6,
+      "etapa": "monitoreo",
+      "lista": true,
+      "url": "https://ia.trueml.app/pruebas-carga/"
+    },
+    {
+      "id": "observabilidad",
+      "titulo": "Observabilidad de GPUs e inferencia",
+      "modulo": "9 · Operar",
+      "fase": 7,
+      "etapa": "monitoreo",
+      "lista": true,
+      "url": "https://ia.trueml.app/observabilidad/"
+    },
+    {
+      "id": "seguridad",
+      "titulo": "Seguridad: aislamiento, sin internet y actualizaciones",
+      "modulo": "9 · Operar",
+      "fase": 7,
+      "etapa": "contenedor",
+      "lista": true,
+      "url": "https://ia.trueml.app/seguridad/"
+    },
+    {
+      "id": "costo-total",
+      "titulo": "TCO: API, nube o servidor propio",
+      "modulo": "10 · El negocio",
+      "fase": 7,
+      "etapa": "todas",
+      "lista": true,
+      "url": "https://ia.trueml.app/costo-total/"
+    },
+    {
+      "id": "cotizar",
+      "titulo": "Cotizar, proponer y dar soporte",
+      "modulo": "10 · El negocio",
+      "fase": 7,
+      "etapa": "todas",
+      "lista": true,
+      "url": "https://ia.trueml.app/cotizar/"
+    }
+  ]
+}
