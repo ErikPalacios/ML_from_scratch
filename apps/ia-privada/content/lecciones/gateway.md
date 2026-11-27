@@ -391,7 +391,7 @@ Preguntas en la hora pico // \(N × q ÷ h × p\) | 200 × 15 ÷ 10 × 2.5 | 750
 Salida que pide la hora pico, \(D\) // \(t_{out}\) = 500 | 12.5 × 500 | 6,250 tokens/min
 Entrada que pide la hora pico // \(t_{in}\) = 6,000 | 12.5 × 6,000 | 75,000 tokens/min
 Uso en la hora pico, \(u\) | 6,250 ÷ 7,200 | ≈ 86.8 %
-= En la hora pico, el despacho usa casi 87 % de lo que dan las 3 L40S. No hay sobra para que nadie abuse: por eso la cuota no es opcional.
+= En la hora pico, el despacho usaría casi 87 % de lo que dan las 3 L40S del sizing (el hardware que compra lo decide [el caso del despacho](/casos/despacho/)). No hay sobra para que nadie abuse: por eso la cuota no es opcional.
 :::
 
 Las 3 L40S cubren el promedio de la hora pico, pero las 8 conversaciones de diseño a 20 tokens por segundo pedirían 4. La alternativa que el despacho cotiza, 2 RTX PRO 6000 Blackwell Server Edition, cambia \(n\) y \(c\) pero no el método ([Comprar hardware](/comprar-hardware/)).

@@ -75,7 +75,10 @@ Si llegaran al azar, ¿qué tan seguido habría 4 a la vez? // Poisson con media
 = En promedio hay 0.17 conversaciones: la GPU casi siempre espera. Al azar, cuatro a la vez casi nunca pasan. En un paro pasan siempre.
 :::
 
+:::profundo El paro rompe el supuesto de las llegadas independientes
+
 **El paro rompe el supuesto.** El «3 de cada 100,000» supone llegadas independientes (Poisson, el de [Probabilidad](https://sensei.trueml.app/probabilidad/)). Cuando la línea 3 se para, los cuatro técnicos de esa celda (el grupo de máquinas que trabajan juntas en un tramo de la línea) preguntan **lo mismo, al mismo tiempo**: las llegadas vienen en ráfaga. Por eso el número de diseño es **4 conversaciones a la vez**, el mismo papel que tuvieron las 8 del despacho.
+:::
 
 ### Lo nuevo: la seguridad de la persona
 
@@ -287,7 +290,10 @@ Embeddings, Qwen3-Embedding-0.6B en una L40S // \(η_c × F ÷ (2 × P_a)\) = 0.
 
 El error más caro es contestar con **el torque correcto de otra variante**: la prensa de 400 toneladas y la de 250 comparten la mitad del manual. La solución es un **[[filtro-por-maquina|filtro por máquina]]**: cada fragmento lleva fabricante, modelo y revisión; el técnico escanea el **QR de la placa** y la búsqueda solo mira esa máquina y su hoja de bloqueo. Es un [[prefiltro]], como la ACL del despacho, y pide a la planta su **tabla de números de serie**.
 
+:::profundo Por qué BM25 pesa más en una planta
+
 La búsqueda es la del despacho (Qwen3-Embedding-0.6B, [[bm25|BM25]] y vectores con [[rrf|RRF]] en Qdrant 1.20.2), pero **BM25 pesa más**: un código de falla («E-1042») se escribe igual en cualquier idioma, y un vector puede confundirlo con E-1024. El vector une la pregunta en español con el manual en inglés; si cruza bien al alemán y al japonés, lo dice el examen.
+:::
 
 :::diagrama caso-fabrica-pregunta
 Una pregunta en la línea, del QR de la placa a la respuesta con el recorte de la tabla, y qué pasa cuando algo falla de noche. Toca cada caja o sigue los dos recorridos.
@@ -474,7 +480,7 @@ Con la cifra de Siemens // US$2.3 M por hora, plantas automotrices grandes | 2,3
 Mueve el costo de la hora de paro y la parte que se ahorra. Prueba la cifra de Siemens para ver por qué no se copia, y baja el ahorro a medio por ciento para ver dónde deja de pagarse cada opción.
 :::
 
-## La propuesta en una página {The proposal on one page}
+## La propuesta en una página {The proposal on one page} [extra]
 
 **Para** el gerente de mantenimiento y el ingeniero de automatización. **Qué**: un asistente que contesta con cita sobre los manuales de las 220 máquinas, en la tablet, a cualquier hora, sin internet en la red de planta.
 

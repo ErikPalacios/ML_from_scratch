@@ -60,6 +60,22 @@
         "fuente_tipo": "secundaria"
       },
       "potencia_estimada": true
+    },
+    {
+      "id": "exxact-2xrtxpro6000server-4u",
+      "nombre": "Exxact TensorEX 4U (2× AMD EPYC 9124, 384 GB RAM) con 2× NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "gpu_id": "rtx-pro-6000-blackwell-server",
+      "gpus": 2,
+      "compra_usd": 74779.28,
+      "potencia_w": 2300,
+      "precio_calculado": true,
+      "potencia_estimada": true,
+      "descripcion": "ESTIMADO, no una cotización: base US$40,461.30 del configurador de Exxact (2026-11-25, sin GPU) + 2 × US$17,158.99 de la tarjeta en CDW (2026-11-26, sin existencias) = US$74,779.28. Que el chasis acepte la Server Edition (PCIe Gen5) sin otra placa NO está verificado. Potencia estimada: 2 × 600 W de GPUs + ≈ 400 W de CPUs + ≈ 700 W del resto = 2,300 W de pico (≈ 1,900 W con las tarjetas a 400 W). Sin impuestos. Referencia real: HPE ProLiant DL385 Gen11 con 2 tarjetas (MLPerf v6.0), sin precio publicado.",
+      "fuente": {
+        "url": "https://configurator.exxactcorp.com/configure/TS4-115581668",
+        "consultado": "2026-11-26",
+        "fuente_tipo": "secundaria"
+      }
     }
   ]
 }

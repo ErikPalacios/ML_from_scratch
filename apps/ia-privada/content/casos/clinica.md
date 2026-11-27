@@ -86,6 +86,8 @@ El libro de actas de una escuela tiene un reglamento: qué se anota, quién firm
 Dónde se rompe: el libro de actas lo puede pedir cualquiera con permiso; el expediente lleva datos de salud y solo se da a conocer al paciente, a su representante y a ciertas autoridades (5.6–5.7).
 :::
 
+:::profundo Los apartados de la NOM-004 que pesan para el asistente
+
 Lo que pesa para el asistente:
 
 - **5.1:** el hospital es **solidariamente responsable** del personal que atiende ahí, «independientemente de la forma en que fuere contratado». El 83.8 % de externos no le quita responsabilidad.
@@ -93,6 +95,7 @@ Lo que pesa para el asistente:
 - **5.5:** los datos que identifican al paciente no se divulgan; para investigación, autorización escrita. El examen no usa expedientes reales.
 - **5.10–5.11:** cada nota lleva fecha, hora, nombre y **firma** de quien la elabora, **sin abreviaturas**.
 - **8.9:** la [[nota-de-egreso]] tiene un contenido mínimo (fechas, motivo, diagnósticos finales, evolución y estado actual, manejo, pendientes, plan, vigilancia ambulatoria, factores de riesgo, pronóstico y, si la hubo, causas de defunción). Son los apartados del borrador.
+:::
 
 :::ojo Las abreviaturas están en todas partes
 La nota sintética con la que se midieron los tokens de este caso, escrita para parecer real, dice «TA 128/76 mmHg, FC 82 lpm». Así escriben los médicos, y un borrador que copie «TA» incumple el 5.11. El prompt pide escribir completo, el verificador cuenta las abreviaturas que quedan y el médico corrige antes de firmar.
@@ -100,7 +103,10 @@ La nota sintética con la que se midieron los tokens de este caso, escrita para 
 
 ### La NOM-024: el sistema electrónico
 
+:::profundo Qué pide la NOM-024, punto por punto
+
 La **NOM-024-SSA3-2012** (DOF, 30-nov-2012) regula los [[nom-024|sistemas de registro electrónico para la salud]] (SIRES), como el expediente electrónico de la clínica. Está vigente: su revisión de 2018 la confirmó. Pide un sistema de gestión de seguridad con **trazabilidad y no repudio** (6.6.1), usuario y contraseña **como mínimo**, con factores adicionales recomendados (6.6.3), y permisos **por rol** (6.6.4).
+:::
 
 El asistente no es un SIRES, pero **lee** de uno y hereda sus reglas: entra con la sesión del médico, respeta sus permisos y deja rastro de cada lectura. La norma no dice «bitácora»: «quién vio qué» es la lectura razonable de «trazabilidad».
 
@@ -283,6 +289,8 @@ En el despacho, la pregunta normal era la que no cabía en el objetivo. En la cl
 
 Con la [herramienta de sizing con dos L40S por copia](/herramientas/sizing/?p1=l40s&U=60&r=20&Np=12000&No=600&h=8&pk=4&v=20&P=27.78&A=27.78&Et=2.543&bits=8&L=16&g=4&d=256&q=24&bkv=2&n0=2), un par en FP8 atiende **11 a la vez** y lee 12,000 tokens en **0.95 s**. Pero la herramienta no cuenta el cable; la lección «Varias GPUs» sí:
 
+:::profundo La cuenta del cable entre las dos L40S
+
 :::cuenta Lo que pasa por PCIe al leer un expediente en un par de L40S
 Bytes por token // 64 bloques × 2 sumas entre tarjetas × 5,120 números × 2 bytes | 64 × 2 × 5,120 × 2 | 1,310,720 bytes
 Bytes de 12,000 tokens | 1,310,720 × 12,000 | ≈ 15.7 GB
@@ -290,6 +298,7 @@ Por PCIe 4.0 // ≈ 31.5 GB/s por dirección | 15.7 ÷ 31.5 | ≈ 0.50 s
 Prefill de 12,000 en el par // cálculo + cable | 0.95 + 0.50 | ≈ 1.45 s
 Prefill de 30,000 en el par // cálculo + cable | 2.52 + 1.25 | ≈ 3.76 s
 = En el papel, un par lee casi como una Server Edition. Un tercio es cable, y la latencia de cada envío por PCIe no tiene medición publicada.
+:::
 :::
 
 Así nace la opción E: **4 L40S en 2 pares**, una copia en FP8 por par. Un par aguanta el pico solo: también es un N+1 completo.
@@ -373,7 +382,10 @@ Como en el despacho, se **cotizan dos configuraciones**: D y E. Si la Server Edi
 
 Lo que haría cambiar la decisión, y que el piloto mide: **el p95 real de los tamaños** (con expedientes más cortos, las L40S vuelven a competir); **que el FP8 dinámico de vLLM 0.34.0 salga bien con Qwen3.8 27B** (la arquitectura es la de Qwen3.5, que vLLM ya corre; si falla, el checkpoint FP8 oficial `Qwen/Qwen3.8-27B-FP8`, del 13-ago-2026, o, en último caso, BF16: ≈ 55.6 GB de pesos, que caben en una Server Edition y no en una L40S); **el precio y el plazo** de la Server Edition; y **el crecimiento**: con 80 médicos una tarjeta todavía aguanta el pico (6.98 contra 7); con 81 ya no, y el N+1 pide una tercera, que cabe en el chasis de 4 ranuras.
 
+:::profundo Dónde va el servidor
+
 **Dónde va.** Al cuarto de cómputo del hospital, que ya tiene UPS, planta de emergencia y aire (supuesto); lo nuevo son **dos circuitos dedicados**, uno por fuente, ≈ MXN 60,000 de obra (la cifra de la lección [TCO](/costo-total/)). Pico estimado de ≈ 2,300 W (2 × 600 W de GPU + 400 W de CPUs + 700 W del resto); ≈ 930 W en promedio en 24 × 7. Una [[workstation]] de torre, la que [El cuarto](/el-cuarto/) ponía en un consultorio, aquí no sirve: una sola fuente, sin [[bmc|BMC]] y «de noche se apaga».
+:::
 
 ## El stack {The stack}
 
@@ -433,10 +445,13 @@ vllm serve Qwen/Qwen3.8-27B --quantization fp8 --max-model-len 32768 --max-num-s
 
 La lección [Observabilidad](/observabilidad/) ya anticipaba a una clínica: de noche, el p95 de una ventana sin resúmenes no existe (`NaN`), y la alerta de TTFT calla justo cuando nadie mira. Cuatro cambios:
 
+:::profundo Las cuatro reglas de la noche
+
 1. **Una [[sonda-sintetica|sonda]] cada minuto**, con el blackbox_exporter como la del despacho, pide el resumen de un **paciente sintético de prueba**, con notas inventadas, y revisa que conteste, que tarde menos de 8 s y que traiga una cita válida. Publica `probe_success` (1 o 0). De noche es la única señal de que el servicio está arriba.
 2. **Dos niveles para las copias.** Una caída es nivel «mañana» (`sum(up{job="vllm"}) < 2` durante 2 minutos): la otra aguanta. Las dos caídas, o la sonda fallando 5 minutos (`max_over_time(probe_success{job="sonda-clinica"}[5m]) == 0`), es nivel «ahora»: despierta a la guardia. Y una más, porque una sonda muerta parece un servicio sano: si deja de medir (`absent_over_time(probe_success{job="sonda-clinica"}[3m])`), también es «ahora».
 3. **El TTFT, solo con tráfico**: su alerta se evalúa con al menos un resumen por minuto; de noche manda la sonda.
 4. **Un correo diario de «sigo vivo»**: el día que no llega, el caído es Prometheus.
+:::
 
 Y un panel que el despacho no tenía: **las marcas del verificador por día**. Si suben de un día a otro, algo cambió (el modelo, el formato de las notas) aunque el servicio esté «arriba».
 
@@ -444,12 +459,15 @@ Y un panel que el despacho no tenía: **las marcas del verificador por día**. S
 
 La receta de [Seguridad](/seguridad/), aplicada al hospital:
 
+:::profundo La receta de seguridad, aplicada al hospital
+
 - **Redes que no se tocan**: los equipos médicos en su [[vlan|VLAN]], sin ruta al servidor ni a internet; el servidor en la suya, sin internet; solo el servicio de resumen y la sonda llegan al gateway. Las actualizaciones entran por la [[maquina-puente|máquina puente]].
 - **Identidad**: la del expediente, con **segundo factor** para todos (la NOM-024 lo recomienda; la clínica lo exige). El día que un médico externo deja de atender, su cuenta se cierra, y con ella el asistente.
 - **Contratos**: confidencialidad firmada por cada médico externo (ley, art. 20); el integrador, como encargado.
 - **Cifrado** de los discos ([[cifrado-en-reposo|en reposo]]), con la receta del despacho.
 - **Respaldos**: configuración, registro y prompts. **No** los expedientes: tienen su propio respaldo en el SIRES.
 - **Mantenimiento**: como una tarjeta aguanta el pico, se actualiza una copia a la vez **a cualquier hora**, sin ventana de madrugada. En el despacho, donde una tarjeta sola queda en el filo de la hora pico, se espera a que pase.
+:::
 
 :::diagrama caso-clinica-camino
 Toca cada caja para ver qué hace y en qué red está. «Un resumen a las 8:00» sigue a una médica del botón a la tarjeta; «La noche en que falla una tarjeta», al servidor a las 3:10.
@@ -518,6 +536,8 @@ De noche hay un médico de guardia, ≈ 50 resúmenes en 10 horas, nadie de TI d
 5. **Una actualización a las 3:00**: no hay automáticas; todo se actualiza a mano, de día.
 :::
 
+:::profundo La tabla de riesgos completa
+
 | Riesgo | Qué pasa | Cómo se reduce | Quién lo vigila |
 |---|---|---|---|
 | [[sesgo-de-automatizacion\|Sesgo de automatización]] | El médico deja de abrir las notas y firma un error | Cita en cada frase; rojo del verificador; «borrador de IA» visible; auditoría de 100 al mes; capacitación con errores reales del examen | Dirección médica |
@@ -530,6 +550,7 @@ De noche hay un médico de guardia, ≈ 50 resúmenes en 10 horas, nadie de TI d
 | La Server Edition no llega | Meses de atraso | Cotizar D y E desde el principio | Jefa de TI |
 | Cambia la regulación | Reglamento nuevo, regla de dispositivos definitiva, NOM sustituida | Revisión anual con el abogado; uso previsto documentado | Jurídico |
 | La licencia | Se adopta MedGemma y Google la termina | Qwen3.8 (Apache 2.0) como base; plan para volver a él | Jurídico y TI |
+:::
 
 :::ojo El riesgo que no sale en la tabla
 El más probable no es técnico: que el asistente funcione bien y se use para algo que no se examinó. «Ya que resume tan bien, ¿por qué no dice qué estudios faltan?» llegará en el mes tres. Esa función sugiere una acción clínica y cambia la clase en la cuadrícula. Cada función nueva pasa por «Datos de salud» antes de llegar a «Evals».
@@ -545,6 +566,8 @@ De la ficha: el servidor de la opción D cuesta **US$74,779.30** y se deprecia e
 3. Por resumen: 61,155 ÷ 31,200 ≈ **MXN 1.96**.
 4. La [herramienta de TCO con los números de la clínica](/herramientas/tco/?p1=rtx-pro-6000-blackwell-server&U=60&r=20&Np=12000&No=600&D=26&G=2&K=17159&Wg=600&S=40461.3&gs=4&V=36&res=0.2&Wb=450&u=0.4&pue=2&kwh=0.11&oe=90&op=1200&tc=19.7203&hr=730) da lo mismo.
 :::
+
+:::profundo La cuenta completa del costo de la opción D
 
 La cuenta es la de [TCO: API, nube o servidor propio](/costo-total/):
 
@@ -567,6 +590,7 @@ Total, \(P\) | 1,661.8 + 149.4 + 90 + 1,200 | **US$3,101 ≈ MXN 61,155**
 :::
 
 El precio de la luz es un supuesto: la tarifa GDMTO (la de la CFE para media tensión) de la ficha del despacho, con el cargo por demanda repartido en las 730 horas del mes (≈ $2.08 por kWh ≈ US$0.11), porque un hospital suele estar en media tensión. La de Jalisco no se consultó: la dice el recibo. El [[pue|PUE]] de 2.0 (el cuarto gasta otro tanto en aire y pérdidas) es el del despacho. Y si la demanda se cobrara por el pico (≈ 2.3 kW × 2.0) y no por el promedio, la luz subiría a ≈ US$200.
+:::
 
 | Opción | Compra (US$) | Al mes (US$) | Al mes (MXN) | Por resumen (MXN) |
 |---|---|---|---|---|
@@ -584,7 +608,7 @@ Entre D y C (sin repuesto) hay **≈ MXN 8,280 al mes**: eso cuesta que el asist
 
 Y un número para el director médico que no es dinero: si cada resumen le ahorra **3 minutos** a un médico (supuesto que el piloto tiene que medir), 1,200 resúmenes son **60 horas de médico al día**.
 
-## La propuesta en una página {The proposal on one page}
+## La propuesta en una página {The proposal on one page} [extra]
 
 **Lo que hace.** Dos botones dentro del expediente electrónico: «Resumir expediente», con cada frase citada a su nota, y «Borrador de nota de egreso», con los apartados de la NOM-004, que el médico revisa y firma. **No** sugiere diagnósticos, dosis ni prioridades, y no tiene chat.
 
@@ -599,18 +623,6 @@ Y un número para el director médico que no es dinero: si cada resumen le ahorr
 **Cuánto cuesta.** ≈ US$74,779 de servidor (sin impuestos ni importación) y ≈ **MXN 61,155 al mes**: ≈ **MXN 1.96 por resumen**.
 
 **Lo que se confirma antes de comprar.** Que el expediente tenga una API para leer notas con la sesión del médico; el precio y el plazo de la Server Edition; con el abogado sanitario, el aviso, el contrato con los médicos externos y el uso previsto frente a la regla de dispositivos médicos.
-
-## Qué cambiaría si… {What would change if…} [extra]
-
-**…no hubiera torre.** Con ≈ 190 resúmenes al día, el pico cae a menos de uno a la vez, pero los expedientes largos siguen tardando 10 s en una L40S: el objetivo de 8 s se sigue rompiendo. La decisión no cambia por volumen, cambia por la cola de los tamaños. Lo que sube es el costo por resumen: ≈ MXN 12.38.
-
-**…pidieran sugerir diagnósticos o dosis.** Es otro proyecto: un dispositivo médico de clase III, con registro sanitario y evidencia clínica. Con MedGemma, la licencia se terminaría justo ahí.
-
-**…MedGemma ganara por mucho.** Se adopta con tres cosas por escrito: su política de uso prohibido en el contrato con los médicos, que Google puede terminar la licencia, y que ningún derivado (un afinado de MedGemma, por ejemplo) sale de la clínica sin pasar sus restricciones. Y con un plan para volver a Qwen3.8 en una semana.
-
-**…el objetivo fuera 2 s, como en el despacho.** Ni la Server Edition llega con los largos (3.69 s). El p95 de la entrada tendría que bajar a ≈ 15,000 tokens, mostrando primero el resumen de la estancia actual y después el del historial.
-
-**…fuera un hospital público.** La LFPDPPP no aplica (va la ley de los sujetos obligados), el capítulo de salud digital de la Ley General de Salud sí, y la compra es por licitación (lección «Cotizar»).
 
 ## Errores comunes {Common mistakes}
 
@@ -642,7 +654,19 @@ A la vez en el pico: \(c\) = \(U\) × 20 ÷ (8 × 3,600) × 4 × 31.39 ≈ 0.087
 Con la fórmula del prefill (27.78 mil millones, 16 bloques, 24 cabezas de 256, 1,000 TFLOPS, \(η_c\) = 0.5), 1.8 s alcanzan para ≈ **15,400 tokens**. Con el supuesto de tamaños, ≈ 30 % de los expedientes pasa de 16,000: no se puede prometer con un solo prompt. Opciones: mostrar primero el resumen de la **estancia actual** y después el del historial; resumir por partes lo largo ([[map-reduce]]) avisando que tarda; o negociar los 2 s solo para el pase de turno. Lo que **no** se hace es prometer 2 s y medirlo con expedientes típicos.
 :::
 
-## Lo que sigue {What comes next} [extra]
+## Qué cambiaría si… {What would change if…} [extra]
+
+**…no hubiera torre.** Con ≈ 190 resúmenes al día, el pico cae a menos de uno a la vez, pero los expedientes largos siguen tardando 10 s en una L40S: el objetivo de 8 s se sigue rompiendo. La decisión no cambia por volumen, cambia por la cola de los tamaños. Lo que sube es el costo por resumen: ≈ MXN 12.38.
+
+**…pidieran sugerir diagnósticos o dosis.** Es otro proyecto: un dispositivo médico de clase III, con registro sanitario y evidencia clínica. Con MedGemma, la licencia se terminaría justo ahí.
+
+**…MedGemma ganara por mucho.** Se adopta con tres cosas por escrito: su política de uso prohibido en el contrato con los médicos, que Google puede terminar la licencia, y que ningún derivado (un afinado de MedGemma, por ejemplo) sale de la clínica sin pasar sus restricciones. Y con un plan para volver a Qwen3.8 en una semana.
+
+**…el objetivo fuera 2 s, como en el despacho.** Ni la Server Edition llega con los largos (3.69 s). El p95 de la entrada tendría que bajar a ≈ 15,000 tokens, mostrando primero el resumen de la estancia actual y después el del historial.
+
+**…fuera un hospital público.** La LFPDPPP no aplica (va la ley de los sujetos obligados), el capítulo de salud digital de la Ley General de Salud sí, y la compra es por licitación (lección «Cotizar»).
+
+### Lo que sigue {What comes next}
 
 El **despacho**, el caso de referencia, decide entre las mismas tarjetas con otro criterio: allá pesaba la pregunta típica con un objetivo de 2 s; aquí, el expediente largo y la noche. Compararlos es la mejor práctica de dimensionar. La **fábrica** cambia otra vez lo que manda: pocos usuarios, una red de planta separada de la de oficina, manuales en varios idiomas con imágenes y la seguridad de quien sigue un procedimiento. Para repasar lo que este caso aplicó: [De requisitos a hardware](/requisitos-hardware/), [Licencias](/licencias/), [Demostrar que el modelo abierto sirve](/evals/) y [Observabilidad](/observabilidad/).
 

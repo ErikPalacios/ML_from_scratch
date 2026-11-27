@@ -281,6 +281,8 @@ Cuarto: luz $4,825 al mes, obra y aire $130,000, UPS US$9,000, a 36 meses y 19.7
 3. Con VPN: 12,325 + 450 + 654 = **$13,429**: casi un empate, a la tarifa mayorista. La cuenta completa, abajo.
 :::
 
+:::profundo La cuenta completa, cuarto propio contra colocation
+
 :::cuenta Cuarto propio contra colocation, al mes
 Cuarto: obra y UPS repartidos // (\(O\) + \(U × t\)) ÷ \(V\) | (130,000 + 9,000 × 19.7203) ÷ 36 | $8,541
 Cuarto al mes, \(C_{cuarto}\) // + la luz \(L\) | 4,825 + 8,541 | **$13,366** (≈ US$678)
@@ -289,6 +291,7 @@ Colocation: enlace, instalación y visita // \(C_{enl}\) + \(I ÷ V\) + \(n_v ×
 Colocation al mes, \(C_{colo}\) | 12,325 + 15,932 | **$28,257** (≈ US$1,433)
 Con VPN en vez de enlace // \(C_{enl}\) = 450, sin instalación | 12,325 + 450 + 654 | $13,429
 = El cuarto sale ≈ $14,891 más barato que colocation con enlace dedicado. Con VPN casi empatan, y eso a la tarifa mayorista, que el despacho no va a conseguir.
+:::
 :::
 
 :::calculadora caso-despacho-colocation
@@ -326,10 +329,13 @@ kW garantizados con dos alimentaciones (A y B); si la energía va incluida o apa
 
 El stack es el de las lecciones (vLLM 0.34.0, LiteLLM 1.111.0, Open WebUI 0.13.5, Qdrant 1.20.2, en las zonas de «Seguridad»). Con D cambian cuatro cosas:
 
+:::profundo Las cuatro cosas que cambian con D
+
 - **El motor:** 2 copias de [[vllm|vLLM]], una por tarjeta, con `--max-num-seqs 8`.
 - **El reparto:** **por turno o viendo la fila**, nunca al azar: decide si D cumple. LiteLLM no trae uno por turno: su documentación (consultada el 2026-11-27) da `simple-shuffle` (al azar, con pesos; la de omisión), `least-busy` (menos llamadas abiertas: ≈ 2.7 s con D), por latencia, por uso y por costo, y deja escribir una propia. Para D: una estrategia propia por turno, o un balanceador por turno entre el gateway y las 2 copias (se pierde la afinidad por conversación: se mide en el piloto).
 - **El formato:** se queda AWQ. Los tensores de [[fp4|FP4]] de Blackwell podrían bajar el prefill, pero cambian la calidad: pasarían por el [[gate-de-calidad|gate]].
 - **El mantenimiento:** con una tarjeta fuera, la otra queda sola (p95 ≈ 4.1 s): se parcha de noche, y la alerta 4 pasa a `sum(up{job="vllm-chat"}) < 2`.
+:::
 
 ### El hueco: «caído» sin medidor
 

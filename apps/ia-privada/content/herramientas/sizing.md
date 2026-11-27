@@ -116,7 +116,7 @@ G = k × n
 - G: las GPUs en total
 :::
 
-En el despacho: ⌈5.7 ÷ 2⌉ = 3 copias de una L40S cada una, **3 GPUs**. Y hay algo que más GPUs no arreglan: el TTFT de un prompt de 6,000 tokens en una L40S es de 2.38 s aunque la GPU esté libre, y la ficha pide 2 s o menos. Con L40S, ese requisito no se cumple; la decisión queda para el caso del despacho. Y si el sistema no se puede caer, una copia más: si una GPU falla, las demás tienen que aguantar el pico solas. Eso se llama redundancia N+1, y en un cliente real casi siempre se pide.
+En el despacho: ⌈5.7 ÷ 2⌉ = 3 copias de una L40S cada una, **3 GPUs**. Y hay algo que más GPUs no arreglan: el TTFT de un prompt de 6,000 tokens en una L40S es de 2.38 s aunque la GPU esté libre, y la ficha pide 2 s o menos. Con L40S, ese requisito no se cumple; la decisión queda para [el caso del despacho](/casos/despacho/). Y si el sistema no se puede caer, una copia más: si una GPU falla, las demás tienen que aguantar el pico solas. Eso se llama redundancia N+1, y en un cliente real casi siempre se pide.
 
 :::calculadora sizing
 La tabla de abajo repite tu tráfico en cada GPU de gpus.json, ordenada de menos a más GPUs: así contestas «de cuál tipo». Las columnas de dinero usan el precio de compra de referencia y la renta más barata de gpus.json, cada una con su fecha y fuente en el catálogo.
