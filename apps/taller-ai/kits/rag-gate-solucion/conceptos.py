@@ -51,8 +51,8 @@ con("abstencion", "Abstención correcta e indebida", "abstention",
 con("juez", "LLM como juez", "LLM-as-a-judge",
     "Un LLM que lee la pregunta, la respuesta de referencia del golden set y la respuesta del sistema, y dice si la respuesta es correcta, siguiendo una rúbrica y en JSON.",
     "Como un ayudante que califica exámenes con la clave de respuestas del profesor: rápido y barato, pero hay que revisar primero que califique como el profesor.",
-    "No hay forma exacta de decir si «De 1 a 3 días hábiles» y «el cobro se reembolsa en 1 a 3 días» dicen lo mismo, y las personas no alcanzan a calificar 51 respuestas en cada cambio (en C11, ≈ 600). El juez sí.",
-    "Usar como juez al mismo modelo que contesta: se califica a sí mismo, y si es chico no entiende la rúbrica. Aquí, el de 0.6B de la API reprueba §FR06§ de las respuestas buenas y su kappa es §K06§.")
+    "No hay forma exacta de decir si «De 1 a 3 días hábiles» y «el cobro se reembolsa en 1 a 3 días» dicen lo mismo, y calificar a mano no escala a cada cambio (en C11, ≈ 600 respuestas por pull request). El juez sí.",
+    "Usar como juez al mismo modelo que contesta: tiende a preferir sus propias respuestas (sesgo de autopreferencia). Y uno chico ni siquiera entiende la rúbrica, que es lo que mide el dojo: el de 0.6B de la API reprueba §FR06§ de las respuestas buenas y su kappa es §K06§.")
 con("rubrica", "Rúbrica", "rubric",
     "Las instrucciones del juez: qué cuenta como error (otro número, plazo o persona; contestar cuando no hay respuesta; decir que no sabe cuando sí la hay) y qué no (que falten detalles o lo diga con otras palabras).",
     "Como los criterios de calificación de un concurso: dos jueces con los mismos criterios califican parecido; con criterios vagos, cada quien califica a su manera.",
@@ -67,12 +67,12 @@ con("kappa", "Kappa de Cohen", "Cohen's kappa",
     "Cuánto coinciden dos calificadores descontando lo que coincidirían por azar: κ = (p_o − p_e) ÷ (1 − p_e). 1 es acuerdo perfecto, 0 es lo mismo que el azar.",
     "Si dos maestros aprueban al 90 % de los alumnos sin leer los exámenes, coinciden muchísimo por pura casualidad. La kappa pregunta cuánto coinciden más allá de eso.",
     "El acuerdo simple engaña: si el 80 % de las respuestas está bien, un juez que dice «correcta» a todo coincide con las personas el 80 % de las veces sin leer nada, y su kappa es 0. En el dojo, el de 0.6B de la API acuerda §A06§ con las personas y su kappa es §K06§; el de 4B, §A4§ y §K4§.",
-    "Mirar solo el «% de acuerdo». Y leer una kappa de 68 respuestas como exacta: su intervalo es ancho.")
+    "Mirar solo el «% de acuerdo». Y leer una kappa de 68 respuestas como exacta: su intervalo es ancho, depende de cuántas buenas y malas haya, y los cortes como 0.6 son convención (Landis y Koch), no ley.")
 con("falso-pase", "Falso pase", "false pass rate",
     "De las respuestas que las personas reprobaron, qué fracción aprobó el juez. Es el error caro: una respuesta mala que el examen deja pasar.",
     "Como un detector de metales que no suena con un cuchillo: que suene de más es una molestia; que no suene es el problema.",
     "Un juez con falso pase alto subestima las regresiones: si el cambio vuelve malas 6 respuestas y el juez aprueba 1 de cada 6 malas, el gate solo ve 5. En el dojo, el juez de 4B aprueba §FP4§ que reprobaron las personas.",
-    "Confundirlo con el falso rechazo (el juez reprueba una buena): ese también cuenta, pero hace que el gate bloquee de más, no que deje pasar lo malo.")
+    "Confundirlo con el falso rechazo (el juez reprueba una buena): ese también cuenta, pero no deja pasar lo malo: mete ruido en la comparación y le quita sensibilidad al gate.")
 con("wilson", "Intervalo de Wilson", "Wilson score interval",
     "El rango donde probablemente está el porcentaje de verdad, dado lo que se midió en n preguntas. Para muestras chicas y porcentajes cerca de 0 o 100 % se porta mejor que el clásico p ± 1.96 × √(p(1 − p) ÷ n).",
     "Como una encuesta de 51 personas: si 40 dicen que sí, no sabes que es 78 %; sabes que es «algo entre 65 y 88 %».",
@@ -86,12 +86,12 @@ con("pareada", "Prueba pareada", "paired comparison",
 con("no-inferioridad", "No inferioridad", "non-inferiority test",
     "A un cambio que se hace por otra razón (latencia, costo) no se le pide ganar, sino no perder más de un margen: la cota de abajo de la diferencia, Δ − 1.645 × su error (una cola, 95 %), queda arriba de −margen.",
     "Como cambiar de proveedor de harina por precio: no le pides que el pan salga mejor; le pides que no salga peor de lo que el cliente nota.",
-    "El margen es una decisión del negocio (cuánto se acepta perder), y el número de preguntas decide qué margen se puede proteger: con 51 preguntas y 10 % de respuestas que cambian, ≈ 11 puntos; con 600, ≈ 3. Lo que no ve la estadística se cubre con la regla de la caída observada y leyendo las preguntas que cambiaron.",
+    "El margen es una decisión del negocio (cuánto se acepta perder), y el número de preguntas decide qué margen se puede proteger: con 51 preguntas y 10 % de respuestas que cambian, ≈ 11 puntos; con 600, ≈ 3. Lo que no ve la estadística se cubre con la regla de la caída observada y leyendo las preguntas que cambiaron; con 0 o 1 que cambian, el error estimado es 0 o casi, y la caída observada es la que decide.",
     "Aflojar el margen cuando el gate bloquea: entonces el gate ya no protege nada.")
 con("examen-cache", "Un examen sin cache", "cache-busting in evals",
-    "Que cada pregunta del examen recorra el sistema completo, sin respuestas ni retrieval guardados de antes. Aquí, con la cabecera «Cache-Control: no-cache», que la API de la estación 8 respeta.",
+    "Que cada pregunta del examen recorra el sistema completo, sin respuestas ni retrieval guardados de antes. Aquí, con la cabecera «Cache-Control: no-cache», que la API toma por convención como «sáltate tu cache».",
     "Como un examen de manejo en el que el examinador no puede usar las respuestas del alumno de ayer: tiene que manejar hoy.",
-    "La API guarda el top-8 de cada pregunta y persona 5 minutos. Si el examen corre justo después de la base, un cambio de retrieval (k, candidatos, reranker) recibe el top viejo y sale idéntico a la base: el gate aprobaría algo que no midió.",
+    "La API guarda el top-8 de cada pregunta y persona 5 minutos. Si el examen corre justo después de la base, un cambio de retrieval (k, candidatos, reranker) recibe el top viejo y sale idéntico a la base: el gate aprobaría algo que no midió. (En HTTP, no-cache pide revalidar lo guardado; esta API lo usa para su propia cache, y en producción lo limitaría a las llaves de evaluación.)",
     "Notarlo por los tiempos («qué rápido corrió hoy»). Se revisa en los datos: cada fila guarda de_cache, y el gate bloquea si alguna salió de la cache.")
 con("contaminacion", "Dev y test separados", "data leakage, test contamination",
     "Las preguntas que se usaron para decidir algo (el umbral del «no sé» se eligió con dev en la estación 8) no se usan para medirlo. El gate decide solo con test.",

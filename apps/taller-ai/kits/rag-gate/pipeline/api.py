@@ -7,7 +7,9 @@ Contrato (todo sale de config.yaml, que se lee en cada pregunta):
   caracteres; si no, 422) y la cabecera «Authorization: Bearer <llave>». La persona sale de la llave
   (almacen/tokens.json), nunca del cuerpo: sin llave o con una que no existe, 401. Contesta text/event-stream.
   Con la cabecera «Cache-Control: no-cache» no lee el top de la cache (lo recupera otra vez): es lo que usa la
-  estación 9 para que un examen mida el retrieval de hoy y no el de hace 5 minutos.
+  estación 9 para que un examen mida el retrieval de hoy y no el de hace 5 minutos. Es una convención de esta API (en
+  HTTP, no-cache pide revalidar lo guardado); en producción se limitaría a las llaves de evaluación, porque cualquiera
+  podría forzar recuperaciones caras.
 - persona_de(authorization) → el correo de quien pregunta, o HTTPException 401.
 - Cache(): guarda el top-k del retrieval por api.cache.clave (los campos de la pregunta que forman la llave:
   pregunta y persona) durante api.cache.ttl_s segundos, hasta api.cache.max entradas. .llave(pregunta, persona),
