@@ -1,0 +1,14 @@
+{
+  "nota": "El modelo que sirve la estación, el mismo del despacho. En la GPU rentada, vLLM lo baja de Hugging Face (≈ 19 GB); en la Mac, el vLLM del dojo solo usa estos números para hacer sus cuentas: no baja nada.",
+  "Qwen/Qwen3-32B-AWQ": {
+    "familia": "Qwen3 32B en INT4 de AWQ",
+    "licencia": "Apache-2.0",
+    "parametros": 32760000000,
+    "bytes_pesos": 19320000000,
+    "capas": 64,
+    "cabezas_kv": 8,
+    "dim_cabeza": 128,
+    "bytes_kv": 2,
+    "contexto_max": 40960
+  }
+}

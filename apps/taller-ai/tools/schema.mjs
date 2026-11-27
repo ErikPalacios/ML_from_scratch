@@ -55,7 +55,7 @@ const comando = obj({
   code: txt,
   nota,
   'salida?': nullable(str({ empty: true })),   // null = todavía no se corre; texto = salida real recortada
-  'donde?': oneOf('mac', 'contenedor', 'navegador'),
+  'donde?': oneOf('mac', 'contenedor', 'navegador', 'gpu'),   // gpu: corre contra la GPU rentada (su salida puede faltar: null)
 });
 const codigo = obj({ lang: oneOf('python', 'sql', 'bash', 'yaml', 'json', 'markdown', 'text'), 'path?': txt, code: txt, nota });
 

@@ -1,0 +1,8 @@
+{
+  "nota": "Las GPUs que imita el vLLM del dojo (mundo/vllm_dojo.py). Especificaciones de la hoja de datos de NVIDIA, las mismas de IA Privada (apps/ia-privada/content/datos/gpus.json); eficiencias de la ficha del despacho (η_m = 0.7 del ancho de banda, η_c = 0.5 de los FLOPs). vram_gib es la memoria que ve el programa (46,068 MiB en la L40S y 23,034 en la L4, con ECC). El simulador no mide nada: hace la cuenta de servilleta paso por paso, en tiempo real.",
+  "eficiencias": { "memoria": 0.7, "computo": 0.5 },
+  "gpus": {
+    "l40s": { "nombre": "NVIDIA L40S", "vram_gib": 44.99, "vram_gb": 48, "ancho_banda_gbs": 864, "fp16_tflops_denso": 362.05 },
+    "l4": { "nombre": "NVIDIA L4", "vram_gib": 22.49, "vram_gb": 24, "ancho_banda_gbs": 300, "fp16_tflops_denso": 121 }
+  }
+}

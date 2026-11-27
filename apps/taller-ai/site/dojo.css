@@ -181,6 +181,8 @@ details[open] > summary .d-mas i, .d-arreglo[open] summary i { transform: rotate
 .d-ok { background: var(--tm-ok); color: var(--tm-ink); }
 .d-ok b { color: var(--tm-okink); }
 .d-ojo { background: var(--tm-chip); color: var(--tm-ink2); }
+.d-pendiente { margin: 6px 0 0; border: 1.5px dashed var(--tm-dojo); border-radius: 14px; padding: 12px 16px; font: 14px/1.5 var(--sans); color: var(--tm-ink2); }
+.d-pendiente b { color: var(--tm-dojo); }
 .d-cuando { font-size: 15px; max-width: 820px; }
 
 /* kit */

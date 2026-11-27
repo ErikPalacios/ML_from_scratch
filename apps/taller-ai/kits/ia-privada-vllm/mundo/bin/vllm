@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# El «vllm» del dojo: si no hay vLLM instalado (en la Mac), mundo/servidor.py pone esta carpeta en el PATH y
+# `vllm serve …` corre el simulador (mundo/vllm_dojo.py). En la GPU rentada no se usa: ahí está el vLLM de verdad.
+exec python3 "$(cd "$(dirname "$0")/.." && pwd)/vllm_dojo.py" "$@"
