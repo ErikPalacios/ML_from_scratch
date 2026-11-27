@@ -340,7 +340,7 @@ G.append(dict(n=5, id="examen", titulo="Si todavía hace la tarea: el examen", o
     en_pagina={"conceptos": ["examen-exacto", "determinismo"], "precalculos": ["ruido"]}))
 
 G.append(dict(n=6, id="reporte", titulo="Lado a lado, y la decisión", objetivo="<code>pipeline/reporte.py</code> (viene dado): las tres en una tabla, contra el f16, y la decisión con una regla escrita antes.",
-    conceptos=["decision", "kv-igual"],
+    conceptos=["decision", "awq", "kv-igual"],
     explica="<code>reporte.py</code> lee el manifiesto, <code>velocidad.json</code> y <code>calidad.json</code>, y escribe <code>resultados/reporte.md</code>: tamaño, bits por peso, escribir y leer por segundo, TTFT con los dos prompts, perplejidad contra el f16 y el peor examen. La <b>regla</b>: la más chica que no pierda más de 5 % de perplejidad ni más de 1 pregunta. En el despacho la regla también pide que quepa con su KV cache y que escriba a ≥ 20 tokens/s.",
     codigo=[py("pipeline/reporte.py", "Viene dado.")],
     comandos=[
@@ -396,7 +396,7 @@ e["fallas"] = [
           cmd("python3 verificar.py velocidad", F("tot verificar"), "Con 2,900 tokens de contexto escribir sí es más lento (≈ 0.65 del corto), pero no tanto: lo demás es el tiempo de leer el prompt, contado como si fuera escribir."),
           "<code>velocidad.metrica: \"decode\"</code> (<code>predicted_per_second</code> de llama-server) y <code>python3 pipeline/medir.py</code> y <code>reporte.py</code>. Lo que siente el usuario son dos números: cuánto espera el primer token (TTFT) y qué tan rápido sale el resto. Juntos en uno no sirven para decidir ninguno.",
           "decode-prefill", "velocidad"),
-    falla("largo-libre", "Q8_0 «escribe» igual de rápido con respuestas de 20 tokens que con las de 128", "config",
+    falla("largo-libre", "Cada cuantización contesta un largo distinto y la tabla lo esconde", "config",
           "Alguien vio respuestas que seguían escribiendo después de terminar la idea y quitó el largo fijo de medicion.json «para que el modelo pare cuando quiera».",
           "<code>verificar.py comparable</code> falla: las respuestas tienen distinto número de tokens.",
           ["Cada cuantización contesta un largo distinto.", "max_tokens cambió.", "El examen cambió."],
@@ -414,7 +414,7 @@ e["fallas"] = [
           "Para «ahorrar tiempo», alguien volvió a hacer el Q4_K_M con «la opción rápida» de llama-quantize, lo dejó con el mismo nombre y actualizó el manifiesto para que cuadrara.",
           f"<code>verificar.py cuantizar</code> falla: el archivo se llama Q4_K_M y sus pesos son Q4_0. Su perplejidad subió a {Q4_0.group(1)} ({Q4_0.group(2)}) y la decisión cambió a Q8_0.",
           ["La cuantización K tiene un problema.", "El archivo no es lo que dice su nombre.", "El texto de la perplejidad cambió."],
-          cmd("python3 mundo/ficha.py cuantizados/Qwen3-0.6B-Q4_K_M.gguf --tipos", F("arc ficha"), "El encabezado no miente: un Q4_0 parejo, con una escala por bloque de 32. Y <code>python3 pipeline/cuantizar.py</code> sin --todas no lo rehace: el sha256 del manifiesto cuadra, porque alguien lo recalculó."),
+          cmd("python3 mundo/ficha.py cuantizados/Qwen3-0.6B-Q4_K_M.gguf --tipos", F("arc ficha"), "El encabezado no miente: las capas en Q4_0, con una escala por bloque de 32, y solo la tabla de embeddings en Q6_K. Y <code>python3 pipeline/cuantizar.py</code> sin --todas no lo rehace: el sha256 del manifiesto cuadra, porque alguien lo recalculó."),
           "<code>python3 pipeline/cuantizar.py --todas</code> y después <code>medir.py Q4_K_M</code>, <code>calidad.py Q4_K_M</code> y <code>reporte.py</code>. Lo que es un archivo lo dice su encabezado, no su nombre; y un manifiesto que se recalcula a mano ya no protege nada.",
           "encabezado", "cuantizar"),
 ]

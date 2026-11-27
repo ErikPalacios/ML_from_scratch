@@ -219,16 +219,16 @@
           "id": "modelo-local",
           "titulo": "Un modelo local por API",
           "etapa": "api",
-          "lista": false,
-          "url": null
+          "lista": true,
+          "url": "https://dojo.trueml.app/ia-privada/modelo-local/"
         },
         {
           "num": 2,
           "id": "cuantizacion",
           "titulo": "Medir y cuantizar",
           "etapa": "modelo",
-          "lista": false,
-          "url": null
+          "lista": true,
+          "url": "https://dojo.trueml.app/ia-privada/cuantizacion/"
         },
         {
           "num": 3,
