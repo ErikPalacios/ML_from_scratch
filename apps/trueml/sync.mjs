@@ -109,6 +109,16 @@ for (const [de, a] of [['ml-system-design/js/ui/diagram.js', 'diagram.js'], ['ml
   salidas.push([join(APPS_DIR, 'sensei', 'vendor', 'ronda', a), readFileSync(join(APPS_DIR, de), 'utf8')]);
 }
 // Sensei enlaza cada lección de estación con su estación del Dojo, si ya está lista.
+// El avance de IA Privada para la portada: igual que el de Sensei, desde su temario y sus archivos de lección.
+{
+  const IAP = { carpeta: 'ia-privada', url: 'https://ia.trueml.app' };
+  const c = join(APPS_DIR, IAP.carpeta, 'content');
+  const temario = JSON.parse(readFileSync(join(c, 'temario.json'), 'utf8'));
+  const hechas = new Set(readdirSync(join(c, 'lecciones')).filter((f) => f.endsWith('.md')).map((f) => f.slice(0, -3)));
+  const ls = temario.modulos.flatMap((m, k) => m.lecciones.map((l) => ({ id: l.id, titulo: l.titulo, modulo: `${k} · ${m.titulo}`, fase: m.fase,
+    etapa: l.etapas === 'todas' ? 'todas' : l.etapas[0], lista: hechas.has(l.id), url: hechas.has(l.id) ? `${IAP.url}/${l.id}/` : null })));
+  salidas.push([join(APPS_DIR, 'portada', 'data', 'ia-privada.json'), JSON.stringify({ nota: `Generado por apps/trueml/sync.mjs desde apps/${IAP.carpeta}/content. No se edita a mano.`, url: IAP.url, total: ls.length, lecciones: ls }, null, 2) + '\n']);
+}
 salidas.push([join(APPS_DIR, 'sensei', 'content', 'dojo.json'), JSON.stringify(dojo, null, 2) + '\n']);
 
 // IA Privada: usa el mismo motor de diagramas, lee las especificaciones de GPUs de Sensei y sus servidores con precio (la única

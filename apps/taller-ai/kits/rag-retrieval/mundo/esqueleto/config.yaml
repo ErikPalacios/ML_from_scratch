@@ -1,0 +1,33 @@
+# Configuración del retrieval. Los pasos de GUION.md dicen cuándo tocar cada línea.
+
+embeddings:            # lo de la estación 5: el modelo que hizo el índice vigente
+  modelo: e5
+  lote: 16
+
+indice:
+  dimension: 384
+  similitud: coseno
+
+bm25:
+  k1: 1.2
+  b: 0.75
+
+servicio:
+  alias: c11           # el nombre que usa la API; detrás está el índice vigente
+  modelo_consulta: del-indice
+
+retrieval:             # lo de esta estación
+  candidatos: 30       # cuántos pide a cada índice (BM25 y vectores) antes de fusionar
+  filtro: antes        # antes = los permisos filtran dentro de cada búsqueda · despues = se buscan en todo y luego se quitan
+  fusion: rrf          # rrf = por el lugar en cada lista · suma = los puntajes crudos sumados (solo para comparar)
+  rrf_k: 60            # la constante de RRF: cada lista da 1 / (rrf_k + lugar)
+  rerank_n: 20         # cuántos de la fusión lee el reranker
+  k: 8                 # cuántos salen: los que recibe el LLM en la estación 7
+
+reranker:
+  lote: 8              # cuántos pares (pregunta, pasaje) pasan juntos por el modelo
+
+medicion:
+  split: test          # con qué preguntas del golden set se mide el reporte
+  tipos: [directa, varias]   # las que tienen fuentes que buscar
+  afinado_con: dev     # con qué preguntas se eligen rrf_k y rerank_n (nunca las del reporte)
