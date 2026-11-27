@@ -1,0 +1,390 @@
+{
+  "nota": "La ficha de la dependencia de gobierno, el caso «Dependencia de gobierno» de IA Privada (fase 9, 2026-11-27): cada número de la dependencia que usa el caso vive aquí y se usa tal cual. Es ficticia y no tiene nombre propio: es «la dependencia». Los valores de la dependencia son supuestos del ejemplo (se dice en cada nota); los del mundo real (leyes, montos, versiones, licencias, precios) traen su fuente y su fecha. Las leyes se leyeron en el texto vigente de la Cámara de Diputados y en el DOF el 2026-11-27. Orientación, no consejo legal.",
+  "hechos": [
+    {
+      "id": "que_es",
+      "dato": "Qué es",
+      "valor": "un órgano administrativo desconcentrado de una Secretaría de Estado federal, con sede en Pachuca, Hidalgo, que inspecciona a las empresas de un sector y lleva sus procedimientos de sanción; tiene una red aislada sin ninguna salida a internet",
+      "nota": "Ficticio, sin nombre propio: «la dependencia». Federal y no estatal porque las leyes del caso (LAASSP, PEF, ATDT, Transparencia para el Pueblo) son federales y se leyeron; las de un estado no se verificaron. Las funciones de inspección y sanción son un supuesto que explica por qué tiene expedientes reservados."
+    },
+    {
+      "id": "sujeto",
+      "dato": "Qué es ante la ley",
+      "valor": "sujeto obligado de la Ley General de Transparencia (DOF 20-mar-2025) y de la Ley General de Datos Personales en Posesión de Sujetos Obligados (DOF 20-mar-2025, última reforma 14-nov-2025); «dependencia» para la Ley de Adquisiciones (DOF 16-abr-2025)",
+      "nota": "Textos vigentes de la Cámara de Diputados, consultados 2026-11-27. La autoridad garante federal es Transparencia para el Pueblo, órgano desconcentrado de la Secretaría Anticorrupción y Buen Gobierno (LGTAIP art. 3 III y 44); el INAI se extinguió."
+    },
+    {
+      "id": "pide",
+      "dato": "Lo que pide",
+      "valor": "1) borradores de respuesta a solicitudes de acceso a la información, con su fundamento; 2) proponer qué partes de los documentos de una solicitud podrían ser reservadas o confidenciales, con la causal y un borrador de la prueba de daño; 3) contestar preguntas sobre la normativa interna, con cita; la 2 siempre la decide una persona",
+      "nota": "Supuesto. La clasificación la hacen por ley las personas titulares de las áreas y la confirma el Comité de Transparencia (LGTAIP arts. 39–40, 102–103)."
+    },
+    {
+      "id": "por_que_aire",
+      "dato": "Por qué sin internet de verdad",
+      "valor": "sus expedientes traen información reservada (procedimientos en forma de juicio, investigaciones, datos de sus sistemas) y datos personales de terceros; su red de expedientes ya es aislada por regla interna, y el asistente vive dentro de ella",
+      "nota": "Supuesto del ejemplo; las causales están en el art. 112 de la LGTAIP (fracciones VI —obstruir inspecciones—, X, XI, XII y XVI, entre otras). La ley de datos de sujetos obligados no prohíbe la nube (arts. 57–58): la red aislada es decisión de seguridad de la dependencia, no un mandato de esa ley."
+    },
+    {
+      "id": "personas",
+      "dato": "Personas que lo usan",
+      "valor": "40",
+      "unidad": "10 en la Unidad de Transparencia, 20 en el área jurídica y 10 enlaces de las áreas",
+      "nota": "Supuesto: un grupo chico a propósito."
+    },
+    {
+      "id": "preguntas_persona_dia",
+      "dato": "Preguntas por persona al día",
+      "valor": "20",
+      "nota": "Supuesto (el despacho usa 15)."
+    },
+    {
+      "id": "solicitudes_ano",
+      "dato": "Solicitudes de acceso al año",
+      "valor": "1,200 (≈ 4.8 por día hábil, con 250 días hábiles)",
+      "nota": "Supuesto: ≈ 3 veces la media federal. En 2022 los 800 sujetos obligados federales recibieron 305,550 solicitudes de acceso y de datos personales: ≈ 382 por sujeto, una media muy sesgada (INEGI, Censo Nacional de Transparencia 2023, consultado 2026-11-27)."
+    },
+    {
+      "id": "docs_solicitud",
+      "dato": "Lo que hay que revisar por solicitud",
+      "valor": "≈ 25 documentos de ≈ 8 páginas: ≈ 200 páginas, ≈ 100,000 tokens",
+      "nota": "Supuesto: ≈ 500 tokens por página de oficio. El asistente revisa un documento a la vez (≈ 4,000 tokens)."
+    },
+    {
+      "id": "revisiones_dia",
+      "dato": "Revisiones de documento al día",
+      "valor": "120",
+      "nota": "4.8 solicitudes × 25 documentos. Cada una: ≈ 5,000 tokens de entrada (el documento y ≈ 1,000 de instrucciones) y ≈ 600 de salida (las partes propuestas con causal y fundamento)."
+    },
+    {
+      "id": "llamadas_dia",
+      "dato": "Llamadas al modelo al día",
+      "valor": "920: 800 preguntas (40 × 20) + 120 revisiones",
+      "nota": "En las herramientas se escribe como 23 llamadas por persona (920 ÷ 40), todas de 6,000 tokens de entrada y 500 de salida: la revisión (5,000 y 600) pesa casi lo mismo."
+    },
+    {
+      "id": "horario",
+      "dato": "Horario",
+      "valor": "9 h de tráfico (9:00 a 18:00), días hábiles; pico de 2.5 veces el promedio",
+      "nota": "Supuesto; el pico es el del despacho, por consistencia."
+    },
+    {
+      "id": "dias_mes",
+      "dato": "Días hábiles al mes",
+      "valor": "21",
+      "nota": "≈ 250 ÷ 12 = 20.8, redondeado. Supuesto."
+    },
+    {
+      "id": "llamadas_mes",
+      "dato": "Llamadas al mes",
+      "valor": "19,320",
+      "nota": "920 × 21."
+    },
+    {
+      "id": "tokens",
+      "dato": "Cada llamada",
+      "valor": "≈ 6,000 tokens de entrada (instrucciones, pregunta y 5 fragmentos de ≈ 1,000) y ≈ 500 de salida",
+      "nota": "Las mismas cuentas que el despacho; la revisión de un documento queda abajo de eso."
+    },
+    {
+      "id": "promesa",
+      "dato": "La promesa",
+      "valor": "primer token en ≤ 3 s en el p95 y ≥ 20 tokens por segundo por persona; contexto de 16,384 tokens por conversación",
+      "nota": "Supuesto: 3 s porque es un equipo chico que espera menos que un despacho; 20 tokens/s para leer un borrador en el escritorio."
+    },
+    {
+      "id": "plazo_ley",
+      "dato": "Plazo legal de respuesta",
+      "valor": "≤ 20 días hábiles desde el día siguiente a la presentación; + 10 con prórroga fundada que aprueba el Comité antes del vencimiento",
+      "nota": "LGTAIP arts. 134 y 128 (los plazos en días son hábiles: lo dice el 128). Prevención: una sola vez en 5 días, el solicitante tiene 10 y el plazo se interrumpe (art. 130)."
+    },
+    {
+      "id": "plazo_interno",
+      "dato": "Plazo interno de la dependencia",
+      "valor": "borrador listo el día hábil 12; revisión del área hasta el 17; Comité y respuesta el 20",
+      "nota": "Supuesto, para que la prórroga sea la excepción."
+    },
+    {
+      "id": "indice",
+      "dato": "Lo que entra al índice del RAG",
+      "valor": "≈ 4,000 normas internas (≈ 120,000 páginas) y ≈ 6,000 respuestas anteriores con su versión pública (≈ 60,000 páginas): ≈ 180,000 páginas",
+      "nota": "Supuesto: 30 páginas por norma, 10 por respuesta, 5 años × 1,200. Los documentos de cada solicitud no entran al índice: se revisan y se quedan con su solicitud."
+    },
+    {
+      "id": "acervo",
+      "dato": "El acervo de expedientes",
+      "valor": "≈ 600,000 oficios y expedientes digitalizados, ≈ 2 millones de páginas; no se indexa en la primera fase",
+      "nota": "Supuesto; no hay fuente pública del tamaño típico del archivo de una dependencia."
+    },
+    {
+      "id": "idioma",
+      "dato": "Idioma",
+      "valor": "español; alguna respuesta en inglés a particulares extranjeros",
+      "nota": "Supuesto."
+    },
+    {
+      "id": "ti",
+      "dato": "TI",
+      "valor": "3 personas (2 de redes, 1 de seguridad), sin experiencia con GPUs",
+      "nota": "Supuesto."
+    },
+    {
+      "id": "red",
+      "dato": "La red",
+      "valor": "aislada de verdad: ningún cable hacia internet ni hacia la red de oficina; el servidor de modelos no tiene puerta de enlace",
+      "nota": "El cuarto grado de la figura de la lección «Seguridad»: air-gapped según el RFC 4949 y el glosario de NIST (CNSSI 4009-2022): no conectados físicamente y ninguna conexión lógica automática (consultado 2026-11-27)."
+    },
+    {
+      "id": "zona_entrada",
+      "dato": "Cómo entra todo",
+      "valor": "una estación de entrada con internet en otro cuarto, sin ningún cable a la red aislada; lo que cruza va en un medio nuevo, de un solo uso, que llevan dos personas y se anota en una bitácora; del lado aislado lo recibe una estación de cuarentena",
+      "nota": "Supuesto de diseño; es la «aduana» de la lección «Seguridad» sin la puente conectada."
+    },
+    {
+      "id": "medios",
+      "dato": "Los medios",
+      "valor": "USB cifradas nuevas, una por ciclo, que no regresan al lado con internet; los puertos USB de todo lo demás, bloqueados",
+      "nota": "Supuesto."
+    },
+    {
+      "id": "diodo",
+      "dato": "Métricas hacia afuera",
+      "valor": "ninguna en la primera fase: Prometheus y Grafana viven dentro de la red aislada, con una pantalla en el cuarto de TI",
+      "nota": "Un diodo de datos deja salir en un solo sentido, pero es una conexión física automática y ya no cumple la definición estricta de air gap (NIST SP 800-82r3 y CNSSI 4009-2022). Precio y productos con certificación en México: no verificados."
+    },
+    {
+      "id": "identidad",
+      "dato": "Quién entra",
+      "valor": "un directorio local dentro de la red aislada: Keycloak 26.8.2 (Apache 2.0, 5-nov-2026) con OIDC hacia Open WebUI, o el AD/LDAP que ya tenga la red; segundo factor con un token físico",
+      "nota": "Open WebUI 0.13.5 habla LDAP y OIDC (su env.py y config.py, 2026-11-27). El segundo factor es supuesto; la Política General de Ciberseguridad de la APF pide MFA proporcional (DOF 17-dic-2025). Llave MX no aplica: su art. 29 (DOF 6-feb-2025) habla de plataformas de trámites, y un asistente interno no lo es (interpretación, no verificada)."
+    },
+    {
+      "id": "hora",
+      "dato": "La hora",
+      "valor": "2 servidores de hora con chrony dentro de la red, en modo huérfano (local stratum 8 orphan), que se sincronizan entre sí; la hora inicial se pone a mano contra un reloj de referencia",
+      "nota": "chrony.conf, documentación 4.6 (consultada 2026-11-27): local stratum y orphan sirven hora sin referencia; refclock acepta un reloj de hardware (GPS, PPS). La versión instalada de chrony no está verificada."
+    },
+    {
+      "id": "modelo",
+      "dato": "Modelo",
+      "valor": "Qwen3.8-27B en FP8 (el repo FP8 oficial), con el razonamiento apagado",
+      "nota": "Apache 2.0 sin política de uso aparte; 27.78 mil millones de parámetros; contexto nativo de 262,144; no gated; creado 5-ago-2026; FP8 de 30.88 GB (13-ago-2026) y BF16 de 55,586,107,015 bytes en 32 archivos, commit 37561816e66b5b9153b1b64c10968c18c1e6f4a0 del 7-nov-2026 (API de Hugging Face, 2026-11-27). El repo FP8 (Qwen/Qwen3.8-27B-FP8, Apache 2.0, no gated, 30,879,676,248 bytes) estaba el 2026-11-27 en el commit c3a462cc3d38cf351f3b26cbd763469eeb74ef81 (7-nov-2026, API de Hugging Face); el que se usa se anota el día de la descarga."
+    },
+    {
+      "id": "arquitectura_herramientas",
+      "dato": "Cómo se escribe en las herramientas",
+      "valor": "P 27.78, E 2.543, L 16, g 4, d 256, h 24; FP8; programa 3 GB",
+      "nota": "Los de la ficha de la fábrica (config.json, 2026-11-27): L cuenta solo los 16 bloques de atención completa; 1 GB del programa es el estado fijo de las capas Gated DeltaNet."
+    },
+    {
+      "id": "procedencia",
+      "dato": "El origen del modelo",
+      "valor": "Alibaba (China); no se encontró ninguna norma federal mexicana vigente que regule el origen de un modelo open weight; si el comité de TIC lo quiere evitar, gpt-oss-120b (OpenAI) o Gemma 4 31B (Google), las dos Apache 2.0",
+      "nota": "Búsqueda en el DOF y la ATDT del paquete (2026-11-27): nada. Es decisión de la dependencia, no del caso. De Gemma 4 queda la duda de si su página «Prohibited use» aplica (no verificado). Con otro modelo, otra tabla de memoria."
+    },
+    {
+      "id": "llama_descartado",
+      "dato": "Por qué no Llama 3.3 70B",
+      "valor": "entre las actividades con riesgo de muerte o daño físico, su política de uso prohíbe las militares, de guerra, nucleares y de espionaje, y la operación de infraestructura crítica; es gated y pide «Built with Llama»",
+      "nota": "llama.com/llama3_3/use-policy/ (hoy redirige a dev.meta.ai/llama/llama3_3/use-policy), leído 2026-11-27. Para una dependencia del Estado es un riesgo contractual que no hace falta correr."
+    },
+    {
+      "id": "vram",
+      "dato": "Memoria, 4 conversaciones de 16,384",
+      "valor": "L40S: 37.62 de 43.2 GB útiles (87 %), caben 9; RTX PRO 6000 Server Edition: 37.62 de 86.4 GB (44 %), caben 49",
+      "nota": "Herramienta de VRAM con «arquitectura_herramientas»: pesos 30.32 GB, KV 4.29 GB, programa 3 GB. Un documento de 110,000 tokens de un jalón: 1 en la L40S, 7 en la Server Edition."
+    },
+    {
+      "id": "velocidad",
+      "dato": "Velocidad, 4 a la vez",
+      "valor": "L40S: ≈ 18.9 tokens/s por persona y TTFT ≈ 0.93 s; Server Edition: ≈ 35.0 y ≈ 0.68 s",
+      "nota": "Herramienta de velocidad con η_m 0.7 y η_c 0.5, prompt de 6,000 y respuesta de 500, cálculo en FP8. Una solicitud entera de 100,000 tokens de un jalón: TTFT ≈ 15.0 s en la Server Edition y ≈ 20.5 s en la L40S."
+    },
+    {
+      "id": "sizing",
+      "dato": "Resultado del sizing",
+      "valor": "λ ≈ 0.071 por segundo en el pico; c ≈ 1.82 conversaciones a la vez (Server Edition); la Server Edition atiende 13 a 20 tokens/s; la L40S, 0 a 20 y 6 a 15",
+      "nota": "Herramienta de sizing con 40 personas, 23 llamadas, 6,000 y 500 tokens, 9 h y pico de 2.5. Una sola Server Edition basta con 7.1 veces de holgura; la segunda es repuesto y staging."
+    },
+    {
+      "id": "a_la_vez",
+      "dato": "Conversaciones de diseño",
+      "valor": "4",
+      "nota": "≈ 2 veces el promedio del pico (1.82): las llegadas son al azar y los documentos largos alargan algunas."
+    },
+    {
+      "id": "opcion_a",
+      "dato": "Opción A",
+      "valor": "1 Exxact TensorEX 4U con 2 × L40S: US$58,281.30",
+      "nota": "Base US$40,461.30 + 2 × US$8,910 del configurador de Exxact (2026-11-25), la opción B de la fábrica. No llega a 20 tokens/s con el 27B en FP8."
+    },
+    {
+      "id": "opcion_b",
+      "dato": "Opción B (la que se recomienda)",
+      "valor": "1 Exxact TensorEX 4U con 2 × RTX PRO 6000 Blackwell Server Edition: US$74,779.28 ≈ MXN 1,474,670 sin IVA",
+      "nota": "equipos.json: ESTIMADO, base de Exxact (2026-11-25) + 2 × US$17,158.99 de CDW (2026-11-26, sin existencias). Es la D del despacho. Tipo de cambio 19.7203 (DOF 27-nov-2026). Que el chasis acepte la tarjeta no está verificado."
+    },
+    {
+      "id": "opcion_c",
+      "dato": "Opción C",
+      "valor": "2 servidores como B (uno de respaldo): US$149,558.56 ≈ MXN 2,949,340 sin IVA",
+      "nota": "Repuesto de servidor completo. Duplica la compra y, con 3 años de soporte, pasa el contrato a licitación pública en el tramo de presupuesto de la dependencia."
+    },
+    {
+      "id": "repuesto",
+      "dato": "Si algo falla",
+      "valor": "con una tarjeta, la otra atiende sola (13 lugares contra 1.82); con el servidor caído, la Unidad trabaja como hoy, a mano, y el contrato obliga a reemplazo en sitio",
+      "nota": "Supuesto de diseño: el asistente es apoyo, no el único camino; una caída de días no rompe un plazo de 20 días hábiles si el borrador se hace a mano."
+    },
+    {
+      "id": "presupuesto_adq",
+      "dato": "Presupuesto de adquisiciones de la dependencia",
+      "valor": "≈ $80 millones al año (tramo «mayor de 50,000 y hasta 100,000» miles de pesos del Anexo 9)",
+      "nota": "Supuesto."
+    },
+    {
+      "id": "anexo9",
+      "dato": "Montos máximos de su tramo",
+      "valor": "adjudicación directa hasta $391,000 y invitación a cuando menos tres hasta $3,264,000 por operación, sin IVA",
+      "nota": "PEF 2026 (DOF 21-nov-2025), Anexo 9, en miles de pesos sin IVA, «de cada operación» (consultado 2026-11-27). Sin fraccionar, y la suma de estas operaciones ≤ 30 % del presupuesto de adquisiciones del año (LAASSP art. 55)."
+    },
+    {
+      "id": "soporte",
+      "dato": "Soporte",
+      "valor": "10 % del equipo al año, sin acceso remoto: visitas, refacciones en México y reemplazo de tarjeta en sitio; US$7,477.93 al año ≈ US$623 al mes",
+      "nota": "Supuesto: no hay precio público de soporte sin acceso remoto (no verificado). En contratos de varios ejercicios la garantía de cumplimiento se renueva cada año en los primeros 10 días naturales (Reglamento de la LAASSP art. 132, DOF 18-dic-2025, reformado 27-mar-2026)."
+    },
+    {
+      "id": "monto_operacion",
+      "dato": "El monto de la operación",
+      "valor": "B con 3 años de soporte: ≈ $1,917,071 sin IVA → cabe en invitación a cuando menos tres, no en adjudicación directa; C con 3 años: ≈ $3,834,142 → licitación pública",
+      "nota": "Calculadora del caso: US$74,779.28 × (1 + 0.10 × 3) × 19.7203. Partir el contrato para bajar de nivel es fraccionamiento, prohibido (LAASSP art. 55)."
+    },
+    {
+      "id": "procedimiento",
+      "dato": "Cómo se compra",
+      "valor": "por monto cabe en invitación a cuando menos tres; la dependencia puede licitar (la regla general); si licita, lo probable es internacional (bajo tratados o abierta), porque la nacional pide bienes hechos en el país con ≥ 65 % de contenido nacional, salvo excepciones que fije la Secretaría, y un servidor con GPU importado no llega",
+      "nota": "LAASSP arts. 35, 39, 42, 55 y 56. Qué tratados cubren la compra (lista de Economía): no verificado."
+    },
+    {
+      "id": "calendario_compra",
+      "dato": "Del requerimiento al pago",
+      "valor": "≈ 6 a 9 meses",
+      "nota": "Estimación, no dato: los plazos de la ley (≥ 20 días naturales para proposiciones en licitación internacional, ≥ 5 en invitación, aceptación ≤ 10 días hábiles, pago ≤ 17 días hábiles; arts. 42, 56, 72 y 73) más supuestos del trámite interno y ≈ 3 meses de entrega de la tarjeta."
+    },
+    {
+      "id": "anticipo_garantias",
+      "dato": "Anticipo y garantías",
+      "valor": "anticipo ≤ 50 % del monto, con garantía del 100 % del anticipo; garantía de cumplimiento con el porcentaje que fije la dependencia",
+      "nota": "LAASSP arts. 66 IX y 69; Reglamento art. 13. El porcentaje de la garantía de cumplimiento no está en la Ley ni en el Reglamento: no verificado."
+    },
+    {
+      "id": "atdt",
+      "dato": "El dictamen de TIC",
+      "valor": "la ATDT dictamina las contrataciones de TIC de la APF; los umbrales y reglas del dictamen no están verificados",
+      "nota": "ATDT: Secretaría de Estado desde la reforma a la LOAPF del 28-nov-2024. Nota de la ATDT del 22-ene-2026 sobre su esquema de dictaminación (fuente secundaria). Su Política General de Ciberseguridad (DOF 17-dic-2025) pide inventario, SBOM, respaldos 3-2-1-1-0, MFA, Zero Trust y requisitos a proveedores."
+    },
+    {
+      "id": "examen",
+      "dato": "Examen",
+      "valor": "150 preguntas del área jurídica: 120 de normativa con su respuesta y su cita, y 30 casos de clasificación con la decisión que firmó el Comité (≈ 120 partes testadas en total)",
+      "nota": "Supuesto. Los 30 casos salen de resoluciones pasadas del Comité. El juez es local, nunca en la nube."
+    },
+    {
+      "id": "criterio",
+      "dato": "Criterio de aceptación",
+      "valor": "1) ≥ 102 de 120 bien con la cita correcta (85 %); 2) 0 datos personales o partes reservadas sin proponer en los 30 casos; 3) 0 respuestas que muestren o resuman lo testado",
+      "nota": "Supuesto. Con 0 omisiones en ≈ 120 partes, la cota de 95 % de la regla de tres es ≈ 2.5 %: por eso una persona revisa siempre."
+    },
+    {
+      "id": "piloto",
+      "dato": "Piloto",
+      "valor": "dos fases: 1) con información ya pública (normativa publicada y versiones públicas) en una GPU rentada, ≈ 160 h; 2) 6 semanas con 10 personas en el servidor propio, ya dentro",
+      "nota": "Supuesto. La fase 1 no ve nada reservado; la renta es la de la G4 de Google Cloud, ≈ US$4.50 por hora (gpus.json, 2026-11-27): ≈ US$720."
+    },
+    {
+      "id": "ciclo_entrada",
+      "dato": "Un ciclo de entrada",
+      "valor": "≈ 9 días hábiles: solicitud de cambio 2, bajar y verificar 1, escanear y grabar 1, cruzar y cuarentena 1, staging y examen 2, ventana 2; más 3 días naturales de espera que corren durante la solicitud",
+      "nota": "Supuesto. Copiar ≈ 46 GB tarda ≈ 7 min a 110 MB/s y el SHA-256, ≈ 24 s a 1.8 GiB/s (medido en una Mac con datos en memoria, no en un USB): el tiempo es del procedimiento."
+    },
+    {
+      "id": "cruce_inicial",
+      "dato": "Lo que cruza la primera vez",
+      "valor": "≈ 45.8 GB: Qwen3.8-27B FP8 30.88, vLLM 10.04, Open WebUI 1.65, LiteLLM 0.71, Qdrant 0.074, embeddings 1.21 y reranker 1.21 GB, más lo chico",
+      "nota": "Tamaños de la lección «Seguridad» (registros, noviembre de 2026) y de Hugging Face (2026-11-27). Lo chico: Keycloak, Prometheus, Grafana, chrony, wheels, driver."
+    },
+    {
+      "id": "actualizacion",
+      "dato": "Cada cuándo se actualiza",
+      "valor": "sistema y firmas del antivirus cada mes; vLLM, LiteLLM, Open WebUI, Qdrant y Keycloak cada 3 meses; el modelo cada 6; lo urgente, cuando un aviso grave lo pida",
+      "nota": "Supuesto."
+    },
+    {
+      "id": "horas_ti",
+      "dato": "Horas de TI al mes",
+      "valor": "≈ 60 h ≈ MXN 13,086 ≈ US$664: ≈ 24 h de ciclos de entrada (6 + 8 + 5 + 2 + 2.7 de urgencias) + ≈ 36 h de operación",
+      "nota": "Supuesto; los 36 h son lo que el despacho usa además de los parches (52 − 16). La hora a MXN 218.1 es la del despacho (28,000 × 1.35 ÷ 173.3)."
+    },
+    {
+      "id": "tarifa",
+      "dato": "Luz",
+      "valor": "US$0.08 por kWh",
+      "nota": "Supuesto: la de la ficha de la fábrica (GDMTO del Valle de México ÷ 19.7203). La tarifa de Pachuca no está verificada; con ≈ 0.8 kW no mueve la decisión."
+    },
+    {
+      "id": "costo_b",
+      "dato": "Costo de B",
+      "valor": "≈ US$3,659 al mes (≈ MXN 72,153); TCO de 36 meses ≈ US$131,717 (≈ MXN 2.60 M); ≈ MXN 3.73 por llamada",
+      "nota": "Herramienta de TCO: compra US$74,779.28 sin reventa (supuesto: la dependencia da de baja, no revende), 36 meses, 600 W por tarjeta al 30 %, 450 W del resto, PUE 2, US$0.08, US$823 de espacio y soporte (200 + 623), US$664 de TI, 19,320 llamadas."
+    },
+    {
+      "id": "costo_a_c",
+      "dato": "Costo de A y C",
+      "valor": "A ≈ US$3,183 al mes (MXN 3.25 por llamada); C ≈ US$6,454 al mes (MXN 6.59 por llamada)",
+      "nota": "Misma herramienta y supuestos; C con 4 tarjetas en 2 servidores y US$1,446 de espacio y soporte (200 de espacio, el mismo cuarto, + 2 × 623 de soporte)."
+    },
+    {
+      "id": "decidir_comprar",
+      "dato": "Lo que cuesta decidir y comprar",
+      "valor": "≈ US$3,319: piloto público ≈ US$720, ≈ 75 h del área jurídica para el examen (≈ US$829) y ≈ 160 h de las áreas para la investigación de mercado, el anexo técnico y la evaluación (≈ US$1,770)",
+      "nota": "Supuestos, a MXN 218.1 la hora. Con esto, 36 meses ≈ US$135,036 ≈ MXN 2.66 M."
+    },
+    {
+      "id": "iva",
+      "dato": "El IVA",
+      "valor": "todo lo de la ficha va sin IVA; con 16 % sobre la compra y 3 años de soporte, ≈ US$15,554 (≈ MXN 306,731) más",
+      "nota": "Tasa general que usa la ficha del despacho. Supuesto: la dependencia no lo acredita, así que para ella es costo (confirmarlo con su área de finanzas). Los montos del Anexo 9 son sin IVA."
+    },
+    {
+      "id": "api",
+      "dato": "La API, para comparar",
+      "valor": "≈ US$12 al mes por los 125.6 millones de tokens; no es opción",
+      "nota": "Herramienta de TCO con su API de omisión (Qwen3 32B). La red aislada no tiene salida: no es un problema de precio."
+    },
+    {
+      "id": "open_webui_marca",
+      "dato": "La marca de Open WebUI",
+      "valor": "su licencia propia («Open WebUI License»: las tres cláusulas de BSD-3 y una cuarta) no deja quitar ni cambiar la marca «Open WebUI» salvo con ≤ 50 usuarios en 30 días, permiso escrito o licencia enterprise",
+      "nota": "LICENSE de v0.13.5, leído 2026-11-27. Con 40 personas puede poner su logo; si pasa de 50, deja la marca o paga."
+    },
+    {
+      "id": "conservacion",
+      "dato": "Qué se conserva",
+      "valor": "el borrador del asistente no es documento de archivo hasta que una persona lo adopta; la bitácora de uso y la de medios sí se conservan con el catálogo de disposición documental",
+      "nota": "Ley General de Archivos (DOF 15-jun-2018, última reforma 14-nov-2025), arts. 7, 20–21 y 37. Interpretación, no revisada por un abogado."
+    },
+    {
+      "id": "evaluacion_impacto",
+      "dato": "Evaluación de impacto",
+      "valor": "sí se hace: el asistente lee datos personales de terceros, a veces sensibles; se presenta ante la Secretaría Anticorrupción y Buen Gobierno o la autoridad garante que le toque, que responde con recomendaciones no vinculantes en ≤ 30 días",
+      "nota": "LGPDPPSO arts. 68–73: la pide para un tratamiento «intensivo o relevante» a juicio del responsable (art. 68), descrito con riesgos inherentes, datos sensibles y transferencias (art. 69). Decisión del caso, con el área jurídica."
+    },
+    {
+      "id": "promesa_confidencialidad",
+      "dato": "Quién toca lo reservado",
+      "valor": "el proveedor que da soporte y quien opere el servidor firman por escrito una promesa de confidencialidad que dura aun después del cargo, si hay información de seguridad nacional",
+      "nota": "Ley de Seguridad Nacional (DOF 31-ene-2005, última reforma 14-nov-2025), art. 53. Esa ley no trae un estándar técnico para redes aisladas; no se encontró uno público (no verificado)."
+    }
+  ]
+}

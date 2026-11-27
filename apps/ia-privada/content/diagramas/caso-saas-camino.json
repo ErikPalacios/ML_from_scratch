@@ -1,0 +1,75 @@
+{
+  "titulo": "El camino de una pregunta y de un lote, con el id del despacho en cada capa",
+  "width": 78,
+  "height": 64,
+  "lanes": [
+    { "id": "despachos", "label": "Despachos · por internet", "kind": "neutral", "x": 0, "y": 0, "w": 78, "h": 14 },
+    { "id": "app", "label": "App y servicio · rack en Querétaro", "kind": "online", "x": 0, "y": 16, "w": 78, "h": 15 },
+    { "id": "modelos", "label": "Modelos y datos · red sin entrada de internet", "kind": "online", "x": 0, "y": 33, "w": 78, "h": 14 },
+    { "id": "control", "label": "Registros, examen y monitoreo", "kind": "monitor", "x": 0, "y": 49, "w": 78, "h": 15 }
+  ],
+  "nodes": [
+    { "id": "contA", "label": "Contadora", "sub": "despacho A", "badge": "1", "kind": "human", "x": 2, "y": 4, "w": 17, "h": 8,
+      "note": "Una de los 25 usuarios de un despacho **Empresa**. Entra a la app de la startup con su usuario y su segundo factor. Nunca ve una clave del gateway ni de la base: solo su sesión." },
+    { "id": "contB", "label": "Contador", "sub": "despacho B", "kind": "human", "x": 24, "y": 4, "w": 17, "h": 8,
+      "note": "Un usuario de otro despacho, en el mismo servidor. Para el sistema es otro [[multi-tenant|cliente]], con su propia sal, su propio equipo en el gateway y su propio filtro." },
+    { "id": "carga", "label": "Carga masiva", "sub": "5,000 documentos", "kind": "client", "x": 56, "y": 4, "w": 20, "h": 8,
+      "note": "El cierre del ejercicio de un despacho Empresa: 5,000 documentos que suben a las 8:30. Es el [[vecino-ruidoso|vecino ruidoso]] del caso. No va por la misma puerta que las preguntas: tiene su propia fila y su propia llave." },
+    { "id": "app", "label": "App y sesión", "sub": "de aquí sale el id", "badge": "2", "kind": "edge", "x": 2, "y": 19, "w": 20, "h": 9,
+      "note": "El front propio de la startup (no Open WebUI: su licencia no deja cambiarle la marca con más de 50 usuarios). Autentica a la persona y saca el **id del despacho de la sesión**, nunca de un campo que mande el navegador." },
+    { "id": "servicio", "label": "Servicio de contexto", "sub": "filtro · sal · equipo", "badge": "3", "kind": "service", "x": 29, "y": 19, "w": 20, "h": 9,
+      "note": "El único lugar que convierte el id del despacho en todo lo demás: el filtro de Qdrant, la [[cache-salt|sal del caché]] (un secreto de 256 bits por despacho), la llave del equipo de LiteLLM y la etiqueta del registro. Borra cualquier `cache_salt` o id que venga en la petición." },
+    { "id": "fila", "label": "Fila de lotes", "sub": "una por despacho", "kind": "queue", "x": 56, "y": 19, "w": 20, "h": 9,
+      "note": "Guarda los 5,000 documentos y los suelta de **4 en 4** de 7:00 a 19:00 (13 de noche, 0 si una tarjeta está caída). Lo que no entra espera aquí, no en la fila de vLLM, donde haría esperar a todos." },
+    { "id": "qdrant", "label": "Qdrant", "sub": "una colección, is_tenant", "kind": "store", "x": 2, "y": 36, "w": 20, "h": 8,
+      "note": "Qdrant 1.20.2: una sola colección con el id del despacho en cada punto y un índice `is_tenant`. El índice **no autoriza**: el filtro lo pone el servicio en cada consulta, con una clave que ningún cliente ve. Los despachos Empresa van en su propia pieza (multitenancy por niveles)." },
+    { "id": "gateway", "label": "LiteLLM", "sub": "un equipo por despacho", "badge": "4", "kind": "edge", "x": 29, "y": 36, "w": 20, "h": 8,
+      "note": "LiteLLM 1.111.0: cada despacho es un **equipo** con sus claves, sus tokens por minuto, sus requests a la vez y su presupuesto al mes, según el plan. Un hook propio (`async_pre_call_hook`) pone la sal; LiteLLM no la conoce." },
+    { "id": "vllm", "label": "2 × vLLM", "sub": "una copia por tarjeta", "kind": "gpu", "x": 56, "y": 36, "w": 20, "h": 8,
+      "note": "vLLM 0.34.0 con Qwen3.8 27B en FP8, una copia en cada RTX PRO 6000 Server Edition: 13 lugares a ≥ 20 tokens por segundo cada una. Comparte un solo prefix cache por copia; la sal lo parte por despacho. Su propia guía dice que no es una frontera de aislamiento." },
+    { "id": "registro", "label": "Gasto y trazas", "sub": "por despacho", "kind": "queue", "x": 2, "y": 53, "w": 20, "h": 8,
+      "note": "Las métricas de vLLM no traen etiqueta de cliente: el gasto, los tokens, el TTFT y los errores **por despacho** los anota el gateway. Sin el texto de las preguntas. Es lo que se le enseña a un despacho que reclama su SLA." },
+    { "id": "examen", "label": "Examen de fugas", "sub": "en cada despliegue", "kind": "job", "x": 29, "y": 53, "w": 20, "h": 8,
+      "note": "Dos despachos de prueba con documentos marcados: preguntas cruzadas, intentos de quitar o cambiar el id y la prueba de tiempo del caché. Si aparece **una** marca ajena, el despliegue se detiene." },
+    { "id": "prom", "label": "Prometheus", "sub": "lugares y filas", "kind": "monitor", "x": 56, "y": 53, "w": 20, "h": 8,
+      "note": "Mide las peticiones en curso y en espera de cada copia y la sonda de cada minuto. Si una copia cae, avisa y la fila de lotes se pone en 0 hasta que vuelva." }
+  ],
+  "edges": [
+    { "from": "contA", "to": "app", "kind": "online", "label": "pregunta", "fromSide": "b", "toSide": "t" },
+    { "from": "contB", "to": "app", "kind": "online", "fromSide": "b", "toSide": "t", "via": [[30.5, 15.5], [18, 15.5]] },
+    { "from": "app", "to": "servicio", "kind": "online", "fromSide": "r", "toSide": "l" },
+    { "from": "carga", "to": "fila", "kind": "offline", "label": "5,000", "fromSide": "b", "toSide": "t" },
+    { "from": "fila", "to": "servicio", "kind": "offline", "label": "4 a la vez", "fromSide": "l", "toSide": "r" },
+    { "from": "servicio", "to": "qdrant", "kind": "online", "label": "filtro", "fromSide": "b", "toSide": "t", "via": [[35, 32], [12, 32]] },
+    { "from": "servicio", "to": "gateway", "kind": "online", "fromSide": "b", "toSide": "t", "via": [[43, 32]] },
+    { "from": "gateway", "to": "vllm", "kind": "online", "label": "sal", "fromSide": "r", "toSide": "l" },
+    { "from": "gateway", "to": "registro", "kind": "async", "dashed": true, "fromSide": "b", "toSide": "t", "via": [[35, 48.5], [12, 48.5]] },
+    { "from": "examen", "to": "gateway", "kind": "monitor", "fromSide": "t", "toSide": "b", "via": [[43, 48.5]] },
+    { "from": "prom", "to": "vllm", "kind": "monitor", "fromSide": "t", "toSide": "b" }
+  ],
+  "flows": [
+    { "id": "pregunta", "label": "Una pregunta del despacho A",
+      "steps": [
+        { "nodes": ["contA"], "edges": [], "text": "La contadora pregunta «¿cuánto IVA acreditable tiene el cliente 14 en marzo?». Es una de ≈ 5,050 preguntas del día, y en el pico hay **≈ 9 a la vez** en todo el servidor." },
+        { "nodes": ["contA", "app"], "edges": ["contA>app"], "text": "La app la reconoce por su sesión y le pone el **id del despacho A**. Si el navegador mandara otro id en el cuerpo, se ignora." },
+        { "nodes": ["app", "servicio"], "edges": ["app>servicio"], "text": "El servicio de contexto convierte ese id en cuatro cosas: el filtro, la sal, la llave del equipo y la etiqueta del registro. Una sola fuente de verdad." },
+        { "nodes": ["servicio", "qdrant"], "edges": ["servicio>qdrant"], "text": "Busca los 5 fragmentos **con el filtro del despacho A** dentro de la búsqueda. Qdrant nunca ve una consulta sin filtro, porque la clave de la base solo la tiene el servicio." },
+        { "nodes": ["servicio", "gateway", "vllm"], "edges": ["servicio>gateway", "gateway>vllm"], "text": "El prompt de ≈ 6,000 tokens entra al gateway con la llave del equipo A: el gateway revisa su cuota (6 a la vez, 100,000 tokens por minuto), le pone la sal de A y lo manda a la copia con menos trabajo. Primer token en ≈ 0.7 s." },
+        { "nodes": ["registro"], "edges": ["gateway>registro"], "text": "Queda una fila **sin texto**: despacho, usuario, tokens, tiempos, gasto. Al fin de mes, la factura y el SLA de A salen de aquí." }
+      ] },
+    { "id": "lote", "label": "El lote de 5,000 documentos",
+      "steps": [
+        { "nodes": ["carga", "fila"], "edges": ["carga>fila"], "text": "A las 8:30, el despacho A sube 5,000 documentos del cierre. No entran a vLLM: entran a **su** fila de lotes." },
+        { "nodes": ["fila", "servicio"], "edges": ["fila>servicio"], "text": "La fila los suelta de 4 en 4. Cada uno ocupa un lugar ≈ 10.45 s (lee ≈ 4,000 tokens y escribe una ficha de ≈ 200). A ese paso el lote tarda **3.63 h**." },
+        { "nodes": ["gateway", "vllm"], "edges": ["servicio>gateway", "gateway>vllm"], "text": "Por su llave de lotes, con su propio tope. Quedan 22 de 26 lugares para las ≈ 9 conversaciones de los demás: en la simulación, su espera p95 sigue en **0.0 s**." },
+        { "nodes": ["prom", "fila"], "edges": ["prom>vllm"], "text": "A las 10:00 se cae una tarjeta. Prometheus avisa y la fila de lotes se pone en **0**: con 13 lugares y el lote, la espera p95 de los demás subiría a 13.4 s. El lote espera; los contadores, no." }
+      ] },
+    { "id": "fuga", "label": "Un intento de fuga",
+      "steps": [
+        { "nodes": ["contB"], "edges": [], "text": "Alguien en el despacho B cambia, en el navegador, el id del despacho por el de A, y además escribe el principio de un documento que cree que A tiene, para medir el tiempo." },
+        { "nodes": ["app", "servicio"], "edges": ["contB>app", "app>servicio"], "text": "El id del cuerpo no se usa: el servicio toma el de la **sesión**, que es B. El filtro de Qdrant es el de B y la sal es la de B." },
+        { "nodes": ["gateway", "vllm"], "edges": ["servicio>gateway", "gateway>vllm"], "text": "Con la sal de B, sus bloques nunca coinciden con los de A: su primer token tarda lo mismo que el de un texto nuevo. El [[canal-lateral|canal lateral]] queda cerrado." },
+        { "nodes": ["examen"], "edges": ["examen>gateway"], "text": "Este mismo intento es una de las 100 pruebas de quitar o cambiar el id del examen de fugas, que corre en cada despliegue. El criterio es **0**." }
+      ] }
+  ]
+}

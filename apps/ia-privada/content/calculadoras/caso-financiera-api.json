@@ -1,0 +1,51 @@
+{
+  "titulo": "Servidor propio o API, por llamada",
+  "intro": "La herramienta de TCO cobra la API por tokens; una llamada, además, se transcribe por **minuto**. Aquí la API al mes es \\(A = n × D × (m × p_{min} + (N_e × p_e + N_s × p_s) ÷ 10^6)\\), y el servidor propio, \\(P\\), sale de la herramienta de TCO. Arranca con la financiera: 8,000 llamadas de 6 minutos al día, 30 días, la transcripción de US$0.006 por minuto y Claude Haiku 5.5, uno de los LLM baratos de la lista (elige la «mini» para la transcripción más barata).",
+  "preajustes": [
+    { "label": "LLM por API (precios con fecha y fuente)", "datos": "apis", "inicial": "anthropic-haiku-5-5", "campos": { "pi": "usd_millon_entrada", "po": "usd_millon_salida" } },
+    { "label": "Transcripción por API (consultado 2026-11-27)", "inicial": 0, "opciones": [
+      { "label": "OpenAI gpt-4o-transcribe · US$0.006 por minuto", "valores": { "pa": 0.006 }, "nota": "Página de precios de OpenAI, consultada 2026-11-27. El mismo precio que su Whisper." },
+      { "label": "OpenAI gpt-4o-mini-transcribe · US$0.003 por minuto", "valores": { "pa": 0.003 }, "nota": "Página de precios de OpenAI, consultada 2026-11-27." },
+      { "label": "AWS Transcribe por lotes · US$0.006 por minuto (ejemplo de su página)", "valores": { "pa": 0.006 }, "nota": "El ejemplo de la página de precios de AWS (Virginia), consultada 2026-11-27; la tabla de tramos no se pudo leer." }
+    ] }
+  ],
+  "entradas": [
+    { "id": "N", "label": "Llamadas al día, \\(n\\)", "min": 100, "max": 200000, "paso": 100, "valor": 8000, "tipo": "numero" },
+    { "id": "m", "label": "Minutos de audio por llamada, \\(m\\)", "min": 1, "max": 20, "paso": 0.5, "valor": 6, "unidad": "min" },
+    { "id": "D", "label": "Días al mes, \\(D\\)", "min": 1, "max": 31, "paso": 1, "valor": 30 },
+    { "id": "pa", "label": "Transcripción: US$ por minuto de audio, \\(p_{min}\\)", "min": 0, "max": 0.1, "paso": 0.0005, "valor": 0.006, "tipo": "numero" },
+    { "id": "Ti", "label": "Tokens de entrada por llamada, \\(N_e\\)", "min": 100, "max": 50000, "paso": 1, "valor": 2004, "tipo": "numero" },
+    { "id": "To", "label": "Tokens de salida por llamada, \\(N_s\\)", "min": 10, "max": 5000, "paso": 1, "valor": 350, "tipo": "numero" },
+    { "id": "pi", "label": "LLM: US$ por millón de tokens de entrada, \\(p_e\\)", "min": 0, "max": 200, "paso": 0.01, "valor": 0.1, "tipo": "numero" },
+    { "id": "po", "label": "LLM: US$ por millón de tokens de salida, \\(p_s\\)", "min": 0, "max": 500, "paso": 0.01, "valor": 0.5, "tipo": "numero" },
+    { "id": "P", "label": "**Servidor propio al mes**, \\(P\\), en US$ (3,121 = 4 L40S, herramienta de TCO)", "min": 0, "max": 100000, "paso": 1, "valor": 3121, "tipo": "numero" },
+    { "id": "tc", "label": "Tipo de cambio, en pesos por dólar (el FIX del 2026-11-26)", "min": 10, "max": 40, "paso": 0.0001, "valor": 19.7203, "tipo": "numero" }
+  ],
+  "calculos": [
+    { "id": "L", "formula": "N * D" },
+    { "id": "mins", "formula": "N * m * D" },
+    { "id": "asr", "formula": "mins * pa" },
+    { "id": "llm", "formula": "L * (Ti * pi + To * po) / 1e6" },
+    { "id": "api", "formula": "asr + llm" }
+  ],
+  "salidas": [
+    { "label": "1 · Minutos de audio al mes", "formula": "mins", "formato": "int",
+      "cuenta": "{{N|int}} × {{m|corto}} × {{D|int}} = **{{mins|int}} minutos**" },
+    { "label": "2 · Transcripción al mes (US$)", "formula": "asr", "formato": "int", "barra": true,
+      "cuenta": "{{mins|int}} × US${{pa|corto|4}} = **US${{asr|int}}**" },
+    { "label": "3 · LLM al mes (US$)", "formula": "llm", "formato": "int", "barra": true,
+      "cuenta": "{{L|int}} llamadas × ({{Ti|int}} × {{pi|corto}} + {{To|int}} × {{po|corto}}) ÷ 10⁶ = **US${{llm|int}}**" },
+    { "label": "4 · API al mes, \\(A\\) (US$)", "formula": "api", "formato": "int", "barra": true },
+    { "label": "5 · Servidor propio al mes, \\(P\\) (US$)", "formula": "P", "formato": "int", "barra": true },
+    { "label": "Por llamada: API (MXN)", "formula": "api / L * tc", "formato": "corto", "decimales": 2,
+      "cuenta": "US${{api|int}} ÷ {{L|int}} × {{tc|corto|4}} = **{{api / L * tc|corto|2}} pesos**" },
+    { "label": "Por llamada: servidor propio (MXN)", "formula": "P / L * tc", "formato": "corto", "decimales": 2,
+      "cuenta": "US${{P|int}} ÷ {{L|int}} × {{tc|corto|4}} = **{{P / L * tc|corto|2}} pesos**" },
+    { "label": "¿El propio sale más barato?", "formula": "api - P", "veredicto": { "si": "Sí", "no": "No" },
+      "cuenta": "API {{api|int}} − propio {{P|int}} = US${{api - P|int}} al mes" },
+    { "label": "Llamadas al mes en que empatan", "formula": "api > 0 ? P / (api / L) : 1 / 0", "formato": "int", "sin_valor": "Nunca",
+      "nota": "abajo de esto, la API cuesta menos en dinero" },
+    { "label": "Parte de la API que es transcripción", "formula": "api > 0 ? asr / api : 0", "formato": "pct", "decimales": 0 }
+  ],
+  "nota": "Prueba: elige gpt-4o-mini-transcribe y Claude Sonnet 5.5; baja las llamadas a 2,000 al día. La cuenta es solo de dinero: no trae el trámite del art. 318 de las disposiciones de la CNBV (ni la autorización del art. 328 si el proveedor está fuera de México), el secreto bancario que se le extiende al proveedor ni que el proveedor entre al alcance de PCI DSS."
+}

@@ -1,0 +1,423 @@
+{
+ "titulo": "El lote de una noche: de la grabación al tablero de la mañana",
+ "width": 78,
+ "height": 66,
+ "lanes": [
+  {
+   "id": "central",
+   "label": "Centro de contacto · de día",
+   "kind": "neutral",
+   "x": 0,
+   "y": 0,
+   "w": 78,
+   "h": 15
+  },
+  {
+   "id": "noche",
+   "label": "Servidor de la noche · 22:00–06:00 · sin salida a internet",
+   "kind": "offline",
+   "x": 0,
+   "y": 16,
+   "w": 78,
+   "h": 31
+  },
+  {
+   "id": "manana",
+   "label": "La mañana",
+   "kind": "online",
+   "x": 0,
+   "y": 48,
+   "w": 78,
+   "h": 18
+  }
+ ],
+ "nodes": [
+  {
+   "id": "central",
+   "label": "Central telefónica",
+   "sub": "8,000 llamadas",
+   "badge": "1",
+   "kind": "client",
+   "x": 2,
+   "y": 4,
+   "w": 18,
+   "h": 8,
+   "note": "Graba cada llamada en **estéreo**: el agente en un canal y el cliente en el otro (supuesto que confirma su proveedor). Mientras el cliente dicta su tarjeta, la grabación se **pausa**: es la primera defensa de [[pci-dss|PCI DSS]], y no es del LLM."
+  },
+  {
+   "id": "grabador",
+   "label": "Grabador",
+   "sub": "audio ≥ 180 días",
+   "kind": "store",
+   "x": 30,
+   "y": 4,
+   "w": 18,
+   "h": 8,
+   "note": "El sistema de grabación que la financiera ya tiene, con los controles que piden las disposiciones de la CNBV a los grabadores y sus respaldos (art. 316 Bis 7). El caso no lo cambia: solo lee de él a las 21:30."
+  },
+  {
+   "id": "metadatos",
+   "label": "Metadatos",
+   "sub": "hora, duración, agente",
+   "kind": "store",
+   "x": 58,
+   "y": 4,
+   "w": 18,
+   "h": 8,
+   "note": "Lo que la central sabe sin oír la llamada: a qué hora fue, cuánto duró, cuántas veces se llamó al mismo cliente. Una llamada de cobranza fuera de 7:00–22:00 se marca con una **regla**, sin modelo."
+  },
+  {
+   "id": "cola",
+   "label": "Lista de la noche",
+   "sub": "tandas de 500",
+   "badge": "2",
+   "kind": "queue",
+   "x": 2,
+   "y": 20,
+   "w": 18,
+   "h": 8,
+   "note": "Los archivos del día, partidos en 16 tandas de 500 llamadas. Cada tanda tiene su archivo de salida y su código de salida: si una falla a las 2:00, se reintenta esa, no la noche entera."
+  },
+  {
+   "id": "asr",
+   "label": "faster-whisper",
+   "sub": "4 L40S, con VAD",
+   "badge": "3",
+   "kind": "gpu",
+   "x": 30,
+   "y": 20,
+   "w": 18,
+   "h": 8,
+   "note": "[[voz-a-texto|Voz a texto]] con Whisper large-v3-turbo. Las 4 tarjetas transcriben a la vez. El [[vad|VAD]] salta los silencios de cada canal. Con la cota baja (85× por tarjeta) son ≈ 2.35 h de reloj un día normal."
+  },
+  {
+   "id": "redactor",
+   "label": "Redactor",
+   "sub": "PAN y CVV",
+   "badge": "4",
+   "kind": "service",
+   "x": 58,
+   "y": 20,
+   "w": 18,
+   "h": 8,
+   "note": "Reglas, sin modelo: toda corrida de 13 o más dígitos (en cifras o en palabras) se cambia por `[PAN ****NNNN]`; el número después de «código de seguridad», por `[CVV]`. Corre **en memoria**, antes de que el texto toque un disco."
+  },
+  {
+   "id": "validador",
+   "label": "Validador",
+   "sub": "esquema y reglas",
+   "kind": "job",
+   "x": 2,
+   "y": 35,
+   "w": 18,
+   "h": 8,
+   "note": "Revisa cada JSON: que cumpla el esquema, que la causa esté en el catálogo, que un monto prometido aparezca tal cual en la transcripción. Suma las banderas de los metadatos. Lo que no pasa va a «revisar a mano», no al tablero."
+  },
+  {
+   "id": "llm",
+   "label": "Qwen3.8 27B",
+   "sub": "vLLM, JSON con enum",
+   "badge": "5",
+   "kind": "model",
+   "x": 30,
+   "y": 35,
+   "w": 18,
+   "h": 8,
+   "note": "Resume y clasifica con [[salida-estructurada|salida estructurada]]: el motivo, la queja y la causa salen de listas cerradas. 32 llamadas a la vez por tarjeta; ≈ 0.52 h de reloj con las 4 un día normal."
+  },
+  {
+   "id": "transcr",
+   "label": "Transcripciones",
+   "sub": "redactadas, 180 días",
+   "kind": "store",
+   "x": 58,
+   "y": 35,
+   "w": 18,
+   "h": 8,
+   "note": "Texto por canal, con marcas de tiempo y ya sin números de tarjeta. Es lo que se le entrega al cliente si pide su grabación (art. 316 Bis 15 de las disposiciones de la CNBV): tiene que estar bien."
+  },
+  {
+   "id": "base",
+   "label": "Base del tablero",
+   "sub": "un JSON por llamada",
+   "badge": "6",
+   "kind": "store",
+   "x": 2,
+   "y": 52,
+   "w": 18,
+   "h": 8,
+   "note": "Resumen, motivo, queja, causa, promesa de pago y banderas, con el folio de la llamada. Sin números de tarjeta. Si va con una reclamación, se conserva 6 años con los antecedentes de la [[une|UNE]]."
+  },
+  {
+   "id": "super",
+   "label": "Supervisores y UNE",
+   "sub": "a las 7:00",
+   "kind": "human",
+   "x": 30,
+   "y": 52,
+   "w": 18,
+   "h": 8,
+   "note": "Ven las quejas del día con su causa propuesta, las promesas de pago y las banderas. **El modelo propone; una persona confirma** la causa que va al [[reune|REUNE]] y abre el folio de la UNE."
+  },
+  {
+   "id": "alertas",
+   "label": "Alertas",
+   "sub": "avance del lote",
+   "kind": "monitor",
+   "x": 58,
+   "y": 52,
+   "w": 18,
+   "h": 8,
+   "note": "Cuenta llamadas: las que entraron, las transcritas, las clasificadas y las que se fueron a revisión. Si a las 4:30 falta más de la mitad, avisa a TI. Y cada semana, la auditoría del redactor busca dígitos sueltos en una muestra."
+  }
+ ],
+ "edges": [
+  {
+   "from": "central",
+   "to": "grabador",
+   "kind": "offline",
+   "label": "audio",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "grabador",
+   "to": "metadatos",
+   "kind": "offline",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "grabador",
+   "to": "cola",
+   "kind": "offline",
+   "label": "21:30",
+   "fromSide": "b",
+   "toSide": "t",
+   "via": [
+    [
+     39,
+     16
+    ],
+    [
+     11,
+     16
+    ]
+   ]
+  },
+  {
+   "from": "cola",
+   "to": "asr",
+   "kind": "offline",
+   "label": "archivos",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "asr",
+   "to": "redactor",
+   "kind": "offline",
+   "label": "texto",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "redactor",
+   "to": "transcr",
+   "kind": "offline",
+   "fromSide": "b",
+   "toSide": "t"
+  },
+  {
+   "from": "transcr",
+   "to": "llm",
+   "kind": "offline",
+   "label": "lee",
+   "fromSide": "l",
+   "toSide": "r"
+  },
+  {
+   "from": "llm",
+   "to": "validador",
+   "kind": "offline",
+   "label": "JSON",
+   "fromSide": "l",
+   "toSide": "r"
+  },
+  {
+   "from": "metadatos",
+   "to": "validador",
+   "kind": "offline",
+   "fromSide": "b",
+   "toSide": "t",
+   "dashed": true,
+   "via": [
+    [
+     67,
+     14
+    ],
+    [
+     53,
+     14
+    ],
+    [
+     53,
+     31
+    ],
+    [
+     11,
+     31
+    ]
+   ]
+  },
+  {
+   "from": "validador",
+   "to": "base",
+   "kind": "offline",
+   "fromSide": "b",
+   "toSide": "t"
+  },
+  {
+   "from": "base",
+   "to": "super",
+   "kind": "online",
+   "label": "tablero",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "base",
+   "to": "alertas",
+   "kind": "monitor",
+   "label": "conteos",
+   "fromSide": "b",
+   "toSide": "b",
+   "via": [
+    [
+     11,
+     63
+    ],
+    [
+     67,
+     63
+    ]
+   ]
+  }
+ ],
+ "flows": [
+  {
+   "id": "llamada",
+   "label": "Una llamada, de la grabación al tablero",
+   "steps": [
+    {
+     "nodes": [
+      "central",
+      "grabador"
+     ],
+     "edges": [
+      "central>grabador"
+     ],
+     "text": "**1 · Se graba.** A las 15:12, un cliente de Saltillo llama por un cargo de $2,300 que no reconoce. Al final paga una mensualidad con su tarjeta: mientras la dicta, la grabación se pausa."
+    },
+    {
+     "nodes": [
+      "grabador",
+      "cola"
+     ],
+     "edges": [
+      "grabador>cola"
+     ],
+     "text": "**2 · Entra a la lista.** A las 21:30 la central exporta los archivos del día; a las 22:00 la llamada queda en la tanda 7 de 16."
+    },
+    {
+     "nodes": [
+      "cola",
+      "asr",
+      "redactor"
+     ],
+     "edges": [
+      "cola>asr",
+      "asr>redactor"
+     ],
+     "text": "**3 · Se transcribe y se tacha.** faster-whisper transcribe cada canal sin los silencios. La pausa falló un segundo y se coló «…1111»: el redactor no la cambia (son 4 dígitos), pero si se hubiera colado el número completo lo habría cambiado por `[PAN ****1111]` antes de escribir."
+    },
+    {
+     "nodes": [
+      "transcr",
+      "llm"
+     ],
+     "edges": [
+      "redactor>transcr",
+      "transcr>llm"
+     ],
+     "text": "**4 · Se resume y se clasifica.** Qwen3.8 27B lee la transcripción y escribe el JSON: motivo «aclaración de cargo», queja **sí**, causa «consumo no reconocido», sin promesa de pago."
+    },
+    {
+     "nodes": [
+      "validador",
+      "metadatos"
+     ],
+     "edges": [
+      "llm>validador",
+      "metadatos>validador"
+     ],
+     "text": "**5 · Se revisa sin modelo.** El JSON cumple el esquema y la causa está en el catálogo. Los metadatos no traen ninguna bandera: era una llamada entrante en horario."
+    },
+    {
+     "nodes": [
+      "base",
+      "super"
+     ],
+     "edges": [
+      "validador>base",
+      "base>super"
+     ],
+     "text": "**6 · Lo ve una persona.** A las 7:00, la supervisora de la UNE ve la queja con su resumen, confirma la causa y abre el folio. Desde las 15:12 de ayer ya corrían los 30 días hábiles."
+    }
+   ]
+  },
+  {
+   "id": "doble",
+   "label": "La noche en que llega el doble",
+   "steps": [
+    {
+     "nodes": [
+      "cola"
+     ],
+     "edges": [],
+     "text": "**1 · Quincena.** Llegan ≈ 16,000 llamadas, ≈ 1,600 h de audio: 32 tandas en vez de 16."
+    },
+    {
+     "nodes": [
+      "asr"
+     ],
+     "edges": [
+      "cola>asr"
+     ],
+     "text": "**2 · La voz, con las 4.** Con la cota baja, la voz tarda ≈ 4.7 h: termina a las 2:42. Si el servidor estuviera partido fijo en 2 y 2, la voz sola tardaría 9.4 h y no cabría."
+    },
+    {
+     "nodes": [
+      "llm",
+      "validador"
+     ],
+     "edges": [
+      "transcr>llm",
+      "llm>validador"
+     ],
+     "text": "**3 · El LLM, después.** Las 4 tarjetas cambian de modelo y resumen en ≈ 1.04 h. A las 3:45 termina la noche, una hora antes del límite con margen (4:48)."
+    },
+    {
+     "nodes": [
+      "alertas",
+      "base"
+     ],
+     "edges": [
+      "base>alertas"
+     ],
+     "text": "**4 · Nadie se despierta.** A las 4:30 los conteos están completos y la alerta no suena. Si una tarjeta hubiera fallado, la noche tardaría ≈ 7.7 h: el tablero llegaría a las 5:40, sin margen pero antes de las 7:00."
+    }
+   ]
+  }
+ ]
+}

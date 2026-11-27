@@ -1,0 +1,160 @@
+{
+  "terminos": [
+    {
+      "id": "secreto-bancario",
+      "termino": "Secreto bancario",
+      "en": "banking secrecy",
+      "corto": "La regla de la Ley de Instituciones de Crédito (art. 142) que hace confidencial todo lo de las operaciones y servicios de un cliente: el banco no se lo cuenta a nadie más que al cliente, sus representantes y las autoridades que la ley nombra.",
+      "largo": "Cubre la información y los documentos de los depósitos, créditos y servicios: una llamada sobre la tarjeta de un cliente entra. Los empleados y funcionarios responden por violarlo, y el banco repara los daños. El art. 46 Bis 1 lo **extiende a los terceros** que le dan servicios al banco (y a sus empleados, aun después de irse): un proveedor de nube que transcribe llamadas queda atado al secreto por la ley, y el banco responde por él. Las SOFIPO (sociedades financieras populares, que supervisa la CNBV) tienen una regla parecida en su ley; una SOFOM no regulada (presta, pero solo se registra ante la CONDUSEF) no la tiene en la suya, aunque sus clientes la pidan por contrato. Es pariente del [[secreto-profesional|secreto profesional]] del despacho, con una diferencia: aquí la ley nombra a los proveedores.",
+      "analogia": "El confesionario: lo que se dice ahí no sale, y el sacerdote responde si lo cuenta. Dónde se rompe: el confesionario no tiene proveedores; el banco sí, y la ley los mete al confesionario con él.",
+      "ejemplo": "Un resumen que dice «el cliente reconoce un adeudo de $18,400 en su tarjeta» es información de una operación: mandarlo a un servicio externo sin el contrato y el trámite de terceros sería una fuga, aunque «solo sea un resumen».",
+      "ver": ["servicio-de-terceros", "secreto-profesional", "dato-sensible"],
+      "leccion": "financiera",
+      "sensei": "privacidad"
+    },
+    {
+      "id": "servicio-de-terceros",
+      "termino": "Servicio de terceros (CNBV)",
+      "en": "third-party outsourcing",
+      "corto": "Cuando un banco contrata a otra empresa para algo de su operación (la nube incluida), las disposiciones de la CNBV (arts. 317–328) piden un informe con la ubicación de los servidores, políticas aprobadas por el Consejo, un contrato con cláusulas fijas, un aviso previo a la CNBV y, si el servicio corre fuera de México, su autorización.",
+      "largo": "El informe y su flujograma dicen qué procesos y qué información se intercambian y **dónde están físicamente los servidores**. Las políticas para elegir al tercero las aprueba el Consejo de Administración y las vigila el Comité de Auditoría. El contrato trae, por escrito: visitas y auditorías de la CNBV, confidencialidad con el art. 142 de la LIC, límites a la subcontratación, protección de datos personales, que el banco responde por el tercero, que el tercero avise con 30 días si cambia su objeto social, y la **eliminación segura** de la información al terminar. Antes de contratar, el banco **avisa a la CNBV** con 20 días hábiles (art. 326), y la CNBV puede pedirle que no lo haga. Si algo se procesa fuera de México, el director general fija políticas de seguridad para eso y hace falta la **autorización** de la CNBV (art. 328). La nube aparece con su nombre: «cómputo bajo demanda y de infraestructura tecnológica a través de Internet». No está prohibida: es un trámite largo.",
+      "analogia": "Dejar las llaves de tu casa a un vecino: no está prohibido, pero tu seguro te pide su nombre, su dirección, una carta firmada de qué puede hacer y que te devuelva las llaves al final. Dónde se rompe: el seguro no visita al vecino; la CNBV sí puede.",
+      "ejemplo": "Mandar el audio de las llamadas a una API de transcripción en EE. UU. pediría el informe con la ubicación de sus servidores, la aprobación del Consejo, las cláusulas de visita, las políticas para procesar fuera de México y la autorización de la CNBV. Un servidor propio en el centro de datos del banco no es un tercero.",
+      "ver": ["secreto-bancario", "encargado-de-datos", "soberania-de-datos"],
+      "leccion": "financiera",
+      "sensei": "nube"
+    },
+    {
+      "id": "une",
+      "termino": "UNE (Unidad Especializada)",
+      "en": "customer complaints unit",
+      "corto": "El área que toda institución financiera debe tener para atender consultas y reclamaciones de sus clientes: las recibe por cualquier medio, responde por escrito en 30 días hábiles como máximo e informa a la CONDUSEF cada trimestre.",
+      "largo": "La pide el art. 50 Bis de la Ley de Protección y Defensa al Usuario de Servicios Financieros. Presentar una reclamación ante la UNE **suspende la prescripción**: por eso importa saber cuándo se presentó, aunque haya sido en una llamada. Sus antecedentes se conservan 6 años, a disposición de la CONDUSEF, y se reportan en el [[reune|REUNE]] con su causa.",
+      "ejemplo": "Un cliente dice en una llamada «quiero reclamar este cargo de $2,300 que no hice». Desde ese momento corre el plazo de 30 días hábiles de la UNE, se haya abierto o no un folio. Si el clasificador no lo marca como queja y nadie lo levanta, el plazo corre igual.",
+      "ver": ["reune"],
+      "leccion": "financiera"
+    },
+    {
+      "id": "reune",
+      "termino": "REUNE",
+      "en": "CONDUSEF complaints registry",
+      "corto": "El registro de la CONDUSEF donde cada institución reporta sus consultas, reclamaciones y aclaraciones, con su causa tomada de un catálogo por sector, sin importar el canal por el que llegaron.",
+      "largo": "Lo define la Disposición en Materia de Registros ante la CONDUSEF. Se valida cada mes y se informa cada trimestre (los primeros 10 días hábiles de enero, abril, julio y octubre). La atención telefónica lleva bitácora con folio, fecha y hora. Las causas se registran «con base en el catálogo que se localiza en el REUNE»: el catálogo vive en el sistema, no en el Diario Oficial, así que un clasificador de llamadas se entrena y se examina contra el catálogo que la institución descarga de ahí.",
+      "ejemplo": "La financiera del caso usa 10 causas de ejemplo (las más frecuentes de 2025) más «sin queja»; en producción carga las del REUNE y el enum del JSON se genera de esa lista.",
+      "ver": ["une", "salida-estructurada"],
+      "leccion": "financiera"
+    },
+    {
+      "id": "pci-dss",
+      "termino": "PCI DSS",
+      "en": "Payment Card Industry Data Security Standard",
+      "corto": "La norma de seguridad que piden las marcas de tarjetas a quien guarda, procesa o transmite datos de tarjeta. La versión vigente es la 4.0.1 (junio de 2024). Dice, entre otras cosas, que el código de seguridad nunca se guarda y que el número de tarjeta se guarda ilegible.",
+      "largo": "No es una ley: es un estándar del PCI Security Standards Council que se vuelve obligatorio por contrato con las marcas y los adquirentes, y se valida cada año. Lo que más toca a un centro de contacto: el [[sad|dato de autenticación]] (el CVV, el PIN) **no se guarda después de autorizar, ni cifrado** (req. 3.3.1); el [[pan|PAN]] se muestra enmascarado (a lo más el BIN y los últimos 4, req. 3.4.1) y es ilegible donde se guarde (3.5.1). La norma cuenta como almacenamiento los **archivos de audio**: una grabación donde el cliente dicta su tarjeta es un lugar donde vive un PAN. Su FAQ 1210 dice qué hacer: evitar que se grabe, redactar al capturar o, si no se puede, controles compensatorios. Lo que entra en contacto con esos datos queda «en el alcance» de la evaluación.",
+      "analogia": "Las reglas de un estacionamiento para las llaves de los coches: el valet puede tenerlas mientras mueve el coche, pero no puede quedarse con una copia, ni siquiera bajo llave. Dónde se rompe: una llave se ve; un número dicho en voz alta queda escondido en horas de audio hasta que alguien lo transcribe.",
+      "ejemplo": "Un cliente de la financiera dicta «cuatro uno uno uno…» y después su código para pagar por teléfono. Si la grabación sigue corriendo, el audio guarda un CVV; si además se transcribe, el texto lo vuelve buscable.",
+      "ver": ["pan", "sad", "redaccion-de-datos"],
+      "leccion": "financiera",
+      "sensei": "cifrado"
+    },
+    {
+      "id": "pan",
+      "termino": "PAN (número de tarjeta)",
+      "en": "primary account number",
+      "corto": "El número largo de una tarjeta: la norma de las tarjetas (ISO/IEC 7812) permite de 8 a 19 dígitos; las de crédito suelen traer 15 o 16 y algunas de débito Maestro, 12. Sus primeros dígitos (el BIN) dicen qué banco la emitió y su último dígito es de control (la prueba de Luhn).",
+      "largo": "Con [[pci-dss|PCI DSS]] se puede guardar, pero ilegible (cifrado fuerte, token, truncado o hash con llave), y se muestra con a lo más el BIN y los últimos 4. En una llamada aparece de dos formas que un filtro tiene que atrapar: como cifras («4111 1111…») y como palabras («cuatro uno uno uno…»), según cómo lo escriba el modelo de [[voz-a-texto|voz a texto]].",
+      "ejemplo": "`4111 1111 1111 1111` (un número de prueba, no una tarjeta real) se guarda en la transcripción como `[PAN ****1111]`.",
+      "ver": ["luhn", "pci-dss", "redaccion-de-datos"],
+      "leccion": "financiera"
+    },
+    {
+      "id": "sad",
+      "termino": "Dato de autenticación sensible (SAD)",
+      "en": "sensitive authentication data",
+      "corto": "Lo que prueba que tienes la tarjeta: el código de seguridad de 3 o 4 dígitos (CVV, CVC, CID), el PIN y la pista completa de la banda. PCI DSS prohíbe guardarlo después de autorizar el pago, aunque esté cifrado.",
+      "largo": "Por eso es más delicado que el [[pan|PAN]]: el PAN se guarda protegido; el SAD no se guarda. En un centro de contacto, el problema es que la grabación lo guarda sola si el cliente lo dice en voz alta. La defensa va en la telefonía (pausar o enmascarar la grabación mientras se dicta, o mandar al cliente a pagar por tonos) y, después, en la transcripción (reemplazarlo antes de escribirla).",
+      "ejemplo": "«El código de atrás es 123» se transcribe y se guarda como «El código de atrás es [CVV]». El audio, si la pausa no funcionó, sigue siendo un problema aparte.",
+      "ver": ["pci-dss", "pan", "redaccion-de-datos"],
+      "leccion": "financiera"
+    },
+    {
+      "id": "redaccion-de-datos",
+      "termino": "Redacción de datos",
+      "en": "redaction",
+      "corto": "Reemplazar en un texto (o en un audio) los datos que no deben quedar, como un número de tarjeta o un código de seguridad, por una marca como `[PAN ****1111]` o `[CVV]`, antes de guardarlo.",
+      "largo": "En español de oficina «redactar» es escribir; aquí es la traducción usual del inglés *redact*: tachar. Se hace **antes** de escribir a disco, porque lo que se escribió una vez puede quedar en un registro, un respaldo o una caché. Un redactor de reglas (patrones de dígitos, palabras clave) es predecible y se puede examinar; uno con un modelo atrapa más formas raras pero falla de maneras más difíciles de probar. Se mide con dos tasas: lo que se le escapa (lo grave) y lo que tacha de más (un folio que parecía tarjeta).",
+      "ejemplo": "El redactor de la financiera tacha toda corrida de 13 o más dígitos, con o sin la prueba de [[luhn|Luhn]], y el número que sigue a «código de seguridad» o «CVV». Su examen: 1,000 llamadas con tarjetas de prueba dictadas y cero escapadas.",
+      "ver": ["pan", "sad", "luhn"],
+      "leccion": "financiera"
+    },
+    {
+      "id": "luhn",
+      "termino": "Prueba de Luhn",
+      "en": "Luhn check",
+      "corto": "La cuenta con que el último dígito de una tarjeta revisa a los demás: desde la derecha, el último se deja como está y se duplica uno sí y uno no (si un doble pasa de 9, se suman sus cifras); se suma todo y el total debe terminar en 0. Atrapa todo error en un solo dígito y casi todos los cambios de dos dígitos vecinos.",
+      "largo": "Sirve para saber si una corrida de dígitos **puede** ser una tarjeta. Para redactar es una trampa: si el modelo de voz a texto se equivocó en un dígito, el número ya no pasa la prueba y un filtro que solo tacha lo que pasa Luhn lo deja pasar, aunque los otros 15 dígitos sean los de la tarjeta del cliente.",
+      "ejemplo": "`4111 1111 1111 1111` pasa la prueba; `4111 1111 1111 1112` (un dígito mal oído) no pasa, y es casi el mismo número.",
+      "ver": ["pan", "redaccion-de-datos"],
+      "leccion": "financiera"
+    },
+    {
+      "id": "voz-a-texto",
+      "termino": "Voz a texto (ASR)",
+      "en": "automatic speech recognition (ASR)",
+      "corto": "Un modelo que convierte audio de voz en texto escrito. Whisper (de OpenAI) es el abierto más usado; lee el audio en trozos de 30 segundos y escribe el texto token por token, como un LLM.",
+      "largo": "Whisper es un *encoder-decoder*: un codificador convierte el audio (pasado a 16 kHz y a un espectrograma) en vectores, y un decodificador escribe los tokens del texto. large-v3-turbo es large-v3 con 4 capas de decodificador en vez de 32: mucho más rápido y con una pérdida menor de calidad. Se mide con el [[wer|WER]] (qué tanto se equivoca) y el [[rtfx|RTFx]] (qué tan rápido). Puede **alucinar** texto en tramos sin voz: por eso va con un [[vad|VAD]] delante. No sabe quién habla: eso es la [[diarizacion|diarización]].",
+      "ejemplo": "Una llamada de 6 minutos entra como dos canales de audio y sale como ≈ 780 palabras con marcas de tiempo, que el LLM lee como ≈ 1,400 tokens.",
+      "ver": ["wer", "rtfx", "vad", "diarizacion"],
+      "leccion": "financiera"
+    },
+    {
+      "id": "diarizacion",
+      "termino": "Diarización",
+      "en": "speaker diarization",
+      "corto": "Decidir en un audio «quién habló cuándo»: partirlo en tramos y ponerle a cada uno su hablante (agente, cliente). Hace falta cuando las voces vienen mezcladas en un solo canal.",
+      "largo": "El modelo abierto más usado es pyannote (la versión 4.1.1 es MIT; el modelo `community-1` es CC-BY-4.0 y [[modelo-gated|gated]]: se aceptan sus condiciones y se baja con un token). Cuesta GPU: su README publica ≈ 31 s por hora de audio en una H100, del mismo orden que transcribir. Y se equivoca (su DER, el error de diarización, es de 17 % a 27 % en sus pruebas). **Si la central graba en estéreo** (el agente en un canal, el cliente en el otro), no hace falta: cada canal ya es un hablante.",
+      "ejemplo": "Con 800 h de audio mono al día, pyannote gastaría ≈ 6.9 h de H100 cada noche. En estéreo, cero.",
+      "ver": ["voz-a-texto", "vad"],
+      "leccion": "financiera"
+    },
+    {
+      "id": "vad",
+      "termino": "VAD (detector de voz)",
+      "en": "voice activity detection",
+      "corto": "Un modelo chiquito que marca en qué partes de un audio hay voz y en cuáles no, para transcribir solo las primeras. faster-whisper trae Silero VAD.",
+      "largo": "Hace dos cosas: ahorra GPU (no se transcribe el silencio, la música de espera ni los tonos) y baja las **alucinaciones** de Whisper, que en tramos sin voz a veces escribe frases que nadie dijo. Con grabación estéreo es todavía más importante: cada canal calla mientras habla el otro, así que sin VAD se transcribirían dos llamadas completas con la mitad de silencio cada una.",
+      "ejemplo": "En la financiera, sin VAD los dos canales serían 1,600 h que transcribir cada noche; con VAD son, a lo más, las 800 h de la llamada.",
+      "ver": ["voz-a-texto", "diarizacion"],
+      "leccion": "financiera"
+    },
+    {
+      "id": "wer",
+      "termino": "WER (tasa de error de palabras)",
+      "en": "word error rate",
+      "corto": "Cuánto se equivoca un modelo de voz a texto: las palabras cambiadas, las que faltan y las que sobran, entre las palabras de la transcripción correcta. 10 % es una palabra mal de cada diez.",
+      "largo": "WER = (S + D + I) ÷ N, con S sustituciones, D palabras borradas, I palabras de más y N las palabras de la referencia (la transcripción que hizo una persona). Puede pasar de 100 % si el modelo inventa mucho. Un WER bajo en audio leído no dice nada del teléfono: el error cambia con el micrófono, el ruido, el acento y el tema. Y no todas las palabras pesan igual: en una llamada de banco, un «15» por un «50» en un monto vale más que diez muletillas mal escritas, así que se mide aparte en los números.",
+      "ejemplo": "Una llamada de 780 palabras con 62 cambiadas, 25 que faltan y 10 de más: (62 + 25 + 10) ÷ 780 ≈ 12.4 %.",
+      "ver": ["voz-a-texto", "rtfx"],
+      "leccion": "financiera"
+    },
+    {
+      "id": "rtfx",
+      "termino": "RTFx (veces tiempo real)",
+      "en": "inverse real-time factor",
+      "corto": "Qué tan rápido transcribe un modelo: segundos de audio por cada segundo de cómputo. Un RTFx de 100 transcribe una hora de audio en 36 segundos de GPU.",
+      "largo": "Es el [[throughput-de-tokens|throughput]] de la voz a texto. Se publica con su GPU y su tamaño de lote (el Open ASR Leaderboard usa una A100 de 80 GB con lote de 64), y como cualquier [[benchmark]] no se transfiere a otra GPU, a otro audio ni a otro programa sin medirlo. Para un trabajo por lotes, la cuenta es: horas de GPU = horas de audio ÷ RTFx.",
+      "ejemplo": "Whisper large-v3-turbo publica 200× en una A100: las 800 h de audio de la financiera serían 4 h de esa GPU. En una L40S no hay medición; la banda derivada es 85× a 232×.",
+      "ver": ["voz-a-texto", "wer", "ventana-de-lote"],
+      "leccion": "financiera"
+    },
+    {
+      "id": "ventana-de-lote",
+      "termino": "Ventana de lote",
+      "en": "batch window",
+      "corto": "Las horas fijas en que un trabajo por lotes tiene que empezar y terminar, casi siempre de noche, para que el resultado esté listo cuando llega la gente. Lo que importa es terminar a tiempo, no la latencia de cada pieza.",
+      "largo": "Un trabajo por lotes no tiene a nadie esperando cada respuesta: no hay [[ttft|TTFT]] que prometer. Se dimensiona con el **throughput total**: el trabajo entre la velocidad, contra las horas de la ventana, con un margen para reintentos y con el **día pico** (no el promedio). Su [[n-mas-1|N+1]] es distinto al de un servicio interactivo: si falla una GPU, el lote no se cae, se tarda más; la pregunta es si todavía cabe.",
+      "ejemplo": "La financiera tiene de 22:00 a 06:00 para transcribir, resumir y clasificar las llamadas del día, con 15 % de margen: 6.8 h útiles. Con 4 L40S, un día normal tarda ≈ 2.87 h y el doble ≈ 5.75 h.",
+      "ver": ["rtfx", "throughput-de-tokens", "holgura"],
+      "leccion": "financiera"
+    }
+  ]
+}
