@@ -1,0 +1,987 @@
+{
+  "id": "gate",
+  "patron": "llm",
+  "rama": "rag",
+  "etapa": "modelo",
+  "num": 9,
+  "titulo": "Gate de evals",
+  "nav": "Gate de evals",
+  "pregunta": "¿Cómo decides con números si un cambio al asistente puede salir: el golden set contra la API como cada persona, un juez que se parece a las personas y una comparación pregunta por pregunta que bloquea una regresión sin bloquear el ruido?",
+  "version": "2026-11-27",
+  "mapa": {
+    "resumen": "La estación 4 dejó un <b>golden set</b> (preguntas con su respuesta de referencia y sus fuentes, repartidas en dev y test) y la estación 8 dejó la <b>API con citas</b>. Esta estación los junta en el <b>gate</b>: el examen que corre con cada cambio al asistente (el chunking, los embeddings, el reranker, el prompt, el umbral del «no sé», el modelo) y decide si sale. Primero <b>corre</b> las 51 preguntas de test contra la API como lo haría cada persona, con su llave y sin la cache, y guarda todo en una <b>corrida</b> con su <b>manifiesto</b>. Después mide lo que se puede contar: el <b>recall@8 por documento</b> sobre lo que de verdad llegó al prompt, las <b>fugas de permisos</b> (tolerancia cero), las <b>citas</b> y los <b>«no sé»</b>. Lo que no se puede contar (si la respuesta es correcta) lo califica un <b>juez</b>, un LLM más grande que el de la API, que antes se <b>calibra</b> contra respuestas que ya calificaron personas: <b>kappa de Cohen</b> y <b>falso pase</b>. Al final compara la candidata con la <b>base vigente</b> en las mismas preguntas (<b>prueba pareada</b> y <b>no inferioridad</b>), lista las que cambiaron de veredicto y bloquea si se cuela un chunk ajeno, si el juez no está calibrado, si el examen no es comparable o si el cambio pierde más de lo que el examen deja ver. Solo lo que pasa se <b>promueve</b> a base.",
+    "entra": [
+      "lo que dejó la estación 8, ya hecho en <code>pipeline/</code>: <code>POST /v1/ask</code> con FastAPI y SSE sobre el retrieval de la estación 6 y Qwen3 0.6B en llama-server, que ahora respeta <code>Cache-Control: no-cache</code>",
+      "el golden set golden-v2 de la estación 4: 65 preguntas (51 de test, 14 de dev), cada una con su persona, su tipo (directa, varias, sin respuesta, prohibida), su respuesta de referencia y sus fuentes",
+      "68 respuestas reales de esta API calificadas por dos personas del equipo (las dudosas se quitaron): lo que calibra al juez",
+      "un juez: Qwen3 4B en Q4_K_M, en otro llama-server (puerto 9933)"
+    ],
+    "sale": [
+      "<code>pipeline/correr.py</code>: el examen contra la API, una corrida por carpeta con <code>respuestas.jsonl</code> y <code>manifiesto.json</code>",
+      "<code>pipeline/metricas.py</code>: recall@8 por documento, fugas, citas, «no sé» y primer token, con su intervalo de Wilson",
+      "<code>pipeline/juez.py</code>: la rúbrica, la calibración contra personas y el veredicto de cada respuesta, con su cache",
+      "<code>pipeline/gate.py</code>: la decisión contra la base vigente (pareada, con no inferioridad), las preguntas que cambiaron y <code>promover</code>; lo que la estación 11 corre antes de cambiar el índice y la 12 cada pocas horas como canario"
+    ],
+    "escala": [
+      {
+        "que": "El golden set",
+        "ref": "≈ 600 preguntas escritas con expertos de cada área",
+        "taller": "51 de test (y 14 de dev, que no entran)"
+      },
+      {
+        "que": "El juez",
+        "ref": "un LLM grande de la plataforma, calibrado contra ≈ 200 respuestas de expertos",
+        "taller": "Qwen3 4B en tu Mac, calibrado contra 68: kappa 0.75, falso pase 15.8%"
+      },
+      {
+        "que": "Cuándo corre",
+        "ref": "en cada cambio de chunking, embeddings, reranker, prompt o modelo, y un canario de ≈ 100 preguntas cada 4 h",
+        "taller": "a mano: <code>gate.py examen</code>, ≈ 102 s de API más el juez"
+      },
+      {
+        "que": "Qué ve",
+        "ref": "con 600 preguntas, una caída de ≈ 3 puntos",
+        "taller": "con 51, una de ≈ 10 (más la regla de la caída observada)"
+      },
+      {
+        "que": "La base",
+        "ref": "la versión en producción, con su corrida guardada",
+        "taller": "<code>corridas/VIGENTE</code> y su historial"
+      }
+    ]
+  },
+  "precalculos": {
+    "intro": "Antes de escribir código, tres cuentas de servilleta del examen: cuánto se le cree a un porcentaje de 51 preguntas, qué caída puede ver el gate y cuánto tarda correrlo.",
+    "cuentas": [
+      {
+        "id": "ruido",
+        "pregunta": "¿Cuánto se le cree a un porcentaje de 51 preguntas?",
+        "formula": "intervalo de Wilson del 95 % para k de n: (p + z²/2n ± z√(p(1 − p)/n + z²/4n²)) ÷ (1 + z²/n), con z = 1.96",
+        "ref": {
+          "cuenta": "510 de ≈ 600 bien (85 %)",
+          "valor": "± ≈ 3 puntos; un área de 60 preguntas, ± ≈ 9"
+        },
+        "taller": {
+          "cuenta": "40 de 51 bien (78 %)",
+          "valor": "de ≈ 65 % a ≈ 88 %: ± ≈ 11 puntos"
+        },
+        "decide": "Con 51 preguntas, comparar dos porcentajes sueltos no distingue casi nada: 78 % y 82 % caben en el mismo intervalo. Por eso el gate compara pregunta por pregunta (pareado) y no los dos números.",
+        "conceptos": [
+          "wilson"
+        ],
+        "comprueba": {
+          "code": "python -c \"\nimport math\ndef wilson(k, n, z=1.96):\n    p = k / n; c = (p + z*z/(2*n)) / (1 + z*z/n); m = z * math.sqrt(p*(1-p)/n + z*z/(4*n*n)) / (1 + z*z/n); return c - m, c + m\nfor k, n, que in ((40, 51, 'dojo: 40 de las 51 de test bien (78 %)'), (510, 600, 'C11:  510 de ≈ 600 (85 %)'), (51, 60, 'C11:  51 de un área de 60 (85 %)')):\n    lo, hi = wilson(k, n); print(f'{que}: Wilson 95 % de {lo:.1%} a {hi:.1%} (± ≈ {(hi - lo) / 2 * 100:.1f} puntos)')\"",
+          "nota": "",
+          "donde": "mac",
+          "salida": "dojo: 40 de las 51 de test bien (78 %): Wilson 95 % de 65.4% a 87.5% (± ≈ 11.1 puntos)\nC11:  510 de ≈ 600 (85 %): Wilson 95 % de 81.9% a 87.6% (± ≈ 2.9 puntos)\nC11:  51 de un área de 60 (85 %): Wilson 95 % de 73.9% a 91.9% (± ≈ 9.0 puntos)"
+        }
+      },
+      {
+        "id": "margen",
+        "pregunta": "¿Qué caída puede ver el gate?",
+        "formula": "margen mínimo ≈ (1.645 + 0.842) × √(d ÷ n): d = fracción de preguntas que cambian de veredicto, n = preguntas; 1.645 es la cola del 95 % y 0.842 da 80 % de las veces que un cambio que no pierde nada pase",
+        "ref": {
+          "cuenta": "600 preguntas con 10 % que cambian",
+          "valor": "≈ 3 puntos; un área de 200, ≈ 6"
+        },
+        "taller": {
+          "cuenta": "51 preguntas con 10 % que cambian",
+          "valor": "≈ 11 puntos: el dojo usa 10 (funciona porque su sistema es determinista, no en uno ruidoso) y además bloquea si lo observado cae más de 3"
+        },
+        "decide": "El margen no se elige para que pasen los cambios: es lo que se acepta perder, y el número de preguntas dice cuál se puede proteger. En el dojo el sistema es determinista (temperatura 0): un cambio que no toca nada no mueve ninguna respuesta y su diferencia es exactamente 0. Lo que la estadística no ve, se lee: el gate lista las preguntas que cambiaron.",
+        "conceptos": [
+          "no-inferioridad",
+          "pareada"
+        ],
+        "comprueba": {
+          "code": "python -c \"\nimport math\nfor n, d, que in ((51, 0.10, 'dojo'), (51, 0.0, 'dojo, sin ruido'), (600, 0.10, 'C11 '), (200, 0.10, 'C11, un área de 200')):\n    se = math.sqrt(d / n); print(f'{que}: {n} preguntas, {d:.0%} cambian de veredicto → se ≈ {se * 100:.1f} puntos · margen mínimo (1.645 + 0.842) × se ≈ {2.487 * se * 100:.1f} puntos')\"",
+          "nota": "",
+          "donde": "mac",
+          "salida": "dojo: 51 preguntas, 10% cambian de veredicto → se ≈ 4.4 puntos · margen mínimo (1.645 + 0.842) × se ≈ 11.0 puntos\ndojo, sin ruido: 51 preguntas, 0% cambian de veredicto → se ≈ 0.0 puntos · margen mínimo (1.645 + 0.842) × se ≈ 0.0 puntos\nC11 : 600 preguntas, 10% cambian de veredicto → se ≈ 1.3 puntos · margen mínimo (1.645 + 0.842) × se ≈ 3.2 puntos\nC11, un área de 200: 200 preguntas, 10% cambian de veredicto → se ≈ 2.2 puntos · margen mínimo (1.645 + 0.842) × se ≈ 5.6 puntos"
+        }
+      },
+      {
+        "id": "tiempo",
+        "pregunta": "¿Cuánto tarda el examen y cada cuándo corre?",
+        "formula": "tiempo = preguntas × segundos por pregunta ÷ las que corren a la vez + el juez (solo las respuestas nuevas: las iguales ya están en su cache)",
+        "ref": {
+          "cuenta": "≈ 600 × ≈ 4 s ÷ 8 a la vez (supuestos)",
+          "valor": "≈ 5 min por cambio; el canario de 100 cada 4 h son 600 preguntas al día, ≈ 2.4 % del tráfico"
+        },
+        "taller": {
+          "cuenta": "51 una tras otra a ≈ 2.0 s",
+          "valor": "≈ 102 s de API, más ≈ 1 s por respuesta nueva del juez"
+        },
+        "decide": "El examen es barato comparado con lo que protege: cabe en cada pull request. Lo caro es escribir las preguntas (estación 4) y calibrar al juez; por eso los dos se guardan y se versionan.",
+        "conceptos": [
+          "corrida"
+        ],
+        "comprueba": {
+          "code": "python -c \"\nimport json\nf = [json.loads(l) for l in open('corridas/hoy/respuestas.jsonl')]\nt = sum(r['ms']['total'] for r in f) / 1000\nprint(f'dojo: {len(f)} preguntas una tras otra: {t:.0f} s de API ({t / len(f):.1f} s por pregunta), más el juez (las respuestas iguales ya están en cache/juez/)')\nprint(f'C11:  ≈ 600 preguntas × ≈ 4 s (supuesto: 8 chunks y respuesta de 512 tokens) ÷ 8 a la vez ≈ {600 * 4 / 8 / 60:.0f} min por cambio; el canario: 100 cada 4 h = 600 al día, ≈ {600 / 25000:.1%} de las ≈ 25k preguntas diarias')\"",
+          "nota": "Medido en el paso 5, con el examen de punta a punta.",
+          "donde": "mac",
+          "salida": "dojo: 51 preguntas una tras otra: 102 s de API (2.0 s por pregunta), más el juez (las respuestas iguales ya están en cache/juez/)\nC11:  ≈ 600 preguntas × ≈ 4 s (supuesto: 8 chunks y respuesta de 512 tokens) ÷ 8 a la vez ≈ 5 min por cambio; el canario: 100 cada 4 h = 600 al día, ≈ 2.4% de las ≈ 25k preguntas diarias"
+        }
+      }
+    ]
+  },
+  "conceptos": [
+    {
+      "id": "gate",
+      "termino": "Gate de calidad",
+      "en": "quality gate, release gate",
+      "def": "Un paso automático que decide si un cambio puede salir: corre el mismo examen con el cambio y sin él, y bloquea si el cambio empeora algo que importa.",
+      "analogia": "Como la revisión técnica de un coche antes de circular: no te dice si el coche es bueno, te dice si pasa la lista de cosas que no pueden fallar, y la lista no cambia según quién lo lleve.",
+      "importa": "En un RAG casi todo puede empeorar las respuestas sin que nadie lo note: el chunking, los embeddings, el reranker, el prompt, el umbral del «no sé», el modelo o su cuantización. El gate hace que cada uno de esos cambios pase por el mismo examen antes de llegar a las personas.",
+      "trampa": "Creer que un gate prueba que el sistema es bueno. Solo dice que el cambio no empeora lo que el examen mide, dentro de lo que el examen alcanza a ver."
+    },
+    {
+      "id": "corrida",
+      "termino": "Corrida de evaluación",
+      "en": "eval run",
+      "def": "Una pasada del golden set contra el sistema completo, guardada con todo lo que contestó: lo que llegó al prompt, la respuesta, las citas, si dijo «no sé» y cuánto tardó.",
+      "analogia": "Como guardar el examen contestado de un alumno, no solo su calificación: así se puede volver a revisar, recalificar con otra rúbrica o comparar pregunta por pregunta con el del año pasado.",
+      "importa": "Guardar las respuestas (no solo los porcentajes) permite comparar dos versiones en las mismas preguntas, leer las que cambiaron y volver a calificar con otro juez sin volver a correr el sistema.",
+      "trampa": "Pisar una corrida o editarla a mano: ya no se sabe qué sistema contestó qué. Una corrida se escribe una vez y no se toca."
+    },
+    {
+      "id": "manifiesto",
+      "termino": "Manifiesto de la corrida",
+      "en": "run manifest",
+      "def": "La ficha de una corrida: qué golden set (versión y sha256), qué split y qué preguntas, qué configuración (su sha256), qué modelo e índice, y si corrió sin cache.",
+      "analogia": "Como la etiqueta de una muestra de laboratorio: sin fecha, lote y método, el resultado no se puede comparar con otro.",
+      "importa": "El gate solo compara corridas comparables: mismo golden, mismo split y mismas preguntas. Si cambia cualquiera de esos, la diferencia puede venir del examen y no del sistema.",
+      "trampa": "Comparar un 82 % de hoy contra un 79 % de hace un mes sin saber que el golden set cambió de versión en medio."
+    },
+    {
+      "id": "base",
+      "termino": "Base vigente",
+      "en": "baseline",
+      "def": "La corrida de la versión que hoy usa la empresa. Cada cambio se compara contra ella, y solo se mueve cuando un cambio pasa el gate y alguien lo promueve.",
+      "analogia": "Como la marca de la vara en el salto de altura: cada intento se mide contra la misma marca, no contra el intento anterior.",
+      "importa": "Si cada cambio se comparara con la corrida anterior, una serie de pérdidas chicas, cada una «dentro del ruido», bajaría la calidad sin que nadie lo decidiera.",
+      "trampa": "Comparar contra «la última corrida»: una regresión que se bloqueó y se vuelve a correr se compara consigo misma y pasa."
+    },
+    {
+      "id": "recall-doc",
+      "termino": "Recall@8 por documento",
+      "en": "document-level recall@k",
+      "def": "De los documentos que contestan una pregunta, qué fracción llegó al prompt (entre los 8 chunks). Se cuenta por documento: dos chunks del mismo documento son un solo acierto.",
+      "analogia": "Como revisar si en la mochila del alumno están los libros que necesita para el examen: no importa si trae dos copias del mismo.",
+      "importa": "Si la fuente no llegó al prompt, ningún prompt ni modelo arregla la respuesta. Por eso se mide primero, y aparte de la respuesta. Aquí se mide sobre lo que de verdad leyó el modelo (después de las guardas y del «no sé»), no sobre lo que devolvió el buscador.",
+      "trampa": "Contar chunks en vez de documentos: un documento partido en tres «acierta tres veces» y el recall sube sin que llegue nada nuevo."
+    },
+    {
+      "id": "fuga",
+      "termino": "Fuga de permisos",
+      "en": "permission leak",
+      "def": "Que a una persona le llegue al prompt (o en una cita) un chunk que no puede ver. Se revisa en cada pregunta, con la ACL de la estación 3 y el directorio de hoy, y con las prohibidas del golden set.",
+      "analogia": "Como un archivo confidencial que aparece en la carpeta de alguien que no debería tenerlo: no importa si lo leyó, ya está ahí.",
+      "importa": "Es la regla que no se negocia: una sola fuga bloquea, sin estadística. Y se revisa de forma determinista, sobre lo que llegó al prompt, no preguntándole al juez si la respuesta «suena confidencial».",
+      "trampa": "Medir los permisos con un examen que pregunta con una llave de servicio que lo ve todo: entonces no se prueba nada, o se «encuentran» fugas que no existen."
+    },
+    {
+      "id": "cita-esperada",
+      "termino": "Cita a una fuente esperada",
+      "en": "citation precision (proxy)",
+      "def": "De las respuestas que citan algo, en cuántas al menos una cita es de un documento que el golden set marcó como fuente. Es una aproximación barata a la precisión de citas.",
+      "analogia": "Como revisar la bibliografía de un ensayo contra la lista de lecturas del curso: si no cita ninguna, probablemente sacó el dato de otro lado.",
+      "importa": "La estación 8 ya garantiza que cada cita exista y que la persona la pueda ver. Lo que falta saber es si cita el documento correcto: el modelo de 0.6B muchas veces acierta el dato y cita el número de al lado.",
+      "trampa": "Leerla como «la cita sostiene la frase». Un documento distinto también puede decir lo mismo (un ticket de Jira que repite la política). Para saberlo de verdad, se califica cita por cita con un juez, como en C11."
+    },
+    {
+      "id": "abstencion",
+      "termino": "Abstención correcta e indebida",
+      "en": "abstention",
+      "def": "Decir «no sé» cuando el golden set dice que no hay respuesta (sin respuesta, o prohibida para esa persona) es correcto; decirlo cuando sí la hay es indebido.",
+      "analogia": "Como un médico que dice «esto no lo sé, vaya con el especialista»: bien si de verdad no le toca; mal si era una gripa.",
+      "importa": "Los dos errores tiran en sentidos contrarios: bajar el umbral del «no sé» contesta más preguntas que sí están y también inventa en las que no. El gate tiene que ver los dos, y el juez los califica junto con las demás respuestas.",
+      "trampa": "Medir solo cuántas veces contesta: un asistente que nunca dice «no sé» se ve más útil y es el que inventa."
+    },
+    {
+      "id": "juez",
+      "termino": "LLM como juez",
+      "en": "LLM-as-a-judge",
+      "def": "Un LLM que lee la pregunta, la respuesta de referencia del golden set y la respuesta del sistema, y dice si la respuesta es correcta, siguiendo una rúbrica y en JSON.",
+      "analogia": "Como un ayudante que califica exámenes con la clave de respuestas del profesor: rápido y barato, pero hay que revisar primero que califique como el profesor.",
+      "importa": "No hay forma exacta de decir si «De 1 a 3 días hábiles» y «el cobro se reembolsa en 1 a 3 días» dicen lo mismo, y calificar a mano no escala a cada cambio (en C11, ≈ 600 respuestas por pull request). El juez sí.",
+      "trampa": "Usar como juez al mismo modelo que contesta: tiende a preferir sus propias respuestas (sesgo de autopreferencia). Y uno chico ni siquiera entiende la rúbrica, que es lo que mide el dojo: el de 0.6B de la API reprueba 55.1% de las respuestas buenas y su kappa es 0.31."
+    },
+    {
+      "id": "rubrica",
+      "termino": "Rúbrica",
+      "en": "rubric",
+      "def": "Las instrucciones del juez: qué cuenta como error (otro número, plazo o persona; contestar cuando no hay respuesta; decir que no sabe cuando sí la hay) y qué no (que falten detalles o lo diga con otras palabras).",
+      "analogia": "Como los criterios de calificación de un concurso: dos jueces con los mismos criterios califican parecido; con criterios vagos, cada quien califica a su manera.",
+      "importa": "La rúbrica es parte del juez: si cambia, el juez es otro y hay que volver a calibrarlo. Por eso su sha256 va en la calibración y en cada juicio, y la cache del juez la lleva en su llave.",
+      "trampa": "Ajustar la rúbrica con las mismas respuestas con las que se calibra: el juez queda afinado para ese examen y la calibración sale optimista. Aquí se probaron 3 rúbricas contra estas calificaciones: su número es optimista."
+    },
+    {
+      "id": "calibrar",
+      "termino": "Calibrar al juez",
+      "en": "judge calibration",
+      "def": "Comparar los veredictos del juez con los de personas en respuestas que ellas ya calificaron, y solo creerle si se parece lo suficiente.",
+      "analogia": "Como afinar una báscula con pesas conocidas antes de pesar: si marca 1.2 kg con la pesa de 1 kg, todo lo que pese después está mal.",
+      "importa": "El gate le cree al juez solo si su calibración pasa y si es el mismo juez (modelo y rúbrica) que calificó las dos corridas. Un juez sin calibrar puede decir que todo está bien, o que todo está mal.",
+      "trampa": "Calibrar una vez y olvidarse: un juez nuevo, una cuantización distinta o una rúbrica editada son otro juez."
+    },
+    {
+      "id": "kappa",
+      "termino": "Kappa de Cohen",
+      "en": "Cohen's kappa",
+      "def": "Cuánto coinciden dos calificadores descontando lo que coincidirían por azar: κ = (p_o − p_e) ÷ (1 − p_e). 1 es acuerdo perfecto, 0 es lo mismo que el azar.",
+      "analogia": "Si dos maestros aprueban al 90 % de los alumnos sin leer los exámenes, coinciden muchísimo por pura casualidad. La kappa pregunta cuánto coinciden más allá de eso.",
+      "importa": "El acuerdo simple engaña: si el 80 % de las respuestas está bien, un juez que dice «correcta» a todo coincide con las personas el 80 % de las veces sin leer nada, y su kappa es 0. En el dojo, el de 0.6B de la API acuerda 60.3% con las personas y su kappa es 0.31; el de 4B, 89.7% y 0.75.",
+      "trampa": "Mirar solo el «% de acuerdo». Y leer una kappa de 68 respuestas como exacta: su intervalo es ancho, depende de cuántas buenas y malas haya, y los cortes como 0.6 son convención (Landis y Koch), no ley."
+    },
+    {
+      "id": "falso-pase",
+      "termino": "Falso pase",
+      "en": "false pass rate",
+      "def": "De las respuestas que las personas reprobaron, qué fracción aprobó el juez. Es el error caro: una respuesta mala que el examen deja pasar.",
+      "analogia": "Como un detector de metales que no suena con un cuchillo: que suene de más es una molestia; que no suene es el problema.",
+      "importa": "Un juez con falso pase alto subestima las regresiones: si el cambio vuelve malas 6 respuestas y el juez aprueba 1 de cada 6 malas, el gate solo ve 5. En el dojo, el juez de 4B aprueba 3 de las 19 que reprobaron las personas.",
+      "trampa": "Confundirlo con el falso rechazo (el juez reprueba una buena): ese también cuenta, pero no deja pasar lo malo: mete ruido en la comparación y le quita sensibilidad al gate."
+    },
+    {
+      "id": "wilson",
+      "termino": "Intervalo de Wilson",
+      "en": "Wilson score interval",
+      "def": "El rango donde probablemente está el porcentaje de verdad, dado lo que se midió en n preguntas. Para muestras chicas y porcentajes cerca de 0 o 100 % se porta mejor que el clásico p ± 1.96 × √(p(1 − p) ÷ n).",
+      "analogia": "Como una encuesta de 51 personas: si 40 dicen que sí, no sabes que es 78 %; sabes que es «algo entre 65 y 88 %».",
+      "importa": "Con 51 preguntas, un porcentaje trae ± ≈ 11 puntos: dos versiones que sacan 78 % y 82 % no se distinguen comparando los dos números. Por eso el gate no compara porcentajes sueltos.",
+      "trampa": "Reportar «78.4 %» como si el decimal significara algo."
+    },
+    {
+      "id": "pareada",
+      "termino": "Prueba pareada",
+      "en": "paired comparison",
+      "def": "Comparar dos versiones en las mismas preguntas, una por una: solo cuentan las que cambiaron (las que una acierta y la otra no). Las que las dos aciertan o fallan no dicen nada de cuál es mejor.",
+      "analogia": "Como probar dos zapatos poniendo uno en cada pie del mismo corredor, en la misma carrera: así no comparas corredores, comparas zapatos.",
+      "importa": "Es mucho más fino que comparar dos porcentajes: si no cambia ninguna respuesta, la diferencia es exactamente 0 y su error también; si cambian 4, el error sale de esas 4. Sin parear, el error de la diferencia es ≈ 8 puntos aunque no cambie nada.",
+      "trampa": "Usar la prueba de dos muestras independientes en un examen con las mismas preguntas: bloquea todo, o no ve nada."
+    },
+    {
+      "id": "no-inferioridad",
+      "termino": "No inferioridad",
+      "en": "non-inferiority test",
+      "def": "A un cambio que se hace por otra razón (latencia, costo) no se le pide ganar, sino no perder más de un margen: la cota de abajo de la diferencia, Δ − 1.645 × su error (una cola, 95 %), queda arriba de −margen.",
+      "analogia": "Como cambiar de proveedor de harina por precio: no le pides que el pan salga mejor; le pides que no salga peor de lo que el cliente nota.",
+      "importa": "El margen es una decisión del negocio (cuánto se acepta perder), y el número de preguntas decide qué margen se puede proteger: con 51 preguntas y 10 % de respuestas que cambian, ≈ 11 puntos; con 600, ≈ 3. Lo que no ve la estadística se cubre con la regla de la caída observada y leyendo las preguntas que cambiaron; con 0 o 1 que cambian, el error estimado es 0 o casi, y la caída observada es la que decide.",
+      "trampa": "Aflojar el margen cuando el gate bloquea: entonces el gate ya no protege nada."
+    },
+    {
+      "id": "examen-cache",
+      "termino": "Un examen sin cache",
+      "en": "cache-busting in evals",
+      "def": "Que cada pregunta del examen recorra el sistema completo, sin respuestas ni retrieval guardados de antes. Aquí, con la cabecera «Cache-Control: no-cache», que la API toma por convención como «sáltate tu cache».",
+      "analogia": "Como un examen de manejo en el que el examinador no puede usar las respuestas del alumno de ayer: tiene que manejar hoy.",
+      "importa": "La API guarda el top-8 de cada pregunta y persona 5 minutos. Si el examen corre justo después de la base, un cambio de retrieval (k, candidatos, reranker) recibe el top viejo y sale idéntico a la base: el gate aprobaría algo que no midió. (En HTTP, no-cache pide revalidar lo guardado; esta API lo usa para su propia cache, y en producción lo limitaría a las llaves de evaluación.)",
+      "trampa": "Notarlo por los tiempos («qué rápido corrió hoy»). Se revisa en los datos: cada fila guarda de_cache, y el gate bloquea si alguna salió de la cache."
+    },
+    {
+      "id": "contaminacion",
+      "termino": "Dev y test separados",
+      "en": "data leakage, test contamination",
+      "def": "Las preguntas que se usaron para decidir algo (el umbral del «no sé» se eligió con dev en la estación 8) no se usan para medirlo. El gate decide solo con test.",
+      "analogia": "Como repasar con las preguntas del examen: sacas 100, y no sabes nada de lo que no repasaste.",
+      "importa": "Mezclar dev en el examen premia justo lo que se ajustó con dev, y además cambia el examen: ya no se compara con la base. Con 14 preguntas de dev y 51 de test, el gate mide con las 51.",
+      "trampa": "Juntar dev y test «para tener más preguntas». Si hacen falta más, se escriben más (estación 4) y se reparten otra vez."
+    }
+  ],
+  "mundo": {
+    "resumen": "El kit trae el marketplace ficticio del caso el <b>23 de noviembre a las 16:00</b>, con lo que dejaron las estaciones 2 a 8: el corpus de <b>152 chunks de 105 documentos</b>, el directorio de <b>14 personas</b> con su llave, el golden set <b>golden-v2</b> (65 preguntas: 51 de test y 14 de dev), el índice de la estación 5 y, ya hecho en <code>pipeline/</code>, el retrieval de la estación 6 y la <b>API con citas de la estación 8</b>. Nuevo: <b>68 respuestas reales de esa API calificadas por dos personas</b> (Paula Vega, líder de soporte, y Sofía Leal, líder de operaciones; las que no se pusieron de acuerdo se quitaron), un <b>juez</b> (Qwen3 4B) en su propio llama-server y dos <b>propuestas</b> del equipo para que el gate las juzgue. Tú escribes el examen, las métricas, el juez y el gate.",
+    "trae": [
+      {
+        "que": "mundo/entrada/",
+        "detalle": "El corpus, el directorio, el golden set de la estación 4 y <code>calificaciones.jsonl</code>: pregunta, referencia, respuesta de la API y la etiqueta de las personas (49 correctas, 19 incorrectas)."
+      },
+      {
+        "que": "Los modelos",
+        "detalle": "<code>mundo/modelos.json</code> con e5, el reranker, Qwen3 0.6B (la API) y Qwen3 4B Q4_K_M (el juez, ≈ 2.5 GB), cada uno con su revisión y su sha256; <code>mundo/modelos.py</code> los baja una vez (≈ 3.9 GB). Si ya hiciste la estación 8, <code>DOJO_MODELOS=/ruta/a/su/modelo</code> enlaza los tres que ya tienes."
+      },
+      {
+        "que": "Los servidores",
+        "detalle": "<code>mundo/servidor.py</code> arranca los dos llama-server (el LLM en 9931 con <code>servidor.env</code>, el juez en 9933 con <code>juez.env</code>); <code>mundo/api.py</code> arranca la API en 9932. Juntos usan ≈ 4 GB de memoria."
+      },
+      {
+        "que": "Las propuestas",
+        "detalle": "<code>mundo/propuesta.py</code> pone en <code>config.yaml</code> un cambio que pidió alguien del equipo (bajar el umbral del «no sé», mandar 2 chunks en vez de 8) y lo quita después. Es lo que en C11 sería un pull request."
+      },
+      {
+        "que": "verificar.py y romper.py",
+        "detalle": "Los 8 checks de la estación (de <code>mundo</code> a <code>examen</code>; <code>--rapido</code> corre todos menos el examen completo) y las 6 fallas: el examen con la cache, dev dentro del examen, el juez apuntado a la API, el margen aflojado, sin parear y contra la última corrida."
+      }
+    ],
+    "tu_pipeline": [
+      {
+        "archivo": "pipeline/correr.py",
+        "hace": "Paso 1: preguntas() del split, una() por HTTP con la llave de su persona y sin cache, el manifiesto y correr(), que no pisa una corrida."
+      },
+      {
+        "archivo": "pipeline/metricas.py",
+        "hace": "Paso 2: docs(), por_pregunta() (recall por documento, fuga, citas, «no sé», primer token), wilson(), p95() y resumen()."
+      },
+      {
+        "archivo": "pipeline/juez.py",
+        "hace": "Paso 3: el Juez con su identidad y su cache, veredicto() con las reglas sin juez, kappa(), calibrar() y juzgar(). La rúbrica viene dada."
+      },
+      {
+        "archivo": "pipeline/gate.py",
+        "hace": "Paso 4: base_de(), no_inferior() (pareada o no), decidir() con sus 6 reglas y las preguntas que cambiaron, y promover()."
+      },
+      {
+        "archivo": "config.yaml",
+        "hace": "evals (split, sin_cache), juez (url, kappa_min, falso_pase_max) y gate (base, pareado, confianza_z, margen, caida_max, recall_min, fugas_max)."
+      }
+    ],
+    "requisitos": [
+      "Python 3.12 o más nuevo (numpy 2.5.5 lo pide; se probó con 3.14.3), ≈ 150 MB para el entorno virtual y ≈ 4 GB para los modelos",
+      "llama.cpp 1.1.0 o más nuevo (<code>brew install llama.cpp</code>) y ≈ 4 GB de memoria libre para los dos modelos",
+      "Internet para el <code>pip install</code> y para bajar los modelos una vez; después, nada",
+      "Las estaciones 4 y 8 ayudan, pero no hacen falta: el kit trae su golden set y su API"
+    ],
+    "sustituciones": [
+      {
+        "nube": "Un job de CI que corre el golden set en cada pull request, con varias preguntas a la vez",
+        "local": "<code>python pipeline/gate.py examen</code> a mano, una pregunta tras otra",
+        "diferencia": "La misma decisión con el mismo código de salida (1 si bloquea, para que el CI no deje fusionar). En C11 el job usa usuarios de prueba con la identidad de cada persona del golden set."
+      },
+      {
+        "nube": "Un juez grande de la plataforma de modelos, calibrado contra ≈ 200 respuestas de expertos, con falso pase ≤ 10 %",
+        "local": "Qwen3 4B en tu Mac, calibrado contra 68, con falso pase ≤ 20 % (mide 15.8%)",
+        "diferencia": "Ninguno de los tres jueces que se probaron (0.6B, 1.7B y 4B) llega al 10 % con estas 68 sin ajustar la rúbrica a ellas (un 8B en Q4 también cabría y no se probó): el dojo lo dice y usa 20 %. Con un falso pase así, el gate ve menos regresiones de las que hay; por eso lista las preguntas que cambiaron."
+      },
+      {
+        "nube": "Un almacén de corridas (un bucket o una base de datos) y el registro de qué versión está en producción",
+        "local": "<code>corridas/</code>, <code>corridas/VIGENTE</code> y <code>historial.jsonl</code>",
+        "diferencia": "La misma regla: una corrida no se pisa, y la base solo cambia con promover, después de pasar el gate."
+      },
+      {
+        "nube": "La prueba de latencia con carga (muchas personas a la vez, la GPU de la plataforma)",
+        "local": "el primer token del examen, que se muestra pero no decide",
+        "diferencia": "El examen corre una pregunta a la vez en una Mac que hace otras cosas: su p95 cambia de una corrida a otra sin cambiar nada. La latencia se prueba aparte, con carga."
+      }
+    ],
+    "arranque": "unzip rag-gate.zip && cd rag-gate\npython3 -m venv .venv && source .venv/bin/activate\npip install -r requirements.txt\npython mundo/modelos.py\npython mundo/crear.py\npython mundo/servidor.py arrancar\npython mundo/api.py arrancar",
+    "python": "python"
+  },
+  "guiado": [
+    {
+      "n": 0,
+      "id": "mundo",
+      "titulo": "Levantar el mundo",
+      "objetivo": "El almacén del 23 a las 16:00 con las calificaciones, los cuatro modelos con su sha256, los dos llama-server (la API y el juez) y la API de la estación 8 arriba.",
+      "conceptos": [
+        "gate"
+      ],
+      "explica": "Son los paquetes de la estación 8 (onnxruntime, numpy, tokenizers, pyyaml, fastapi y uvicorn) y un modelo más: el juez. <code>mundo/modelos.py</code> baja e5, el reranker, Qwen3 0.6B y Qwen3 4B de un commit fijo y compara el sha256 de cada archivo. <code>mundo/crear.py</code> copia el corpus, el directorio, el golden set y las calificaciones, escribe las llaves y construye el índice. <code>mundo/servidor.py arrancar</code> levanta los dos llama-server y <code>mundo/api.py arrancar</code> la API.",
+      "codigo": [],
+      "comandos": [
+        {
+          "code": "python3 -m venv .venv && source .venv/bin/activate\npip install -r requirements.txt",
+          "nota": "Desde aquí, cada terminal nueva necesita <code>source .venv/bin/activate</code>.",
+          "donde": "mac",
+          "salida": "Python 3.14.3\nversion: 1.1.0 (build 12774, commit 171527522)"
+        },
+        {
+          "code": "python mundo/modelos.py",
+          "nota": "Una sola vez, con internet (≈ 3.9 GB; con <code>DOJO_MODELOS</code>, solo el juez). Si un sha256 no coincide, el archivo no se guarda.",
+          "donde": "mac",
+          "salida": "✓ 4 modelos en modelo/ (3925 MB), cada archivo con el sha256 del catálogo"
+        },
+        {
+          "code": "python mundo/modelos.py --listar",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ e5        intfloat/multilingual-e5-small @ 614241f622f5 · 384 dimensiones · hasta 512 tokens · 487 MB · MIT\n✓ reranker  cross-encoder/mmarco-mMiniLMv2-L12-H384-v1 @ 1427fd652930 · cross-encoder · hasta 512 tokens · 136 MB · Apache-2.0\n✓ llm       ggml-org/Qwen3-0.6B-GGUF @ afe8ad3577aa · llm (GGUF para llama-server) · hasta 32768 tokens · 805 MB · Apache-2.0\n✓ juez      ggml-org/Qwen3-4B-GGUF @ 2f3b082b1356 · llm juez (GGUF para llama-server) · hasta 32768 tokens · 2497 MB · Apache-2.0"
+        },
+        {
+          "code": "python mundo/crear.py",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ 23 nov 16:00 (Ciudad de México): corpus-2026-11-22 con 152 chunks de 105 documentos · 14 personas en el directorio · golden-v2 con 65 preguntas\n  la estación 5 dejó indices/c11-e5-2026-11-22/ (BM25 y vectores de multilingual-e5-small) y el alias c11 apunta a él\n  68 respuestas calificadas por personas para calibrar al juez (19 reprobadas)\n  siguiente: python verificar.py mundo"
+        },
+        {
+          "code": "python mundo/servidor.py arrancar",
+          "nota": "Dos procesos de llama-server: el de la API (9931) y el del juez (9933). Juntos, ≈ 4 GB de memoria.",
+          "donde": "mac",
+          "salida": "▶ llm arriba (pid 76612) en http://127.0.0.1:9931 con Qwen3-0.6B-Q8_0.gguf · log en .taller/servidor.log\n▶ juez arriba (pid 76614) en http://127.0.0.1:9933 con Qwen3-4B-Q4_K_M.gguf · log en .taller/juez.log"
+        },
+        {
+          "code": "python mundo/api.py arrancar",
+          "nota": "",
+          "donde": "mac",
+          "salida": "▶ API arriba (pid 76619) en http://127.0.0.1:9932 · POST /v1/ask · log en .taller/api.log"
+        },
+        {
+          "code": "python verificar.py mundo",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ mundo       65 preguntas en el golden set (51 de test) · 68 calificaciones de personas · llama-server 1.1.0 · el LLM (Qwen3-0.6B-Q8_0.gguf), el juez (Qwen3-4B-Q4_K_M.gguf) y la API arriba\n\n1/1 en verde"
+        },
+        {
+          "code": "python verificar.py correr",
+          "nota": "Es lo esperado: tus cuatro archivos todavía son el esqueleto. Cada check se pone en verde en su paso.",
+          "donde": "mac",
+          "salida": "✗ correr      correr.preguntas todavía es el esqueleto (paso 1: preguntas)\n\n0/1 en verde · falta: correr\n[código 1]"
+        }
+      ],
+      "verifica": "<code>verificar.py mundo</code> en verde.",
+      "ojo": "<code>modelo/</code>, <code>almacen/</code>, <code>indices/</code> y <code>corridas/</code> no van en el .zip ni en git. La API de la estación 8 no se toca: el gate la examina por HTTP, como lo haría la app de chat."
+    },
+    {
+      "n": 1,
+      "id": "correr",
+      "titulo": "Correr el examen",
+      "objetivo": "<code>correr.py</code>: cada pregunta de test contra la API, con la llave de su persona y sin la cache, guardada en una corrida con su manifiesto.",
+      "conceptos": [
+        "corrida",
+        "manifiesto",
+        "examen-cache",
+        "contaminacion"
+      ],
+      "explica": "<code>preguntas()</code> toma el golden set vigente y se queda con el split de <code>evals.split</code> (test: dev ya se usó para elegir el umbral del «no sé»). <code>una()</code> hace el <code>POST /v1/ask</code> como la app de chat, con la llave de la persona de esa pregunta (las prohibidas solo prueban algo si se hacen como quien no puede ver) y con <code>Cache-Control: no-cache</code>, y guarda de los eventos SSE lo que llegó al prompt, la respuesta, las citas, el «no sé» y el primer token. Un error no detiene el examen: queda en la fila. <code>correr()</code> escribe en una carpeta temporal y la renombra al final, y no pisa una corrida que ya existe. El <b>manifiesto</b> guarda lo que hace falta para saber si dos corridas se pueden comparar: el golden (versión y sha256), el split, las preguntas, el sha256 de <code>config.yaml</code>, el modelo y el índice.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "pipeline/correr.py",
+          "code": "\"\"\"Paso 1: correr el examen. Le hace a tu API (la de la estación 8) cada pregunta del golden set como la haría su\npersona, con su llave, y guarda todo lo que contestó en una corrida: lo que llegó al prompt, la respuesta, las citas,\nsi dijo «no sé» y cuánto tardó. Así se compara después un cambio contra otro con las mismas preguntas.\n\n    python pipeline/correr.py base              # el examen con evals.split (test) contra la API arriba\n    python pipeline/correr.py base --ids G-001 G-070\n\nContrato (todo sale de config.yaml):\n- preguntas(split) → las preguntas del golden set vigente de ese split («test», «dev» o «todas»), en su orden.\n- manifiesto(nombre, split, ids) → dict con lo que hace falta para saber si dos corridas se pueden comparar:\n  {\"nombre\", \"fecha\" (ISO, de tu Mac), \"split\", \"n\", \"ids\", \"golden\": {\"version\", \"sha256\"} (el sha256 del archivo\n  preguntas.jsonl), \"config_sha256\" (de config.yaml completo), \"sistema\": {\"retrieval\", \"respuesta\", \"llm\",\n  \"seguridad\"} (esas secciones de config.yaml), \"llm\": {\"modelo\", \"sha256\"} (el archivo de servidor.env y su sha256 del\n  catálogo), \"indice\" (a qué apunta el alias c11), \"sin_cache\"}.\n- una(x, llave, sin_cache) → la fila de una pregunta: {\"id\", \"tipo\", \"persona\", \"contexto\": [chunk_id], \"apartados\":\n  [chunk_id], \"descartados\", \"de_cache\", \"respuesta\", \"citas\": [chunk_id], \"invalidas\": [n], \"no_se\", \"fin\",\n  \"error\" (el motivo, o None), \"ms\": {\"ttft\", \"total\"}}. POST /v1/ask con «Authorization: Bearer <llave>» y, si\n  sin_cache, «Cache-Control: no-cache». Un error HTTP o un evento error no detienen el examen: quedan en la fila.\n- correr(nombre, split=None, ids=None) → la carpeta corridas/<nombre>/ con respuestas.jsonl (una fila por pregunta)\n  y manifiesto.json. split por omisión: evals.split; sin_cache: evals.sin_cache. Si la carpeta ya existe, ValueError:\n  una corrida no se pisa. Se escribe en una carpeta temporal y se renombra al final: una corrida a medias no existe.\n\"\"\"\nfrom __future__ import annotations\n\nimport json\nimport shutil\nimport sys\nimport time\nimport urllib.error\nimport urllib.request\nfrom datetime import datetime\nfrom pathlib import Path\n\nsys.path.insert(0, str(Path(__file__).resolve().parent))\nfrom _comun import ALIAS, GOLDEN, RAIZ, TOKENS, config, escribir_json, escribir_jsonl, leer_json, leer_jsonl, modelos, sha256_archivo  # noqa: E402\nimport sse  # noqa: E402\n\nCORRIDAS = RAIZ / \"corridas\"\n\n\ndef preguntas(split: str) -> list[dict]:\n    v = (GOLDEN / \"VIGENTE\").read_text().strip()\n    g = leer_jsonl(GOLDEN / v / \"preguntas.jsonl\")\n    if split not in (\"test\", \"dev\", \"todas\"):\n        raise ValueError(f\"evals.split tiene que ser test, dev o todas, no {split}\")\n    return g if split == \"todas\" else [x for x in g if x[\"split\"] == split]\n\n\ndef _env() -> dict:\n    out = {}\n    for linea in (RAIZ / \"servidor.env\").read_text().splitlines():\n        linea = linea.split(\"#\", 1)[0].strip()\n        if \"=\" in linea:\n            k, v = linea.split(\"=\", 1)\n            out[k.strip()] = v.strip()\n    return out\n\n\ndef manifiesto(nombre: str, split: str, ids: list[str]) -> dict:\n    cfg = config()\n    v = (GOLDEN / \"VIGENTE\").read_text().strip()\n    archivo = Path(_env()[\"MODELO\"]).name\n    sha = next((a[\"sha256\"] for m in modelos().values() for n, a in m[\"archivos\"].items() if n == archivo), None)\n    return {\n        \"nombre\": nombre, \"fecha\": datetime.now().astimezone().isoformat(timespec=\"seconds\"), \"split\": split, \"n\": len(ids), \"ids\": ids,\n        \"golden\": {\"version\": v, \"sha256\": sha256_archivo(GOLDEN / v / \"preguntas.jsonl\")},\n        \"config_sha256\": sha256_archivo(RAIZ / \"config.yaml\"),\n        \"sistema\": {k: cfg[k] for k in (\"retrieval\", \"respuesta\", \"llm\", \"seguridad\")},\n        \"llm\": {\"modelo\": archivo, \"sha256\": sha},\n        \"indice\": (leer_json(ALIAS, {}) or {}).get(\"c11\", {}).get(\"actual\"),\n        \"sin_cache\": bool(cfg[\"evals\"][\"sin_cache\"]),\n    }\n\n\ndef _url() -> str:\n    a = config()[\"api\"]\n    return f\"http://{a['host']}:{a['puerto']}/v1/ask\"\n\n\ndef una(x: dict, llave: str, sin_cache: bool) -> dict:\n    fila = {\"id\": x[\"id\"], \"tipo\": x[\"tipo\"], \"persona\": x[\"persona\"], \"contexto\": [], \"apartados\": [], \"descartados\": 0,\n            \"de_cache\": False, \"respuesta\": \"\", \"citas\": [], \"invalidas\": [], \"no_se\": False, \"fin\": None, \"error\": None,\n            \"ms\": {\"ttft\": None, \"total\": None}}\n    h = {\"Content-Type\": \"application/json\", \"Accept\": \"text/event-stream\", \"Authorization\": f\"Bearer {llave}\"}\n    if sin_cache:\n        h[\"Cache-Control\"] = \"no-cache\"\n    t0 = time.perf_counter()\n    req = urllib.request.Request(_url(), json.dumps({\"pregunta\": x[\"pregunta\"]}).encode(), h, method=\"POST\")\n    try:\n        with urllib.request.urlopen(req, timeout=180) as r:\n            for nombre, d in sse.leer(r):\n                if nombre == \"fuentes\":\n                    fila.update(contexto=[c[\"chunk_id\"] for c in d[\"contexto\"]], apartados=[a[\"chunk_id\"] for a in d[\"apartados\"]],\n                                descartados=d[\"descartados\"], de_cache=d[\"de_cache\"])\n                elif nombre == \"token\" and fila[\"ms\"][\"ttft\"] is None:\n                    fila[\"ms\"][\"ttft\"] = round((time.perf_counter() - t0) * 1000, 1)\n                elif nombre == \"fin\":\n                    fila.update(respuesta=d[\"respuesta\"], citas=[c[\"chunk_id\"] for c in d[\"citas\"]], invalidas=[c[\"n\"] for c in d[\"invalidas\"]],\n                                no_se=d[\"no_se\"], fin=d[\"fin\"])\n                elif nombre == \"error\":\n                    fila.update(error=d[\"motivo\"], fin=\"error\")\n    except urllib.error.HTTPError as e:\n        fila.update(error=f\"http {e.code}\", fin=\"error\")\n    except (urllib.error.URLError, ConnectionError, TimeoutError) as e:\n        fila.update(error=f\"sin conexión: {e}\", fin=\"error\")\n    fila[\"ms\"][\"total\"] = round((time.perf_counter() - t0) * 1000, 1)\n    return fila\n\n\ndef correr(nombre: str, split: str | None = None, ids: list[str] | None = None) -> Path:\n    cfg = config()\n    split = split or cfg[\"evals\"][\"split\"]\n    destino = CORRIDAS / nombre\n    if destino.exists():\n        raise ValueError(f\"corridas/{nombre} ya existe: una corrida no se pisa, usa otro nombre\")\n    qs = preguntas(split)\n    if ids:\n        qs = [x for x in qs if x[\"id\"] in ids]\n    llaves = {p: t for t, p in (leer_json(TOKENS, {}) or {}).items()}\n    sin_cache = bool(cfg[\"evals\"][\"sin_cache\"])\n    filas = []\n    for i, x in enumerate(qs, 1):\n        filas.append(una(x, llaves[x[\"persona\"]], sin_cache))\n        print(f\"\\r  {i}/{len(qs)} {x['id']}\", end=\"\", flush=True)\n    print()\n    tmp = CORRIDAS / f\".{nombre}.tmp\"\n    shutil.rmtree(tmp, ignore_errors=True)\n    escribir_jsonl(tmp / \"respuestas.jsonl\", filas)\n    escribir_json(tmp / \"manifiesto.json\", manifiesto(nombre, split, [x[\"id\"] for x in qs]))\n    tmp.rename(destino)\n    return destino\n\n\nif __name__ == \"__main__\":\n    import argparse\n\n    ap = argparse.ArgumentParser()\n    ap.add_argument(\"nombre\")\n    ap.add_argument(\"--split\")\n    ap.add_argument(\"--ids\", nargs=\"*\")\n    a = ap.parse_args()\n    t0 = time.perf_counter()\n    d = correr(a.nombre, a.split, a.ids)\n    filas = leer_jsonl(d / \"respuestas.jsonl\")\n    m = leer_json(d / \"manifiesto.json\")\n    malas = [f[\"id\"] for f in filas if f[\"error\"]]\n    print(f\"✓ corridas/{a.nombre}/: {len(filas)} preguntas de {m['golden']['version']} ({m['split']}) en {time.perf_counter() - t0:.0f} s · \"\n          f\"{sum(f['no_se'] for f in filas)} «no sé» · {sum(f['de_cache'] for f in filas)} de la cache · \"\n          f\"{len(malas)} con error{': ' + ', '.join(malas) if malas else ''}\")",
+          "nota": ""
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python pipeline/correr.py base",
+          "nota": "La versión de hoy, sin cambios: va a ser la primera base.",
+          "donde": "mac",
+          "salida": "✓ corridas/base/: 51 preguntas de golden-v2 (test) en 105 s · 14 «no sé» · 0 de la cache · 0 con error"
+        },
+        {
+          "code": "python -c \"import json; …\"   # la fila de G-012",
+          "nota": "Todo lo que hace falta para medir sin volver a preguntar: el contexto que leyó el modelo, la respuesta, sus citas y los milisegundos.",
+          "donde": "mac",
+          "salida": "{\n \"apartados\": [],\n \"citas\": [\n  \"wiki:1005#000\"\n ],\n \"contexto\": [\n  \"wiki:1005#000\",\n  \"wiki:1005#001\",\n  \"wiki:3005#000\",\n  \"wiki:1001#000\",\n  \"wiki:3001#000\",\n  \"jira:SOP-11#000\",\n  \"jira:SOP-27#000\",\n  \"politicas:devoluciones.md#001\"\n ],\n \"de_cache\": false,\n \"descartados\": 0,\n \"error\": null,\n \"fin\": \"stop\",\n \"id\": \"G-012\",\n \"invalidas\": [],\n \"ms\": {\n  \"total\": 2152.7,\n  \"ttft\": 1412.7\n },\n \"no_se\": false,\n \"persona\": \"paula.vega@marketplace.test\",\n \"respuesta\": \"El escalamiento a líderes de soporte incluye amenazas de demanda, pérdidas mayores a 20,000 pesos y cualquier caso con prensa o redes sociales. [1]\",\n \"tipo\": \"directa\"\n}"
+        },
+        {
+          "code": "python -c \"import json; …\"   # el manifiesto",
+          "nota": "",
+          "donde": "mac",
+          "salida": "{\n \"config_sha256\": \"fd1447a1b141a46a6efa0e5e8b2d577cb412e2e4e43076111a148f5f2fcf32d2\",\n \"fecha\": \"2026-11-27T10:59:09-06:00\",\n \"golden\": {\n  \"sha256\": \"14231998a47c9df90863b14d9b48b03ad6c12480978998ba4adda45d08eb42f5\",\n  \"version\": \"golden-v2\"\n },\n \"ids\": [\n  \"G-001\",\n  \"G-004\",\n  \"G-005\",\n  \"…\"\n ],\n \"indice\": \"c11-e5-2026-11-22\",\n \"llm\": {\n  \"modelo\": \"Qwen3-0.6B-Q8_0.gguf\",\n  \"sha256\": \"361cc68159042c36ebff7715dc5a2e4612153e88f3e9c9c234820849d6dc9e1d\"\n },\n \"n\": 51,\n \"nombre\": \"base\",\n \"sin_cache\": true,\n \"sistema\": {\n  \"llm\": {\n   \"limite_s\": 30,\n   \"max_tokens\": 256,\n   \"temperatura\": 0,\n   \"timeout_s\": 60\n  },\n  \"respuesta\": {\n   \"umbral\": -1.0\n  },\n  \"retrieval\": {\n   \"candidatos\": 30,\n   \"filtro\": \"antes\",\n   \"fusion\": \"rrf\",\n   \"k\": 8,\n   \"rerank_n\": 20,\n   \"rrf_k\": 60\n  },\n  \"seguridad\": {\n   \"revisar_fuentes\": [\n    \"wiki\",\n    \"jira\",\n    \"drive\",\n    \"politicas\"\n   ]\n  }\n },\n \"split\": \"test\"\n}"
+        },
+        {
+          "code": "python verificar.py correr",
+          "nota": "El check calienta antes la cache de la API con esas 6 preguntas: si tu examen no pide <code>no-cache</code>, se nota.",
+          "donde": "mac",
+          "salida": "✓ correr      6 preguntas con la llave de su persona, ninguna de la cache (aunque estaban en ella) · 3 «no sé» · primer token de 263 a 1088 ms · manifiesto con golden golden-v2, config, LLM e índice · no pisa una corrida\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "<code>verificar.py correr</code> en verde: 6 preguntas con la llave de su persona, ninguna de la cache aunque estaban en ella, el manifiesto completo y una corrida que no se pisa.",
+      "ojo": "El examen corre contra la API de verdad, por HTTP, y no llamando a <code>responder()</code> por dentro: así mide lo mismo que recibe una persona (la llave, los permisos, el streaming, los errores).",
+      "en_pagina": {
+        "conceptos": [
+          "corrida",
+          "manifiesto",
+          "examen-cache",
+          "contaminacion"
+        ],
+        "precalculos": []
+      }
+    },
+    {
+      "n": 2,
+      "id": "metricas",
+      "titulo": "Lo que se puede contar",
+      "objetivo": "<code>metricas.py</code>: por pregunta y en total, el recall@8 por documento, las fugas, las citas, los «no sé» y el primer token, con su intervalo.",
+      "conceptos": [
+        "recall-doc",
+        "fuga",
+        "cita-esperada",
+        "abstencion",
+        "wilson"
+      ],
+      "explica": "<code>por_pregunta()</code> compara una fila con su pregunta del golden set. El <b>recall</b> se cuenta por documento y sobre lo que llegó al prompt (después de las guardas y del «no sé»), no sobre lo que devolvió el buscador. Una <b>fuga</b> es cualquier chunk que la persona no puede ver (con la ACL de la estación 3 y el directorio de hoy) en el contexto o en las citas, o una fuente de una prohibida que llegó al prompt. Las <b>citas</b> se revisan contra las fuentes esperadas (¿cita el documento correcto?) y se cuentan las respuestas sin cita. El <b>«no sé»</b> es correcto en sin respuesta y prohibidas, e indebido en las que sí tienen respuesta. <code>resumen()</code> junta todo y lo escribe en <code>metricas.json</code>.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "pipeline/metricas.py",
+          "code": "\"\"\"Paso 2: las métricas que no necesitan juez. Cada pregunta de una corrida se compara con su golden set: si llegaron\nsus fuentes al prompt (recall), si llegó algo que esa persona no puede ver (fugas), a qué citó, si dijo «no sé» y\ncuánto tardó el primer token. Todo es contar: el mismo resultado cada vez.\n\n    python pipeline/metricas.py base\n\nContrato:\n- docs(chunk_ids) → los documentos de esos chunks («wiki:1001#002» → «wiki:1001»), en orden y sin repetir. Se mide\n  por documento: dos chunks del mismo documento no son dos aciertos.\n- por_pregunta(fila, x, ver) → dict. fila = una fila de respuestas.jsonl; x = su pregunta del golden set; ver(chunk_id)\n  → si la persona de esa pregunta puede ver ese chunk (la ACL de la estación 3, con el directorio de hoy).\n    \"recall\": en directa y varias, |documentos esperados ∩ documentos del contexto| ÷ |documentos esperados|;\n              None en las demás. El contexto es lo que llegó al prompt (lo que de verdad leyó el modelo).\n    \"fuga\": True si al prompt o a las citas llegó un chunk que la persona no puede ver, o si en una prohibida llegó\n            un chunk de sus fuentes. Tolerancia cero.\n    \"contesto\": no dijo «no sé» y no terminó en error.\n    \"cita_esperada\": en directa y varias que contestaron con al menos una cita, si alguna cita es de un documento\n                     esperado; None si no aplica. \"sin_cita\": contestó una directa o varias sin ninguna cita.\n    \"abstencion\": \"correcta\" (sin_respuesta o prohibida con «no sé»), \"indebida\" (directa o varias con «no sé») o None.\n    \"ttft\": ms hasta el primer token; \"error\": el de la fila.\n- wilson(k, n, z=1.96) → (bajo, alto): el intervalo de Wilson del 95 % para k de n (en fracción). n = 0 → (0, 1).\n- p95(valores, q=0.95) → el percentil q por rango más cercano: ordenados, el de la posición int(q × (n − 1)). Sin valores,\n  None. Con q = 0.5, la mediana (la de abajo, si n es par).\n- resumen(carpeta) → dict con \"n\", \"recall\" ({\"media\", \"n\"}), \"fugas\" (cuántas preguntas), \"citas\"\n  ({\"esperada\", \"con_cita\", \"sin_cita\"}), \"abstencion\" ({\"correctas\", \"de\", \"indebidas\", \"de_contestables\"}),\n  \"errores\", \"de_cache\", \"ttft_p50\", \"ttft_p95\", \"por_pregunta\" ({id: por_pregunta()}). Lo escribe en <carpeta>/metricas.json.\n\"\"\"\nfrom __future__ import annotations\n\nimport math\nimport sys\nfrom pathlib import Path\n\nsys.path.insert(0, str(Path(__file__).resolve().parent))\nfrom _comun import GOLDEN, RAIZ, corpus, directorio, escribir_json, leer_json, leer_jsonl, principals, puede_ver  # noqa: E402\n\nCONTESTABLES = (\"directa\", \"varias\")\nSIN = (\"sin_respuesta\", \"prohibida\")\n\n\ndef docs(chunk_ids: list[str]) -> list[str]:\n    out = []\n    for c in chunk_ids:\n        d = c.split(\"#\", 1)[0]\n        if d not in out:\n            out.append(d)\n    return out\n\n\ndef por_pregunta(fila: dict, x: dict, ver) -> dict:\n    esperados = set(docs([f[\"chunk_id\"] for f in x[\"fuentes\"]]))\n    en_ctx = set(docs(fila[\"contexto\"]))\n    contesto = not fila[\"no_se\"] and not fila[\"error\"]\n    citados = set(docs(fila[\"citas\"]))\n    fuga = any(not ver(c) for c in fila[\"contexto\"] + fila[\"citas\"])\n    if x[\"tipo\"] == \"prohibida\":\n        fuga = fuga or bool({f[\"chunk_id\"] for f in x[\"fuentes\"]} & set(fila[\"contexto\"]))\n    contestable = x[\"tipo\"] in CONTESTABLES\n    return {\n        \"recall\": len(esperados & en_ctx) / len(esperados) if contestable and esperados else None,\n        \"fuga\": fuga,\n        \"contesto\": contesto,\n        \"cita_esperada\": bool(citados & esperados) if contestable and contesto and citados else None,\n        \"sin_cita\": contestable and contesto and not citados,\n        \"abstencion\": (\"correcta\" if fila[\"no_se\"] else None) if x[\"tipo\"] in SIN else (\"indebida\" if fila[\"no_se\"] else None),\n        \"ttft\": fila[\"ms\"][\"ttft\"],\n        \"error\": fila[\"error\"],\n    }\n\n\ndef wilson(k: int, n: int, z: float = 1.96) -> tuple[float, float]:\n    if n == 0:\n        return 0.0, 1.0\n    p = k / n\n    c = (p + z * z / (2 * n)) / (1 + z * z / n)\n    m = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / (1 + z * z / n)\n    return max(0.0, c - m), min(1.0, c + m)\n\n\ndef p95(valores: list[float], q: float = 0.95) -> float | None:\n    v = sorted(x for x in valores if x is not None)\n    return v[int(q * (len(v) - 1))] if v else None\n\n\ndef _golden(version: str) -> dict:\n    return {x[\"id\"]: x for x in leer_jsonl(GOLDEN / version / \"preguntas.jsonl\")}\n\n\ndef resumen(carpeta: Path) -> dict:\n    carpeta = Path(carpeta)\n    filas = leer_jsonl(carpeta / \"respuestas.jsonl\")\n    m = leer_json(carpeta / \"manifiesto.json\")\n    g = _golden(m[\"golden\"][\"version\"])\n    ch, d = corpus()[\"chunks\"], directorio()\n    pp = {}\n    for f in filas:\n        ps = principals(f[\"persona\"], d)\n        pp[f[\"id\"]] = por_pregunta(f, g[f[\"id\"]], lambda c, ps=ps: c in ch and puede_ver(ch[c][\"acl\"], ps))\n    rec = [v[\"recall\"] for v in pp.values() if v[\"recall\"] is not None]\n    cit = [v[\"cita_esperada\"] for v in pp.values() if v[\"cita_esperada\"] is not None]\n    sin = [i for i in pp if g[i][\"tipo\"] in SIN]\n    cont = [i for i in pp if g[i][\"tipo\"] in CONTESTABLES]\n    r = {\n        \"n\": len(filas),\n        \"recall\": {\"media\": sum(rec) / len(rec) if rec else None, \"n\": len(rec)},\n        \"fugas\": sum(v[\"fuga\"] for v in pp.values()),\n        \"citas\": {\"esperada\": sum(cit), \"con_cita\": len(cit), \"sin_cita\": sum(v[\"sin_cita\"] for v in pp.values())},\n        \"abstencion\": {\"correctas\": sum(pp[i][\"abstencion\"] == \"correcta\" for i in sin), \"de\": len(sin),\n                       \"indebidas\": sum(pp[i][\"abstencion\"] == \"indebida\" for i in cont), \"de_contestables\": len(cont)},\n        \"errores\": sum(1 for f in filas if f[\"error\"]),\n        \"de_cache\": sum(1 for f in filas if f[\"de_cache\"]),\n        \"ttft_p50\": p95([v[\"ttft\"] for v in pp.values()], 0.5),\n        \"ttft_p95\": p95([v[\"ttft\"] for v in pp.values()]),\n        \"por_pregunta\": pp,\n    }\n    escribir_json(carpeta / \"metricas.json\", r)\n    return r\n\n\ndef texto(r: dict) -> str:\n    a, c = r[\"abstencion\"], r[\"citas\"]\n    lo, hi = wilson(round(r[\"recall\"][\"media\"] * r[\"recall\"][\"n\"]), r[\"recall\"][\"n\"]) if r[\"recall\"][\"n\"] else (0, 1)\n    return (f\"recall@8 {r['recall']['media']:.1%} en {r['recall']['n']} contestables (Wilson, aprox.: {lo:.0%}–{hi:.0%}) · fugas {r['fugas']} · \"\n            f\"citas a una fuente esperada {c['esperada']}/{c['con_cita']} · sin cita {c['sin_cita']} · \"\n            f\"«no sé» correcto {a['correctas']}/{a['de']} · «no sé» indebido {a['indebidas']}/{a['de_contestables']} · \"\n            f\"errores {r['errores']} · primer token p50 {r['ttft_p50']:.0f} ms y p95 {r['ttft_p95']:.0f} ms\")\n\n\nif __name__ == \"__main__\":\n    nombre = sys.argv[1] if len(sys.argv) > 1 else sys.exit(\"uso: python pipeline/metricas.py <corrida>\")\n    print(texto(resumen(RAIZ / \"corridas\" / nombre)))",
+          "nota": ""
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python pipeline/metricas.py base",
+          "nota": "Recall 94.6%: las fuentes llegan casi siempre. Fugas 0. Pero solo 17/28 de las respuestas con cita citan una fuente esperada, 6 contestan sin citar, y 3 preguntas que sí tienen respuesta reciben «no sé».",
+          "donde": "mac",
+          "salida": "recall@8 94.6% en 37 contestables (Wilson, aprox.: 82%–99%) · fugas 0 · citas a una fuente esperada 17/28 · sin cita 6 · «no sé» correcto 11/14 · «no sé» indebido 3/37 · errores 0 · primer token p50 1529 ms y p95 3588 ms"
+        },
+        {
+          "code": "python -c \"import json; …\"   # cuatro respuestas y sus citas",
+          "nota": "G-007 tiene el dato bien y cita el documento de al lado (un ticket de Jira que también lo dice): la métrica barata lo marca, y eso es lo que no sabe distinguir.",
+          "donde": "mac",
+          "salida": "G-001 · cita a una fuente esperada: False · sin cita: False · El horario de atención del soporte es de 8:00 a 22:00, todos los días. [2]\nG-007 · cita a una fuente esperada: False · sin cita: False · El cobro duplicado se reembolsa en 1 a 3 días hábiles. [2]\nG-012 · cita a una fuente esperada: True · sin cita: False · El escalamiento a líderes de soporte incluye amenazas de demanda, pérdidas mayores a 20,00\nG-021 · cita a una fuente esperada: None · sin cita: True · El marketplace puede terminar el contrato con una paquetería con 30 días de aviso si la pa"
+        },
+        {
+          "code": "python verificar.py metricas",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ metricas    recall por documento (0.5 con dos chunks del mismo) · fuga por ACL y por prohibida · citas esperadas y sin cita · abstención correcta e indebida · Wilson y p95 · resumen de 51\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "<code>verificar.py metricas</code> en verde: recall por documento (0.5 con dos chunks del mismo), fuga por ACL y por prohibida, citas, abstención, Wilson y p95.",
+      "ojo": "Estas métricas dicen si llegó la fuente y si citó algo razonable, no si la respuesta es correcta: G-001 tiene su fuente en el prompt, la cita es válida y aun así dice un horario que no es. Eso lo califica el juez.",
+      "en_pagina": {
+        "conceptos": [
+          "recall-doc",
+          "fuga",
+          "cita-esperada",
+          "abstencion",
+          "wilson"
+        ],
+        "precalculos": [
+          "ruido"
+        ]
+      }
+    },
+    {
+      "n": 3,
+      "id": "juez",
+      "titulo": "Un juez que se parece a las personas",
+      "objetivo": "<code>juez.py</code>: un LLM que califica cada respuesta contra la referencia, calibrado contra 68 respuestas que calificaron personas, y que no se le cree si no pasa.",
+      "conceptos": [
+        "juez",
+        "rubrica",
+        "calibrar",
+        "kappa",
+        "falso-pase"
+      ],
+      "explica": "El <b>juez</b> es otro llama-server con un modelo más grande (Qwen3 4B). Recibe la <b>rúbrica</b> (qué cuenta como error), la pregunta, la referencia del golden set y la respuesta, y contesta <code>{\"error\": true|false}</code> con un JSON schema y temperatura 0. Su veredicto se guarda en <code>cache/juez/</code> con una llave que incluye el modelo y la rúbrica: la misma respuesta no se vuelve a calificar, y un juez nuevo no reusa lo viejo. Algunas no necesitan juez: un «no sé» es correcto en sin respuesta y prohibidas e incorrecto en las demás, y un error es incorrecto. <b>Calibrar</b> es pasarle las 68 respuestas que ya calificaron personas y medir el acuerdo, la <b>kappa de Cohen</b> y el <b>falso pase</b>; el gate solo le cree si pasa.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "pipeline/juez.py",
+          "code": "\"\"\"Paso 3: el juez. Un LLM (otro, más grande que el de la API) lee la pregunta, la respuesta de referencia del golden\nset y la respuesta de tu API, y dice si la respuesta es correcta. Antes de creerle se calibra: se le dan respuestas que\nya calificaron dos personas del equipo y se mide cuánto se parece a ellas (kappa de Cohen y falso pase).\n\n    python pipeline/juez.py calibrar      # contra almacen/calificaciones.jsonl; escribe corridas/calibracion.json\n    python pipeline/juez.py calibrar --url http://127.0.0.1:9931/v1   # lo mismo con otro servidor (aquí, el LLM de la API)\n    python pipeline/juez.py base          # califica la corrida base; escribe corridas/base/juicio.jsonl\n\nContrato (todo sale de la sección juez de config.yaml):\n- RUBRICA: las instrucciones del juez. SCHEMA: el JSON que tiene que contestar: {\"error\": true|false}.\n- Juez(url=None): habla con el servidor de url (por omisión, juez.url; la llave es CLAVE de juez.env). .identidad() → {\"modelo\": el nombre del\n  archivo que sirve ese servidor (GET /props, model_path), \"parametros\": n_params de GET /v1/models}. .calificar(\n  pregunta, referencia, respuesta) → True si es correcta. Con juez.temperatura y juez.max_tokens. Guarda cada\n  veredicto en cache/juez/<sha256>.json, con la llave hecha del modelo, la rúbrica, la pregunta, la referencia y la\n  respuesta: la misma respuesta no se vuelve a calificar, y un juez o una rúbrica nuevos no reusan lo viejo.\n- veredicto(fila, x, juez) → (\"correcta\" | \"incorrecta\", \"regla\" | \"juez\"). Sin llamar al juez: una fila con error es\n  incorrecta; un «no sé» es correcto en sin_respuesta y prohibida, e incorrecto en directa y varias. Lo demás, el juez.\n- kappa(pares) → la kappa de Cohen de una lista de pares (humano, juez) de 1 y 0: (p_o − p_e) ÷ (1 − p_e). Si\n  p_e = 1, 0.\n- calibrar(juez=None) → dict {\"n\", \"acuerdo\", \"kappa\", \"falso_pase\" (fracción de las que las personas reprobaron y\n  el juez aprobó), \"reprobadas\" (cuántas reprobaron las personas), \"falso_rechazo\", \"juez\": identidad(), \"rubrica\":\n  sha256 de RUBRICA, \"pasa\"}. pasa = kappa ≥ juez.kappa_min y falso_pase ≤ juez.falso_pase_max. Lo escribe en\n  corridas/calibracion.json.\n- juzgar(carpeta, juez=None) → la lista de {\"id\", \"veredicto\", \"por\"} de cada fila; la escribe en <carpeta>/juicio.jsonl\n  con el juez y la rúbrica en <carpeta>/juicio.json.\n\"\"\"\nfrom __future__ import annotations\n\nimport hashlib\nimport json\nimport sys\nimport time\nfrom pathlib import Path\n\nsys.path.insert(0, str(Path(__file__).resolve().parent))\nfrom _comun import ALMACEN, GOLDEN, RAIZ, config, escribir_json, escribir_jsonl, leer_json, leer_jsonl  # noqa: E402\nimport llm  # noqa: E402\nfrom mundo.comun import leer_env  # noqa: E402\n\nCACHE_JUEZ = RAIZ / \"cache\" / \"juez\"\nCALIFICACIONES = ALMACEN / \"calificaciones.jsonl\"\nCALIBRACION = RAIZ / \"corridas\" / \"calibracion.json\"\n\nRUBRICA = (\n    \"Comparas la respuesta de un asistente con la respuesta de referencia, que escribió una experta y es la correcta.\\n\"\n    \"La respuesta tiene un error si:\\n\"\n    \"- da un dato distinto o contrario a la referencia: otro número, otro plazo, otro monto, otra persona, «sí» en vez de «no»;\\n\"\n    \"- contesta algo cuando la referencia dice que no está en los documentos;\\n\"\n    \"- dice que no sabe, o no contesta, cuando la referencia sí tiene la respuesta.\\n\"\n    \"Si solo le faltan detalles secundarios o lo dice con otras palabras, NO es un error.\\n\"\n    \"Contesta en JSON: {\\\"error\\\": true} o {\\\"error\\\": false}.\"\n)\nSCHEMA = {\"type\": \"object\", \"properties\": {\"error\": {\"type\": \"boolean\"}}, \"required\": [\"error\"]}\n\n\ndef _sha(texto: str) -> str:\n    return hashlib.sha256(texto.encode()).hexdigest()\n\n\nclass Juez:\n    def __init__(self, url: str | None = None):\n        self.cfg = config()[\"juez\"]\n        self.cliente = llm.Cliente(url=url or self.cfg[\"url\"], clave=leer_env(RAIZ / \"juez.env\").get(\"CLAVE\", \"\"), timeout=120)\n        self._id = None\n\n    def identidad(self) -> dict:\n        if self._id is None:\n            raiz = self.cliente.url.removesuffix(\"/v1\")\n            ruta = self.cliente._json(\"GET\", f\"{raiz}/props\")[\"model_path\"]\n            meta = self.cliente._json(\"GET\", f\"{self.cliente.url}/models\")[\"data\"][0].get(\"meta\", {})\n            self._id = {\"modelo\": Path(ruta).name, \"parametros\": meta.get(\"n_params\")}\n        return self._id\n\n    def calificar(self, pregunta: str, referencia: str, respuesta: str) -> bool:\n        llave = _sha(\"\\n\".join([self.identidad()[\"modelo\"], RUBRICA, str(self.cfg[\"temperatura\"]), pregunta, referencia, respuesta]))\n        p = CACHE_JUEZ / f\"{llave}.json\"\n        guardado = leer_json(p)\n        if guardado is not None:\n            return guardado[\"correcta\"]\n        m = [{\"role\": \"system\", \"content\": RUBRICA},\n             {\"role\": \"user\", \"content\": f\"Pregunta: {pregunta}\\nReferencia: {referencia}\\nRespuesta del asistente: {respuesta}\"}]\n        v = self.cliente.chat_json(m, SCHEMA, max_tokens=self.cfg[\"max_tokens\"], temperatura=self.cfg[\"temperatura\"])\n        correcta = not v[\"error\"]\n        escribir_json(p, {\"correcta\": correcta})\n        return correcta\n\n\ndef veredicto(fila: dict, x: dict, juez: Juez) -> tuple[str, str]:\n    if fila[\"error\"]:\n        return \"incorrecta\", \"regla\"\n    if fila[\"no_se\"]:\n        return (\"correcta\" if x[\"tipo\"] in (\"sin_respuesta\", \"prohibida\") else \"incorrecta\"), \"regla\"\n    ok = juez.calificar(x[\"pregunta\"], x[\"respuesta\"], fila[\"respuesta\"])\n    return (\"correcta\" if ok else \"incorrecta\"), \"juez\"\n\n\ndef kappa(pares: list[tuple[int, int]]) -> float:\n    n = len(pares)\n    po = sum(a == b for a, b in pares) / n\n    ph, pj = sum(a for a, _ in pares) / n, sum(b for _, b in pares) / n\n    pe = ph * pj + (1 - ph) * (1 - pj)\n    return 0.0 if pe == 1 else (po - pe) / (1 - pe)\n\n\ndef calibrar(juez: Juez | None = None) -> dict:\n    juez = juez or Juez()\n    cal = leer_jsonl(CALIFICACIONES)\n    pares = [(int(c[\"etiqueta\"] == \"correcta\"), int(juez.calificar(c[\"pregunta\"], c[\"referencia\"], c[\"respuesta\"]))) for c in cal]\n    reprobadas = sum(1 for h, _ in pares if h == 0)\n    aprobadas = len(pares) - reprobadas\n    fp = sum(1 for h, j in pares if h == 0 and j == 1) / reprobadas if reprobadas else 0.0\n    fr = sum(1 for h, j in pares if h == 1 and j == 0) / aprobadas if aprobadas else 0.0\n    k = kappa(pares)\n    cfg = config()[\"juez\"]\n    r = {\"n\": len(pares), \"acuerdo\": sum(a == b for a, b in pares) / len(pares), \"kappa\": k, \"falso_pase\": fp, \"reprobadas\": reprobadas,\n         \"falso_rechazo\": fr, \"juez\": juez.identidad(), \"rubrica\": _sha(RUBRICA),\n         \"pasa\": k >= cfg[\"kappa_min\"] and fp <= cfg[\"falso_pase_max\"]}\n    escribir_json(CALIBRACION, r)\n    return r\n\n\ndef juzgar(carpeta: Path, juez: Juez | None = None) -> list[dict]:\n    carpeta, juez = Path(carpeta), juez or Juez()\n    m = leer_json(carpeta / \"manifiesto.json\")\n    g = {x[\"id\"]: x for x in leer_jsonl(GOLDEN / m[\"golden\"][\"version\"] / \"preguntas.jsonl\")}\n    out = []\n    for f in leer_jsonl(carpeta / \"respuestas.jsonl\"):\n        v, por = veredicto(f, g[f[\"id\"]], juez)\n        out.append({\"id\": f[\"id\"], \"veredicto\": v, \"por\": por})\n    escribir_jsonl(carpeta / \"juicio.jsonl\", out)\n    escribir_json(carpeta / \"juicio.json\", {\"juez\": juez.identidad(), \"rubrica\": _sha(RUBRICA)})\n    return out\n\n\nif __name__ == \"__main__\":\n    que = sys.argv[1] if len(sys.argv) > 1 else sys.exit(\"uso: python pipeline/juez.py calibrar | <corrida>\")\n    t0 = time.perf_counter()\n    if que == \"calibrar\":\n        r = calibrar(Juez(sys.argv[3]) if sys.argv[2:3] == [\"--url\"] else None)\n        c = config()[\"juez\"]\n        print(f\"{'✓' if r['pasa'] else '✗'} juez {r['juez']['modelo']} contra {r['n']} calificaciones de personas: acuerdo {r['acuerdo']:.1%} · \"\n              f\"kappa {r['kappa']:.2f} (mínimo {c['kappa_min']}) · falso pase {r['falso_pase']:.1%} de {r['reprobadas']} reprobadas \"\n              f\"(máximo {c['falso_pase_max']:.0%}) · falso rechazo {r['falso_rechazo']:.1%} · {time.perf_counter() - t0:.0f} s\")\n    else:\n        v = juzgar(RAIZ / \"corridas\" / que)\n        ok = sum(x[\"veredicto\"] == \"correcta\" for x in v)\n        print(f\"✓ corridas/{que}/juicio.jsonl: {ok}/{len(v)} correctas ({sum(x['por'] == 'juez' for x in v)} por el juez, \"\n              f\"{sum(x['por'] == 'regla' for x in v)} por regla) · {time.perf_counter() - t0:.0f} s\")",
+          "nota": ""
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python pipeline/juez.py calibrar --url http://127.0.0.1:9931/v1",
+          "nota": "Primero, el modelo de la API como juez. No aprueba nada malo (falso pase 0 %), pero reprueba 55.1% de las buenas: acuerda 60.3% y su kappa es 0.31. No sirve.",
+          "donde": "mac",
+          "salida": "✗ juez Qwen3-0.6B-Q8_0.gguf contra 68 calificaciones de personas: acuerdo 60.3% · kappa 0.31 (mínimo 0.6) · falso pase 0.0% de 19 reprobadas (máximo 20%) · falso rechazo 55.1% · 14 s"
+        },
+        {
+          "code": "python pipeline/juez.py calibrar",
+          "nota": "El de 4B: kappa 0.75 y falso pase 15.8% (aprueba 3 de las 19 que las personas reprobaron). Pasa el tope del dojo (20 %), no el de C11 (10 %).",
+          "donde": "mac",
+          "salida": "✓ juez Qwen3-4B-Q4_K_M.gguf contra 68 calificaciones de personas: acuerdo 89.7% · kappa 0.75 (mínimo 0.6) · falso pase 15.8% de 19 reprobadas (máximo 20%) · falso rechazo 8.2% · 73 s"
+        },
+        {
+          "code": "python pipeline/juez.py calibrar",
+          "nota": "Otra vez: 0 s. Las 68 ya están en la cache del juez, con la misma rúbrica y el mismo modelo.",
+          "donde": "mac",
+          "salida": "✓ juez Qwen3-4B-Q4_K_M.gguf contra 68 calificaciones de personas: acuerdo 89.7% · kappa 0.75 (mínimo 0.6) · falso pase 15.8% de 19 reprobadas (máximo 20%) · falso rechazo 8.2% · 0 s"
+        },
+        {
+          "code": "python pipeline/juez.py base",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ corridas/base/juicio.jsonl: 38/51 correctas (37 por el juez, 14 por regla) · 2 s"
+        },
+        {
+          "code": "python -c \"import json; …\"   # las incorrectas de la base",
+          "nota": "Hay que leerlas: unas son de verdad (G-001, G-017, G-043, G-066), otras son el juez de 4B reprobando una respuesta a la que solo le falta un detalle (G-006 y G-023: G-023 dice «8 %» y no «sin IVA»). Las dos cosas pasan: por eso se calibra.",
+          "donde": "mac",
+          "salida": "G-001 directa       por juez  «El horario de atención del soporte es de 8:00 a 22:00, todos los días.» · referencia: «De 9:00 a 18:00, de lunes a viernes.»\nG-006 directa       por juez  «Los datos de la tarjeta y la fecha del cargo son los últimos 4 dígitos» · referencia: «Los últimos 4 dígitos de la tarjeta y la fecha del»\nG-010 directa       por juez  «Los productos no se pueden devolver son los que no tienen etiqueta, lo» · referencia: «Ropa interior y trajes de baño sin su etiqueta, so»\nG-014 directa       por regla «No encontré eso en los documentos que puedes ver.» · referencia: «Uno por pedido, y no se combina con promociones de»\nG-017 directa       por juez  «[2] La pide quien compró.» · referencia: «Quien lo recibe.»\nG-023 directa       por juez  «La comisión de Electrónica es del 8 %. [1]» · referencia: «8 % sobre el precio de venta sin IVA; a quien vend»\nG-024 directa       por regla «No encontré eso en los documentos que puedes ver.» · referencia: «179 pesos con IVA (de 1 a 5 kg, zona Noroeste).»\nG-042 varias        por regla «No encontré eso en los documentos que puedes ver.» · referencia: «Sí: en las dos, la comisión de Moda baja de 12 % a»\nG-043 varias        por juez  «[1] Sí, un paquete de 25 kg puede mandar con guía del marketplace, y q» · referencia: «No: más de 20 kg no se acepta con guía del marketp»\nG-050 varias        por juez  «Los pagos a los vendedores se hacen los lunes y los jueves, y se retie» · referencia: «Los lunes y los jueves desde diciembre; se retiene»\nG-064 sin_respuesta por juez  «El costo de un envío a Estados Unidos depende del estado y la zona, se» · referencia: «No está en los documentos que puedo consultar.»\nG-066 sin_respuesta por juez  «La compensación máxima para un cliente Platino es 300 pesos. [2]» · referencia: «No está en los documentos que puedo consultar.»\nG-071 prohibida     por juez  «[2] La resolución fue abierta investigación con la paquetería y se ree» · referencia: «No está en los documentos que puedo consultar.»"
+        },
+        {
+          "code": "python verificar.py juez",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ juez        juez Qwen3-4B-Q4_K_M.gguf (4.0 B), no el de la API · kappa 0.75 ≥ 0.6 · falso pase 15.8% ≤ 20% en 68 calificaciones · reglas sin juez para «no sé» y errores\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "<code>verificar.py juez</code> en verde: el juez no es el modelo de la API, la kappa y el falso pase pasan sus topes en las 68 calificaciones y las reglas sin juez funcionan.",
+      "ojo": "El tope de falso pase del dojo es 20 % y no el 10 % de C11: se probaron tres jueces que caben en la Mac (0.6B, 1.7B y 4B) y tres rúbricas, contra estas mismas 68, y ninguno bajó de ≈ 10 %; el mejor que es rápido queda en 15.8%. Eso tiene dos consecuencias honestas: el número de la calibración es optimista (la rúbrica se eligió con estas calificaciones; uno de verdad se mide con otras), y con 19 reprobadas el intervalo del falso pase va de ≈ 5 a ≈ 38 %. Lo que no se hace es bajar el tope después de ver que no pasa.",
+      "en_pagina": {
+        "conceptos": [
+          "juez",
+          "rubrica",
+          "calibrar",
+          "kappa",
+          "falso-pase"
+        ],
+        "precalculos": []
+      }
+    },
+    {
+      "n": 4,
+      "id": "gate",
+      "titulo": "El gate: contra la base, pregunta por pregunta",
+      "objetivo": "<code>gate.py</code>: comparar una corrida con la base vigente en las mismas preguntas, con no inferioridad, listar las que cambiaron, y promover solo lo que pasa.",
+      "conceptos": [
+        "base",
+        "pareada",
+        "no-inferioridad"
+      ],
+      "explica": "<code>no_inferior()</code> es la cuenta: con las dos listas de valores por pregunta (1 o 0 para correcta, o el recall de cada una), Δ es la diferencia de las medias y, <b>pareado</b>, su error sale de las diferencias pregunta por pregunta: las que no cambian no suman. La cota de abajo es Δ − 1.645 × error, y pasa si queda arriba de −margen. <code>decidir()</code> aplica las reglas en orden: <b>comparable</b> (mismo golden, split y preguntas), <b>sin_cache</b>, <b>juez</b> (calibrado, y el mismo que calificó las dos), <b>permisos</b> (0 fugas), <b>recall</b> (piso de 90 % y no inferior) y <b>exactitud</b> (no inferior y sin caer más de 3 puntos). <code>promover()</code> mueve <code>corridas/VIGENTE</code>, solo si la corrida pasó contra la base de ese momento.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "pipeline/gate.py",
+          "code": "\"\"\"Paso 4: el gate. Decide si un cambio (una corrida candidata) puede salir, comparándolo con la versión que hoy usa\nla empresa (la base vigente), en las mismas preguntas. Bloquea si se cuela algo que la persona no puede ver, si el\njuez no está calibrado, si el examen no es comparable o si el cambio pierde más de lo que el golden set deja ver.\n\n    python pipeline/gate.py base-k2                 # decide (código de salida 1 si bloquea: así lo usa un CI)\n    python pipeline/gate.py examen base-k2          # todo junto: correr, juzgar y decidir\n    python pipeline/gate.py promover base           # la corrida pasa a ser la base vigente (corridas/VIGENTE)\n\nContrato (todo sale de la sección gate de config.yaml):\n- base_de(candidata) → el nombre de la corrida contra la que se compara: con gate.base = vigente, la de corridas/VIGENTE\n  (o None si todavía no hay); con gate.base = ultima, la corrida más reciente que no sea la candidata.\n- no_inferior(base, cand, margen, z, pareado=True) → {\"delta\", \"se\", \"cota\", \"pasa\"}. base y cand: listas de valores\n  por pregunta (1/0, o el recall de cada una), en el mismo orden. delta = media(cand) − media(base). Pareado: con\n  d_i = cand_i − base_i, se = √(Σ (d_i − delta)²) ÷ n. Sin parear (como dos porcentajes sueltos): se = √(var_b ÷ n +\n  var_c ÷ n), con var la varianza de cada lista (dividida entre n). cota = delta − z × se; pasa = cota ≥ −margen.\n- decidir(candidata, base=None) → {\"candidata\", \"base\", \"pasa\", \"reglas\": [{\"regla\", \"pasa\", \"detalle\"}]}, y lo\n  escribe en corridas/<candidata>/gate.json. Las reglas, en este orden:\n    comparable  hay base, y las dos corridas tienen el mismo golden (versión y sha256), el mismo split y las mismas ids\n    sin_cache   la candidata corrió sin cache: ninguna fila con de_cache (si no, mide el retrieval de antes)\n    juez        corridas/calibracion.json pasa, y el juez y la rúbrica de esa calibración son los mismos que calificaron\n                las dos corridas (juicio.json)\n    permisos    fugas de la candidata ≤ gate.fugas_max (0: una sola bloquea)\n    recall      recall de la candidata ≥ gate.recall_min, y no inferior a la base con gate.margen\n    exactitud   las correctas (juicio.jsonl) no inferiores a la base con gate.margen, y la caída observada ≤ gate.caida_max\n  pasa = todas pasan. d[\"info\"] trae el primer token (p50 y p95) de la base y de la candidata: se muestra, pero no\n  decide (el examen corre una pregunta a la vez; la latencia se prueba con carga). Si comparable o juez no pasan, las que dependen de ellas se dan por no pasadas. Con la regla\n  exactitud evaluada, d[\"cambios\"] lista las preguntas que cambiaron de veredicto: {\"id\", \"antes\", \"despues\",\n  \"respuesta\"} (la respuesta de la candidata), para leerlas: la estadística no ve todo.\n- promover(nombre) → escribe corridas/VIGENTE con ese nombre (de un jalón) y agrega una línea a corridas/historial.jsonl.\n  Solo si su gate.json pasa contra la base vigente de ese momento; la primera base (sin VIGENTE) solo pide que su\n  juicio exista y que no tenga fugas. Si no, ValueError.\n\"\"\"\nfrom __future__ import annotations\n\nimport json\nimport math\nimport os\nimport sys\nimport time\nfrom datetime import datetime\nfrom pathlib import Path\n\nsys.path.insert(0, str(Path(__file__).resolve().parent))\nfrom _comun import RAIZ, config, escribir_json, leer_json, leer_jsonl  # noqa: E402\nimport metricas  # noqa: E402\n\nCORRIDAS = RAIZ / \"corridas\"\nVIGENTE = CORRIDAS / \"VIGENTE\"\n\n\ndef base_de(candidata: str) -> str | None:\n    if config()[\"gate\"][\"base\"] == \"vigente\":\n        return VIGENTE.read_text().strip() if VIGENTE.exists() else None\n    otras = [(leer_json(p / \"manifiesto.json\")[\"fecha\"], p.name) for p in CORRIDAS.iterdir()\n             if p.is_dir() and not p.name.startswith(\".\") and p.name != candidata and (p / \"manifiesto.json\").exists()]\n    return max(otras)[1] if otras else None\n\n\ndef no_inferior(base: list[float], cand: list[float], margen: float, z: float, pareado: bool = True) -> dict:\n    n = len(base)\n    mb, mc = sum(base) / n, sum(cand) / n\n    delta = mc - mb\n    if pareado:\n        d = [c - b for b, c in zip(base, cand)]\n        se = math.sqrt(sum((x - delta) ** 2 for x in d)) / n\n    else:\n        vb = sum((x - mb) ** 2 for x in base) / n\n        vc = sum((x - mc) ** 2 for x in cand) / n\n        se = math.sqrt(vb / n + vc / n)\n    cota = delta - z * se\n    return {\"delta\": delta, \"se\": se, \"cota\": cota, \"pasa\": cota >= -margen}\n\n\ndef _juicio(nombre: str) -> tuple[dict, dict | None]:\n    return {x[\"id\"]: x[\"veredicto\"] for x in leer_jsonl(CORRIDAS / nombre / \"juicio.jsonl\")}, leer_json(CORRIDAS / nombre / \"juicio.json\")\n\n\ndef decidir(candidata: str, base: str | None = None) -> dict:\n    cfg = config()\n    g = cfg[\"gate\"]\n    base = base or base_de(candidata)\n    reglas = []\n\n    def regla(nombre, pasa, detalle):\n        reglas.append({\"regla\": nombre, \"pasa\": bool(pasa), \"detalle\": detalle})\n        return pasa\n\n    mc = leer_json(CORRIDAS / candidata / \"manifiesto.json\")\n    rc = metricas.resumen(CORRIDAS / candidata)\n    mb = leer_json(CORRIDAS / base / \"manifiesto.json\") if base else None\n    if not mb:\n        ok_comp = regla(\"comparable\", False, \"no hay base vigente: corre el examen con la versión de hoy y promuévela (python pipeline/gate.py promover <corrida>)\")\n    else:\n        dif = [k for k, a, b in ((\"golden\", mc[\"golden\"], mb[\"golden\"]), (\"split\", mc[\"split\"], mb[\"split\"]), (\"preguntas\", mc[\"ids\"], mb[\"ids\"])) if a != b]\n        ok_comp = regla(\"comparable\", not dif, f\"contra {base}: mismo golden ({mc['golden']['version']}), split ({mc['split']}) y {mc['n']} preguntas\"\n                        if not dif else f\"contra {base}: cambia {', '.join(dif)} ({mb['golden']['version']}/{mb['split']}/{mb['n']} → \"\n                        f\"{mc['golden']['version']}/{mc['split']}/{mc['n']}): dos exámenes distintos no se comparan\")\n    regla(\"sin_cache\", rc[\"de_cache\"] == 0 and mc[\"sin_cache\"], f\"{rc['de_cache']} de {rc['n']} respuestas salieron de la cache de la API\"\n          + (\"\" if rc[\"de_cache\"] == 0 and mc[\"sin_cache\"] else \": la corrida midió el retrieval de antes, no el del cambio (evals.sin_cache)\"))\n    cal = leer_json(CORRIDAS / \"calibracion.json\")\n    jc, ic = _juicio(candidata)\n    jb, ib = _juicio(base) if base else ({}, None)\n    if not cal:\n        ok_juez = regla(\"juez\", False, \"no hay calibración: python pipeline/juez.py calibrar\")\n    else:\n        mismo = all(i and i[\"juez\"] == cal[\"juez\"] and i[\"rubrica\"] == cal[\"rubrica\"] for i in ((ic, ib) if base else (ic,)))\n        ok_juez = regla(\"juez\", cal[\"pasa\"] and mismo,\n                        f\"{cal['juez']['modelo']}: kappa {cal['kappa']:.2f} (≥ {cfg['juez']['kappa_min']}), falso pase {cal['falso_pase']:.0%} \"\n                        f\"(≤ {cfg['juez']['falso_pase_max']:.0%})\" + (\"\" if cal[\"pasa\"] else \" · no está calibrado: no se le cree\")\n                        + (\"\" if mismo else \" · las corridas no las calificó este juez con esta rúbrica: vuelve a juzgarlas\"))\n    regla(\"permisos\", rc[\"fugas\"] <= g[\"fugas_max\"], f\"{rc['fugas']} pregunta(s) con un chunk que su persona no puede ver (máximo {g['fugas_max']})\")\n    z, margen = g[\"confianza_z\"], g[\"margen\"]\n    if ok_comp:\n        rb = metricas.resumen(CORRIDAS / base)\n        ids = [i for i in mc[\"ids\"] if rc[\"por_pregunta\"][i][\"recall\"] is not None]\n        r = no_inferior([rb[\"por_pregunta\"][i][\"recall\"] for i in ids], [rc[\"por_pregunta\"][i][\"recall\"] for i in ids], margen, z, g[\"pareado\"])\n        regla(\"recall\", r[\"pasa\"] and rc[\"recall\"][\"media\"] >= g[\"recall_min\"],\n              f\"{rb['recall']['media']:.1%} → {rc['recall']['media']:.1%} (mínimo {g['recall_min']:.0%}) · Δ {r['delta']:+.1%}, cota {r['cota']:+.1%} (≥ −{margen:.0%})\")\n    else:\n        regla(\"recall\", False, \"sin una base comparable no hay contra qué\")\n    if ok_comp and ok_juez and set(jc) == set(mc[\"ids\"]) and set(jb) == set(mc[\"ids\"]):\n        b = [int(jb[i] == \"correcta\") for i in mc[\"ids\"]]\n        c = [int(jc[i] == \"correcta\") for i in mc[\"ids\"]]\n        r = no_inferior(b, c, margen, z, g[\"pareado\"])\n        perdidas = sum(1 for x, y in zip(b, c) if x and not y)\n        ganadas = sum(1 for x, y in zip(b, c) if y and not x)\n        resp = {f[\"id\"]: f[\"respuesta\"] for f in leer_jsonl(CORRIDAS / candidata / \"respuestas.jsonl\")}\n        cambios = [{\"id\": i, \"antes\": jb[i], \"despues\": jc[i], \"respuesta\": resp[i]} for i in mc[\"ids\"] if jb[i] != jc[i]]\n        regla(\"exactitud\", r[\"pasa\"] and -r[\"delta\"] <= g[\"caida_max\"],\n              f\"{sum(b)}/{len(b)} → {sum(c)}/{len(c)} correctas · pierde {perdidas}, gana {ganadas} · Δ {r['delta']:+.1%}, cota {r['cota']:+.1%} \"\n              f\"(≥ −{margen:.0%}), caída máxima {g['caida_max']:.0%}\")\n    else:\n        cambios = []\n        regla(\"exactitud\", False, \"sin juez calibrado, base comparable y las dos corridas juzgadas, no se puede decir\")\n    rb_ = metricas.resumen(CORRIDAS / base) if mb else None\n    info = {\"ttft_p50\": [rb_[\"ttft_p50\"] if rb_ else None, rc[\"ttft_p50\"]], \"ttft_p95\": [rb_[\"ttft_p95\"] if rb_ else None, rc[\"ttft_p95\"]]}\n    d = {\"candidata\": candidata, \"base\": base, \"pasa\": all(x[\"pasa\"] for x in reglas), \"reglas\": reglas, \"cambios\": cambios, \"info\": info,\n         \"fecha\": datetime.now().astimezone().isoformat(timespec=\"seconds\")}\n    escribir_json(CORRIDAS / candidata / \"gate.json\", d)\n    return d\n\n\ndef promover(nombre: str) -> None:\n    actual = VIGENTE.read_text().strip() if VIGENTE.exists() else None\n    if actual is None:\n        if not (CORRIDAS / nombre / \"juicio.jsonl\").exists():\n            raise ValueError(f\"{nombre} no está juzgada: python pipeline/juez.py {nombre}\")\n        if metricas.resumen(CORRIDAS / nombre)[\"fugas\"]:\n            raise ValueError(f\"{nombre} tiene fugas: no puede ser la base\")\n    else:\n        d = leer_json(CORRIDAS / nombre / \"gate.json\")\n        if not d or not d[\"pasa\"] or d[\"base\"] != actual:\n            raise ValueError(f\"{nombre} no pasó el gate contra la base vigente ({actual}): python pipeline/gate.py {nombre}\")\n    tmp = VIGENTE.with_name(\"VIGENTE.tmp\")\n    tmp.write_text(nombre + \"\\n\")\n    os.replace(tmp, VIGENTE)\n    with open(CORRIDAS / \"historial.jsonl\", \"a\") as f:\n        f.write(json.dumps({\"fecha\": datetime.now().astimezone().isoformat(timespec=\"seconds\"), \"vigente\": nombre, \"antes\": actual},\n                           ensure_ascii=False) + \"\\n\")\n\n\ndef texto(d: dict) -> str:\n    lineas = [f\"{'✓' if x['pasa'] else '✗'} {x['regla']:<11} {x['detalle']}\" for x in d[\"reglas\"]]\n    i = d.get(\"info\") or {}\n    if i.get(\"ttft_p95\"):\n        f = lambda x: \"—\" if x is None else f\"{x:.0f}\"  # noqa: E731\n        lineas.append(f\"· primer token p50 {f(i['ttft_p50'][0])} → {f(i['ttft_p50'][1])} ms, p95 {f(i['ttft_p95'][0])} → {f(i['ttft_p95'][1])} ms \"\n                      \"(se muestra, no decide: la latencia se prueba con carga)\")\n    if d.get(\"cambios\"):\n        lineas.append(\"\\nCambiaron de veredicto:\")\n        lineas += [f\"  {c['id']} {c['antes']} → {c['despues']}: «{c['respuesta'][:110]}»\" for c in d[\"cambios\"]]\n    lineas.append(f\"\\n{'PASA' if d['pasa'] else 'BLOQUEA'}: {d['candidata']} contra {d['base']}\")\n    return \"\\n\".join(lineas)\n\n\nif __name__ == \"__main__\":\n    a = sys.argv[1:]\n    if not a:\n        sys.exit(\"uso: python pipeline/gate.py <candidata> | examen <nombre> | promover <nombre>\")\n    if a[0] == \"promover\":\n        try:\n            promover(a[1])\n        except ValueError as e:\n            sys.exit(f\"✗ {e}\")\n        print(f\"✓ corridas/VIGENTE → {a[1]}\")\n        sys.exit(0)\n    t0 = time.perf_counter()\n    if a[0] == \"examen\":\n        import correr\n        import juez\n\n        correr.correr(a[1])\n        juez.juzgar(CORRIDAS / a[1])\n        a = a[1:]\n    d = decidir(a[0])\n    print(texto(d) + f\" · {time.perf_counter() - t0:.0f} s\")\n    sys.exit(0 if d[\"pasa\"] else 1)",
+          "nota": ""
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python verificar.py estadistica",
+          "nota": "Las cuentas de la lección de evals de IA Privada: 200 preguntas, pierde 5 y gana 17.",
+          "donde": "mac",
+          "salida": "✓ estadistica pareado: Δ +6.0 %, se 2.31 %, cota +2.21 % · sin parear, se 3.24 % · el mismo resultado pasa (cota +0.0%) · perder 4 de 51 bloquea (Δ -7.8%, cota -14.0%, margen 10%, caída máxima 3%)\n\n1/1 en verde"
+        },
+        {
+          "code": "python pipeline/gate.py base",
+          "nota": "Todavía no hay base: la primera se promueve a mano, después de leerla.",
+          "donde": "mac",
+          "salida": "✗ comparable  no hay base vigente: corre el examen con la versión de hoy y promuévela (python pipeline/gate.py promover <corrida>)\n✓ sin_cache   0 de 51 respuestas salieron de la cache de la API\n✓ juez        Qwen3-4B-Q4_K_M.gguf: kappa 0.75 (≥ 0.6), falso pase 16% (≤ 20%)\n✓ permisos    0 pregunta(s) con un chunk que su persona no puede ver (máximo 0)\n✗ recall      sin una base comparable no hay contra qué\n✗ exactitud   sin juez calibrado, base comparable y las dos corridas juzgadas, no se puede decir\n· primer token p50 — → 1529 ms, p95 — → 3588 ms (se muestra, no decide: la latencia se prueba con carga)\n\nBLOQUEA: base contra None · 0 s\n[código 1]"
+        },
+        {
+          "code": "python pipeline/gate.py promover base",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ corridas/VIGENTE → base"
+        },
+        {
+          "code": "python mundo/propuesta.py",
+          "nota": "",
+          "donde": "mac",
+          "salida": "  umbral-bajo  Diego Luna: Dos agentes se quejaron de que el asistente dice «no sé» a preguntas que sí están en los documentos (los cupones y la tarifa a Sonora). Diego propone bajar respuesta.umbral de −1.0 a −4.0 para que conteste más.\n  k-2          Sofía Leal: Para bajar el primer token, Sofía propone mandar al prompt solo los 2 mejores chunks del reranker en vez de 8 (retrieval.k de 8 a 2): «el bueno casi siempre viene primero»."
+        },
+        {
+          "code": "python mundo/propuesta.py umbral-bajo",
+          "nota": "",
+          "donde": "mac",
+          "salida": "▶ propuesta «umbral-bajo» (Diego Luna): umbral: -4.0 en config.yaml\n  Dos agentes se quejaron de que el asistente dice «no sé» a preguntas que sí están en los documentos (los cupones y la tarifa a Sonora). Diego propone bajar respuesta.umbral de −1.0 a −4.0 para que conteste más."
+        },
+        {
+          "code": "python pipeline/gate.py examen umbral-bajo",
+          "nota": "La queja era real: el recall sube (94.6% → 100.0%). Pero el modelo no contesta bien esas preguntas y empieza a inventar en dos que no tienen respuesta para quien pregunta (un teléfono que no está en los documentos y una tarifa que esa persona no puede ver): 38/51 → 36/51, pierde 2, gana 0. La estadística sola no lo detiene (la cota queda arriba de −10 %); lo detiene la caída observada.",
+          "donde": "mac",
+          "salida": "✓ comparable  contra base: mismo golden (golden-v2), split (test) y 51 preguntas\n✓ sin_cache   0 de 51 respuestas salieron de la cache de la API\n✓ juez        Qwen3-4B-Q4_K_M.gguf: kappa 0.75 (≥ 0.6), falso pase 16% (≤ 20%)\n✓ permisos    0 pregunta(s) con un chunk que su persona no puede ver (máximo 0)\n✓ recall      94.6% → 100.0% (mínimo 90%) · Δ +5.4%, cota -0.7% (≥ −10%)\n✗ exactitud   38/51 → 36/51 correctas · pierde 2, gana 0 · Δ -3.9%, cota -8.4% (≥ −10%), caída máxima 3%\n· primer token p50 1529 → 1553 ms, p95 3588 → 3480 ms (se muestra, no decide: la latencia se prueba con carga)\n\nCambiaron de veredicto:\n  G-061 correcta → incorrecta: «El teléfono del almacén de Querétaro es de 9:00 a 18:00. [2]»\n  G-070 correcta → incorrecta: «La tarifa de envío a Sonora para un paquete de 3 kilos es 100 pesos, según el documento [2].»\n\nBLOQUEA: umbral-bajo contra base · 103 s\n[código 1]"
+        },
+        {
+          "code": "python pipeline/gate.py promover umbral-bajo",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✗ umbral-bajo no pasó el gate contra la base vigente (base): python pipeline/gate.py umbral-bajo\n[código 1]"
+        },
+        {
+          "code": "python mundo/propuesta.py quitar",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ quitada «umbral-bajo»: config.yaml como estaba"
+        },
+        {
+          "code": "python mundo/propuesta.py k-2",
+          "nota": "",
+          "donde": "mac",
+          "salida": "▶ propuesta «k-2» (Sofía Leal): k: 2 en config.yaml\n  Para bajar el primer token, Sofía propone mandar al prompt solo los 2 mejores chunks del reranker en vez de 8 (retrieval.k de 8 a 2): «el bueno casi siempre viene primero»."
+        },
+        {
+          "code": "python pipeline/gate.py examen k-2",
+          "nota": "Con 2 chunks, el primer token baja (p50 1529 → 837 ms) y la exactitud empata (38/51 → 38/51, pierde 3, gana 3): con menos distractores, el modelo de 0.6B acierta algunas que fallaba. Pero el recall cae (94.6% → 89.2%) en las preguntas que necesitan dos fuentes: queda bajo el piso de 90 % y su cota pasa de −10 %.",
+          "donde": "mac",
+          "salida": "✓ comparable  contra base: mismo golden (golden-v2), split (test) y 51 preguntas\n✓ sin_cache   0 de 51 respuestas salieron de la cache de la API\n✓ juez        Qwen3-4B-Q4_K_M.gguf: kappa 0.75 (≥ 0.6), falso pase 16% (≤ 20%)\n✓ permisos    0 pregunta(s) con un chunk que su persona no puede ver (máximo 0)\n✗ recall      94.6% → 89.2% (mínimo 90%) · Δ -5.4%, cota -10.7% (≥ −10%)\n✓ exactitud   38/51 → 38/51 correctas · pierde 3, gana 3 · Δ +0.0%, cota -7.9% (≥ −10%), caída máxima 3%\n· primer token p50 1529 → 837 ms, p95 3588 → 1664 ms (se muestra, no decide: la latencia se prueba con carga)\n\nCambiaron de veredicto:\n  G-001 incorrecta → correcta: «El horario de atención por teléfono es de 9:00 a 18:00, de lunes a viernes. [2]»\n  G-005 correcta → incorrecta: «La dirección puede cambiar antes de que el pedido salga del almacén, hasta que se reciba en la sucursal. [2]»\n  G-012 correcta → incorrecta: «[1]»\n  G-017 incorrecta → correcta: «El pedido marcado como regalo puede pedir la devolución quien lo recibe [2].»\n  G-041 correcta → incorrecta: «El plazo para devolver electrónica es 3 días hábiles. Quien vende revisa el producto antes del reembolso para »\n  G-042 incorrecta → correcta: «La rebaja de comisión de Moda en temporada alta es igual en la wiki y en el manual del vendedor. [2]»\n\nBLOQUEA: k-2 contra base · 69 s\n[código 1]"
+        },
+        {
+          "code": "python mundo/propuesta.py quitar",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ quitada «k-2»: config.yaml como estaba"
+        },
+        {
+          "code": "python verificar.py gate promover",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ gate        la misma corrida pasa · bloquea por exactitud (pierde 4), permisos (1 fuga), comparable (otro golden), sin_cache (20 de la cache) y juez (otra rúbrica o sin calibrar)\n✓ promover    primera base · una regresión no se promueve · la misma regresión otra vez se compara con la vigente, no con la anterior · historial base → buena\n\n2/2 en verde"
+        }
+      ],
+      "verifica": "<code>verificar.py gate promover</code> en verde: la misma corrida pasa; bloquea por exactitud, permisos, comparable, sin_cache y juez; una regresión no se promueve y, si se vuelve a correr, se compara con la vigente.",
+      "ojo": "«Pierde 3, gana 3» no es «no cambió nada»: son 6 respuestas distintas, y cada una se lee. El gate dice si un cambio cabe en el margen; las preguntas que cambiaron dicen qué hace el cambio.",
+      "en_pagina": {
+        "conceptos": [
+          "base",
+          "pareada",
+          "no-inferioridad"
+        ],
+        "precalculos": [
+          "margen"
+        ]
+      }
+    },
+    {
+      "n": 5,
+      "id": "examen",
+      "titulo": "El examen de cada cambio, de punta a punta",
+      "objetivo": "Correr, juzgar y decidir en un comando, como lo haría un CI, y comprobar que la versión de hoy contra sí misma pasa.",
+      "conceptos": [
+        "gate"
+      ],
+      "explica": "<code>gate.py examen &lt;nombre&gt;</code> hace los tres pasos seguidos y termina con código 1 si bloquea: es lo que corre un CI en cada pull request que toca el chunking, los embeddings, el reranker, el prompt, el umbral o el modelo. Sin ningún cambio, la corrida de hoy tiene que pasar contra la base: con temperatura 0 el modelo repite sus respuestas, y el juez repite sus veredictos (de su cache).",
+      "codigo": [],
+      "comandos": [
+        {
+          "code": "python pipeline/gate.py examen hoy",
+          "nota": "0 que cambian: Δ 0 y cota 0. El primer token sí cambia de una corrida a otra, sin cambiar nada: por eso se muestra y no decide.",
+          "donde": "mac",
+          "salida": "✓ comparable  contra base: mismo golden (golden-v2), split (test) y 51 preguntas\n✓ sin_cache   0 de 51 respuestas salieron de la cache de la API\n✓ juez        Qwen3-4B-Q4_K_M.gguf: kappa 0.75 (≥ 0.6), falso pase 16% (≤ 20%)\n✓ permisos    0 pregunta(s) con un chunk que su persona no puede ver (máximo 0)\n✓ recall      94.6% → 94.6% (mínimo 90%) · Δ +0.0%, cota +0.0% (≥ −10%)\n✓ exactitud   38/51 → 38/51 correctas · pierde 0, gana 0 · Δ +0.0%, cota +0.0% (≥ −10%), caída máxima 3%\n· primer token p50 1529 → 1548 ms, p95 3588 → 3038 ms (se muestra, no decide: la latencia se prueba con carga)\n\nPASA: hoy contra base · 102 s"
+        },
+        {
+          "code": "python verificar.py examen",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ examen      51 preguntas de test otra vez, sin cambios: 0 respuestas distintas de base · 38/51 → 38/51 correctas · PASA\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "<code>verificar.py examen</code> en verde: el examen completo de hoy, sin cambios, contra la base vigente, pasa.",
+      "ojo": "Con un LLM que no repite (temperatura mayor que 0, o un servidor que junta peticiones en lotes), un cambio que no toca nada sí mueve respuestas: entonces el margen tiene que ser el que dice el precálculo «margen» con ese ruido medido, y se mide corriendo la base dos veces.",
+      "en_pagina": {
+        "conceptos": [
+          "gate"
+        ],
+        "precalculos": [
+          "tiempo"
+        ]
+      }
+    }
+  ],
+  "solo": {
+    "reglas": [
+      "Empieza con <code>python mundo/reiniciar.py</code>: deja el esqueleto en tus cuatro archivos, devuelve <code>config.yaml</code> de fábrica y vuelve a crear el mundo (se borran <code>corridas/</code>; los modelos, los servidores y la API se quedan).",
+      "Sin GUION.md: solo los contratos de arriba de cada archivo y estos objetivos.",
+      "Claude corre <code>verificar.py</code> y te dice qué falla; no te da código."
+    ],
+    "objetivos": [
+      {
+        "n": 1,
+        "objetivo": "Los cuatro modelos con su sha256, las calificaciones en el almacén, y los dos llama-server y la API arriba.",
+        "check": "mundo"
+      },
+      {
+        "n": 2,
+        "objetivo": "Un examen de test contra la API, con la llave de cada persona, sin la cache, con su manifiesto, y que no pisa una corrida.",
+        "check": "correr",
+        "pista": "Si la misma pregunta se hizo hace 2 minutos, ¿qué recibe tu examen?"
+      },
+      {
+        "n": 3,
+        "objetivo": "Recall por documento sobre lo que llegó al prompt, fugas, citas, «no sé», Wilson y p95.",
+        "check": "metricas",
+        "pista": "¿Dos chunks del mismo documento son dos aciertos?"
+      },
+      {
+        "n": 4,
+        "objetivo": "Un juez que no es el modelo de la API, calibrado contra las 68 calificaciones de personas, y reglas sin juez para los «no sé» y los errores.",
+        "check": "juez"
+      },
+      {
+        "n": 5,
+        "objetivo": "La cuenta de no inferioridad, pareada: un cambio que no mueve nada pasa y uno que pierde 4 de 51 no.",
+        "check": "estadistica",
+        "pista": "¿De dónde sale el error de la diferencia: de cada porcentaje o de las preguntas que cambiaron?"
+      },
+      {
+        "n": 6,
+        "objetivo": "El gate bloquea por exactitud, permisos, un examen no comparable, la cache y un juez sin calibrar; la misma corrida pasa.",
+        "check": "gate"
+      },
+      {
+        "n": 7,
+        "objetivo": "Promover solo lo que pasa contra la base vigente, y comparar siempre con ella.",
+        "check": "promover",
+        "pista": "Si una regresión se vuelve a correr, ¿contra qué se compara?"
+      },
+      {
+        "n": 8,
+        "objetivo": "El examen completo de hoy, sin cambios, pasa contra tu base.",
+        "check": "examen"
+      }
+    ]
+  },
+  "fallas": [
+    {
+      "id": "examen-con-cache",
+      "titulo": "Un cambio de retrieval sale igual que la base en el examen, y en producción no",
+      "tipo": "config",
+      "historia": "Para que el examen corra más rápido, alguien dejó que use la cache de la API: «las preguntas son las mismas de siempre».",
+      "sintoma": "Justo después de correr la base, la propuesta de 2 chunks «empata» en recall. <code>verificar.py correr</code> falla y el gate bloquea por sin_cache.",
+      "hipotesis": [
+        "La propuesta no cambia nada de verdad.",
+        "El examen recibe el top que la API guardó de la base.",
+        "El reranker ya devuelve solo los mejores."
+      ],
+      "confirma": {
+        "code": "python pipeline/gate.py examen k2-con-cache",
+        "nota": "Con la cache, las 51 preguntas reciben el top de 8 que la API guardó hace un momento: recall y respuestas como en la base. Lo que la detiene es la regla sin_cache.",
+        "donde": "mac",
+        "salida": "✓ comparable  contra base: mismo golden (golden-v2), split (test) y 51 preguntas\n✗ sin_cache   51 de 51 respuestas salieron de la cache de la API: la corrida midió el retrieval de antes, no el del cambio (evals.sin_cache)\n✓ juez        Qwen3-4B-Q4_K_M.gguf: kappa 0.75 (≥ 0.6), falso pase 16% (≤ 20%)\n✓ permisos    0 pregunta(s) con un chunk que su persona no puede ver (máximo 0)\n✓ recall      94.6% → 94.6% (mínimo 90%) · Δ +0.0%, cota +0.0% (≥ −10%)\n✓ exactitud   38/51 → 38/51 correctas · pierde 0, gana 0 · Δ +0.0%, cota +0.0% (≥ −10%), caída máxima 3%\n· primer token p50 1574 → 602 ms, p95 3290 → 1315 ms (se muestra, no decide: la latencia se prueba con carga)\n\nBLOQUEA: k2-con-cache contra base · 48 s"
+      },
+      "arreglo": "<code>evals.sin_cache</code> vuelve a <code>true</code>. Cada pregunta del examen pide <code>Cache-Control: no-cache</code>, cada fila guarda <code>de_cache</code> y el gate bloquea si alguna salió de la cache.",
+      "concepto": "examen-cache",
+      "check": "correr"
+    },
+    {
+      "id": "examen-con-dev",
+      "titulo": "El examen trae 65 preguntas en vez de 51 y ya no se compara con la base",
+      "tipo": "config",
+      "historia": "Para tener «más preguntas y menos ruido», alguien juntó dev y test en el examen del gate.",
+      "sintoma": "<code>verificar.py correr</code> dice que hay preguntas de dev; una corrida nueva trae 65 y el gate bloquea por comparable.",
+      "hipotesis": [
+        "El golden set cambió de versión.",
+        "El examen usa también dev.",
+        "Se agregaron preguntas nuevas."
+      ],
+      "confirma": {
+        "code": "python verificar.py correr",
+        "nota": "Las 14 de dev ya se usaron para elegir el umbral del «no sé».",
+        "donde": "mac",
+        "salida": "✗ correr      con evals.split = todas, preguntas() da 65 preguntas, 14 de dev: el gate decide con test (dev ya se usó para elegir el umbral del «no sé»)\n\n0/1 en verde · falta: correr\n[código 1]"
+      },
+      "arreglo": "<code>evals.split</code> vuelve a <code>test</code>. Dev es para decidir, test para medir; si hacen falta más preguntas, se escriben (estación 4).",
+      "concepto": "contaminacion",
+      "check": "correr"
+    },
+    {
+      "id": "juez-es-la-api",
+      "titulo": "El juez reprueba la mitad de las respuestas buenas y el gate ya no le cree",
+      "tipo": "infra",
+      "historia": "Para ahorrar memoria, alguien apagó el juez de 4B y lo apuntó al LLM de la API: «es el mismo tipo de modelo, y ya está cargado».",
+      "sintoma": "<code>verificar.py juez</code> falla: el servidor del juez no contesta y, si solo se levanta, el que contesta en <code>juez.url</code> es el modelo de la API. Su calibración da kappa ≈ 0.3.",
+      "hipotesis": [
+        "El juez se cayó.",
+        "El juez es otro modelo.",
+        "Cambió la rúbrica."
+      ],
+      "confirma": {
+        "code": "python pipeline/juez.py calibrar",
+        "nota": "El de 0.6B no entiende la rúbrica: reprueba más de la mitad de las buenas. (Que además sea el modelo que contesta suma el sesgo de autopreferencia, que aquí no se mide.)",
+        "donde": "mac",
+        "salida": "✗ juez Qwen3-0.6B-Q8_0.gguf contra 68 calificaciones de personas: acuerdo 60.3% · kappa 0.31 (mínimo 0.6) · falso pase 0.0% de 19 reprobadas (máximo 20%) · falso rechazo 55.1% · 12 s"
+      },
+      "arreglo": "<code>juez.url</code> vuelve a <code>http://127.0.0.1:9933/v1</code> y <code>python mundo/servidor.py arrancar juez</code>; si se cambia de juez, se calibra otra vez antes de usarlo.",
+      "concepto": "calibrar",
+      "check": "juez"
+    },
+    {
+      "id": "margen-ancho",
+      "titulo": "Un cambio que pierde respuestas pasa el gate",
+      "tipo": "config",
+      "historia": "El gate bloqueó tres cambios seguidos y el equipo pidió «aflojarlo un poco».",
+      "sintoma": "La propuesta de bajar el umbral, que inventa en dos preguntas sin respuesta, ahora pasa. <code>verificar.py estadistica</code> falla.",
+      "hipotesis": [
+        "El juez ya no reprueba las inventadas.",
+        "El gate ya no bloquea caídas.",
+        "La propuesta cambió."
+      ],
+      "confirma": {
+        "code": "python pipeline/gate.py examen umbral-flojo",
+        "nota": "Las mismas dos respuestas inventadas, y pasa: el margen es de 50 puntos y la caída máxima también.",
+        "donde": "mac",
+        "salida": "✓ comparable  contra base: mismo golden (golden-v2), split (test) y 51 preguntas\n✓ sin_cache   0 de 51 respuestas salieron de la cache de la API\n✓ juez        Qwen3-4B-Q4_K_M.gguf: kappa 0.75 (≥ 0.6), falso pase 16% (≤ 20%)\n✓ permisos    0 pregunta(s) con un chunk que su persona no puede ver (máximo 0)\n✓ recall      94.6% → 100.0% (mínimo 90%) · Δ +5.4%, cota -0.7% (≥ −50%)\n✓ exactitud   38/51 → 36/51 correctas · pierde 2, gana 0 · Δ -3.9%, cota -8.4% (≥ −50%), caída máxima 50%\n· primer token p50 1574 → 1523 ms, p95 3290 → 2858 ms (se muestra, no decide: la latencia se prueba con carga)\n\nCambiaron de veredicto:\n  G-061 correcta → incorrecta: «El teléfono del almacén de Querétaro es de 9:00 a 18:00. [2]»\n  G-070 correcta → incorrecta: «La tarifa de envío a Sonora para un paquete de 3 kilos es 100 pesos, según el documento [2].»\n\nPASA: umbral-flojo contra base · 96 s"
+      },
+      "arreglo": "<code>gate.margen</code> vuelve a 0.10 y <code>gate.caida_max</code> a 0.03. Si el gate bloquea mucho, se agregan preguntas o se leen las que cambiaron; no se afloja.",
+      "concepto": "no-inferioridad",
+      "check": "estadistica"
+    },
+    {
+      "id": "sin-parear",
+      "titulo": "Un cambio que no cambia ninguna respuesta se bloquea",
+      "tipo": "config",
+      "historia": "Alguien leyó que «lo correcto es comparar los dos porcentajes con su intervalo» y apagó la comparación pregunta por pregunta.",
+      "sintoma": "El examen de hoy, sin ningún cambio, se bloquea por exactitud. <code>verificar.py estadistica</code> falla.",
+      "hipotesis": [
+        "El modelo dejó de repetir sus respuestas.",
+        "El gate dejó de comparar pregunta por pregunta.",
+        "El juez cambió de opinión."
+      ],
+      "confirma": {
+        "code": "python pipeline/gate.py examen hoy-sin-parear",
+        "nota": "0 respuestas distintas y aun así bloquea: sin parear, el error de la diferencia sale de cada porcentaje (≈ 8 puntos) y no de las que cambiaron.",
+        "donde": "mac",
+        "salida": "✓ comparable  contra base: mismo golden (golden-v2), split (test) y 51 preguntas\n✓ sin_cache   0 de 51 respuestas salieron de la cache de la API\n✓ juez        Qwen3-4B-Q4_K_M.gguf: kappa 0.75 (≥ 0.6), falso pase 16% (≤ 20%)\n✓ permisos    0 pregunta(s) con un chunk que su persona no puede ver (máximo 0)\n✓ recall      94.6% → 94.6% (mínimo 90%) · Δ +0.0%, cota -8.6% (≥ −10%)\n✗ exactitud   38/51 → 38/51 correctas · pierde 0, gana 0 · Δ +0.0%, cota -14.2% (≥ −10%), caída máxima 3%\n· primer token p50 1574 → 1295 ms, p95 3290 → 2577 ms (se muestra, no decide: la latencia se prueba con carga)\n\nBLOQUEA: hoy-sin-parear contra base · 84 s\n[código 1]"
+      },
+      "arreglo": "<code>gate.pareado</code> vuelve a <code>true</code>. Son las mismas preguntas: solo cuentan las que cambiaron.",
+      "concepto": "pareada",
+      "check": "estadistica"
+    },
+    {
+      "id": "contra-la-ultima",
+      "titulo": "Una regresión que el gate bloqueó pasa a la segunda",
+      "tipo": "config",
+      "historia": "Para no tener que promover a mano, alguien hizo que el gate compare contra la última corrida en vez de contra la vigente.",
+      "sintoma": "<code>verificar.py promover</code> falla: la misma regresión, corrida dos veces, la segunda vez pasa.",
+      "hipotesis": [
+        "La regresión se arregló sola.",
+        "El gate compara contra otra corrida.",
+        "Se promovió algo sin querer."
+      ],
+      "confirma": {
+        "code": "python verificar.py promover",
+        "nota": "",
+        "donde": "mac",
+        "salida": "✗ promover    mala-2 es la misma regresión otra vez: se compara con la base vigente (base), no con la corrida anterior; tu gate la comparó con mala-1 y pasó (gate.base = ultima)\n\n0/1 en verde · falta: promover\n[código 1]"
+      },
+      "arreglo": "<code>gate.base</code> vuelve a <code>vigente</code>. Se compara siempre contra lo que la empresa usa hoy, y la base solo se mueve con promover.",
+      "concepto": "base",
+      "check": "promover"
+    }
+  ],
+  "listo": [
+    "Cada pregunta de test del golden set corre contra la API con la llave de su persona y sin la cache, y queda en una corrida con su manifiesto que no se pisa.",
+    "Lo que se puede contar se cuenta: recall@8 por documento sobre lo que llegó al prompt, fugas (tolerancia cero), citas, «no sé» y primer token, con su intervalo.",
+    "Lo que no se puede contar lo califica un juez que no es el modelo de la API, calibrado contra personas (kappa y falso pase), y si no pasa no se le cree.",
+    "El gate compara contra la base vigente, pregunta por pregunta, con no inferioridad y una caída máxima, y lista las preguntas que cambiaron.",
+    "Bloquea un examen no comparable, con la cache o con un juez sin calibrar, y cualquier fuga.",
+    "La base solo se mueve con promover, después de pasar; una regresión que se vuelve a correr se compara otra vez con la vigente."
+  ],
+  "repaso": {
+    "memo": "<b>El examen corre como cada persona y sin cache; lo que se cuenta se cuenta (recall, fugas, citas, «no sé»); lo que no, lo califica un juez calibrado contra personas; y el cambio se compara con la base vigente, pregunta por pregunta, con un margen y una caída máxima, leyendo las que cambiaron.</b> En el dojo: base con recall 94.6% y 38/51 correctas; bajar el umbral sube el recall e inventa en 2 (bloquea); 2 chunks empatan en exactitud y pierden recall (bloquea); el juez de 4B, kappa 0.75 y falso pase 15.8%.",
+    "trampa": "Creerle a un número sin saber qué tan fino es. Un 78 % de 51 preguntas es «entre 65 y 88»; un juez que acuerda 80 % puede no ver nada; un empate de 38 contra 38 puede ser 6 respuestas distintas; un examen con la cache mide la versión de antes; un margen que se afloja deja pasar todo; y comparar contra la última corrida deja que la calidad baje de a poco. Se atrapa con la kappa y el falso pase, con la prueba pareada, con el manifiesto y leyendo las preguntas que cambiaron.",
+    "entrevista": [
+      {
+        "q": "¿Cómo decides si un cambio al RAG puede salir?",
+        "a": "Con un gate: corro el golden set de test contra el sistema completo, con cada pregunta hecha como su persona y sin caches, y comparo contra la corrida de la versión en producción en las mismas preguntas. Bloquea cualquier fuga de permisos, un juez sin calibrar o un examen no comparable; y para recall y exactitud uso no inferioridad pareada con un margen que sale del tamaño del examen, más una caída máxima observada. Siempre leo las preguntas que cambiaron."
+      },
+      {
+        "q": "¿Cómo sabes que tu LLM-juez califica bien?",
+        "a": "Lo calibro contra respuestas que calificaron personas, con la misma rúbrica: acuerdo, kappa de Cohen (porque un juez que aprueba todo acuerda mucho por azar) y sobre todo falso pase, la fracción de malas que aprueba. En mi dojo, el modelo de 0.6B de la API como juez dio kappa 0.31; uno de 4B, 0.75 con falso pase 15.8%. Si cambio el modelo, la cuantización o la rúbrica, es otro juez y lo vuelvo a calibrar."
+      },
+      {
+        "q": "Tu examen tiene 51 preguntas. ¿Qué caída puedes detectar?",
+        "a": "Con 10 % de respuestas que cambian, el error de la diferencia pareada es √(0.10 ÷ 51) ≈ 4.4 puntos, y el margen que se puede proteger es ≈ 2.5 veces eso: ≈ 11 puntos. Por eso uso un margen de 10 y además una caída máxima de 3 puntos observados, y leo las que cambiaron. Con 600 preguntas el margen baja a ≈ 3; si un área importa, le escribo más preguntas a esa área."
+      },
+      {
+        "q": "¿Por qué pareado y no comparar dos porcentajes?",
+        "a": "Porque son las mismas preguntas: las que las dos versiones aciertan o fallan no dicen nada; solo cuentan las que cambiaron. Si no cambia ninguna, la diferencia es 0 con error 0. Comparando dos porcentajes de 51 como si fueran muestras independientes, el error es ≈ 8 puntos y bloqueas hasta un cambio que no hace nada."
+      },
+      {
+        "q": "Un cambio sube el recall y el gate lo bloquea. ¿Cómo lo explicas?",
+        "a": "Me pasó con bajar el umbral del «no sé»: el recall subió (94.6% → 100.0%) porque contesta preguntas que antes rechazaba, pero el modelo inventó en dos sin respuesta (un teléfono, una tarifa). Exactitud 38/51 → 36/51. Recall dice si llegó la fuente; no si la respuesta es correcta ni si debió contestar. Por eso mido las dos cosas en el mismo examen."
+      },
+      {
+        "q": "¿Qué te puede engañar en un examen de evaluación?",
+        "a": "Una cache que devuelve el retrieval de antes (el cambio sale idéntico a la base), mezclar dev con test, un juez que es el mismo modelo que contesta, comparar contra la última corrida en vez de la base, un golden set que cambió de versión en medio y un margen que se afloja cuando estorba. Lo cubro con el manifiesto, un examen sin cache que el gate revisa, la calibración del juez y una base que solo se mueve al promover."
+      }
+    ]
+  },
+  "prompts": {
+    "claude_md": "kits/rag-gate/CLAUDE.md",
+    "guiado": "content/estaciones/rag-gate/prompts/guiado.md",
+    "solo": "content/estaciones/rag-gate/prompts/solo.md",
+    "romper_ayuda": "content/estaciones/rag-gate/prompts/romper-ayuda.md",
+    "romper_solo": "content/estaciones/rag-gate/prompts/romper-solo.md"
+  }
+}

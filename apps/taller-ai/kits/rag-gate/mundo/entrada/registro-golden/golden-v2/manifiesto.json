@@ -1,0 +1,54 @@
+{
+ "anterior": "golden-v1",
+ "cambios": {
+  "cambiadas": [
+   "G-010",
+   "G-020",
+   "G-021",
+   "G-041",
+   "G-044",
+   "G-052"
+  ],
+  "nuevas": [],
+  "quitadas": [
+   "G-002",
+   "G-003",
+   "G-034",
+   "G-046"
+  ]
+ },
+ "config": {
+  "cuotas": {
+   "prohibida": 0.1,
+   "sin_respuesta": 0.1,
+   "varias": 0.15
+  },
+  "parecidas": {
+   "umbral": 0.6
+  },
+  "splits": {
+   "sal": "golden-c11",
+   "test": 75
+  }
+ },
+ "corpus": "corpus-2026-11-22",
+ "creado": "2026-11-22T15:00:00Z",
+ "directorio": "2026-11-21T16:30:00Z",
+ "motivo": "reanclaje corpus-2026-11-21 → corpus-2026-11-22",
+ "n": 65,
+ "por_split": {
+  "dev": 14,
+  "test": 51
+ },
+ "por_tipo": {
+  "directa": 34,
+  "prohibida": 10,
+  "sin_respuesta": 9,
+  "varias": 12
+ },
+ "quemadas": [
+  "G-015"
+ ],
+ "sha256": "14231998a47c9df90863b14d9b48b03ad6c12480978998ba4adda45d08eb42f5",
+ "version": "golden-v2"
+}

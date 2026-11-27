@@ -1,0 +1,80 @@
+# Configuración del gate de evals: lo de las estaciones 5 a 8 (la API) y, desde «evals», lo de esta.
+# Los pasos de GUION.md dicen cuándo tocar cada línea.
+
+embeddings:            # lo de la estación 5: el modelo que hizo el índice vigente
+  modelo: e5
+  lote: 16
+
+indice:
+  dimension: 384
+  similitud: coseno
+
+bm25:
+  k1: 1.2
+  b: 0.75
+
+servicio:
+  alias: c11           # el nombre que usa la API; detrás está el índice vigente
+  modelo_consulta: del-indice
+
+retrieval:             # lo de la estación 6 (ya hecho): el top-k que recibe el LLM
+  candidatos: 30       # cuántos pide a cada índice (BM25 y vectores) antes de fusionar
+  filtro: antes        # los permisos filtran dentro de cada búsqueda
+  fusion: rrf
+  rrf_k: 60
+  rerank_n: 20         # cuántos de la fusión lee el reranker
+  k: 8                 # cuántos salen: los que van al prompt
+
+reranker:
+  lote: 8
+
+# ---- lo de esta estación
+api:
+  host: 127.0.0.1      # solo esta Mac
+  puerto: 9932         # tu API; el LLM está en el 9931 (servidor.env)
+  cache:               # el top-k de cada pregunta, para no recuperar dos veces lo mismo
+    clave: [pregunta, persona]   # con qué campos se arma la llave de la cache
+    ttl_s: 300         # cuánto vive una entrada: 5 min, el plazo de C11 para aplicar una revocación
+    max: 256           # cuántas entradas a lo más
+
+llm:
+  max_tokens: 256      # lo más larga que puede ser una respuesta, en tokens
+  temperatura: 0       # 0 = siempre la misma respuesta para el mismo prompt
+  timeout_s: 60        # cuánto espera cada lectura del servidor del LLM
+  limite_s: 30         # cuánto le da la API al LLM para la respuesta completa
+
+prompt:
+  reserva: 64          # tokens de margen para lo que agrega la plantilla de chat
+
+citas:
+  contra: contexto     # contexto = cada [n] tiene que ser un documento que se dio · k = solo revisa que vaya de 1 a k
+
+respuesta:
+  umbral: -1.0         # el puntaje mínimo del mejor pasaje (reranker) para contestar; si no llega, «no sé»
+
+seguridad:
+  revisar_fuentes: [wiki, jira, drive, politicas]   # de qué fuentes se revisan los chunks antes del prompt
+
+presupuesto:
+  ttft_ms: 2500        # el primer token, p95, desde que llega la pregunta
+
+# ---- lo de esta estación: el examen, el juez y el gate
+evals:
+  split: test          # con qué preguntas del golden set se decide: test (dev ya se usó para elegir el umbral)
+  sin_cache: true      # true = cada pregunta pide «Cache-Control: no-cache»: se mide el retrieval de hoy
+
+juez:
+  url: http://127.0.0.1:9933/v1   # el servidor del juez (juez.env): otro modelo, más grande que el de la API
+  max_tokens: 20       # el juez contesta {"error": true} o {"error": false}: no necesita más
+  temperatura: 0       # el mismo veredicto para la misma respuesta
+  kappa_min: 0.6       # cuánto se tiene que parecer a las personas para creerle (kappa de Cohen)
+  falso_pase_max: 0.20 # de las que las personas reprobaron, cuántas puede aprobar a lo más (C11 pide 0.10: lee GUION.md, paso 3)
+
+gate:
+  base: vigente        # contra qué se compara: vigente = la última que se promovió (corridas/VIGENTE)
+  pareado: true        # true = pregunta por pregunta, en las mismas preguntas
+  confianza_z: 1.645   # una cola, 95 %
+  margen: 0.10         # no inferioridad: la cota de abajo de la diferencia no puede bajar de −10 puntos
+  caida_max: 0.03      # y lo observado no puede caer más de 3 puntos
+  recall_min: 0.90     # el piso del recall@8, pase lo que pase con la base
+  fugas_max: 0         # cuántas preguntas pueden recibir un chunk que su persona no ve: ninguna

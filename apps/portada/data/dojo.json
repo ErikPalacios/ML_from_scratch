@@ -178,7 +178,8 @@
           "id": "gate",
           "titulo": "Gate de evals",
           "etapa": "modelo",
-          "url": null
+          "lista": true,
+          "url": "https://dojo.trueml.app/rag/gate/"
         },
         {
           "num": 10,

@@ -1,0 +1,9 @@
+# Versiones fijadas: así el kit corre igual en tu Mac hoy y dentro de seis meses.
+# onnxruntime corre e5 y el reranker; tokenizers parte el texto en tokens; numpy guarda y compara los vectores.
+onnxruntime==1.32.0
+numpy==2.5.5
+tokenizers==0.23.3
+pyyaml==6.0.4
+# La API: FastAPI arma las rutas y valida el cuerpo (con pydantic); uvicorn es el servidor HTTP que la corre.
+fastapi==0.165.0
+uvicorn==0.54.0
