@@ -157,7 +157,7 @@ def pod_id() -> str:
 
 def terminar(pid: str) -> bool:
     """Termina el pod: deja de cobrar GPU y disco. DELETE (la ruta documentada) y, si no, la acción terminate. Luego
-    confirma que ya no está: 404 o status TERMINATED. EXITED es detenido, no terminado: el disco seguiría cobrando."""
+    confirma que ya no está: 404 o status TERMINATED. EXITED es detenido, no terminado: sigue apartado y, si tiene volumen, el volumen cobra."""
     st, d = api("DELETE", f"/pods/{pid}")
     if st not in (200, 204, 404):
         st2, d2 = api("POST", f"/pods/{pid}/action", {"action": "terminate"})
@@ -225,7 +225,7 @@ def estado() -> None:
     if st == 404:
         print(f"■ el pod {pid} ya no existe (terminado): no cobra")
     elif st == 200:
-        print(f"▶ pod {pid}: {d.get('status', '?')}{' (detenido: el disco sigue cobrando; termínalo)' if d.get('status') == 'EXITED' else ''}")
+        print(f"▶ pod {pid}: {d.get('status', '?')}{' (detenido: no cobra GPU, pero si tiene volumen, el volumen cobra; termínalo)' if d.get('status') == 'EXITED' else ''}")
     else:
         print(f"? RunPod contesta {st}: {d}")
     if v:

@@ -113,9 +113,9 @@ e = {
 }
 
 e["mapa"] = {
-    "resumen": "En la estación 1 el modelo atendía a una persona. El despacho necesita atender a <b>8 conversaciones a la vez</b> con Qwen3 32B, y antes de firmar una promesa (que la primera palabra salga en ≤ 2 s y que cada palabra siguiente tarde ≤ 50 ms) tiene que <b>medirla</b>. Para eso se usa <b>vLLM</b>, el servidor de inferencia hecho para GPUs NVIDIA y muchas conversaciones a la vez: reparte la memoria de la GPU en bloques (<b>PagedAttention</b>), mete conversaciones nuevas en cada paso sin esperar a que terminen las otras (<b>batching continuo</b>) y lee los prompts largos por pedazos. Aquí lo sirves con su clave y sus límites, escribes un <b>generador de carga</b> (cerrada, con 8 a la vez; y abierta, con llegadas al azar a la tasa que de verdad le toca a una copia) y un <b>reporte</b> que dice el p95 con su intervalo, el <b>goodput</b> y si pasa o no el criterio. <b>Dónde corre:</b> los pasos 0 a 5 y las fallas, en tu Mac con el <b>vLLM del dojo</b>, un simulador que habla la misma API y hace en tiempo real la cuenta de servilleta de una L40S (gratis, sin GPU, pero sin medir nada). El paso 6 es la sesión en una L40S rentada en RunPod (≈ " + f"{float(PLAN_MIN):.0f}" + " min, ≈ US$" + PLAN_USD + "), donde los mismos archivos corren contra el vLLM de verdad.",
+    "resumen": "En la estación 1 el modelo atendía a una persona. El despacho necesita atender a <b>8 conversaciones a la vez</b> con Qwen3 32B, y antes de firmar una promesa (que la primera palabra salga en ≤ 2 s y que cada palabra siguiente tarde ≤ 50 ms) tiene que <b>medirla</b>. Para eso se usa <b>vLLM</b>, el servidor de inferencia hecho para GPUs NVIDIA y muchas conversaciones a la vez: reparte la memoria de la GPU en bloques (<b>PagedAttention</b>), mete conversaciones nuevas en cada paso sin esperar a que terminen las otras (<b>batching continuo</b>) y lee los prompts largos por pedazos. Aquí lo sirves con su clave y sus límites, escribes un <b>generador de carga</b> (cerrada, con 8 a la vez; y abierta, con llegadas al azar a la tasa que de verdad le toca a una copia) y un <b>reporte</b> que dice el <b>p95</b> (el tiempo que no pasa el 95 % de las peticiones) con su margen de error, el <b>goodput</b> (cuántas por segundo cumplen toda la promesa) y si pasa o no el criterio. Cada término se explica abajo, en el paso donde se usa. <b>Dónde corre:</b> los pasos 0 a 5 y las fallas, en tu Mac con el <b>vLLM del dojo</b>, un simulador que habla la misma API y hace en tiempo real la cuenta de servilleta de una L40S, es decir, la cuenta aproximada con las fórmulas de la ficha (gratis, sin GPU, pero sin medir nada). El paso 6 es la sesión en una L40S rentada en RunPod (≈ " + f"{float(PLAN_MIN):.0f}" + " min, ≈ US$" + PLAN_USD + "), donde los mismos archivos corren contra el vLLM de verdad.",
     "entra": [
-        "el modelo del despacho: Qwen/Qwen3-32B-AWQ (INT4 de AWQ, 19.3 GB, Apache 2.0); en la Mac solo sus números (capas, cabezas, bytes), en el pod se baja de Hugging Face",
+        "el modelo del despacho: Qwen/Qwen3-32B-AWQ (sus pesos guardados en 4 bits con el método AWQ, 19.3 GB, con licencia Apache 2.0, que permite el uso comercial); en la Mac solo sus números (capas, cabezas, bytes), en el pod se baja de Hugging Face",
         "vLLM 0.34.0: en la Mac, el vLLM del dojo (simulado); en el pod, la imagen <code>vllm/vllm-openai:v0.34.0</code>",
         "la ficha del despacho: 8 conversaciones de diseño, prompts de ≈ 6,000 tokens con las mismas instrucciones al inicio, 0.21 preguntas por segundo en la hora pico entre 3 copias, TTFT p95 ≤ 2 s y TPOT p95 ≤ 50 ms",
         "una cuenta de RunPod con saldo prepagado, solo para el paso 6 (la abres tú; el kit nunca pide datos de pago)",
@@ -131,7 +131,7 @@ e["mapa"] = {
         {"que": "Las llegadas", "ref": "0.21 preguntas por segundo en la hora pico", "taller": "0.07 por segundo: lo que le toca a una de las 3 copias"},
         {"que": "La prueba", "ref": "≥ 1,000 peticiones por prueba abierta (≈ 79 min), 3 repeticiones, y una jornada de resistencia", "taller": "40 en la abierta (≈ 10 min) y 24 en la cerrada"},
         {"que": "La GPU", "ref": "3 L40S propias (o 4 L40S rentadas en AWS para la prueba: US$10.49/h)", "taller": "1 L40S de RunPod a US$1.09/h, con un tope de 90 min"},
-        {"que": "Qué tanto se sabe del p95", "ref": "con 1,000: entre el p93.6 y el p96.4", "taller": "con 40: entre la 35.ª y la más lenta, sin techo"},
+        {"que": "Qué tanto se sabe del p95", "ref": "con 1,000: entre el p93.6 y el p96.4", "taller": "con 40: entre la 35.ª y la más lenta, sin techo (con 40 datos no se puede acotar por arriba)"},
     ],
 }
 
@@ -139,12 +139,12 @@ e["precalculos"] = {
     "intro": "Antes de escribir nada, las cuentas de servilleta de un modelo grande bajo carga: cuántas conversaciones caben en la memoria, a qué velocidad escribe cada una cuando son 8, cuántas llegan a la vez, cuántas peticiones hacen falta para saber el p95 y cuánto cuesta medirlo. Cada una en el despacho (con su ficha) y en el dojo. Son las mismas cuentas que hace el vLLM del dojo por dentro, así que en la Mac lo que sale es la cuenta misma; la GPU rentada dice si la cuenta se parece a la realidad.",
     "cuentas": [
         {"id": "memoria", "pregunta": "¿Cuántas conversaciones caben en el KV cache de una L40S?",
-         "formula": "KV cache = memoria que ve el programa − pesos − lo del programa (≈ 2 GiB); tokens = KV cache ÷ (2 × capas × cabezas K/V × dimensión × 2 bytes), en bloques de 16",
-         "ref": {"cuenta": "Qwen3 32B: 256 KiB por token; la ficha: 8 conversaciones de 8,192 piden 17.18 GB de KV cache, y con --gpu-memory-utilization 0.90 caben 10", "valor": "≈ 25 GiB libres sin ese flag: ≈ 102 mil tokens, ≈ 12.5 conversaciones al tope o ≈ 15.7 de 6,500"},
+         "formula": "el KV cache es la memoria de trabajo de cada conversación (lo que el modelo ya leyó). KV cache = memoria que ve el programa − pesos − lo del programa (CUDA, activaciones y márgenes: ≈ 2 GiB); tokens = KV cache ÷ (2 × capas × cabezas K/V × dimensión × 2 bytes), en bloques",
+         "ref": {"cuenta": "Qwen3 32B: 256 KiB por token; la ficha: 8 conversaciones de 8,192 piden 17.18 GB de KV cache, y con --gpu-memory-utilization 0.90 caben 10", "valor": "≈ 25 GiB libres sin ese flag: ≈ 102 mil tokens, ≈ 12.5 conversaciones al tope o ≈ 15.8 de 6,500"},
          "taller": {"cuenta": "la misma L40S, con lo que dice su log al arrancar", "valor": f"{KV_TOK} tokens: {KV_X}× al tope de 8,192 (simulado; en el pod, el número real)"},
          "decide": "La memoria dice cuántas caben, no cuántas se atienden bien: caben ≈ 12 y la ficha diseña para 8. Con menos memoria (otro modelo en la misma tarjeta, un --gpu-memory-utilization bajo), el motor saca conversaciones a la mitad (preemption).",
          "conceptos": ["paged-attention", "kv-extensible"],
-         "comprueba": cmd(P("pc memoria"), L("pc memoria"), "Los números salen de <code>mundo/modelos.json</code> y <code>mundo/gpus.json</code>. La memoria que ve el programa (44.99 GiB) es menos que los 48 GB de la caja: GB contra GiB y lo que reserva el driver.")},
+         "comprueba": cmd(P("pc memoria"), L("pc memoria"), "Los números salen de <code>mundo/modelos.json</code> y <code>mundo/gpus.json</code>. La memoria que ve el programa (44.99 GiB) es menos que los 48 de la caja: lo que se aparta para ECC y lo que reserva el driver. El simulador usa bloques de 16 tokens; la 0.34 de verdad usa 64 por omisión (con FlashAttention): en el pod, <code>block_size</code> de <code>/metrics</code> lo dice.")},
         {"id": "decode", "pregunta": "¿A cuántos tokens por segundo escribe cada conversación cuando son 8?",
          "formula": "cada paso escribe un token para cada conversación y lee los pesos más el KV cache de todas: tiempo por paso ≈ (pesos + n × tokens × KV por token) ÷ (0.7 × ancho de banda)",
          "ref": {"cuenta": "(19.32 GB + 8 × 6,500 × 256 KiB) ÷ (0.7 × 864 GB/s)", "valor": "≈ 54 ms por token: ≈ 18 tokens/s cada una, ya debajo de los 20 de la ficha sin contar los prompts"},
@@ -160,23 +160,23 @@ e["precalculos"] = {
          "conceptos": ["ttft", "prefix-caching"],
          "confirma": "Paso 4 (<code>python3 pipeline/carga.py humo</code>) y, con la GPU de verdad, el paso 6."},
         {"id": "little", "pregunta": "¿Cuántas conversaciones llegan a la vez a una copia?",
-         "formula": "ley de Little: a la vez en promedio = llegadas por segundo × segundos que dura cada una; con llegadas al azar (Poisson) se puede calcular qué tan seguido hay 8 o más",
+         "formula": "ley de Little: a la vez en promedio = llegadas por segundo × segundos que dura cada una; con llegadas al azar (Poisson) se puede calcular qué tan seguido hay 8 o más (suponiendo que nadie espera en fila, lo que vale con pocas a la vez)",
          "ref": {"cuenta": "0.21 por segundo × 27 s que dura una respuesta (la ficha)", "valor": f"≈ {L_DESP} a la vez entre las 3 copias; 8 o más el {P8_DESP} del tiempo de la hora pico"},
          "taller": {"cuenta": "0.07 por segundo (una de las 3 copias) × 27 s", "valor": f"≈ {L_DOJO} a la vez; 8 o más el {P8_DOJO} del tiempo"},
          "decide": "Una copia recibe pocas a la vez: su TTFT lo marca el prefill, no la fila. La cerrada de 8 mide otra cosa (cómo escriben 8 juntas). Las dos pruebas se hacen porque contestan preguntas distintas.",
          "conceptos": ["carga"],
          "comprueba": cmd(P("pc little"), L("pc little"))},
         {"id": "intervalo", "pregunta": "¿Cuántas peticiones hacen falta para saber el p95?",
-         "formula": "el p95 verdadero cae, con 95 % de confianza, entre las posiciones n·0.95 ∓ 1.96·√(n·0.95·0.05) de las n medidas ordenadas",
+         "formula": "ordena las n medidas de menor a mayor (con 40, el p95 es la 38.ª); el p95 verdadero cae, con ≈ 95 % de confianza, entre las posiciones n·0.95 ∓ 1.96·√(n·0.95·0.05) (una aproximación, gruesa con pocas medidas)",
          "ref": {"cuenta": "1,000 peticiones por prueba (el plan de la prueba de carga)", "valor": "entre el p93.6 y el p96.4: se puede firmar"},
          "taller": {"cuenta": "40 peticiones en la abierta", "valor": "entre la 35.ª y la más lenta: sin techo. Sirve para ver la forma, no para firmar"},
-         "decide": "Un p95 sin su intervalo no dice nada. Con 40 se sabe si algo anda muy mal (si hasta la 35.ª pasa el objetivo, no cumple); para prometer que cumple hacen falta cientos.",
+         "decide": "Un p95 sin su intervalo no dice nada. Con 40 se sabe si algo anda muy mal (si hasta la 35.ª ya supera el objetivo, no cumple); para prometer que cumple hacen falta cientos.",
          "conceptos": ["percentil"],
          "comprueba": cmd(P("pc intervalo"), L("pc intervalo"))},
         {"id": "costo", "pregunta": "¿Cuánto cuesta medirlo en una GPU de verdad?",
          "formula": "costo = minutos ÷ 60 × (precio por hora de la GPU + disco); el tope es lo que tarde el vigía en apagarla",
          "ref": {"cuenta": "la prueba de la promesa en 4 L40S rentadas (g6e.12xlarge de AWS, US$10.49/h) por 48 h", "valor": "≈ US$500"},
-         "taller": {"cuenta": f"1 L40S en RunPod a US$1.09/h, ≈ {float(PLAN_MIN):.0f} min de sesión y un tope de 90", "valor": f"≈ US${PLAN_USD} (≈ MXN {PLAN_MXN}); con el tope, a lo más US${TOPE_USD} (≈ MXN {TOPE_MXN})"},
+         "taller": {"cuenta": f"1 L40S en RunPod a US$1.09/h, ≈ {float(PLAN_MIN):.0f} min de sesión y un tope de 90", "valor": f"≈ US${PLAN_USD} (≈ MXN {PLAN_MXN}); con el tope, a lo más US${TOPE_USD} con el disco (≈ MXN {TOPE_MXN})"},
          "decide": "Todo lo que se puede escribir y probar sin GPU se hace en la Mac. A la GPU se llega con el código listo, a medir: cada minuto esperando es dinero. Y siempre con un tope que la apague.",
          "conceptos": ["gpu-rentada"],
          "confirma": "Paso 6 (<code>python3 mundo/gpu.py plan</code>, con tu <code>gpu.env</code>)."},
@@ -195,14 +195,14 @@ con("simulador", "El vLLM del dojo (un simulador)", "simulator, digital twin",
     "Un programa que contesta como vLLM (las mismas rutas, errores y métricas) y tarda lo que diría la cuenta de servilleta de una L40S. No usa GPU y no mide nada.",
     "Como un simulador de vuelo: practicas el despegue y las fallas sin gastar combustible, pero el viento real no está ahí.",
     "Deja escribir y probar todo el código (el generador, el reporte, las fallas) gratis en la Mac, y llegar a la GPU rentada solo a medir.",
-    "Tomar sus números como medidos. Hacen la cuenta perfecta: la GPU real tiene cuellos que la cuenta no ve (kernels, la red del proxy, el calentamiento). Cada número del simulador se dice como «simulado».")
+    "Tomar sus números como medidos. Hacen la cuenta perfecta: la GPU real tiene cuellos que la cuenta no ve (sus optimizaciones internas, la red del proxy, el calentamiento). Cada número del simulador se dice como «simulado».")
 con("vllm", "vLLM", "vLLM inference engine",
     "Un servidor de inferencia para GPUs, hecho para atender muchas conversaciones a la vez. Habla la API compatible con OpenAI; cada copia anuncia el modelo con el nombre de --served-model-name.",
     "Como la cocina de un restaurante grande: no cocina un platillo a la vez, va metiendo órdenes nuevas a la estufa mientras salen las otras.",
     "Es lo que el despacho corre en cada L40S. Lo que cambia contra llama-server no es la API, es cuántas atiende a la vez y cómo reparte la memoria.",
     "Cambiar el nombre servido en un lado y no en el otro: el servidor está sano y cada pregunta recibe «The model … does not exist».")
 con("paged-attention", "PagedAttention y bloques del KV cache", "PagedAttention, KV cache blocks",
-    "vLLM guarda el KV cache en bloques chicos (16 tokens) que da conforme crece cada conversación, en vez de apartar el contexto máximo para cada una.",
+    "vLLM guarda el KV cache en bloques chicos (de 16 a 64 tokens; en la 0.34, 64 por omisión) que da conforme crece cada conversación, en vez de apartar el contexto máximo para cada una.",
     "Como un estacionamiento por lugares: a cada coche le das un cajón al llegar, no le apartas un piso entero por si trae remolque.",
     "Por eso en vLLM el contexto no se reparte como en llama-server: caben más conversaciones cortas y una larga no le quita lugar a las demás hasta que de verdad lo usa.",
     "Creer que el KV cache se aparta al arrancar por conversación. Se aparta la memoria total; los bloques se reparten en marcha, y se pueden acabar a la mitad.")
@@ -227,7 +227,7 @@ con("chunked-prefill", "Prefill por pedazos", "chunked prefill, --max-num-batche
     "Un prompt de 6,000 tokens tarda ≈ 3 pasos de ≈ 0.74 s. En esos pasos, cada conversación que escribe espera: es el salto en el hueco entre tokens.",
     "Ver un TPOT promedio alto y culpar al ancho de banda. Muchas veces es el prefill de las que van entrando: se ve en los huecos grandes de itl_s.")
 con("preemption", "Preemption", "preemption (recompute)",
-    "Cuando se acaban los bloques del KV cache, vLLM saca a la última conversación que entró, libera su memoria y la vuelve a leer completa después.",
+    "Cuando se acaban los bloques del KV cache, vLLM saca (por omisión) a la última conversación que entró, libera su memoria y la vuelve a leer completa después.",
     "Como un restaurante lleno que levanta a la última mesa para sentar a otra, y luego la vuelve a sentar desde la entrada.",
     "Nada da error: la respuesta solo tarda más y gasta GPU dos veces. Se ve en vllm:num_preemptions_total y en un KV cache cerca del 100 %.",
     "No revisar /metrics: el cliente ve una respuesta lenta y nadie sabe que el motor tiró trabajo.")
@@ -255,7 +255,7 @@ con("percentil", "Percentiles y su intervalo", "p50, p95, p99, confidence interv
     "El p95 es el tiempo que no pasa el 95 % de las peticiones. Medido con n peticiones, el verdadero cae en un rango de posiciones: n·0.95 ∓ 1.96·√(n·0.95·0.05).",
     "Como una encuesta: con 40 personas sabes la tendencia; para afirmar el 95 % necesitas cientos, y el margen de error se dice junto al número.",
     "El SLA se firma en p95, no en promedio: el promedio esconde a los que esperan. Y un p95 sin intervalo no se puede comparar con otro.",
-    "Firmar un p95 medido con 40 peticiones: con 40, el p95 es prácticamente la más lenta y no tiene techo.")
+    "Firmar un p95 medido con 40 peticiones: con 40, el p95 es la 38.ª más rápida y su intervalo llega hasta la más lenta: no tiene techo.")
 con("goodput", "Goodput", "goodput",
     "Las peticiones por segundo que cumplen todo el criterio a la vez (TTFT y TPOT), no las que solo contestaron. vllm bench serve lo da con --goodput ttft:2000 tpot:50.",
     "Como contar las pizzas que llegaron calientes y a tiempo, no las que salieron de la cocina.",
@@ -270,7 +270,7 @@ con("gpu-rentada", "GPU rentada por segundo", "on-demand GPU pod, billing per se
     "Una máquina con GPU que se renta por segundo (RunPod: L40S a US$1.09/h) de saldo prepagado. Se lanza con una imagen (vllm/vllm-openai) y se termina para dejar de pagar.",
     "Como rentar un auto por minuto: pagas mientras está prendido, y el tope real es lo que cargaste a la tarjeta de prepago.",
     "Deja medir en la GPU del despacho sin comprarla: una sesión de práctica cuesta menos que un café. Con un vigía que la termina al tope, el olvido no sale caro.",
-    "Dejarla prendida «un ratito» o solo detenerla: detenida, el disco sigue cobrando. Se termina, y se comprueba que ya no existe.")
+    "Dejarla prendida «un ratito», o solo detenerla con un volumen puesto: detenido, el volumen sigue cobrando. Se termina, y se comprueba que ya no existe.")
 con("api-key", "Clave de la API", "API key, bearer token",
     "Un texto que vLLM pide en cada petición a /v1 («Authorization: Bearer …»); sin la clave correcta contesta 401. Se pasa con --api-key o la variable VLLM_API_KEY.",
     "Como el gafete de la oficina: el guardia no pregunta quién eres, solo si traes uno válido.",
@@ -306,7 +306,7 @@ e["mundo"] = {
         "Internet solo para el paso 6: la carga sale de tu Mac hacia el proxy del pod",
     ],
     "sustituciones": [
-        {"nube": "vLLM 0.34.0 en una L40S", "local": "el vLLM del dojo en tu Mac (simulado)", "diferencia": "La misma API, los mismos errores y los mismos nombres de métricas, así que tu código no cambia. El simulador hace la cuenta de servilleta perfecta; la GPU real tiene lo que la cuenta no ve (kernels, CUDA graphs, el calentamiento). Por eso el paso 6 mide."},
+        {"nube": "vLLM 0.34.0 en una L40S", "local": "el vLLM del dojo en tu Mac (simulado)", "diferencia": "La misma API, los mismos errores y los mismos nombres de métricas, así que tu código no cambia. El simulador hace la cuenta de servilleta perfecta; la GPU real tiene lo que la cuenta no ve (las optimizaciones internas de la GPU, el calentamiento, la red). Por eso el paso 6 mide."},
         {"nube": "3 copias de vLLM detrás de LiteLLM, a 0.21 preguntas por segundo", "local": "1 copia a 0.07 por segundo", "diferencia": "Es lo que le toca a una de las 3 si el gateway reparte parejo. El reparto y la afinidad por conversación son de la estación 4."},
         {"nube": "La prueba de la promesa: ≥ 1,000 peticiones, 3 repeticiones y una jornada", "local": "40 en la abierta y 24 en la cerrada", "diferencia": "Alcanza para ver la forma y para saber si algo no cumple; no para firmar un p95 (no tiene techo)."},
         {"nube": "El generador en otra máquina de la red del despacho", "local": "tu Mac, hacia el proxy del pod por internet", "diferencia": "El TTFT del cliente suma la ida y vuelta a RunPod (≈ decenas de ms desde México). Se compara con vllm:time_to_first_token_seconds, que es del lado del servidor."},
@@ -408,7 +408,7 @@ G.append(dict(n=6, id="gpu", titulo="La sesión en la GPU rentada", objetivo="Co
         gpu("python3 mundo/gpu.py apagar\npython3 mundo/gpu.py estado", "Termina el pod (deja de cobrar GPU y disco) y confirma que ya no existe. Después, <code>LLM_URL</code> de vuelta a <code>http://127.0.0.1:8000/v1</code>."),
     ],
     verifica="<code>verificar.py gpu</code> en verde antes de rentar (el precio del proveedor, una GPU de 48 GB y un tope con ≥ 20 % de margen y ≤ 3 h); en el pod, los mismos checks de los pasos 2 a 5 contra el vLLM de verdad; y al final <code>gpu.py estado</code> dice que el pod ya no existe.",
-    ojo="Detener no es terminar: un pod detenido sigue cobrando el disco. Y el proxy es público: sin <code>VLLM_API_KEY</code>, cualquiera que adivine la URL usa tu saldo.",
+    ojo="Detener no es terminar: un pod detenido deja de cobrar la GPU, pero sigue apartado, y si tiene volumen, el volumen cobra. Se termina. Y el proxy es público: sin <code>VLLM_API_KEY</code>, cualquiera que adivine la URL usa tu saldo.",
     en_pagina={"conceptos": ["gpu-rentada"], "precalculos": ["costo"]}))
 e["guiado"] = G
 
@@ -514,11 +514,11 @@ e["repaso"] = {
     "trampa": "Lo que falla sin dar error: un tope de lugares que convierte el TTFT en fila, un --gpu-memory-utilization copiado que provoca preemptions, el JSON «raro» que apagaba el razonamiento, y sobre todo una prueba que no mide lo que se va a prometer (una ráfaga en vez de la tasa de diseño, 40 peticiones para firmar un p95, el TTFT del primer evento vacío). Lo que los atrapa: leer el log de arranque, mirar /metrics junto a lo que ve el cliente y escribir a qué tasa y con cuántas peticiones se midió cada número.",
     "entrevista": [
         {"q": "¿Por qué vLLM y no llama-server para el despacho?", "a": "Porque son 8 conversaciones a la vez en una GPU NVIDIA. vLLM reparte el KV cache en bloques que da conforme crece cada conversación (PagedAttention) y mete conversaciones nuevas en cada paso (batching continuo), así que leer los pesos una vez sirve para todas. llama-server reparte el contexto en lugares fijos. Los dos hablan la misma API: el cliente no cambia."},
-        {"q": "Tu vLLM tiene lugar para 12 conversaciones. ¿Por qué el despacho pone --max-num-seqs 8 y no 2 ni 12?", "a": "Porque 8 es su número de diseño: con llegadas de Poisson a 0.21/s y 27 s por respuesta, 8 cubren casi toda la hora pico. 12 caben en memoria pero escribirían más lento. Y 2 (las que van a ≥ 20 tokens/s en una L40S) haría que las demás esperen en fila hasta ≈ 27 s: el TTFT se volvería espera. Si hace falta velocidad, son más GPUs, no menos lugares."},
+        {"q": "Tu vLLM tiene lugar para 12 conversaciones. ¿Por qué el despacho pone --max-num-seqs 8 y no 2 ni 12?", "a": "Porque 8 es su número de diseño: con llegadas de Poisson a 0.21/s y 27 s por respuesta, ≈ 88 % del tiempo de la hora pico hay 8 o menos a la vez; el resto, fila corta. 12 caben en memoria pero escribirían más lento. Y 2 (las que van a ≥ 20 tokens/s en una L40S) haría que las demás esperen en fila hasta ≈ 27 s: el TTFT se volvería espera. Si hace falta velocidad, son más GPUs, no menos lugares."},
         {"q": "¿Cómo diseñas una prueba de carga para un LLM?", "a": "Dos pruebas. Una abierta, con llegadas al azar (Poisson) a la tasa de diseño, sin tope en el cliente, para el TTFT de la hora pico. Una cerrada con N a la vez, para el TPOT cuando comparten la GPU. Con un dataset parecido al real (largos con variación y el mismo inicio, para que el prefix cache haga lo que hará en producción), tope de salida fijo, semilla, y cientos de peticiones si voy a firmar un p95. Guardo /metrics al lado: fila, KV cache y preemptions."},
         {"q": "Te dan un p95 de TTFT de 1.8 s. ¿Qué preguntas antes de creerlo?", "a": "Con cuántas peticiones (con 40 no tiene techo), a qué tasa y si fue abierta o una ráfaga, de qué largo eran los prompts y si se repetían (el prefix cache los guarda), desde dónde se midió (el cliente suma la red), y si cuenta desde el primer pedazo con texto. Y su intervalo: sin él no lo comparo con nada."},
         {"q": "¿Qué es el goodput y por qué importa más que el throughput?", "a": "Son las peticiones por segundo que cumplen todo el criterio a la vez, TTFT y TPOT. Un servidor puede contestar todo, con throughput alto, y que casi nada cumpla la promesa. Con 3 L40S, la ficha estima ≈ 0.06/s de goodput contra 0.21 pedidas: la capacidad útil es ≈ 29 %."},
-        {"q": "¿Cómo practicas con una GPU rentada sin que te salga caro?", "a": "Escribo y pruebo todo sin GPU, contra un simulador con la misma API, y llego al pod a medir. Antes de rentar calculo minutos y costo (una L40S a US$1.09/h por ≈ 40 min es menos de un dólar). Al lanzar, un vigía que la termina por API al tope, saldo prepagado como tope real, y al final compruebo que el pod ya no existe: detenido, el disco sigue cobrando."},
+        {"q": "¿Cómo practicas con una GPU rentada sin que te salga caro?", "a": "Escribo y pruebo todo sin GPU, contra un simulador con la misma API, y llego al pod a medir. Antes de rentar calculo minutos y costo (una L40S a US$1.09/h por ≈ 40 min es menos de un dólar). Al lanzar, un vigía que la termina por API al tope, saldo prepagado como tope real, y al final compruebo que el pod ya no existe (terminado, no detenido: un volumen detenido sigue cobrando)."},
     ],
 }
 

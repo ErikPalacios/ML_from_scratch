@@ -39,7 +39,7 @@ from pathlib import Path
 
 MUNDO = Path(__file__).resolve().parent
 VERSION = "0.34.0"          # la versión de vLLM que imita (la del despacho)
-BLOQUE = 16                 # tokens por bloque del KV cache
+BLOQUE = 16                 # tokens por bloque del KV cache (la 0.34 usa 64 por omisión con FlashAttention; aquí 16)
 PROGRAMA_GIB = 2.0          # lo que se come el programa además de pesos y KV (activaciones, CUDA graphs…)
 GIB = 2**30
 VOCAB = 151_936             # el tamaño del vocabulario de Qwen3 (los ids del tokenizer aproximado caen ahí)
