@@ -553,7 +553,7 @@ Mueve el costo de la hora de paro y la parte que se ahorra. Prueba la cifra de S
 
 Este caso usó casi todas las lecciones: [El recorrido](/recorrido/), la pregunta de «cuándo no conviene»; [Requisitos de hardware](/requisitos-hardware/), dimensionar por disponibilidad; [Elegir un modelo](/elegir-modelo/) y [Formatos y cuantización](/formatos-cuantizacion/), los candidatos y el FP8; [RAG privado](/rag-privado/), la ingesta y el prefiltro; [Seguridad](/seguridad/), las zonas y la puente; [El cuarto](/el-cuarto/), el lugar y la norma eléctrica; [Evals](/evals/), el examen y sus cotas; [TCO](/costo-total/), el costo.
 
-Lo distinto: el despacho y la clínica son oficinas o consultorios con **datos personales**, y su pregunta central es de privacidad. Aquí la pregunta es de **seguridad de la persona** y de **red OT**. Los casos que vienen mueven otra variable: muchas más preguntas, una red sin ninguna conexión (ni por una DMZ) o varios clientes sobre el mismo servidor.
+Lo distinto: el despacho y la clínica son oficinas o consultorios con **datos personales**, y su pregunta central es de privacidad. Aquí la pregunta es de **seguridad de la persona** y de **red OT**. Los casos que siguen mueven otra variable: [la financiera](/casos/financiera/) trae un lote nocturno de llamadas de voz y un regulador que opina sobre la nube, [la dependencia de gobierno](/casos/gobierno/) una red sin ninguna conexión (ni por una DMZ) y la compra pública, y [la startup SaaS](/casos/saas/) varios clientes sobre el mismo servidor.
 
 :::conceptos
 red-ot modelo-purdue iec-62443 zona-y-conducto dmz-industrial nivel-de-seguridad diodo-de-datos bloqueo-y-etiquetado grado-ip servidor-de-borde vlm parser-de-documentos filtro-por-maquina costo-del-paro prueba-en-sitio
