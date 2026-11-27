@@ -66,6 +66,23 @@ def ficha(p: Path) -> tuple[dict, list[tuple[str, list[int], int]]]:
     return meta, tensores
 
 
+def resumen(p: Path) -> dict:
+    """Lo que dice el encabezado: arquitectura, capas, cabezas, pesos y bytes por tipo de cuantización."""
+    meta, tens = ficha(p)
+    a = meta["general.architecture"]
+    por = {}
+    for _, s, t in tens:
+        k = math.prod(s)
+        nom, bloque, bytes_ = TIPOS.get(t, (f"tipo {t}", 1, 0))
+        c = por.setdefault(nom, {"tensores": 0, "pesos": 0, "bytes": 0})
+        c["tensores"] += 1
+        c["pesos"] += k
+        c["bytes"] += k // bloque * bytes_
+    n, b = sum(c["pesos"] for c in por.values()), sum(c["bytes"] for c in por.values())
+    return {"arquitectura": a, "capas": meta[f"{a}.block_count"], "cabezas_kv": meta[f"{a}.attention.head_count_kv"],
+            "pesos": n, "bytes_pesos": b, "bits_por_peso": round(b * 8 / n, 3), "tipos": por}
+
+
 if __name__ == "__main__":
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     p = Path(args[0]) if args else ruta_modelo()

@@ -102,7 +102,7 @@
       {
         "id": "reparto",
         "pregunta": "¿Cuánto contexto le toca a cada petición?",
-        "formula": "contexto por petición = contexto del servidor ÷ peticiones a la vez (en llama-server); tiene que caber el prompt más la respuesta",
+        "formula": "contexto por petición = contexto del servidor ÷ peticiones a la vez (llama-server con -np fijo, sin KV unificado); tiene que caber el prompt más la respuesta",
         "ref": {
           "cuenta": "≈ 6,000 tokens de entrada + ≈ 500 de salida, 8 conversaciones a la vez",
           "valor": "8,192 por conversación: en llama-server serían -c 65536 -np 8; vLLM reparte su memoria en bloques (estación 3)"
@@ -239,16 +239,16 @@
       "def": "Cuántos tokens caben en una petición: el prompt completo (instrucciones, fragmentos, pregunta) más la respuesta. llama-server lo fija al arrancar con -c.",
       "analogia": "Como la mesa de trabajo: lo que no cabe en la mesa, el modelo no lo ve.",
       "importa": "El prompt del despacho (≈ 6,000 tokens) más la respuesta pide 8,192. Si no cabe, el servidor contesta 400 en vez de cortar en silencio.",
-      "trampa": "Creer que el contexto de entrenamiento (40,960 en Qwen3-0.6B) es el que usa el servidor: usa el que le das con -c."
+      "trampa": "Creer que el máximo del modelo (40,960 según su GGUF y su config; su tarjeta dice 32,768) es el que usa el servidor: usa el que le das con -c."
     },
     {
       "id": "slots",
       "termino": "Peticiones a la vez",
       "en": "parallel slots (-np)",
-      "def": "Cuántas peticiones atiende llama-server al mismo tiempo. Cada una tiene su lugar (slot) y el contexto total se reparte entre ellos.",
+      "def": "Cuántas peticiones atiende llama-server a la vez, cada una en su lugar (slot). Con -np fijo, el KV no se comparte (kv_unified false) y cada lugar recibe -c ÷ -np.",
       "analogia": "Como partir una mesa grande en cuatro lugares: caben cuatro personas, pero cada una con un cuarto de mesa.",
       "importa": "Con -c 8192 y -np 4, cada petición tiene 2,048 tokens: las preguntas cortas siguen bien y el prompt del despacho truena.",
-      "trampa": "Subir PARALELO sin subir el contexto: nada da error al arrancar; truena después, con los prompts largos."
+      "trampa": "Subir PARALELO sin subir el contexto: nada da error al arrancar; truena después, con los prompts largos. (Con -np en automático, llama-server comparte un solo KV entre todos: --kv-unified.)"
     },
     {
       "id": "kv-cache",

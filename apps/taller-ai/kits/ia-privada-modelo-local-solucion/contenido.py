@@ -133,7 +133,7 @@ e["precalculos"] = {
          "conceptos": ["kv-cache", "contexto"],
          "comprueba": cmd(P("pc ficha") + "\n" + P("pc kv"), L("pc ficha") + "\n\n" + L("pc kv"), "La ficha lee el encabezado del archivo GGUF sin cargar los pesos: capas y cabezas salen de ahí, no de la memoria.")},
         {"id": "reparto", "pregunta": "¿Cuánto contexto le toca a cada petición?",
-         "formula": "contexto por petición = contexto del servidor ÷ peticiones a la vez (en llama-server); tiene que caber el prompt más la respuesta",
+         "formula": "contexto por petición = contexto del servidor ÷ peticiones a la vez (llama-server con -np fijo, sin KV unificado); tiene que caber el prompt más la respuesta",
          "ref": {"cuenta": "≈ 6,000 tokens de entrada + ≈ 500 de salida, 8 conversaciones a la vez", "valor": "8,192 por conversación: en llama-server serían -c 65536 -np 8; vLLM reparte su memoria en bloques (estación 3)"},
          "taller": {"cuenta": "-c 8192 con -np 1; y lo que pasa con -np 4", "valor": "8,192 con una; 2,048 cada una con 4, y el prompt del despacho ya no cabe"},
          "decide": "PARALELO no es gratis: con el mismo -c, cada petición recibe menos. Si hacen falta 4 a la vez de 8,192, el servidor necesita -c 32768 y 4 veces el KV cache.",
@@ -203,12 +203,12 @@ con("contexto", "Contexto", "context window, n_ctx",
     "Cuántos tokens caben en una petición: el prompt completo (instrucciones, fragmentos, pregunta) más la respuesta. llama-server lo fija al arrancar con -c.",
     "Como la mesa de trabajo: lo que no cabe en la mesa, el modelo no lo ve.",
     "El prompt del despacho (≈ 6,000 tokens) más la respuesta pide 8,192. Si no cabe, el servidor contesta 400 en vez de cortar en silencio.",
-    "Creer que el contexto de entrenamiento (40,960 en Qwen3-0.6B) es el que usa el servidor: usa el que le das con -c.")
+    "Creer que el máximo del modelo (40,960 según su GGUF y su config; su tarjeta dice 32,768) es el que usa el servidor: usa el que le das con -c.")
 con("slots", "Peticiones a la vez", "parallel slots (-np)",
-    "Cuántas peticiones atiende llama-server al mismo tiempo. Cada una tiene su lugar (slot) y el contexto total se reparte entre ellos.",
+    "Cuántas peticiones atiende llama-server a la vez, cada una en su lugar (slot). Con -np fijo, el KV no se comparte (kv_unified false) y cada lugar recibe -c ÷ -np.",
     "Como partir una mesa grande en cuatro lugares: caben cuatro personas, pero cada una con un cuarto de mesa.",
     "Con -c 8192 y -np 4, cada petición tiene 2,048 tokens: las preguntas cortas siguen bien y el prompt del despacho truena.",
-    "Subir PARALELO sin subir el contexto: nada da error al arrancar; truena después, con los prompts largos.")
+    "Subir PARALELO sin subir el contexto: nada da error al arrancar; truena después, con los prompts largos. (Con -np en automático, llama-server comparte un solo KV entre todos: --kv-unified.)")
 con("kv-cache", "KV cache", "key-value cache",
     "Lo que el modelo guarda de cada token ya leído (sus claves y valores de atención) para no recalcularlo al escribir el siguiente. Crece con cada token del contexto.",
     "Como los apuntes de una junta: para seguir la conversación no relees todo, consultas tus notas; pero las notas ocupan espacio.",

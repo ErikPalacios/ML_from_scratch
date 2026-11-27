@@ -1,0 +1,11 @@
+{
+  "qwen3-0.6b-f16": {
+    "repo": "ggml-org/Qwen3-0.6B-GGUF",
+    "revision": "afe8ad3577aa22500b3cd1c880f153b3b0e1cae8",
+    "archivo": "Qwen3-0.6B-f16.gguf",
+    "bytes": 1509347424,
+    "sha256": "ab9004daf660cd6a6ba1c07556e74fcceb2b756063ccce3f9c69d3a637b361cc",
+    "licencia": "apache-2.0",
+    "nota": "Qwen3 0.6B en f16 (16 bits por peso): la fuente de las tres cuantizaciones de la estación. Del mismo commit que el Q8_0 de la estación 1."
+  }
+}

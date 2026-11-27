@@ -1,0 +1,1019 @@
+Política de viajes 2026
+
+Política de viajes 2026
+Aplica a todo el personal que viaja por trabajo dentro de México.
+Viáticos por día: 1,200 pesos en ciudades grandes y 900 pesos en el resto.
+Hotel: tope de 2,000 pesos por noche, con factura a nombre del marketplace.
+Vuelos
+Se compran con 14 días de anticipación en clase económica.
+Si el vuelo cuesta más de 6,000 pesos, lo aprueba la dirección del área.
+
+Manual de onboarding de vendedores
+
+Onboarding de vendedores
+La primera semana, cada vendedor nuevo tiene un contacto de operaciones asignado.
+Día 1: revisión de documentos. Día 2: carga de catálogo. Día 3: primera publicación
+revisada.
+Primer mes
+El vendedor nuevo no paga comisión en sus primeras 10 ventas.
+Si su calificación baja de 3.5, el contacto lo llama antes de cualquier sanción.
+
+Contrato marco de logística
+
+Contrato marco de logística
+Las paqueterías responden por pérdida o daño hasta 15,000 pesos por paquete.
+Arriba de ese monto, aplica el seguro contratado por el marketplace.
+Penalizaciones
+Por cada día de retraso sobre el tiempo comprometido, la paquetería descuenta 3 % del
+costo del envío.
+
+Sueldos 2026
+
+Tabulador de sueldos 2026
+Agente de soporte: de 14,000 a 18,000 pesos mensuales.
+Líder de soporte: de 26,000 a 32,000 pesos mensuales.
+Bonos
+Bono trimestral de hasta 10 % por calidad de atención.
+
+Guía de tallas
+
+Guía de tallas
+Las tallas de calzado se publican en centímetros y en número mexicano.
+Talla 25 mexicana equivale a 25 cm del talón a la punta.
+Ropa
+Si quien vende usa tallas de otro país, la publicación debe traer la tabla de
+equivalencias.
+
+Calendario de pagos a vendedores
+
+Calendario de pagos
+Desde diciembre, los pagos a vendedores salen los lunes y los jueves.
+Si el día de pago es festivo, el pago sale el día hábil siguiente.
+Retenciones
+Se retiene el pago de ventas con una devolución abierta hasta que se cierre.
+
+Lineamientos de fotos de producto (vigente)
+
+Fotos de producto
+Mínimo 3 fotos por publicación, con fondo claro y sin marcas de agua.
+La primera foto muestra el producto completo.
+Lo que se rechaza
+Fotos con precios, teléfonos o enlaces a otras tiendas.
+
+Plan de temporada alta
+
+Temporada alta 2026
+Del 15 de noviembre al 6 de enero se contratan 40 agentes temporales.
+Los almacenes abren también los domingos.
+Corte de pedidos
+El último pedido con entrega antes de Navidad se acepta el 19 de diciembre.
+
+Código de conducta
+
+Código de conducta
+Tratamos a quien compra y a quien vende con respeto, aunque la conversación sea difícil.
+Nadie acepta regalos de vendedores con un valor mayor a 500 pesos.
+Conflictos de interés
+Si tienes relación con un vendedor, avisa a tu líder y no atiendas sus casos.
+
+Minuta semanal de operaciones · 2026-10-02 › Tema principal
+
+# Minuta semanal de operaciones · 2026-10-02
+## Tema principal
+Se revisó el entregas atrasadas en Monterrey.
+
+Minuta semanal de operaciones · 2026-10-02 › Acuerdos
+
+## Acuerdos
+- Jorge da seguimiento con los almacenes.
+- Sofía actualiza la página de la wiki que corresponda.
+
+Minuta semanal de operaciones · 2026-10-02 › Pendientes
+
+## Pendientes
+- Revisar el tablero de entregas el próximo viernes.
+
+Minuta semanal de operaciones · 2026-10-09 › Tema principal
+
+# Minuta semanal de operaciones · 2026-10-09
+## Tema principal
+Se revisó el nuevo almacén en Querétaro.
+
+Minuta semanal de operaciones · 2026-10-09 › Acuerdos
+
+## Acuerdos
+- Jorge da seguimiento con los almacenes.
+- Sofía actualiza la página de la wiki que corresponda.
+
+Minuta semanal de operaciones · 2026-10-09 › Pendientes
+
+## Pendientes
+- Revisar el tablero de entregas el próximo viernes.
+
+Minuta semanal de operaciones · 2026-10-23 › Tema principal
+
+# Minuta semanal de operaciones · 2026-10-23
+## Tema principal
+Se revisó el cambio de paquetería en el Bajío.
+
+Minuta semanal de operaciones · 2026-10-23 › Acuerdos
+
+## Acuerdos
+- Jorge da seguimiento con los almacenes.
+- Sofía actualiza la página de la wiki que corresponda.
+
+Minuta semanal de operaciones · 2026-10-23 › Pendientes
+
+## Pendientes
+- Revisar el tablero de entregas el próximo viernes.
+
+Minuta semanal de operaciones · 2026-10-30 › Tema principal
+
+# Minuta semanal de operaciones · 2026-10-30
+## Tema principal
+Se revisó el preparación de temporada alta.
+
+Minuta semanal de operaciones · 2026-10-30 › Acuerdos
+
+## Acuerdos
+- Jorge da seguimiento con los almacenes.
+- Sofía actualiza la página de la wiki que corresponda.
+
+Minuta semanal de operaciones · 2026-10-30 › Pendientes
+
+## Pendientes
+- Revisar el tablero de entregas el próximo viernes.
+
+Manual del vendedor
+
+# Manual del vendedor
+Este manual explica, de punta a punta, cómo vende una persona o una empresa en el marketplace: desde el alta hasta el pago. Lo usan los equipos de operaciones y de soporte para contestar dudas de vendedores. Si algo de aquí contradice una política del repositorio de políticas, manda la política.
+
+Manual del vendedor › Alta y verificación
+
+## Alta y verificación
+Para vender se necesita RFC, una cuenta bancaria a nombre de quien vende y una identificación vigente. La revisión tarda hasta 2 días hábiles y la hace el equipo de operaciones, no un sistema automático.
+### Documentos que se piden
+- Constancia de situación fiscal con no más de 3 meses de antigüedad.
+- Estado de cuenta bancario donde se vea el nombre del titular y la CLABE.
+- Identificación oficial vigente de la persona o del representante legal.
+- Acta constitutiva y poder notarial, solo si vende una empresa.
+### Motivos de rechazo frecuentes
+La mayoría de los rechazos son por datos que no coinciden entre documentos. Si la cuenta bancaria está a nombre de otra persona, se rechaza aunque sea de un familiar. Si el RFC no coincide con el nombre registrado, se pide corregir el registro antes de volver a revisar. Una persona que ya tuvo una cuenta cerrada por fraude no puede abrir otra, ni a nombre de una empresa nueva.
+
+Manual del vendedor › Publicar productos
+
+## Publicar productos
+Cada publicación necesita título, categoría, precio con IVA, existencias y al menos tres fotos. El título describe el producto, no la promoción: «Licuadora de 1.5 litros, 600 W» y no «¡Oferta increíble!». La categoría decide la comisión y el plazo de devolución, así que elegir una categoría equivocada para pagar menos comisión es motivo de baja de la publicación.
+Las fotos siguen los lineamientos de fotos de producto: fondo claro, el producto ocupa la mayor parte de la imagen y nada de textos encima. Una publicación sin existencias se pausa sola y vuelve a mostrarse cuando quien vende actualiza el inventario.
+
+Manual del vendedor › Comisiones
+
+## Comisiones
+La comisión se cobra sobre el precio de venta sin IVA y se descuenta del pago. Estos son los porcentajes vigentes:
+| Categoría | Comisión | Días para pagar a quien vende |
+|---|---|---|
+| Electrónica | 8 % | 15 |
+| Moda | 12 % | 10 |
+| Hogar | 10 % | 10 |
+| Juguetes | 11 % | 10 |
+En temporada alta (noviembre y diciembre), la comisión de Moda baja a 10 % para vendedores con calificación mayor a 4.5.
+
+Manual del vendedor › Envíos
+
+## Envíos
+Quien vende elige entre dos modalidades: envío con guía del marketplace o envío propio. Con guía del marketplace, la paquetería se asigna sola según el código postal de destino y la tarifa se descuenta del pago. Con envío propio, quien vende contrata la paquetería y tiene que subir el número de guía en menos de 24 horas desde la venta.
+El paquete sale en un plazo de 2 días hábiles desde la venta. Si sale tarde, la venta cuenta como envío tardío en la calificación de quien vende. Tres envíos tardíos en un mes pausan la cuenta una semana. Un paquete que la paquetería reporta como dañado o perdido no cuenta como tardío: lo investiga operaciones con la paquetería.
+Las tarifas por estado y por peso están en el documento «Tarifas de envío por estado 2026», en el Drive de operaciones. Un paquete de más de 20 kg no se puede mandar con guía del marketplace: quien vende lo manda por su cuenta.
+
+Manual del vendedor › Devoluciones
+
+## Devoluciones
+Quien compra puede devolver dentro del plazo de su categoría, contado desde la entrega. Quien vende no puede negarse a una devolución en plazo, pero sí puede pedir revisar el producto antes del reembolso cuando es electrónica: tiene 3 días hábiles para confirmar que llegó completo y sin daños de uso. Si no contesta en ese plazo, el reembolso se libera solo.
+El envío de regreso lo paga quien vende si el producto llegó dañado, era distinto al publicado o le faltaban piezas. En los demás casos lo paga quien compra, salvo en Moda y Juguetes, donde lo absorbe el marketplace. Un producto devuelto vuelve al inventario de quien vende solo cuando quien vende confirma que está en condiciones de venderse otra vez.
+
+Manual del vendedor › Pagos
+
+## Pagos
+Desde diciembre, los pagos a vendedores salen los lunes y los jueves, por transferencia a la cuenta registrada en el alta. Cada pago incluye las ventas entregadas cuyo plazo de pago ya se cumplió, según la tabla de comisiones, menos la comisión, la tarifa de envío y las devoluciones del periodo.
+### Retenciones
+Se retiene el pago de una venta con una devolución abierta hasta que se cierre. También se retiene todo el pago de una cuenta en revisión por fraude, hasta que operaciones termine la revisión. Una retención nunca dura más de 30 días sin que alguien de operaciones la revise y deje una nota en el caso.
+### Facturación de la comisión
+El marketplace emite cada mes una factura por las comisiones cobradas, a nombre de quien vende y con el RFC del alta. La factura llega por correo los primeros 5 días del mes siguiente. Si quien vende cambia de régimen fiscal, tiene que actualizar su constancia antes del día 25 para que la factura salga con los datos nuevos.
+
+Manual del vendedor › Preguntas frecuentes de vendedores
+
+## Preguntas frecuentes de vendedores
+¿Puedo cambiar el precio de una publicación con ventas abiertas? Sí. El precio nuevo aplica a las ventas que entren después del cambio; las ventas abiertas se pagan con el precio con el que se vendieron.
+¿Qué pasa si quien compra no recoge el paquete en la sucursal? La paquetería lo guarda 7 días naturales y después lo regresa. Cuando llega de vuelta, la venta se cancela y quien compra recibe el reembolso completo, sin descontar el envío.
+¿Puedo vender productos usados? Solo en las categorías Electrónica y Hogar, y la publicación tiene que decir «usado» en el título y describir el estado del producto. Un producto usado vendido como nuevo cuenta como producto distinto al publicado.
+¿Cómo respondo una reseña negativa? Desde el detalle de la venta, una sola vez y sin datos personales de quien compra. Una respuesta no borra la reseña. Si la reseña tiene insultos o datos personales, se reporta a soporte y soporte decide si la quita.
+¿Puedo ofrecer envío gratis? Sí: quien vende absorbe la tarifa y la publicación muestra «envío gratis». La tarifa se descuenta del pago igual que siempre, así que conviene sumarla al precio antes de publicar.
+¿Qué hago si me llega una devolución con otro producto adentro? No la confirmes. Abre un caso con soporte en menos de 48 horas, con fotos del paquete tal como llegó y de la guía. Mientras el caso está abierto, el reembolso a quien compra queda detenido.
+
+Manual del vendedor › Preguntas frecuentes de vendedores
+
+No la confirmes. Abre un caso con soporte en menos de 48 horas, con fotos del paquete tal como llegó y de la guía. Mientras el caso está abierto, el reembolso a quien compra queda detenido.
+¿Puedo tener dos cuentas de vendedor? No. Una persona o una empresa tiene una sola cuenta. Si vende dos marcas, las publica desde la misma cuenta. Dos cuentas con el mismo RFC o la misma cuenta bancaria se cierran las dos.
+¿Cuánto tarda en reflejarse un cambio de cuenta bancaria? El cambio lo revisa operaciones en hasta 2 días hábiles, como en el alta. Mientras tanto, los pagos siguen saliendo a la cuenta anterior; si esa cuenta ya está cerrada, el pago se retiene hasta que se apruebe la nueva.
+
+Manual del vendedor › Calificación y sanciones
+
+## Calificación y sanciones
+La calificación de quien vende va de 1 a 5 y la calculan las reseñas de los últimos 90 días, los envíos tardíos y las cancelaciones. Una calificación menor a 3.5 durante dos meses seguidos pausa la cuenta hasta que quien vende hable con operaciones. Vender productos falsificados, pedir a quien compra que pague por fuera del marketplace o publicar datos personales de quien compra cierra la cuenta sin aviso previo.
+
+Tarifas de envío por estado 2026
+
+# Tarifas de envío por estado 2026
+Estas son las tarifas de la guía del marketplace por estado de destino, en pesos con IVA. Se descuentan del pago a quien vende cuando usa la guía del marketplace. El peso que cuenta es el mayor entre el peso real y el peso volumétrico (largo × ancho × alto en centímetros, entre 5,000).
+
+Tarifas de envío por estado 2026 › Tarifas por estado
+
+## Tarifas por estado
+| Estado | Zona | Hasta 1 kg | De 1 a 5 kg | De 5 a 20 kg | Días hábiles |
+|---|---|---|---|---|---|
+| Aguascalientes | Centro | 99 | 135 | 219 | 2 a 3 |
+| Baja California | Noroeste | 129 | 179 | 299 | 3 a 5 |
+| Baja California Sur | Noroeste | 129 | 179 | 299 | 4 a 6 |
+| Campeche | Sureste | 125 | 172 | 289 | 3 a 5 |
+| Chiapas | Sureste | 125 | 172 | 289 | 4 a 6 |
+| Chihuahua | Norte | 115 | 159 | 259 | 3 a 4 |
+| Ciudad de México | Valle de México | 89 | 119 | 189 | 1 a 2 |
+| Coahuila | Norte | 115 | 159 | 259 | 2 a 4 |
+| Colima | Occidente | 105 | 145 | 235 | 3 a 4 |
+| Durango | Norte | 115 | 159 | 259 | 3 a 4 |
+| Estado de México | Valle de México | 89 | 119 | 189 | 1 a 2 |
+| Guanajuato | Centro | 99 | 135 | 219 | 2 a 3 |
+| Guerrero | Sur | 119 | 165 | 269 | 3 a 5 |
+
+Tarifas de envío por estado 2026 › Tarifas por estado
+
+| Estado | Zona | Hasta 1 kg | De 1 a 5 kg | De 5 a 20 kg | Días hábiles |
+|---|---|---|---|---|---|
+| Hidalgo | Centro | 99 | 135 | 219 | 2 a 3 |
+| Jalisco | Occidente | 105 | 145 | 235 | 2 a 3 |
+| Michoacán | Occidente | 105 | 145 | 235 | 2 a 4 |
+| Morelos | Centro | 99 | 135 | 219 | 2 a 3 |
+| Nayarit | Occidente | 105 | 145 | 235 | 3 a 4 |
+| Nuevo León | Norte | 115 | 159 | 259 | 2 a 3 |
+| Oaxaca | Sur | 119 | 165 | 269 | 3 a 5 |
+| Puebla | Centro | 99 | 135 | 219 | 2 a 3 |
+| Querétaro | Centro | 99 | 135 | 219 | 2 a 3 |
+| Quintana Roo | Sureste | 125 | 172 | 289 | 3 a 5 |
+| San Luis Potosí | Centro | 99 | 135 | 219 | 2 a 4 |
+| Sinaloa | Noroeste | 129 | 179 | 299 | 3 a 4 |
+| Sonora | Noroeste | 129 | 179 | 299 | 3 a 5 |
+
+Tarifas de envío por estado 2026 › Tarifas por estado
+
+| Estado | Zona | Hasta 1 kg | De 1 a 5 kg | De 5 a 20 kg | Días hábiles |
+|---|---|---|---|---|---|
+| Tabasco | Sureste | 125 | 172 | 289 | 3 a 4 |
+| Tamaulipas | Norte | 115 | 159 | 259 | 2 a 4 |
+| Tlaxcala | Centro | 99 | 135 | 219 | 2 a 3 |
+| Veracruz | Sureste | 125 | 172 | 289 | 2 a 4 |
+| Yucatán | Sureste | 125 | 172 | 289 | 3 a 5 |
+| Zacatecas | Centro | 99 | 135 | 219 | 3 a 4 |
+
+Tarifas de envío por estado 2026 › Recargos
+
+## Recargos
+- Zona extendida (localidades sin cobertura diaria de la paquetería): 60 pesos por paquete.
+- Reintento de entrega a partir del segundo: 35 pesos.
+- Paquete de más de 20 kg: no se acepta con guía del marketplace.
+
+SEG-1 · Posible cuenta de vendedor duplicada #1
+
+# SEG-1 · Posible cuenta de vendedor duplicada #1
+Dos cuentas de vendedor comparten la misma cuenta bancaria (caso 1).
+Resolución: Se suspendió la cuenta más nueva mientras se revisa.
+
+SEG-10 · Posible cuenta de vendedor duplicada #10
+
+# SEG-10 · Posible cuenta de vendedor duplicada #10
+Dos cuentas de vendedor comparten la misma cuenta bancaria (caso 10).
+
+SEG-2 · Posible cuenta de vendedor duplicada #2
+
+# SEG-2 · Posible cuenta de vendedor duplicada #2
+Dos cuentas de vendedor comparten la misma cuenta bancaria (caso 2).
+Comentarios:
+- La persona confirmó que ya quedó resuelto.
+
+SEG-3 · Posible cuenta de vendedor duplicada #3
+
+# SEG-3 · Posible cuenta de vendedor duplicada #3
+Dos cuentas de vendedor comparten la misma cuenta bancaria (caso 3).
+Resolución: Se suspendió la cuenta más nueva mientras se revisa.
+
+SEG-4 · Posible cuenta de vendedor duplicada #4
+
+# SEG-4 · Posible cuenta de vendedor duplicada #4
+Dos cuentas de vendedor comparten la misma cuenta bancaria (caso 4).
+
+SEG-5 · Posible cuenta de vendedor duplicada #5
+
+# SEG-5 · Posible cuenta de vendedor duplicada #5
+Dos cuentas de vendedor comparten la misma cuenta bancaria (caso 5).
+Resolución: Se suspendió la cuenta más nueva mientras se revisa.
+
+SEG-6 · Posible cuenta de vendedor duplicada #6
+
+# SEG-6 · Posible cuenta de vendedor duplicada #6
+Dos cuentas de vendedor comparten la misma cuenta bancaria (caso 6).
+
+SEG-7 · Posible cuenta de vendedor duplicada #7
+
+# SEG-7 · Posible cuenta de vendedor duplicada #7
+Dos cuentas de vendedor comparten la misma cuenta bancaria (caso 7).
+Resolución: Se suspendió la cuenta más nueva mientras se revisa.
+
+SEG-8 · Posible cuenta de vendedor duplicada #8
+
+# SEG-8 · Posible cuenta de vendedor duplicada #8
+Dos cuentas de vendedor comparten la misma cuenta bancaria (caso 8).
+
+SEG-9 · Posible cuenta de vendedor duplicada #9
+
+# SEG-9 · Posible cuenta de vendedor duplicada #9
+Dos cuentas de vendedor comparten la misma cuenta bancaria (caso 9).
+Resolución: Se suspendió la cuenta más nueva mientras se revisa.
+
+SOP-1 · Cliente reporta pedido sin movimiento desde hace 5 días
+
+# SOP-1 · Cliente reporta pedido sin movimiento desde hace 5 días
+La guía no se mueve desde el centro de distribución de Querétaro.
+Resolución: Se abrió investigación con la paquetería y se reenvió el pedido.
+Comentarios:
+- Le escribí a la persona.
+
+SOP-10 · Cobro duplicado en tarjeta de crédito
+
+# SOP-10 · Cobro duplicado en tarjeta de crédito
+La clienta ve dos cargos del mismo pedido.
+Resolución: Se reembolsó el cargo duplicado; tarda de 1 a 3 días hábiles.
+Comentarios:
+- Le escribí a la persona.
+
+SOP-11 · Vendedor no responde mensajes
+
+# SOP-11 · Vendedor no responde mensajes
+El comprador escribió hace 3 días y no tiene respuesta.
+Resolución: Soporte tomó el caso y autorizó la devolución.
+Comentarios:
+- Le escribí a la persona.
+
+SOP-12 · Producto llegó dañado
+
+# SOP-12 · Producto llegó dañado
+La pantalla llegó estrellada; mandó fotos.
+Resolución: Devolución sin costo de envío para quien compró.
+Comentarios:
+- Le escribí a la persona.
+
+SOP-13 · Cupón de bienvenida no se aplicó
+
+# SOP-13 · Cupón de bienvenida no se aplicó
+El cupón pedía un mínimo de 500 pesos y el carrito era de 480.
+Resolución: Se explicó la condición; no aplicaba compensación.
+Comentarios:
+- Le escribí a la persona.
+
+SOP-14 · Cambio de dirección después de enviado
+
+# SOP-14 · Cambio de dirección después de enviado
+El pedido ya había salido del almacén.
+Resolución: Se ofreció recoger en sucursal.
+Comentarios:
+- Le escribí a la persona.
+
+SOP-15 · Factura de un pedido del mes pasado
+
+# SOP-15 · Factura de un pedido del mes pasado
+La pide fuera del mes de compra.
+Resolución: Se canalizó con quien vende para que la emita.
+Comentarios:
+- Le escribí a la persona.
+
+SOP-16 · Talla equivocada en la publicación
+
+# SOP-16 · Talla equivocada en la publicación
+El vendedor publicó talla de Estados Unidos sin equivalencia.
+Resolución: Devolución pagada por quien vende y aviso de calidad.
+Comentarios:
+- Le escribí a la persona.
+
+SOP-17 · Cliente reporta pedido sin movimiento desde hace 5 días
+
+# SOP-17 · Cliente reporta pedido sin movimiento desde hace 5 días
+La guía no se mueve desde el centro de distribución de Querétaro.
+Resolución: Se abrió investigación con la paquetería y se reenvió el pedido.
+Comentarios:
+- Le escribí a la persona.
+
+SOP-18 · Cobro duplicado en tarjeta de crédito
+
+# SOP-18 · Cobro duplicado en tarjeta de crédito
+La clienta ve dos cargos del mismo pedido.
+Resolución: Se reembolsó el cargo duplicado; tarda de 1 a 3 días hábiles.
+Comentarios:
+- Le escribí a la persona.
+
+SOP-19 · Vendedor no responde mensajes
+
+# SOP-19 · Vendedor no responde mensajes
+El comprador escribió hace 3 días y no tiene respuesta.
+Resolución: Soporte tomó el caso y autorizó la devolución.
+Comentarios:
+- Le escribí a la persona.
+
+SOP-2 · Cobro duplicado en tarjeta de crédito
+
+# SOP-2 · Cobro duplicado en tarjeta de crédito
+La clienta ve dos cargos del mismo pedido.
+Resolución: Se reembolsó el cargo duplicado; tarda de 1 a 3 días hábiles.
+Comentarios:
+- Le escribí a la persona.
+
+SOP-20 · Producto llegó dañado
+
+# SOP-20 · Producto llegó dañado
+La pantalla llegó estrellada; mandó fotos.
+Resolución: Devolución sin costo de envío para quien compró.
+Comentarios:
+- Le escribí a la persona.
+
+SOP-21 · Cupón de bienvenida no se aplicó
+
+# SOP-21 · Cupón de bienvenida no se aplicó
+El cupón pedía un mínimo de 500 pesos y el carrito era de 480.
+Resolución: Se explicó la condición; no aplicaba compensación.
+Comentarios:
+- Le escribí a la persona.
+
+SOP-22 · Cambio de dirección después de enviado
+
+# SOP-22 · Cambio de dirección después de enviado
+El pedido ya había salido del almacén.
+Resolución: Se ofreció recoger en sucursal.
+Comentarios:
+- Le escribí a la persona.
+
+SOP-23 · Factura de un pedido del mes pasado
+
+# SOP-23 · Factura de un pedido del mes pasado
+La pide fuera del mes de compra.
+Resolución: Se canalizó con quien vende para que la emita.
+Comentarios:
+- Le escribí a la persona.
+
+SOP-24 · Talla equivocada en la publicación
+
+# SOP-24 · Talla equivocada en la publicación
+El vendedor publicó talla de Estados Unidos sin equivalencia.
+Resolución: Devolución pagada por quien vende y aviso de calidad.
+Comentarios:
+- Le escribí a la persona.
+
+SOP-25 · Cliente reporta pedido sin movimiento desde hace 5 días
+
+# SOP-25 · Cliente reporta pedido sin movimiento desde hace 5 días
+La guía no se mueve desde el centro de distribución de Querétaro.
+Resolución: Se abrió investigación con la paquetería y se reenvió el pedido.
+Comentarios:
+- Le escribí a la persona.
+
+SOP-26 · Cobro duplicado en tarjeta de crédito
+
+# SOP-26 · Cobro duplicado en tarjeta de crédito
+La clienta ve dos cargos del mismo pedido.
+Resolución: Se reembolsó el cargo duplicado; tarda de 1 a 3 días hábiles.
+Comentarios:
+- Le escribí a la persona.
+
+SOP-27 · Vendedor no responde mensajes
+
+# SOP-27 · Vendedor no responde mensajes
+El comprador escribió hace 3 días y no tiene respuesta.
+Resolución: Soporte tomó el caso y autorizó la devolución.
+Comentarios:
+- Le escribí a la persona.
+
+SOP-28 · Producto llegó dañado
+
+# SOP-28 · Producto llegó dañado
+La pantalla llegó estrellada; mandó fotos.
+Resolución: Devolución sin costo de envío para quien compró.
+Comentarios:
+- Le escribí a la persona.
+
+SOP-29 · Cupón de bienvenida no se aplicó
+
+# SOP-29 · Cupón de bienvenida no se aplicó
+El cupón pedía un mínimo de 500 pesos y el carrito era de 480.
+Resolución: Se explicó la condición; no aplicaba compensación.
+Comentarios:
+- Le escribí a la persona.
+
+SOP-3 · Vendedor no responde mensajes
+
+# SOP-3 · Vendedor no responde mensajes
+El comprador escribió hace 3 días y no tiene respuesta.
+Resolución: Soporte tomó el caso y autorizó la devolución.
+Comentarios:
+- Le escribí a la persona.
+- La persona confirmó que ya quedó resuelto.
+
+SOP-30 · Cambio de dirección después de enviado
+
+# SOP-30 · Cambio de dirección después de enviado
+El pedido ya había salido del almacén.
+Resolución: Se ofreció recoger en sucursal.
+Comentarios:
+- Le escribí a la persona.
+
+SOP-31 · Factura de un pedido del mes pasado
+
+# SOP-31 · Factura de un pedido del mes pasado
+La pide fuera del mes de compra.
+Resolución: Se canalizó con quien vende para que la emita.
+Comentarios:
+- Le escribí a la persona.
+
+SOP-32 · Talla equivocada en la publicación
+
+# SOP-32 · Talla equivocada en la publicación
+El vendedor publicó talla de Estados Unidos sin equivalencia.
+Resolución: Devolución pagada por quien vende y aviso de calidad.
+Comentarios:
+- Le escribí a la persona.
+
+SOP-33 · Cliente reporta pedido sin movimiento desde hace 5 días
+
+# SOP-33 · Cliente reporta pedido sin movimiento desde hace 5 días
+La guía no se mueve desde el centro de distribución de Querétaro.
+Resolución: Se abrió investigación con la paquetería y se reenvió el pedido.
+Comentarios:
+- Le escribí a la persona.
+
+SOP-34 · Cobro duplicado en tarjeta de crédito
+
+# SOP-34 · Cobro duplicado en tarjeta de crédito
+La clienta ve dos cargos del mismo pedido.
+Resolución: Se reembolsó el cargo duplicado; tarda de 1 a 3 días hábiles.
+Comentarios:
+- Le escribí a la persona.
+
+SOP-35 · Vendedor no responde mensajes
+
+# SOP-35 · Vendedor no responde mensajes
+El comprador escribió hace 3 días y no tiene respuesta.
+Resolución: Soporte tomó el caso y autorizó la devolución.
+Comentarios:
+- Le escribí a la persona.
+
+SOP-36 · Producto llegó dañado
+
+# SOP-36 · Producto llegó dañado
+La pantalla llegó estrellada; mandó fotos.
+Resolución: Devolución sin costo de envío para quien compró.
+Comentarios:
+- Le escribí a la persona.
+
+SOP-37 · Cupón de bienvenida no se aplicó
+
+# SOP-37 · Cupón de bienvenida no se aplicó
+El cupón pedía un mínimo de 500 pesos y el carrito era de 480.
+Resolución: Se explicó la condición; no aplicaba compensación.
+Comentarios:
+- Le escribí a la persona.
+
+SOP-38 · Cambio de dirección después de enviado
+
+# SOP-38 · Cambio de dirección después de enviado
+El pedido ya había salido del almacén.
+Resolución: Se ofreció recoger en sucursal.
+Comentarios:
+- Le escribí a la persona.
+
+SOP-39 · Factura de un pedido del mes pasado
+
+# SOP-39 · Factura de un pedido del mes pasado
+La pide fuera del mes de compra.
+Resolución: Se canalizó con quien vende para que la emita.
+Comentarios:
+- Le escribí a la persona.
+
+SOP-4 · Producto llegó dañado
+
+# SOP-4 · Producto llegó dañado
+La pantalla llegó estrellada; mandó fotos.
+Resolución: Devolución sin costo de envío para quien compró.
+Comentarios:
+- Le escribí a la persona.
+
+SOP-40 · Talla equivocada en la publicación
+
+# SOP-40 · Talla equivocada en la publicación
+El vendedor publicó talla de Estados Unidos sin equivalencia.
+Resolución: Devolución pagada por quien vende y aviso de calidad.
+Comentarios:
+- Le escribí a la persona.
+
+SOP-41 · Reembolso no aparece en la tarjeta
+
+# SOP-41 · Reembolso no aparece en la tarjeta
+Pasaron 12 días hábiles y no ve el reembolso.
+
+SOP-42 · Paquete entregado en otra dirección
+
+# SOP-42 · Paquete entregado en otra dirección
+La guía dice entregado y la persona no lo recibió.
+
+SOP-5 · Cupón de bienvenida no se aplicó
+
+# SOP-5 · Cupón de bienvenida no se aplicó
+El cupón pedía un mínimo de 500 pesos y el carrito era de 480.
+Resolución: Se explicó la condición; no aplicaba compensación.
+Comentarios:
+- Le escribí a la persona.
+
+SOP-6 · Cambio de dirección después de enviado
+
+# SOP-6 · Cambio de dirección después de enviado
+El pedido ya había salido del almacén.
+Resolución: Se ofreció recoger en sucursal.
+Comentarios:
+- Le escribí a la persona.
+
+SOP-7 · Factura de un pedido del mes pasado
+
+# SOP-7 · Factura de un pedido del mes pasado
+La pide fuera del mes de compra.
+Resolución: Se canalizó con quien vende para que la emita.
+Comentarios:
+- Le escribí a la persona.
+- La persona confirmó que ya quedó resuelto.
+
+SOP-8 · Talla equivocada en la publicación
+
+# SOP-8 · Talla equivocada en la publicación
+El vendedor publicó talla de Estados Unidos sin equivalencia.
+Resolución: Devolución pagada por quien vende y aviso de calidad.
+Comentarios:
+- Le escribí a la persona.
+
+SOP-9 · Cliente reporta pedido sin movimiento desde hace 5 días
+
+# SOP-9 · Cliente reporta pedido sin movimiento desde hace 5 días
+La guía no se mueve desde el centro de distribución de Querétaro.
+Resolución: Se abrió investigación con la paquetería y se reenvió el pedido.
+Comentarios:
+- Le escribí a la persona.
+
+Política de cancelaciones
+
+# Política de cancelaciones
+Un pedido se cancela sin costo mientras no salga del almacén.
+
+Política de cupones
+
+# Política de cupones
+Un cupón por pedido. No se combinan con promociones de quien vende.
+
+Política de devoluciones › Plazo
+
+# Política de devoluciones
+## Plazo
+Todas las categorías: 30 días desde la entrega.
+
+Política de devoluciones › Excepciones
+
+## Excepciones
+No se aceptan productos personalizados ni software activado.
+
+Política de envíos
+
+# Política de envíos
+Envío gratis en compras desde 599 pesos. La paquetería se asigna por código postal.
+
+Política de garantías
+
+# Política de garantías
+La garantía la da quien fabrica o quien vende. El marketplace media si no hay respuesta en 5 días hábiles.
+
+Datos personales en soporte
+
+# Datos personales en soporte
+No pidas datos de tarjeta completos. Los últimos 4 dígitos bastan para cualquier aclaración.
+
+Política de reembolsos
+
+# Política de reembolsos
+El reembolso vuelve al método de pago original. Si el pago fue en tienda, se devuelve como saldo.
+
+Política de regalos
+
+# Política de regalos
+Un pedido marcado como regalo no muestra el precio en el empaque. La devolución la puede pedir quien lo recibe.
+
+Política para vendedores
+
+# Política para vendedores
+Quien vende responde mensajes en 48 horas y envía en 2 días hábiles.
+
+Manual de soporte
+
+# Manual de soporte
+Este manual reúne cómo atiende el equipo de soporte del marketplace a quienes compran y a quienes venden. Si una respuesta no está aquí, pregunta en el canal de líderes antes de improvisar.
+
+Manual de soporte › Horario y canales
+
+## Horario y canales
+- Chat y correo: de 8:00 a 22:00, todos los días.
+- Teléfono: de 9:00 a 18:00, de lunes a viernes.
+- Casos de vendedores: por correo, con respuesta en 24 horas hábiles.
+
+Devoluciones
+
+# Devoluciones
+Quien compra puede devolver un producto dentro del plazo de su categoría, contado desde el día en que lo recibió. El plazo lo valida el sistema con la fecha de entrega de la paquetería, no con la fecha de compra.
+
+Devoluciones › Quién puede pedirla
+
+## Quién puede pedirla
+La pide quien compró. Si el pedido se marcó como regalo, también la puede pedir quien lo recibió.
+
+Devoluciones › Plazos por categoría
+
+## Plazos por categoría
+Categoría: Electrónica; Plazo para devolver: 30 días; Quién paga el envío: El marketplace si llegó dañado; si no, quien compra
+Categoría: Moda; Plazo para devolver: 30 días; Quién paga el envío: El marketplace
+Categoría: Hogar; Plazo para devolver: 30 días; Quién paga el envío: Quien compra
+Categoría: Juguetes; Plazo para devolver: 30 días; Quién paga el envío: El marketplace
+
+Devoluciones › Qué no se puede devolver
+
+## Qué no se puede devolver
+- Ropa interior y trajes de baño sin su etiqueta.
+- Software o tarjetas de regalo ya activadas.
+- Productos personalizados a pedido.
+
+Devoluciones › Cómo se abre una devolución
+
+## Cómo se abre una devolución
+Desde el detalle del pedido, en «Devolver». Si el sistema no lo permite y quien compra insiste en que está en plazo, revisa la fecha de entrega en la guía de la paquetería antes de escalar.
+Cambio del 21 de noviembre: electrónica pasa a 30 días, igual que las demás categorías.
+
+Devoluciones de electrónica
+
+# Devoluciones de electrónica
+Un equipo electrónico se revisa antes de reembolsar: quien vende tiene 3 días hábiles para confirmar que llegó completo y sin daños de uso.
+
+Devoluciones de electrónica › Si quien vende no contesta
+
+## Si quien vende no contesta
+Pasados los 3 días hábiles, el reembolso se libera solo y el caso se marca para revisión de calidad del vendedor.
+
+Reembolsos
+
+# Reembolsos
+El reembolso vuelve siempre al mismo método con el que se pagó. Lo que cambia es cuánto tarda en verse en la cuenta de quien compró.
+
+Reembolsos › Tiempos por método de pago
+
+## Tiempos por método de pago
+Método de pago: Tarjeta de crédito; Días hábiles para el reembolso: 7 a 12
+Método de pago: Tarjeta de débito; Días hábiles para el reembolso: 3 a 7
+Método de pago: Saldo del marketplace; Días hábiles para el reembolso: 1
+Método de pago: Pago en tienda; Días hábiles para el reembolso: 10 (se devuelve como saldo)
+
+Escalamiento a líderes
+
+# Escalamiento a líderes
+Lo que se escala a líderes de soporte: amenazas de demanda, pérdidas mayores a 20,000 pesos y cualquier caso con prensa o redes sociales.
+
+Escalamiento a líderes › Cómo escalar
+
+## Cómo escalar
+- Etiqueta el ticket con «escalado».
+- Resume el caso en tres líneas: qué pasó, qué pide la persona y qué se le ofreció.
+- Avisa en el canal de líderes con el número de ticket.
+
+Clientes VIP y compensaciones
+
+# Clientes VIP y compensaciones
+Un líder puede ofrecer una compensación de hasta 500 pesos en saldo sin aprobación de finanzas. Arriba de eso, se pide aprobación en el ticket.
+
+Clientes VIP y compensaciones › Topes por nivel de cliente
+
+## Topes por nivel de cliente
+Nivel: Oro; Compensación máxima sin aprobación: 500 pesos
+Nivel: Plata; Compensación máxima sin aprobación: 300 pesos
+Nivel: Sin nivel; Compensación máxima sin aprobación: 150 pesos
+
+Macro: el pedido no llegó
+
+# Macro: el pedido no llegó
+Revisa la guía en la página de la paquetería. Si lleva más de 3 días sin movimiento, abre una investigación con la paquetería y ofrece reenvío o reembolso.
+
+Macro: el pedido no llegó › Antes de enviarla
+
+## Antes de enviarla
+Personaliza el saludo y confirma el número de pedido.
+
+Macro: llegó dañado
+
+# Macro: llegó dañado
+Pide dos fotos del producto y una de la caja. Con eso se abre la devolución sin costo de envío para quien compra.
+
+Macro: llegó dañado › Antes de enviarla
+
+## Antes de enviarla
+Personaliza el saludo y confirma el número de pedido.
+
+Macro: producto distinto al publicado
+
+# Macro: producto distinto al publicado
+Pide fotos y el número de pedido. Si se confirma, el envío de regreso lo paga quien vende y se le descuenta del siguiente pago.
+
+Macro: producto distinto al publicado › Antes de enviarla
+
+## Antes de enviarla
+Personaliza el saludo y confirma el número de pedido.
+
+Macro: cambio de dirección
+
+# Macro: cambio de dirección
+La dirección solo se puede cambiar antes de que el pedido salga del almacén. Después, ofrece recoger en sucursal.
+
+Macro: cambio de dirección › Antes de enviarla
+
+## Antes de enviarla
+Personaliza el saludo y confirma el número de pedido.
+
+Macro: factura
+
+# Macro: factura
+La factura se pide desde el detalle del pedido dentro del mismo mes de la compra. Fuera de ese mes, la emite quien vende.
+
+Macro: factura › Antes de enviarla
+
+## Antes de enviarla
+Personaliza el saludo y confirma el número de pedido.
+
+Macro: cancelar un pedido
+
+# Macro: cancelar un pedido
+Se cancela sin costo si el pedido no ha salido. Si ya salió, se rechaza en la entrega y se reembolsa al regresar al almacén.
+
+Macro: cancelar un pedido › Antes de enviarla
+
+## Antes de enviarla
+Personaliza el saludo y confirma el número de pedido.
+
+Macro: vendedor no responde
+
+# Macro: vendedor no responde
+Quien vende tiene 48 horas para responder un mensaje. Si no lo hace, soporte toma el caso y decide.
+
+Macro: vendedor no responde › Antes de enviarla
+
+## Antes de enviarla
+Personaliza el saludo y confirma el número de pedido.
+
+Macro: cobro duplicado
+
+# Macro: cobro duplicado
+Pide los últimos 4 dígitos de la tarjeta y la fecha del cargo. Los cobros duplicados se reembolsan en 1 a 3 días hábiles.
+
+Macro: cobro duplicado › Antes de enviarla
+
+## Antes de enviarla
+Personaliza el saludo y confirma el número de pedido.
+
+Macro: garantía
+
+# Macro: garantía
+La garantía la da quien fabrica o quien vende, según la publicación. El marketplace solo media si no hay respuesta en 5 días hábiles.
+
+Macro: garantía › Antes de enviarla
+
+## Antes de enviarla
+Personaliza el saludo y confirma el número de pedido.
+
+Macros de respuesta
+
+# Macros de respuesta
+Las macros son respuestas base. Siempre se personalizan con el nombre de la persona y el número de pedido antes de enviarlas.
+
+Operaciones
+
+# Operaciones
+El espacio de operaciones documenta cómo se da de alta a quien vende, cómo se le paga y cómo se mueve el inventario de los almacenes propios.
+
+Comisiones por categoría
+
+# Comisiones por categoría
+La comisión se cobra sobre el precio de venta sin IVA y se descuenta del pago a quien vende. El pago se hace los días que marca la tabla, contados desde la entrega.
+
+Comisiones por categoría › Tabla vigente
+
+## Tabla vigente
+Categoría: Electrónica; Comisión: 8 %; Días para pagar a quien vende: 15
+Categoría: Moda; Comisión: 12 %; Días para pagar a quien vende: 10
+Categoría: Hogar; Comisión: 10 %; Días para pagar a quien vende: 10
+Categoría: Juguetes; Comisión: 11 %; Días para pagar a quien vende: 10
+
+Comisiones por categoría › Excepciones
+
+## Excepciones
+Durante la temporada alta (noviembre y diciembre) la comisión de Moda baja a 10 % para vendedores con calificación mayor a 4.5.
+
+Alta de vendedores
+
+# Alta de vendedores
+Para vender, una persona o empresa necesita RFC, una cuenta bancaria a su nombre y una identificación vigente. La revisión tarda hasta 2 días hábiles.
+
+Alta de vendedores › Motivos de rechazo
+
+## Motivos de rechazo
+- La cuenta bancaria está a nombre de otra persona.
+- El RFC no coincide con el nombre registrado.
+- Ya tuvo una cuenta cerrada por fraude.
+
+Inventario de fin de mes
+
+# Inventario de fin de mes
+El último día hábil de cada mes se cuenta el inventario de los almacenes propios. El acta firmada se escanea y se guarda en la unidad compartida de operaciones.
+
+Proveedores logísticos
+
+# Proveedores logísticos
+Estas son las paqueterías con contrato vigente. La asignación es automática según el código postal de destino.
+Paquetería: Envíos Express; Cobertura: Nacional; Tiempo de entrega: 2 a 4 días
+Paquetería: Transportes del Norte; Cobertura: Norte y Bajío; Tiempo de entrega: 1 a 3 días
+Paquetería: Última Milla CDMX; Cobertura: Valle de México; Tiempo de entrega: Mismo día o siguiente
+
+Niveles de servicio con paqueterías
+
+# Niveles de servicio con paqueterías
+Esta página resume lo que el contrato marco de logística compromete a cada paquetería. El contrato completo, con sus anexos, lo guarda Legal en el Drive. Operaciones revisa estos números cada trimestre con los reportes de entrega.
+
+Niveles de servicio con paqueterías › Compromisos por paquetería
+
+## Compromisos por paquetería
+Paquetería: Envíos Express; Cobertura: Nacional; Entrega comprometida: 2 a 4 días hábiles; Penalización por retraso: 5 % de la tarifa por día, hasta 30 %; Reporte de incidencias: en 24 horas
+Paquetería: Transportes del Norte; Cobertura: Norte y Bajío; Entrega comprometida: 1 a 3 días hábiles; Penalización por retraso: 4 % de la tarifa por día, hasta 25 %; Reporte de incidencias: en 24 horas
+Paquetería: Última Milla CDMX; Cobertura: Valle de México; Entrega comprometida: mismo día o siguiente; Penalización por retraso: 10 % de la tarifa por día, hasta 40 %; Reporte de incidencias: en 12 horas
+
+## Paquetes perdidos o dañados
+La paquetería paga el valor declarado del paquete, hasta 15,000 pesos, si lo pierde o lo entrega dañado. Arriba de ese monto, el paquete tenía que ir con seguro adicional.
+- El reclamo se abre en los 10 días naturales siguientes a la fecha comprometida de entrega.
+- Se adjuntan la guía, las fotos del paquete y la factura del producto.
+- La paquetería tiene 15 días hábiles para pagar o rechazar el reclamo, con su motivo por escrito.
+
+Niveles de servicio con paqueterías › Cómo se calculan las penalizaciones
+
+## Cómo se calculan las penalizaciones
+Operaciones calcula las penalizaciones del mes con el reporte de entregas de cada paquetería y las descuenta de su siguiente factura. Si la paquetería no está de acuerdo, tiene 5 días hábiles para objetar con evidencia; si no objeta, la penalización queda firme.
+
+Niveles de servicio con paqueterías › Terminación anticipada
+
+## Terminación anticipada
+El marketplace puede terminar el contrato con 30 días de aviso si una paquetería incumple su entrega comprometida en más del 15 % de los paquetes durante dos meses seguidos. La paquetería puede terminarlo con 90 días de aviso.
+
+Legal
+
+# Legal
+Espacio del equipo legal. Lo que está aquí no se comparte fuera del marketplace.
+
+Aviso de privacidad interno
+
+# Aviso de privacidad interno
+Los datos de quien compra se usan solo para entregar, cobrar y atender sus pedidos. Ningún agente puede copiarlos a hojas personales ni a herramientas no aprobadas.
+
+Litigios
+
+# Litigios
+Casos en litigio o con riesgo de demanda. La información de estas páginas es confidencial incluso dentro del equipo legal.
+
+Caso Transportes del Norte
+
+# Caso Transportes del Norte
+Reclamación por 38 paquetes perdidos en el almacén de Monterrey en septiembre. Se negocia un pago de 420,000 pesos antes de ir a juicio.
+
+Retención de datos
+
+# Retención de datos
+Los tickets de soporte se guardan 2 años. Las grabaciones de llamadas, 6 meses. Los documentos de alta de vendedores, 5 años después de cerrar la cuenta.
+
+Caso Envíos Express
+
+# Caso Envíos Express
+Reclamación de Envíos Express por penalizaciones de octubre que el marketplace no reconoce.
+
+Caso Envíos Express › Estado
+
+## Estado
+En revisión con el área de operaciones; audiencia de conciliación el 3 de diciembre.
