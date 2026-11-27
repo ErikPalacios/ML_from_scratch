@@ -53,7 +53,7 @@ test('la plantilla trae las estaciones con taller y las demás como próximament
   assert.ok(CON_TALLER.includes('c01-datos') && CON_TALLER.includes('c01-empaquetado'));
   assert.equal(P.proximas.length, PROXIMAS);
   assert.equal(P.proximas.filter((s) => s.grupo === tronco.caso).length, tronco.estaciones.length - CON_TALLER.filter((id) => id.startsWith(`${tronco.caso}-`)).length);
-  assert.equal(P.proximas.filter((s) => s.grupo === 'ia-privada').length, IA.estaciones.length, 'las 8 de IA Privada, próximamente');
+  assert.equal(P.proximas.filter((s) => s.grupo === 'ia-privada').length, IA.estaciones.length - CON_TALLER.filter((id) => id.startsWith('ia-privada-')).length, 'las de IA Privada sin taller, próximamente');
   assert.ok(P.estaciones.every((e) => e.objetivos.length && e.fallas.length && e.pasos.length));
 });
 
@@ -117,7 +117,8 @@ test('errores claros: archivo ajeno o estación sin taller', () => {
   const d = nuevoTablero(P);
   assert.throws(() => opsDeProgreso(d, [], P), /no es un progreso.json/);
   assert.throws(() => opsDeProgreso(d, { foo: 1 }, P), /falta «estacion»/);
-  assert.throws(() => opsDeProgreso(d, { estacion: 'ia-privada-modelo-local' }, P), /no tiene taller/);
+  const sinTaller = IA.estaciones.map((x) => `ia-privada-${x.id}`).find((id) => !CON_TALLER.includes(id));
+  assert.throws(() => opsDeProgreso(d, { estacion: sinTaller }, P), /no tiene taller/);
   assert.equal(queEs(PROGRESO), 'progreso');
   assert.equal(queEs({ app: 'dojo-tablero', tablero: d }), 'respaldo');
 });

@@ -470,6 +470,11 @@ details[open] > summary .d-mas i, .d-arreglo[open] summary i { transform: rotate
 .d-viene { text-decoration: none; color: inherit !important; transition: transform .15s ease, box-shadow .15s ease; }
 .d-viene:hover { transform: translateY(-2px); box-shadow: 0 0 0 2px var(--tm-acc); opacity: 1; }
 .d-viene h3 { font-size: 24px; letter-spacing: -.02em; }
+.d-viene-sin { font-size: 13px; color: var(--tm-okink); }
+.d-hero-corre { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.d-hero-corre .d-rama-donde { color: var(--tm-ink); }
+.d-hero-singpu { font-size: 13px; font-weight: 600; padding: 6px 11px; border-radius: 999px; background: rgba(23,179,134,.12); box-shadow: inset 0 0 0 1px rgba(23,179,134,.35); color: var(--tm-okink) !important; text-decoration: none; }
+.d-hero-singpu:hover { box-shadow: inset 0 0 0 1px var(--tm-okink); }
 .d-cambia ul { gap: 10px; }
 
 /* cómo se usa */
