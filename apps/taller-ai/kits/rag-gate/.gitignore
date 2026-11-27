@@ -1,0 +1,11 @@
+# lo que crea el mundo, lo que baja y lo que produce tu pipeline
+almacen/
+modelo/
+cache/
+indices/
+.taller/
+.respaldo/
+.venv/
+__pycache__/
+*.pyc
+corridas/
