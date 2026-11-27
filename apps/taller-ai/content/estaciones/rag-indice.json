@@ -1,0 +1,1130 @@
+{
+  "id": "indice",
+  "patron": "llm",
+  "rama": "rag",
+  "etapa": "modelo",
+  "num": 5,
+  "titulo": "Embeddings e índice híbrido",
+  "nav": "Índice híbrido",
+  "pregunta": "¿Cómo conviertes cada chunk en algo que se pueda buscar por palabras y por significado, sin mezclar modelos, sin saltarte los permisos y cambiando de índice sin que el asistente deje de contestar?",
+  "version": "2026-11-26",
+  "mapa": {
+    "resumen": "Las estaciones 1 a 4 dejaron listo el corpus y el examen: cada documento partido en <b>chunks</b> con su ruta de títulos y su <b>ACL</b> (quién lo puede leer), y un <b>golden set</b> con preguntas, fuentes y quién las hace. Ahora toca el lugar donde el asistente busca: el <b>índice</b>. Se arman dos sobre los mismos chunks. <b>BM25</b> busca por palabras: encuentra «SOP-41» o «Sonora» aunque nadie lo diga con otras palabras. El de <b>vectores</b> busca por significado: cada chunk se convierte en un <b>embedding</b> (una lista de 384 números) con un modelo local chico, y una pregunta con otras palabras cae cerca de su respuesta. Juntos son un índice <b>híbrido</b>. Cada vector guarda <b>qué modelo y qué versión</b> lo hizo, porque vectores de modelos distintos no se comparan. Lo ya embebido no se vuelve a embeber (<b>cache</b>). La ACL va dentro del índice y se filtra <b>antes</b> de elegir el top-8. Cada índice nuevo se construye <b>al lado</b> del que está sirviendo, se mide con el golden set, y la API cambia de índice moviendo un <b>alias</b>, de un jalón y con forma de <b>volver atrás</b>. La estación 6 fusiona las dos listas con <b>RRF</b> (reciprocal rank fusion: cada chunk suma 1/(k + su lugar) en cada lista donde aparece, así no hay que comparar puntajes de BM25 con cosenos) y les pone un reranker.",
+    "entra": [
+      "lo que dejaron las estaciones 2 a 4: el corpus del 22 (<code>almacen/corpus/vigente.json</code>, 151 chunks de 104 documentos, cada uno con su ruta de títulos y su ACL en grupos), el directorio de la empresa y golden-v2 (65 preguntas, 51 en test)",
+      "dos modelos de embeddings de Hugging Face, de un commit fijo y con su sha256: multilingual-e5-small (el del dojo, el mismo tokenizer de la estación 2) y all-MiniLM-L6-v2 (el del piloto)",
+      "el índice del piloto, que dejó anoche su job (<code>c11-minilm-2026-11-22</code>), y el alias <code>c11</code> apuntando a él"
+    ],
+    "sale": [
+      "<code>indices/c11-e5-2026-11-22/</code>: BM25 y vectores de los mismos 151 chunks, la ACL de cada uno y un manifiesto con el modelo (repositorio, revisión y sha256), la dimensión, el corpus y el sha256 de cada archivo",
+      "<code>cache/embeddings/</code>: cada embedding ya hecho, guardado por modelo, revisión y huella del texto",
+      "<code>indices/alias.json</code>: c11 apuntando al índice nuevo, con el anterior guardado para volver y el historial de cambios",
+      "<code>indices/&lt;índice&gt;/prueba.json</code>: el recall@8 de BM25 y de vectores por separado con el golden set, la línea base que la estación 6 va a mejorar"
+    ],
+    "escala": [
+      {
+        "que": "Chunks",
+        "ref": "≈ 7.5 M (estación 2)",
+        "taller": "151 de 104 documentos"
+      },
+      {
+        "que": "Vectores",
+        "ref": "≈ 11.5 GB con 384 dimensiones en float32; ≈ 30.7 GB con un modelo de 1,024",
+        "taller": "232 KB"
+      },
+      {
+        "que": "Embeber todo",
+        "ref": "≈ 2.25 mil millones de tokens: días en una Mac, horas con GPU",
+        "taller": "≈ 11 mil tokens en ≈ 2.88 s"
+      },
+      {
+        "que": "Dónde vive",
+        "ref": "un motor de búsqueda (BM25 y vectores con índice aproximado, HNSW) detrás de un alias",
+        "taller": "una carpeta por índice, búsqueda exacta con numpy y <code>indices/alias.json</code>"
+      },
+      {
+        "que": "La API de búsqueda",
+        "ref": "un servicio aparte, ≈ 25k preguntas al día",
+        "taller": "<code>mundo/servicio.py</code> en el puerto 8150 y <code>mundo/trafico.py</code>"
+      }
+    ]
+  },
+  "precalculos": {
+    "intro": "Antes de escribir código, las cuentas de servilleta del índice: cuánto pesa el modelo y de dónde sale ese peso, cuánto pesan los vectores, cuánto tarda embeber todo otra vez, cuánto cuesta comparar la pregunta contra todos los vectores y cuánto espacio pide tener dos índices a la vez.",
+    "cuentas": [
+      {
+        "id": "modelo",
+        "pregunta": "¿Cuánto pesa el modelo de embeddings, y de dónde sale ese peso?",
+        "formula": "parámetros ≈ bytes del archivo ÷ 4 (cada número en float32 son 4 bytes); el vocabulario pesa palabras del vocabulario × dimensión",
+        "ref": {
+          "cuenta": "el mismo modelo en el job de embeddings y en la API de búsqueda",
+          "valor": "≈ 470 MB cada copia, en cada máquina que embeba"
+        },
+        "taller": {
+          "cuenta": "multilingual-e5-small y all-MiniLM-L6-v2",
+          "valor": "e5: ≈ 117.6 M parámetros, 82 % es el vocabulario de 250 mil piezas; MiniLM: ≈ 22.6 M, 52 %"
+        },
+        "decide": "e5-small es «chico» por dentro (12 capas de 384) pero pesa por su vocabulario de ≈ 100 idiomas. El modelo pesa más que todo el índice del dojo: se baja una vez, de un commit fijo, y se comprueba su sha256.",
+        "conceptos": [
+          "modelo-embeddings",
+          "firma-modelo"
+        ],
+        "comprueba": {
+          "code": "python -c \"\nimport json; from tokenizers import Tokenizer\ncat = json.load(open('mundo/modelos.json'))\nfor k in ('e5', 'minilm'):\n    m = cat[k]; b = m['archivos']['model.onnx']['bytes']; v = Tokenizer.from_file(f'modelo/{k}/tokenizer.json').get_vocab_size()\n    print(f'{k:<6} {b / 1e6:5.0f} MB ÷ 4 B ≈ {b / 4 / 1e6:5.1f} M parámetros · vocabulario {v:,} × {m[\"dim\"]} = {v * m[\"dim\"] / 1e6:4.1f} M ({v * m[\"dim\"] / (b / 4):.0%} del modelo)')\"",
+          "nota": "",
+          "donde": "mac",
+          "salida": "e5       470 MB ÷ 4 B ≈ 117.6 M parámetros · vocabulario 250,002 × 384 = 96.0 M (82% del modelo)\nminilm    90 MB ÷ 4 B ≈  22.6 M parámetros · vocabulario 30,522 × 384 = 11.7 M (52% del modelo)"
+        }
+      },
+      {
+        "id": "reembeber",
+        "pregunta": "¿Cuánto tarda volver a embeber todo el corpus?",
+        "formula": "horas = tokens del corpus ÷ tokens por segundo del modelo ÷ 3600",
+        "ref": {
+          "cuenta": "7.5 M chunks × ≈ 300 tokens = 2.25 mil millones de tokens, a la velocidad de tu Mac; y lo que cambia en un día (≈ 75 mil chunks, estación 2)",
+          "valor": "≈ 158 h todo; ≈ 1.6 h lo de un día"
+        },
+        "taller": {
+          "cuenta": "151 chunks, ≈ 11 mil tokens con e5-small en tu Mac",
+          "valor": "≈ 2.88 s la primera vez; ≈ 0.02 s la segunda (todo sale del cache)"
+        },
+        "decide": "Re-embeber todo es un proyecto de días (o de horas con GPU), no algo de cada noche: cada noche solo se embebe lo que cambió, y eso pide un cache cuya llave sea el modelo y el texto. Cambiar de modelo sí es re-embeber todo, en un índice nuevo al lado.",
+        "conceptos": [
+          "cache-embeddings",
+          "al-lado"
+        ],
+        "confirma": "Paso 2: el primer comando mide los tokens por segundo de tu Mac y hace la cuenta de C11 con ellos."
+      },
+      {
+        "id": "tamano",
+        "pregunta": "¿Cuánto pesan los vectores del índice?",
+        "formula": "bytes = chunks × dimensión × 4 (float32)",
+        "ref": {
+          "cuenta": "7.5 M chunks × 384 (si C11 usara e5-small); y con un modelo de 1,024 dimensiones",
+          "valor": "≈ 11.5 GB; ≈ 30.7 GB"
+        },
+        "taller": {
+          "cuenta": "151 chunks × 384",
+          "valor": "232 KB (y vectores.npy pesa 232,064 bytes: 128 son su encabezado)"
+        },
+        "decide": "En C11 los vectores caben en la RAM de una máquina grande, pero no sobran: el índice aproximado agrega su grafo, y durante un cambio de índice viven dos. Un modelo con más dimensiones no es gratis: casi triplica la memoria.",
+        "conceptos": [
+          "dimension",
+          "embedding"
+        ],
+        "comprueba": {
+          "code": "python -c \"\nfor nombre, n, d in (('dojo, e5-small', 151, 384), ('C11, e5-small', 7_500_000, 384), ('C11, un modelo de 1,024', 7_500_000, 1024)):\n    b = n * d * 4                                   # float32 = 4 bytes por número\n    print(f'{nombre:<24} {n:>9,} chunks × {d:>5,} × 4 B = {b / 1e9:8.4f} GB' if b > 1e8 else f'{nombre:<24} {n:>9,} chunks × {d:>5,} × 4 B = {b / 1e3:,.0f} KB')\"",
+          "nota": "",
+          "donde": "mac",
+          "salida": "dojo, e5-small                 151 chunks ×   384 × 4 B = 232 KB\nC11, e5-small            7,500,000 chunks ×   384 × 4 B =  11.5200 GB\nC11, un modelo de 1,024  7,500,000 chunks × 1,024 × 4 B =  30.7200 GB"
+        }
+      },
+      {
+        "id": "fuerza",
+        "pregunta": "¿Cuánto cuesta comparar la pregunta contra todos los vectores?",
+        "formula": "tiempo ≈ chunks × dimensión ÷ lo que tu máquina multiplica por segundo (se mide con una matriz grande y se escala)",
+        "ref": {
+          "cuenta": "7.5 M chunks × 384, a la velocidad de tu Mac",
+          "valor": "≈ 164 ms por pregunta, solo de multiplicar, con los 11.5 GB en RAM"
+        },
+        "taller": {
+          "cuenta": "500 mil vectores al azar en tu Mac; el dojo tiene 151",
+          "valor": "≈ 10.9 ms; con 151, nada"
+        },
+        "decide": "Con 151 chunks, comparar contra todos es lo más simple y es exacto. Con millones, cada pregunta leería 11.5 GB de memoria: los motores usan un índice aproximado (HNSW) que revisa una fracción, y a cambio se mide cuánto recall se pierde.",
+        "conceptos": [
+          "busqueda-exacta"
+        ],
+        "comprueba": {
+          "code": "python -c \"\nimport time, numpy as np\nn, d = 500_000, 384\nM = np.random.default_rng(0).standard_normal((n, d), dtype=np.float32); q = M[0]\nM @ q; t = time.perf_counter()\nfor _ in range(20): M @ q\nms = (time.perf_counter() - t) / 20 * 1000\nprint(f'en tu Mac: {n:,} vectores × {d} en {ms:.1f} ms por pregunta ({n * d * 4 / 1e9:.2f} GB leídos)')\nprint(f'C11, 7.5 M chunks: ≈ {ms * 7_500_000 / n:.0f} ms por pregunta, solo de multiplicar, si todo cabe en RAM (11.5 GB)')\"",
+          "nota": "",
+          "donde": "mac",
+          "salida": "en tu Mac: 500,000 vectores × 384 en 10.9 ms por pregunta (0.77 GB leídos)\nC11, 7.5 M chunks: ≈ 164 ms por pregunta, solo de multiplicar, si todo cabe en RAM (11.5 GB)"
+        }
+      },
+      {
+        "id": "doble",
+        "pregunta": "¿Cuánto espacio pide construir el índice nuevo al lado del vigente?",
+        "formula": "espacio durante el cambio ≈ 2 × índice (el que sirve y el nuevo) + el cache de embeddings",
+        "ref": {
+          "cuenta": "2 × ≈ 11.5 GB de vectores, más BM25 y el grafo del índice aproximado",
+          "valor": "> 23 GB libres solo para el cambio"
+        },
+        "taller": {
+          "cuenta": "el índice del piloto y el tuyo en <code>indices/</code>",
+          "valor": "356 KB cada uno"
+        },
+        "decide": "Sin espacio para dos, no hay forma de cambiar sin cortar ni de volver atrás. El índice anterior se borra cuando ya no hace falta volver a él, no antes.",
+        "conceptos": [
+          "al-lado",
+          "rollback"
+        ],
+        "confirma": "Paso 5: <code>du -sh indices/*</code> después de construir."
+      }
+    ]
+  },
+  "conceptos": [
+    {
+      "id": "embedding",
+      "termino": "Embedding",
+      "en": "embedding, dense vector",
+      "def": "Una lista de números (aquí, 384) que un modelo saca de un texto. Textos que dicen lo mismo, aunque con otras palabras, quedan cerca; textos de temas distintos, lejos.",
+      "analogia": "Como las coordenadas de un lugar en un mapa de significados: «reembolso a tarjeta» y «me regresan el dinero» quedan en la misma colonia.",
+      "importa": "Es lo que deja buscar por significado: la pregunta se convierte en un vector y se buscan los chunks con los vectores más cercanos.",
+      "trampa": "Leer el número como una probabilidad. Con e5, una frase de reembolsos y otra del calendario de pagos dan 0.836 de coseno: lo que importa es el orden, no el valor (la tarjeta del modelo explica que e5 se entrenó de forma que sus cosenos caen casi siempre entre 0.7 y 1)."
+    },
+    {
+      "id": "modelo-embeddings",
+      "termino": "Modelo de embeddings",
+      "en": "embedding model, encoder",
+      "def": "Una red (un transformer) que lee los tokens de un texto y da un vector por token. El del dojo, multilingual-e5-small: 12 capas, vectores de 384, hasta 512 tokens, ≈ 100 idiomas. Corre en tu Mac con onnxruntime.",
+      "analogia": "Como un traductor a un idioma de números: el mismo traductor tiene que traducir las preguntas y los documentos, o no se entienden.",
+      "importa": "Nada se entrena en un RAG: el modelo viene hecho. Lo que decides es cuál, de qué versión, y que todo el índice y todas las preguntas usen el mismo.",
+      "trampa": "Usar el modelo del tutorial. all-MiniLM-L6-v2 se entrenó con pares de textos en inglés: en el golden set del dojo, sus vectores sacan 85.1 % contra 98.6 % de e5."
+    },
+    {
+      "id": "mean-pooling",
+      "termino": "Promedio de tokens",
+      "en": "mean pooling, attention mask",
+      "def": "Juntar los vectores de cada token en uno solo, promediándolos. Solo cuentan los tokens de verdad: el relleno (los ceros que se agregan para que un lote tenga el mismo largo) se excluye con la máscara de atención.",
+      "analogia": "Como sacar el promedio de las tareas entregadas: si cuentas como cero las que nadie tenía que entregar, el promedio baja sin razón.",
+      "importa": "Es como e5 y MiniLM esperan que se arme el vector de un texto (lo dicen sus tarjetas en Hugging Face). Otro método da otros vectores.",
+      "trampa": "Promediar también el relleno: el vector de un texto cambia según con quién le tocó en el lote."
+    },
+    {
+      "id": "prefijos",
+      "termino": "Prefijos de consulta y pasaje",
+      "en": "query/passage prefixes",
+      "def": "e5 se entrenó con «query: » antes de cada pregunta y «passage: » antes de cada documento, y su tarjeta pide usarlos. MiniLM no lleva ninguno.",
+      "analogia": "Como avisarle al traductor si lo que sigue es una pregunta o una respuesta: la misma frase se traduce un poco distinto.",
+      "importa": "La misma frase como consulta y como pasaje da vectores distintos (coseno 0.939). Los prefijos son parte de usar bien el modelo, igual que su tokenizer.",
+      "trampa": "Pensar que no importan porque en este corpus no se notan (en el dojo, el recall sale igual sin ellos): en otro corpus sí, y se descubre tarde."
+    },
+    {
+      "id": "normalizar",
+      "termino": "Normalizar y coseno",
+      "en": "L2 normalization, cosine similarity",
+      "def": "La similitud coseno compara la dirección de dos vectores, no su largo. Si cada vector se divide entre su largo (queda de largo 1), el coseno es simplemente el producto punto: multiplicar número por número y sumar.",
+      "analogia": "Como comparar hacia dónde apuntan dos flechas sin importar qué tan largas son: si las cortas todas al mismo largo, basta con ver cuánto se encima una sobre la otra.",
+      "importa": "Muchos motores de vectores calculan el coseno con el producto punto, porque es más rápido, o piden vectores de largo 1. Eso solo funciona si cada vector se normalizó al guardarlo.",
+      "trampa": "Guardar vectores sin normalizar con la similitud en «coseno»: los de e5 salen de largo ≈ 4.5 a 5.0, un vector más largo gana puntos sin parecerse más, y el recall baja de 98.6 % a 91.9 %."
+    },
+    {
+      "id": "dimension",
+      "termino": "Dimensión",
+      "en": "embedding dimension",
+      "def": "Cuántos números trae cada vector. La dicta el modelo (e5-small y MiniLM: 384; e5-base: 768) y se declara al crear el índice, como el tamaño de una columna.",
+      "analogia": "Como el número de casillas de un formulario: un formulario de 768 casillas no acepta uno de 384.",
+      "importa": "Decide cuánto pesa el índice (chunks × dimensión × 4 bytes) y es lo primero que revisa la construcción antes de escribir nada.",
+      "trampa": "Creer que la misma dimensión hace compatibles a dos modelos: e5-small y MiniLM tienen 384 y sus vectores no se pueden comparar."
+    },
+    {
+      "id": "firma-modelo",
+      "termino": "Firma del modelo",
+      "en": "model revision pinning, checksum",
+      "def": "Qué modelo hizo un vector: su repositorio, la revisión (el commit exacto de Hugging Face) y el sha256 de su archivo. Va en el manifiesto del índice y en cada fila de vectores.",
+      "analogia": "Como el número de lote de una medicina: si algo sale mal, sabes exactamente cuál fue, y nadie confunde dos lotes con el mismo nombre.",
+      "importa": "Con la firma, la API sabe con qué embeber la pregunta, la construcción sabe si mezcló modelos y el cache sabe qué sirve. Sin ella, nadie se entera de que algo cambió.",
+      "trampa": "Bajar el modelo de «main» sin comprobar nada: «main» puede cambiar mañana y tus vectores nuevos ya no serían comparables con los de ayer."
+    },
+    {
+      "id": "espacios",
+      "termino": "Espacios que no se mezclan",
+      "en": "incompatible embedding spaces",
+      "def": "Cada modelo acomoda los textos a su manera: sus números no significan lo mismo que los de otro modelo, aunque tengan la misma dimensión. Un vector de e5 y uno de MiniLM del mismo chunk dan coseno ≈ 0.06.",
+      "analogia": "Como dos mapas de la misma ciudad dibujados con otra escala y otro norte: las coordenadas de uno no sirven para buscar en el otro.",
+      "importa": "Cambiar de modelo es re-embeber todo en un índice nuevo, y la pregunta se embebe con el modelo del índice: con otro, el recall de los vectores baja de 98.6 % a 21.6 %.",
+      "trampa": "«Ahorrar» copiando vectores viejos al índice nuevo: nada truena (las dimensiones cuadran) y los chunks copiados dejan de aparecer."
+    },
+    {
+      "id": "cache-embeddings",
+      "termino": "Cache de embeddings",
+      "en": "embedding cache, content-addressed",
+      "def": "Guardar cada embedding ya calculado con una llave que dice exactamente de qué salió: el modelo, su revisión y la huella (sha) del texto. Si la llave ya está, no se vuelve a calcular.",
+      "analogia": "Como un archivo de fotocopias marcadas con el original y la copiadora: si te piden la misma copia en la misma máquina, la sacas del cajón.",
+      "importa": "Cada noche cambia una parte chica del corpus: con el cache solo se embebe eso. En el dojo, la segunda vez tarda 0.02 s en vez de 2.88 s.",
+      "trampa": "Una llave sin el modelo: al cambiar de modelo, el cache te regresa vectores del modelo viejo y los mezclas sin darte cuenta."
+    },
+    {
+      "id": "bm25",
+      "termino": "BM25",
+      "en": "Okapi BM25, lexical search",
+      "def": "Un puntaje por palabras: por cada palabra de la pregunta que está en el chunk, suma más si la palabra es rara en el corpus y si aparece varias veces, y castiga un poco a los chunks largos.",
+      "analogia": "Como el índice alfabético al final de un libro: te lleva directo a las páginas donde está «Sonora», pero no a las que dicen «el norte del país».",
+      "importa": "Encuentra lo que los vectores pierden: códigos, nombres y cifras exactas. No necesita modelo ni GPU, y se explica solo: sabes por qué salió cada chunk.",
+      "trampa": "Esperar que entienda sinónimos: «¿en cuánto tiempo me regresan el dinero?» no tiene «regresan» ni «dinero» en el corpus, así que esas palabras valen 0."
+    },
+    {
+      "id": "idf",
+      "termino": "IDF, saturación y largo",
+      "en": "inverse document frequency, k1, b",
+      "def": "IDF = ln(1 + (N − df + 0.5) / (df + 0.5)): N = cuántos chunks hay, df = en cuántos está la palabra, ln = logaritmo natural. k1 (1.2): qué tan rápido deja de premiar repetir. b (0.75): cuánto castiga a un chunk largo.",
+      "analogia": "Como un tablero de búsqueda de personas: «tiene ojos» no sirve de nada (todos), «lunar en la oreja» casi la encuentra sola. Y decir «lunar» diez veces no la hace diez veces más probable.",
+      "importa": "Explica por qué un chunk gana: en el dojo, «pagué» está en un solo chunk (IDF 4.62) y «tarjeta» en nueve (2.77).",
+      "trampa": "Olvidar que el analizador decide qué es una palabra: palabras() tira lo de menos de tres letras, así que «SEG-5» queda en «seg», que está en 10 chunks."
+    },
+    {
+      "id": "hibrido",
+      "termino": "Búsqueda híbrida",
+      "en": "hybrid search, lexical + dense",
+      "def": "Buscar con BM25 y con vectores sobre los mismos chunks y juntar las dos listas. Cada uno gana en preguntas distintas.",
+      "analogia": "Como preguntar en una biblioteca al bibliotecario que se sabe los títulos de memoria y a la que entiende de qué trata cada libro: juntos fallan menos.",
+      "importa": "En el dojo, BM25 encuentra más en G-043 (25 kg y la guía del marketplace) y los vectores en G-024, G-045, G-047 y G-048. La estación 6 los fusiona con RRF: cada chunk suma 1/(k + su lugar) en cada lista, sin comparar puntajes de BM25 con cosenos.",
+      "trampa": "Que a uno de los dos le falten chunks: el otro los sigue encontrando, el promedio disimula, y la mitad del híbrido ya no ve esos documentos."
+    },
+    {
+      "id": "prefiltro",
+      "termino": "Filtro antes del top-k",
+      "en": "pre-filtering, filtered search",
+      "def": "Primero se quitan los chunks que la persona no puede leer (con la ACL de la estación 3) y después se eligen los 8 mejores. La ACL vive dentro del índice, junto a cada chunk.",
+      "analogia": "Como un buscador de una biblioteca con secciones privadas: busca solo en los estantes que tu credencial abre, en vez de buscar en todos y luego tachar lo que no puedes ver.",
+      "importa": "Así nadie recibe un chunk ajeno y siempre llegan 8 si la persona ve 8 o más. Si se filtra después, alguien que ve poco recibe 1 o 0.",
+      "trampa": "Filtrar después del top-8 «porque es más fácil»: la estación 3 midió que alguien que ve el 2 % del corpus recibiría 0.16 chunks en promedio."
+    },
+    {
+      "id": "busqueda-exacta",
+      "termino": "Búsqueda exacta y aproximada",
+      "en": "brute-force kNN vs ANN (HNSW)",
+      "def": "Exacta: comparar la pregunta contra todos los vectores y quedarte con los más cercanos. Aproximada: un índice (como HNSW, un grafo de vecinos) que revisa solo una parte y casi siempre encuentra los mismos.",
+      "analogia": "Como buscar a alguien en un estadio: puedes ver cada asiento (exacto, lento) o preguntar por sección y fila (aproximado, rápido, casi siempre aciertas).",
+      "importa": "Con 151 chunks, la exacta es lo más simple. Con 7.5 M, cada pregunta leería ≈ 11.5 GB: por eso los motores usan aproximada, y se mide cuánto recall se pierde.",
+      "trampa": "Dar por hecho que la aproximada encuentra lo mismo: se configura (cuántos vecinos revisa) y se mide contra la exacta con el golden set."
+    },
+    {
+      "id": "manifiesto-indice",
+      "termino": "Manifiesto del índice",
+      "en": "index manifest",
+      "def": "Un archivo dentro de cada índice que dice qué es: de qué corpus, con qué modelo (su firma), qué dimensión y similitud, cuántos chunks, el sha256 de cada archivo y si está «construyendo» o «listo».",
+      "analogia": "Como la placa de un elevador: capacidad, fecha de revisión y quién lo certificó. Antes de subirte, la lees.",
+      "importa": "Antes de mover el alias se revisa el índice contra su manifiesto: completo, un solo modelo, vectores de largo 1, cada archivo intacto.",
+      "trampa": "Recalcular el manifiesto «para que cuadre» después de editar un índice a mano: el sha256 cuadra, pero el índice sigue mal, y solo una revisión de fondo lo ve."
+    },
+    {
+      "id": "al-lado",
+      "termino": "Construir al lado",
+      "en": "blue-green reindex",
+      "def": "Un índice nuevo se construye completo en su propia carpeta mientras el vigente sigue contestando, y solo cuando está listo y revisado se cambia a él.",
+      "analogia": "Como montar la escenografía de la siguiente obra detrás del telón: el público sigue viendo la obra de hoy hasta que todo está en su lugar.",
+      "importa": "Cambiar de modelo, de chunking o de corpus nunca deja al asistente sin buscador, y el viejo sigue ahí para volver.",
+      "trampa": "Construir encima del vigente «porque es más rápido»: a la mitad, la API sirve un índice a medias."
+    },
+    {
+      "id": "alias",
+      "termino": "Alias",
+      "en": "index alias, atomic swap",
+      "def": "Un nombre fijo (c11) que apunta al índice vigente. La API siempre nombra el alias, nunca el índice. Cambiar de índice es cambiar a dónde apunta, de un jalón: quien lo lea ve el viejo o el nuevo, nunca uno a medias.",
+      "analogia": "Como el letrero «Caja 3 abierta»: la gente se forma donde dice el letrero; cambiarlo de caja es instantáneo y nadie se queda formado en una caja cerrada.",
+      "importa": "En el dojo, 1,792 peticiones en 15 s con un cambio de alias en medio: 0 errores. En OpenSearch y Elasticsearch es una sola llamada a <code>_aliases</code> con «remove» y «add», sin que nadie vea el alias a medias; aquí, un <code>os.replace</code> desde un temporal en la misma carpeta.",
+      "trampa": "Mover el alias en cuanto empieza la construcción: la API abre un índice sin vectores y contesta 503."
+    },
+    {
+      "id": "rollback",
+      "termino": "Volver atrás",
+      "en": "rollback",
+      "def": "Regresar el alias al índice anterior, que se guardó sano. Primero se mitiga (volver, en segundos) y después se arregla con calma (construir uno nuevo).",
+      "analogia": "Como el botón de deshacer: solo sirve si lo anterior sigue guardado.",
+      "importa": "Un índice malo se descubre a veces horas después. Con el anterior a la mano, la API vuelve a contestar bien mientras se construye uno sano.",
+      "trampa": "Borrar el índice anterior en cuanto el nuevo «ya funcionó», o volver a uno que también está mal: el alias revisa a dónde vuelve."
+    }
+  ],
+  "mundo": {
+    "resumen": "El kit trae el marketplace ficticio del caso el <b>22 de noviembre a las 11:00</b>, después de la re-ingesta de la noche: el corpus con <b>151 chunks de 104 documentos</b> (cada uno con su ruta de títulos y su ACL), el directorio de <b>14 personas</b> y el golden set vigente de la estación 4, <b>golden-v2</b> (65 preguntas, 51 de test). Dos modelos de embeddings se bajan de un commit fijo de Hugging Face, con su sha256: <b>multilingual-e5-small</b>, el del dojo, y <b>all-MiniLM-L6-v2</b>, con el que el piloto armó su índice. Ese índice del piloto está detrás del alias <b>c11</b> y la API de búsqueda (<code>mundo/servicio.py</code>) contesta con él. Tú escribes los embeddings, el cache, BM25, el índice de vectores con la ACL, la construcción al lado, la búsqueda de prueba y el alias, y cambias la API a tu índice sin cortarla.",
+    "trae": [
+      {
+        "que": "mundo/entrada/",
+        "detalle": "El corpus del 22 (la salida de la estación 4 después de reanclar: <code>corpus-2026-11-22.json</code>), el directorio y el registro del golden set (<code>registro-golden/</code>: golden-v2 con su manifiesto)."
+      },
+      {
+        "que": "Los modelos",
+        "detalle": "<code>mundo/modelos.json</code> es el catálogo (repositorio, revisión, archivos con su tamaño y sha256, dimensión, tope de tokens, prefijos y licencia) y <code>mundo/modelos.py</code> los baja a <code>modelo/</code>: ≈ 578 MB, una vez."
+      },
+      {
+        "que": "El índice del piloto",
+        "detalle": "<code>mundo/crear.py</code> hace lo que hizo anoche el job del piloto: <code>indices/c11-minilm-2026-11-22/</code> con BM25 y vectores de MiniLM, en el mismo formato que el tuyo, y el alias c11 apuntando a él."
+      },
+      {
+        "que": "La API, el tráfico y la noche",
+        "detalle": "<code>mundo/servicio.py</code> (la API de búsqueda en el puerto 8150: lee el alias en cada petición y usa tu <code>buscar.py</code>), <code>mundo/trafico.py</code> (las preguntas del golden set contra la API, varias a la vez), <code>mundo/noche.py</code> (el job de cada noche: construir, probar y mover el alias) y <code>mundo/evaluar.py</code> (el monitor de calidad: mide el índice tal como está, sin revisar)."
+      },
+      {
+        "que": "verificar.py y romper.py",
+        "detalle": "Los 11 checks de la estación (de <code>mundo</code> a <code>alias</code>) y las 6 fallas: modelos mezclados en el mismo índice, vectores sin normalizar, chunks que faltan en uno de los dos índices, dimensión equivocada, la consulta embebida con otro modelo y el alias apuntando a un índice a medio construir."
+      }
+    ],
+    "tu_pipeline": [
+      {
+        "archivo": "pipeline/embeber.py",
+        "hace": "Pasos 1 y 2: el Modelo (sha256, tokens, mean pooling, prefijos, largo 1, firma) y el cache por modelo y texto."
+      },
+      {
+        "archivo": "pipeline/bm25.py",
+        "hace": "Paso 3: df, tf, el largo de cada chunk, el IDF y el puntaje de BM25."
+      },
+      {
+        "archivo": "pipeline/vectores.py",
+        "hace": "Paso 4: la matriz con qué modelo hizo cada fila, y el top-k con el filtro antes de elegir."
+      },
+      {
+        "archivo": "pipeline/construir.py",
+        "hace": "Paso 5: un índice nuevo al lado, con su manifiesto, y revisar() para todo lo que tiene que cumplir."
+      },
+      {
+        "archivo": "pipeline/buscar.py y pipeline/prueba.py",
+        "hace": "Paso 6: abrir un índice y buscar en BM25 y en vectores con los permisos de quien pregunta, y medir cada uno con el golden set."
+      },
+      {
+        "archivo": "pipeline/alias.py",
+        "hace": "Paso 7: apuntar, volver y el historial, y el modelo de la consulta que sale del índice."
+      },
+      {
+        "archivo": "config.yaml",
+        "hace": "El modelo de embeddings, la dimensión y la similitud del índice, k1 y b, y lo de la API (alias, modelo de la consulta, puerto)."
+      }
+    ],
+    "requisitos": [
+      "Python 3.12 o más nuevo (numpy 2.5.5 lo pide; se probó con 3.14.3), ≈ 100 MB para el entorno virtual y ≈ 600 MB para los modelos",
+      "Internet para el <code>pip install</code> (onnxruntime 1.32.0, numpy 2.5.5, tokenizers 0.23.3 y pyyaml 6.0.4) y para bajar los modelos una vez; después, nada",
+      "Las estaciones 1 a 4 ayudan, pero no hacen falta: el kit trae su salida"
+    ],
+    "sustituciones": [
+      {
+        "nube": "Un motor de búsqueda con BM25 y vectores (OpenSearch, Elasticsearch o una base vectorial) detrás de un alias",
+        "local": "una carpeta por índice en <code>indices/</code> y <code>indices/alias.json</code>",
+        "diferencia": "La misma idea: índices que se construyen una vez y un nombre fijo que apunta al vigente. En el motor, cambiar el alias es una sola llamada atómica; aquí, <code>os.replace</code>."
+      },
+      {
+        "nube": "Un índice aproximado (HNSW) sobre millones de vectores",
+        "local": "búsqueda exacta con numpy sobre 151",
+        "diferencia": "Con 151 chunks no hace falta aproximar. En C11 sí, y se mide con el golden set cuánto recall se pierde."
+      },
+      {
+        "nube": "El job de embeddings con GPU que corre después de la ingestión",
+        "local": "<code>mundo/noche.py</code> con tu <code>construir.py</code>, en el CPU de tu Mac",
+        "diferencia": "Los mismos pasos; en C11 son millones de chunks y la GPU importa."
+      },
+      {
+        "nube": "La API de búsqueda, un servicio desplegado aparte",
+        "local": "<code>mundo/servicio.py</code> en el puerto 8150",
+        "diferencia": "Un servidor HTTP chiquito, una búsqueda a la vez. Lo importante es igual: nombra el alias y no un índice."
+      }
+    ],
+    "arranque": "unzip rag-indice.zip && cd rag-indice\npython3 -m venv .venv && source .venv/bin/activate\npip install -r requirements.txt\npython mundo/modelos.py\npython mundo/crear.py",
+    "python": "python"
+  },
+  "guiado": [
+    {
+      "n": 0,
+      "id": "mundo",
+      "titulo": "Levantar el mundo",
+      "objetivo": "El almacén del 22 a las 11:00, los dos modelos con su sha256 y el índice del piloto detrás del alias c11.",
+      "conceptos": [
+        "firma-modelo"
+      ],
+      "explica": "Hacen falta onnxruntime, numpy, tokenizers y pyyaml. <code>mundo/modelos.py</code> baja los dos modelos de un commit fijo de Hugging Face y comprueba el sha256 de cada archivo contra <code>mundo/modelos.json</code>. <code>mundo/crear.py</code> copia el corpus, el directorio y el golden set a <code>almacen/</code>, y hace lo que hizo anoche el job del piloto: un índice con MiniLM detrás del alias c11.",
+      "codigo": [],
+      "comandos": [
+        {
+          "code": "python3 -m venv .venv && source .venv/bin/activate\npip install -r requirements.txt",
+          "nota": "Desde aquí, cada terminal nueva necesita <code>source .venv/bin/activate</code>.",
+          "donde": "mac",
+          "salida": "\nPython 3.14.3\nnumpy             2.5.5\nonnxruntime       1.32.0\nPyYAML            6.0.4\ntokenizers        0.23.3"
+        },
+        {
+          "code": "python mundo/modelos.py",
+          "nota": "Una sola vez, con internet. Si un sha256 no coincide, el archivo no se guarda.",
+          "donde": "mac",
+          "salida": "  bajando intfloat/multilingual-e5-small/onnx/model.onnx @ 614241f622f5…\n    470 MB, sha256 ca456c06b3a9… (el del catálogo)\n  bajando intfloat/multilingual-e5-small/onnx/tokenizer.json @ 614241f622f5…\n    17 MB, sha256 0b44a9d7b51c… (el del catálogo)\n  bajando sentence-transformers/all-MiniLM-L6-v2/onnx/model.onnx @ 1110a243fdf4…\n    90 MB, sha256 6fd5d72fe458… (el del catálogo)\n  bajando sentence-transformers/all-MiniLM-L6-v2/tokenizer.json @ 1110a243fdf4…\n    0 MB, sha256 be50c3628f2b… (el del catálogo)\n✓ 2 modelos en modelo/ (578 MB), cada archivo con el sha256 del catálogo"
+        },
+        {
+          "code": "python mundo/modelos.py --listar",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ e5      intfloat/multilingual-e5-small @ 614241f622f5 · 384 dimensiones · hasta 512 tokens · 487 MB · MIT\n✓ minilm  sentence-transformers/all-MiniLM-L6-v2 @ 1110a243fdf4 · 384 dimensiones · hasta 256 tokens · 91 MB · Apache-2.0"
+        },
+        {
+          "code": "python mundo/crear.py",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ 22 nov 11:00 (Ciudad de México): corpus-2026-11-22 con 151 chunks de 104 documentos · 14 personas en el directorio · golden-v2 con 65 preguntas\n  el job del piloto dejó indices/c11-minilm-2026-11-22/ (BM25 y vectores de all-MiniLM-L6-v2) y el alias c11 apunta a él\n  siguiente: python verificar.py mundo"
+        },
+        {
+          "code": "python verificar.py mundo",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ mundo      22 nov 11:00 · corpus-2026-11-22: 151 chunks de 104 documentos, cada uno con su ACL · 14 personas · golden-v2 con 65 preguntas · 2 modelos con su sha256 · c11 → c11-minilm-2026-11-22\n\n1/1 en verde"
+        },
+        {
+          "code": "python verificar.py embeddings",
+          "nota": "Es lo esperado: <code>pipeline/</code> todavía es el esqueleto. Cada check se pone en verde en su paso.",
+          "donde": "mac",
+          "salida": "✗ embeddings embeber.Modelo todavía es el esqueleto (paso 1: Modelo.__init__)\n\n0/1 en verde · falta: embeddings\n[código 1]"
+        }
+      ],
+      "verifica": "<code>verificar.py mundo</code> en verde.",
+      "ojo": "<code>modelo/</code>, <code>cache/</code> e <code>indices/</code> no van en el .zip ni en git: el primero se baja y los otros dos los produce tu pipeline. <code>mundo/crear.py</code> borra <code>indices/</code> y <code>cache/</code> (es un mundo nuevo), pero no los modelos."
+    },
+    {
+      "n": 1,
+      "id": "embeddings",
+      "titulo": "Texto a vector",
+      "objetivo": "<code>Modelo</code> en <code>embeber.py</code>: cargar e5-small comprobando su sha256, partir el texto en tokens, pasarlo por el modelo, promediar los tokens, normalizar y decir qué modelo lo hizo.",
+      "conceptos": [
+        "embedding",
+        "modelo-embeddings",
+        "mean-pooling",
+        "prefijos",
+        "normalizar",
+        "firma-modelo"
+      ],
+      "explica": "Un <b>embedding</b> es una lista de 384 números. Para sacarla: el tokenizer parte el texto en piezas (tokens) y las convierte en números; con <code>enable_truncation</code> se corta en el tope del modelo (512 en e5, 256 en MiniLM) y con <code>enable_padding</code> se rellena cada lote al largo del más largo. <code>onnxruntime</code> corre el modelo y da un vector por token. El <b>promedio de tokens</b> (mean pooling) junta los vectores de los tokens de verdad, sin el relleno, usando la máscara de atención. Al final se <b>normaliza</b> a largo 1. Antes de todo eso va el <b>prefijo</b> del tipo de texto: «query: » para preguntas y «passage: » para chunks en e5, nada en MiniLM. <code>firma()</code> dice exactamente qué modelo lo hizo.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "pipeline/embeber.py",
+          "code": "\"\"\"Paso 1 y 2: convertir texto en embeddings con un modelo local, y no volver a embeber lo que ya embebiste.\n\nContrato:\n- Modelo(clave) carga el modelo del catálogo (mundo/modelos.json) desde modelo/<clave>/: model.onnx con onnxruntime y\n  tokenizer.json con tokenizers. Antes de usarlo comprueba el sha256 de los dos archivos contra el catálogo; si no\n  coinciden, levanta ValueError (un modelo que no es el anotado no se usa).\n- Modelo.firma(): {\"clave\", \"repo\", \"revision\", \"sha256\" (el de model.onnx), \"dim\"}: qué modelo y qué versión hizo un\n  vector. Va en el manifiesto de cada índice y en cada fila.\n- Modelo.embeber(textos, tipo): tipo es \"consulta\" o \"pasaje\"; a cada texto le pone el prefijo de ese tipo que pide el\n  catálogo («query: » o «passage: » en e5; nada en MiniLM), lo parte en tokens (cortando en max_tokens), lo pasa por\n  el modelo en lotes de config embeddings.lote, promedia los vectores de sus tokens (mean pooling, sin contar el\n  relleno) y normaliza cada vector a largo 1. Devuelve un numpy.ndarray float32 de forma (len(textos), dim).\n- embeber_chunks(chunks, modelo) → (ids, matriz, nuevos): los vectores de pasaje de cada chunk {chunk_id: {\"texto\", ...}},\n  en el orden de sorted(chunk_ids). Usa el cache de cache/embeddings/<clave>@<revision[:12]>/<sha_texto(texto)>.npy:\n  solo embebe los textos que no están y los guarda. nuevos = cuántos tuvo que embeber.\n\"\"\"\nfrom __future__ import annotations\n\nimport sys\nfrom pathlib import Path\n\nimport numpy as np\n\nsys.path.insert(0, str(Path(__file__).resolve().parent))\nfrom _comun import CACHE, MODELO, config, modelos, sha256_archivo, sha_texto  # noqa: E402\n\n\nclass Modelo:\n    def __init__(self, clave: str):\n        import onnxruntime as ort\n        from tokenizers import Tokenizer\n\n        cat = modelos()\n        if clave not in cat:\n            raise ValueError(f\"el modelo «{clave}» no está en mundo/modelos.json (hay: {', '.join(cat)})\")\n        self.clave, self.info = clave, cat[clave]\n        carpeta = MODELO / clave\n        for nombre, a in self.info[\"archivos\"].items():\n            p = carpeta / nombre\n            if not p.exists():\n                raise ValueError(f\"falta modelo/{clave}/{nombre}: python mundo/modelos.py\")\n            if sha256_archivo(p) != a[\"sha256\"]:\n                raise ValueError(f\"modelo/{clave}/{nombre} no es el anotado en el catálogo (sha256 distinto)\")\n        self.tok = Tokenizer.from_file(str(carpeta / \"tokenizer.json\"))\n        self.tok.enable_truncation(self.info[\"max_tokens\"])\n        self.tok.enable_padding()\n        self.sesion = ort.InferenceSession(str(carpeta / \"model.onnx\"), providers=[\"CPUExecutionProvider\"])\n        self.entradas = {i.name for i in self.sesion.get_inputs()}\n        self.dim = self.info[\"dim\"]\n\n    def firma(self) -> dict:\n        i = self.info\n        return {\"clave\": self.clave, \"repo\": i[\"repo\"], \"revision\": i[\"revision\"], \"sha256\": i[\"archivos\"][\"model.onnx\"][\"sha256\"], \"dim\": i[\"dim\"]}\n\n    def embeber(self, textos: list[str], tipo: str) -> np.ndarray:\n        prefijo = {\"consulta\": self.info[\"prefijo_consulta\"], \"pasaje\": self.info[\"prefijo_pasaje\"]}[tipo]\n        lote = config()[\"embeddings\"][\"lote\"]\n        out = []\n        for i in range(0, len(textos), lote):\n            enc = self.tok.encode_batch([prefijo + t for t in textos[i:i + lote]])\n            ids = np.array([e.ids for e in enc], dtype=np.int64)\n            mascara = np.array([e.attention_mask for e in enc], dtype=np.int64)\n            feed = {\"input_ids\": ids, \"attention_mask\": mascara}\n            if \"token_type_ids\" in self.entradas:\n                feed[\"token_type_ids\"] = np.zeros_like(ids)\n            h = self.sesion.run(None, feed)[0]                       # (lote, tokens, dim): un vector por token\n            m = mascara[..., None].astype(np.float32)\n            v = (h * m).sum(axis=1) / m.sum(axis=1)                  # mean pooling: el promedio de los tokens de verdad\n            out.append(v / np.linalg.norm(v, axis=1, keepdims=True))  # largo 1\n        return np.vstack(out).astype(np.float32) if out else np.zeros((0, self.dim), np.float32)\n\n\ndef carpeta_cache(modelo: Modelo) -> Path:\n    return CACHE / f\"{modelo.clave}@{modelo.info['revision'][:12]}\"\n\n\ndef embeber_chunks(chunks: dict, modelo: Modelo) -> tuple[list[str], np.ndarray, int]:\n    ids = sorted(chunks)\n    carpeta = carpeta_cache(modelo)\n    carpeta.mkdir(parents=True, exist_ok=True)\n    rutas = {k: carpeta / f\"{sha_texto(chunks[k]['texto'])}.npy\" for k in ids}\n    faltan = [k for k in ids if not rutas[k].exists()]\n    if faltan:\n        vs = modelo.embeber([chunks[k][\"texto\"] for k in faltan], \"pasaje\")\n        for k, v in zip(faltan, vs):\n            np.save(rutas[k], v)\n    return ids, np.vstack([np.load(rutas[k]) for k in ids]).astype(np.float32), len(faltan)\n\n\nif __name__ == \"__main__\":\n    # python pipeline/embeber.py [--modelo minilm] \"texto uno\" \"texto dos\" ...  → la similitud coseno de cada par\n    import argparse\n    import time\n\n    ap = argparse.ArgumentParser()\n    ap.add_argument(\"--modelo\", default=None)\n    ap.add_argument(\"textos\", nargs=\"+\")\n    a = ap.parse_args()\n    t = time.perf_counter()\n    m = Modelo(a.modelo or config()[\"embeddings\"][\"modelo\"])\n    print(f\"{m.clave}: {m.info['repo']} @ {m.info['revision'][:12]} · {m.dim} dimensiones · cargado en {time.perf_counter() - t:.1f} s\")\n    v = m.embeber(a.textos, \"pasaje\")\n    for i in range(len(a.textos)):\n        for j in range(i + 1, len(a.textos)):\n            print(f\"  {float(v[i] @ v[j]):.3f}  «{a.textos[i]}» · «{a.textos[j]}»\")",
+          "nota": "En este paso escribes la clase <code>Modelo</code>. <code>embeber_chunks()</code> es el paso 2."
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python pipeline/embeber.py \"¿Cuánto tarda un reembolso a tarjeta?\" \"Los reembolsos a tarjeta de débito tardan de 5 a 10 días hábiles.\" \"El calendario de pagos a vendedores sale los lunes.\"",
+          "nota": "La pregunta queda más cerca del chunk que la contesta (0.912) que del que habla de otra cosa (0.836). Pero 0.836 no es «poco parecido»: con e5, casi todo da de 0.8 para arriba. Importa el orden.",
+          "donde": "mac",
+          "salida": "e5: intfloat/multilingual-e5-small @ 614241f622f5 · 384 dimensiones · cargado en 0.7 s\n  0.912  «¿Cuánto tarda un reembolso a tarjeta?» · «Los reembolsos a tarjeta de débito tardan de 5 a 10 días hábiles.»\n  0.836  «¿Cuánto tarda un reembolso a tarjeta?» · «El calendario de pagos a vendedores sale los lunes.»\n  0.873  «Los reembolsos a tarjeta de débito tardan de 5 a 10 días hábiles.» · «El calendario de pagos a vendedores sale los lunes.»"
+        },
+        {
+          "code": "python pipeline/embeber.py --modelo minilm \"¿Cuánto tarda un reembolso a tarjeta?\" \"Los reembolsos a tarjeta de débito tardan de 5 a 10 días hábiles.\" \"El calendario de pagos a vendedores sale los lunes.\"",
+          "nota": "Con el modelo del piloto, la escala es otra (0.676 y 0.370). Los números de un modelo no se comparan con los del otro.",
+          "donde": "mac",
+          "salida": "minilm: sentence-transformers/all-MiniLM-L6-v2 @ 1110a243fdf4 · 384 dimensiones · cargado en 0.1 s\n  0.676  «¿Cuánto tarda un reembolso a tarjeta?» · «Los reembolsos a tarjeta de débito tardan de 5 a 10 días hábiles.»\n  0.370  «¿Cuánto tarda un reembolso a tarjeta?» · «El calendario de pagos a vendedores sale los lunes.»\n  0.546  «Los reembolsos a tarjeta de débito tardan de 5 a 10 días hábiles.» · «El calendario de pagos a vendedores sale los lunes.»"
+        },
+        {
+          "code": "python -c \"\nimport json; from tokenizers import Tokenizer\nc = json.load(open('almacen/corpus/vigente.json'))['chunks']\nfor k, pre, tope in (('e5', 'passage: ', 512), ('minilm', '', 256)):\n    t = Tokenizer.from_file(f'modelo/{k}/tokenizer.json'); t.no_truncation(); t.no_padding(); n = [len(t.encode(pre + x['texto']).ids) for x in c.values()]\n    print(f'{k:<6} tokens por chunk: promedio {sum(n) / len(n):.0f}, el más largo {max(n)} · tope {tope}: {sum(x > tope for x in n)} chunks se cortan')\"",
+          "nota": "Los chunks de la estación 2 se cortaron con el tokenizer de e5: ninguno pasa de 512. Con MiniLM, 8 chunks pasan de 256 y el modelo no lee su final.",
+          "donde": "mac",
+          "salida": "e5     tokens por chunk: promedio 73, el más largo 396 · tope 512: 0 chunks se cortan\nminilm tokens por chunk: promedio 94, el más largo 501 · tope 256: 8 chunks se cortan"
+        },
+        {
+          "code": "python verificar.py embeddings",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ embeddings e5 y minilm con su firma (repo, revisión, sha256), vectores de 384 y largo 1, iguales a los del modelo con «query: » y «passage: » (la misma frase como consulta y como pasaje: coseno 0.939) · un sha256 distinto no se carga\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "<code>verificar.py embeddings</code> en verde: la firma de los dos modelos, vectores float32 de 384 y largo 1, iguales a los del modelo con sus prefijos, y un sha256 distinto no se carga.",
+      "ojo": "El tokenizer.json de MiniLM trae guardado un corte en 128 tokens y relleno fijo. <code>enable_truncation(max_tokens)</code> y <code>enable_padding()</code> lo reemplazan por lo que dice el catálogo; si no los llamas, el modelo lee la mitad de cada chunk.",
+      "en_pagina": {
+        "conceptos": [
+          "embedding",
+          "modelo-embeddings",
+          "mean-pooling",
+          "prefijos",
+          "normalizar",
+          "firma-modelo"
+        ],
+        "precalculos": [
+          "modelo"
+        ]
+      }
+    },
+    {
+      "n": 2,
+      "id": "cache",
+      "titulo": "No volver a embeber",
+      "objetivo": "<code>embeber_chunks()</code>: los vectores de pasaje de cada chunk, sacando del cache lo que ya está y guardando lo nuevo, con una llave que dice de qué modelo y de qué texto salió.",
+      "conceptos": [
+        "cache-embeddings"
+      ],
+      "explica": "La llave del cache tiene tres partes: el modelo, su revisión (en el nombre de la carpeta: <code>cache/embeddings/e5@614241f622f5/</code>) y la huella del texto (<code>sha_texto</code>, la misma de la estación 4, como nombre del archivo). Si cambia una letra del chunk, cambia la huella y se embebe otra vez; si cambia el modelo, cambia la carpeta y no se reusa nada. Solo se embebe lo que falta, de un jalón, y se guarda con <code>np.save</code>.",
+      "codigo": [],
+      "comandos": [
+        {
+          "code": "python -c \"\nimport sys, time, json; sys.path.insert(0, 'pipeline')\nfrom embeber import Modelo, embeber_chunks\nfrom tokenizers import Tokenizer\nc = json.load(open('almacen/corpus/vigente.json'))['chunks']; m = Modelo('e5')\nfor vez in ('primera', 'segunda'):\n    t = time.perf_counter(); ids, M, nuevos = embeber_chunks(c, m); s = time.perf_counter() - t\n    print(f'{vez} vez: {nuevos:>3} embebidos de {len(ids)} en {s:.2f} s · matriz {M.shape} {M.dtype}')\nt = Tokenizer.from_file('modelo/e5/tokenizer.json'); t.no_truncation(); t.no_padding(); tok = sum(len(t.encode('passage: ' + x['texto']).ids) for x in c.values())\nt = time.perf_counter(); m.embeber([x['texto'] for x in c.values()], 'pasaje'); s = time.perf_counter() - t\nprint(f'sin cache: {tok:,} tokens en {s:.2f} s = {tok / s:,.0f} tokens/s en tu Mac')\nprint(f'C11, 7.5 M chunks × ≈ 300 tokens = 2.25 mil millones de tokens ÷ {tok / s:,.0f}/s ≈ {2.25e9 / (tok / s) / 3600:,.0f} h en una Mac como esta')\nprint(f'C11, lo que cambia en un día (≈ 75 mil chunks × 300): ≈ {75_000 * 300 / (tok / s) / 3600:.1f} h')\"",
+          "nota": "La primera vez embebe los 151; la segunda, nada. Con los tokens por segundo de tu Mac, la cuenta de C11: re-embeber todo son días; lo de un día, un par de horas o menos.",
+          "donde": "mac",
+          "salida": "primera vez: 151 embebidos de 151 en 2.88 s · matriz (151, 384) float32\nsegunda vez:   0 embebidos de 151 en 0.02 s · matriz (151, 384) float32\nsin cache: 11,098 tokens en 2.80 s = 3,960 tokens/s en tu Mac\nC11, 7.5 M chunks × ≈ 300 tokens = 2.25 mil millones de tokens ÷ 3,960/s ≈ 158 h en una Mac como esta\nC11, lo que cambia en un día (≈ 75 mil chunks × 300): ≈ 1.6 h"
+        },
+        {
+          "code": "sh -c 'ls cache/embeddings/; ls cache/embeddings/e5@* | head -3; ls cache/embeddings/e5@* | wc -l | tr -d \" \"'",
+          "nota": "Una carpeta por modelo y revisión; un archivo por texto.",
+          "donde": "mac",
+          "salida": "e5@614241f622f5\n0102441cae623d2d.npy\n017919e6199bee6a.npy\n065a56a91acab49a.npy\n151"
+        },
+        {
+          "code": "python verificar.py cache",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ cache      la llave es el modelo, su revisión y el sha del texto: sin cambios no se embebe nada; cambia un texto y solo se embebe ese; otro modelo empieza de cero\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "<code>verificar.py cache</code> en verde: sin cambios no se embebe nada, cambia un texto y solo se embebe ese, otro modelo empieza de cero.",
+      "ojo": "El cache guarda vectores, no decisiones: si un día cambias el prefijo o el método de promedio, los vectores viejos ya no son los de tu código. En ese caso la llave tiene que cambiar (otra carpeta) o se borra el cache.",
+      "en_pagina": {
+        "conceptos": [
+          "cache-embeddings"
+        ],
+        "precalculos": [
+          "reembeber"
+        ]
+      }
+    },
+    {
+      "n": 3,
+      "id": "bm25",
+      "titulo": "Buscar por palabras",
+      "objetivo": "<code>bm25.py</code>: el índice BM25 de los chunks (en cuántos chunks está cada palabra, cuántas veces en cada uno, cuánto mide cada uno) y su puntaje.",
+      "conceptos": [
+        "bm25",
+        "idf"
+      ],
+      "explica": "Las palabras salen de <code>palabras()</code> de <code>_comun.py</code> (minúsculas, sin acentos, de 3 letras o más, sin las vacías), sobre el texto completo con su ruta de títulos. <code>construir()</code> guarda <b>df</b> (en cuántos chunks está cada palabra), <b>tf</b> (cuántas veces en cada chunk), el largo de cada chunk y el promedio. El <b>IDF</b> es ln(1 + (N − df + 0.5) / (df + 0.5)). El puntaje suma, por cada palabra distinta de la pregunta, IDF × tf × (k1 + 1) / (tf + k1 × (1 − b + b × largo / promedio)), con k1 = 1.2 y b = 0.75 de <code>config.yaml</code>. Es el BM25 clásico con el IDF de Lucene; Lucene (el motor de Elasticsearch y OpenSearch) omite el factor (k1 + 1), que multiplica todos los puntajes por lo mismo: el orden sale igual.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "pipeline/bm25.py",
+          "code": "\"\"\"Paso 3: el índice BM25, el buscador de palabras.\n\nContrato:\n- construir(chunks, k1, b) → {\"k1\", \"b\", \"N\", \"avgdl\", \"df\": {palabra: en cuántos chunks está},\n  \"docs\": {chunk_id: {\"len\": cuántas palabras, \"tf\": {palabra: cuántas veces}}}}. Las palabras salen de palabras()\n  de _comun.py, sobre el texto completo del chunk (con su ruta de títulos).\n- idf(indice, palabra) = ln(1 + (N − df + 0.5) / (df + 0.5)): rara vale mucho, común vale poco; 0 si no está.\n- puntajes(indice, consulta) → {chunk_id: puntaje} solo de los chunks con al menos una palabra de la consulta.\n  Cada palabra distinta de la consulta suma idf × tf × (k1 + 1) / (tf + k1 × (1 − b + b × len / avgdl)).\n\"\"\"\nfrom __future__ import annotations\n\nimport math\nimport sys\nfrom collections import Counter\nfrom pathlib import Path\n\nsys.path.insert(0, str(Path(__file__).resolve().parent))\nfrom _comun import palabras  # noqa: E402\n\n\ndef construir(chunks: dict, k1: float, b: float) -> dict:\n    docs, df = {}, Counter()\n    for k in sorted(chunks):\n        ws = palabras(chunks[k][\"texto\"])\n        docs[k] = {\"len\": len(ws), \"tf\": dict(Counter(ws))}\n        df.update(set(ws))\n    n = len(docs)\n    return {\"k1\": k1, \"b\": b, \"N\": n, \"avgdl\": sum(d[\"len\"] for d in docs.values()) / n if n else 0.0, \"df\": dict(df), \"docs\": docs}\n\n\ndef idf(indice: dict, palabra: str) -> float:\n    df = indice[\"df\"].get(palabra, 0)\n    return math.log(1 + (indice[\"N\"] - df + 0.5) / (df + 0.5)) if df else 0.0\n\n\ndef puntajes(indice: dict, consulta: str) -> dict[str, float]:\n    k1, b, avgdl = indice[\"k1\"], indice[\"b\"], indice[\"avgdl\"]\n    qs = [w for w in dict.fromkeys(palabras(consulta)) if w in indice[\"df\"]]\n    pesos = {w: idf(indice, w) for w in qs}\n    out = {}\n    for k, d in indice[\"docs\"].items():\n        s = 0.0\n        for w in qs:\n            tf = d[\"tf\"].get(w, 0)\n            if tf:\n                s += pesos[w] * tf * (k1 + 1) / (tf + k1 * (1 - b + b * d[\"len\"] / avgdl))\n        if s > 0:\n            out[k] = s\n    return out\n\n\nif __name__ == \"__main__\":\n    # python pipeline/bm25.py \"una pregunta\"  → el top-5 de BM25 sobre el corpus vigente, sin permisos, con el peso de cada palabra\n    from _comun import config, corpus\n\n    c = config()[\"bm25\"]\n    ix = construir(corpus()[\"chunks\"], c[\"k1\"], c[\"b\"])\n    q = \" \".join(sys.argv[1:])\n    print(f\"{ix['N']} chunks · {len(ix['df'])} palabras distintas · {ix['avgdl']:.1f} palabras por chunk en promedio\")\n    print(\"  idf: \" + \" · \".join(f\"{w} {idf(ix, w):.2f} (en {ix['df'].get(w, 0)})\" for w in dict.fromkeys(palabras(q))))\n    for k, s in sorted(puntajes(ix, q).items(), key=lambda x: (-x[1], x[0]))[:5]:\n        print(f\"  {s:6.2f}  {k}\")",
+          "nota": ""
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python pipeline/bm25.py \"¿Un paquete de 25 kg se puede mandar con guía del marketplace?\"",
+          "nota": "Palabras exactas y raras: BM25 está en su terreno.",
+          "donde": "mac",
+          "salida": "151 chunks · 826 palabras distintas · 25.7 palabras por chunk en promedio\n  idf: paquete 3.01 (en 7) · puede 2.58 (en 11) · mandar 4.62 (en 1) · guia 2.28 (en 15) · marketplace 2.16 (en 17)\n   11.28  drive:d20#004\n    8.91  drive:d21#004\n    7.44  jira:SOP-42#000\n    5.62  wiki:2010#003\n    5.44  drive:d21#000"
+        },
+        {
+          "code": "python pipeline/bm25.py \"¿En cuánto tiempo me regresan el dinero si pagué con tarjeta?\"",
+          "nota": "«regresan» y «dinero» no están en ningún chunk: valen 0. BM25 no sabe que «me regresan el dinero» es un reembolso.",
+          "donde": "mac",
+          "salida": "151 chunks · 826 palabras distintas · 25.7 palabras por chunk en promedio\n  idf: tiempo 4.11 (en 2) · regresan 0.00 (en 0) · dinero 0.00 (en 0) · pague 4.62 (en 1) · tarjeta 2.77 (en 9)\n    5.64  wiki:2005#000\n    4.49  jira:SOP-41#000\n    3.84  jira:SOP-10#000\n    3.84  jira:SOP-18#000\n    3.84  jira:SOP-2#000"
+        },
+        {
+          "code": "python pipeline/bm25.py \"¿Qué dice el ticket SEG-5?\"",
+          "nota": "«SEG-5» quedó en «seg» (el 5 tiene menos de 3 letras) y «seg» está en 10 chunks: el ticket SEG-5 ni aparece. Quién decide qué es una palabra importa tanto como la fórmula.",
+          "donde": "mac",
+          "salida": "151 chunks · 826 palabras distintas · 25.7 palabras por chunk en promedio\n  idf: dice 4.62 (en 1) · ticket 4.11 (en 2) · seg 2.67 (en 10)\n    6.03  wiki:1005#001\n    5.57  jira:SOP-42#000\n    4.44  wiki:1006#000\n    4.01  jira:SEG-10#000\n    4.01  jira:SEG-4#000"
+        },
+        {
+          "code": "python verificar.py bm25",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ bm25       151 chunks, 826 palabras distintas, 25.7 por chunk en promedio (el más largo, drive:d20#007, 142) · idf y los puntajes de 12 preguntas iguales a la fórmula\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "<code>verificar.py bm25</code> en verde: df, tf y el largo, el IDF y los puntajes de 12 preguntas iguales a la fórmula.",
+      "ojo": "En C11, el motor de búsqueda trae BM25 hecho y lo que se configura es el analizador (cómo se parten y se normalizan las palabras, sinónimos, raíces). Los identificadores como «SEG-5» o «SOP-41» se guardan enteros en un campo aparte, porque son justo lo que la gente copia y pega.",
+      "en_pagina": {
+        "conceptos": [
+          "bm25",
+          "idf"
+        ],
+        "precalculos": []
+      }
+    },
+    {
+      "n": 4,
+      "id": "vectores",
+      "titulo": "Buscar por significado",
+      "objetivo": "<code>vectores.py</code>: la matriz de vectores de todos los chunks con qué modelo hizo cada fila, y el top-k más parecido a la pregunta entre los chunks que la persona puede leer.",
+      "conceptos": [
+        "prefiltro",
+        "busqueda-exacta",
+        "espacios"
+      ],
+      "explica": "<code>construir()</code> usa <code>embeber_chunks()</code> y anota en cada fila el modelo que la hizo (<code>e5@614241f622f5</code>). <code>top()</code> recibe la pregunta ya embebida y un arreglo de permitidos (uno por fila): como cada vector tiene largo 1, la similitud coseno de todos a la vez es <code>matriz @ vector</code>. A los que la persona no puede leer se les pone −∞ <b>antes</b> de ordenar, y se toman los k mejores. Es una <b>búsqueda exacta</b>: compara contra los 151.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "pipeline/vectores.py",
+          "code": "\"\"\"Paso 4: el índice de vectores y la búsqueda por similitud, con la ACL como filtro antes de elegir el top.\n\nContrato:\n- construir(chunks, modelo) → (ids, matriz, filas): ids = sorted(chunk_ids); matriz = los vectores de pasaje de\n  embeber_chunks (float32, forma (n, dim), cada fila de largo 1); filas = [{\"chunk_id\", \"modelo\": \"<clave>@<revision[:12]>\"}]\n  en el mismo orden: qué modelo hizo cada fila.\n- top(matriz, ids, vector, permitidos, k) → [(chunk_id, similitud)] los k más parecidos a vector (la pregunta ya\n  embebida), de mayor a menor, SOLO entre los permitidos (un arreglo de booleanos, uno por fila). Primero se filtra y\n  después se elige el top: si la persona ve al menos k chunks, siempre regresan k.\n  Con vectores de largo 1, la similitud coseno es el producto punto: matriz @ vector.\n\"\"\"\nfrom __future__ import annotations\n\nimport sys\nfrom pathlib import Path\n\nimport numpy as np\n\nsys.path.insert(0, str(Path(__file__).resolve().parent))\nfrom embeber import Modelo, embeber_chunks  # noqa: E402\n\n\ndef construir(chunks: dict, modelo: Modelo) -> tuple[list[str], np.ndarray, list[dict]]:\n    ids, matriz, _ = embeber_chunks(chunks, modelo)\n    etiqueta = f\"{modelo.clave}@{modelo.info['revision'][:12]}\"\n    return ids, matriz, [{\"chunk_id\": k, \"modelo\": etiqueta} for k in ids]\n\n\ndef top(matriz: np.ndarray, ids: list[str], vector: np.ndarray, permitidos: np.ndarray, k: int) -> list[tuple[str, float]]:\n    s = matriz @ vector\n    s = np.where(permitidos, s, -np.inf)\n    orden = np.argsort(-s, kind=\"stable\")[:k]\n    return [(ids[i], float(s[i])) for i in orden if permitidos[i]]",
+          "nota": ""
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python verificar.py vectores",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ vectores   la matriz y qué modelo hizo cada fila; top() filtra antes de elegir (10 permitidos de 20 → 8) · los vectores de tu índice se revisan cuando lo construyas (paso 5)\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "<code>verificar.py vectores</code> en verde: la matriz y la etiqueta de cada fila; con 10 permitidos de 20, top-8 da los 8 mejores de esos 10.",
+      "ojo": "Cada fila lleva su modelo aunque el índice entero sea de uno solo: es lo que deja ver, después, que alguien mezcló vectores de dos modelos.",
+      "en_pagina": {
+        "conceptos": [
+          "prefiltro",
+          "busqueda-exacta",
+          "espacios"
+        ],
+        "precalculos": [
+          "fuerza"
+        ]
+      }
+    },
+    {
+      "n": 5,
+      "id": "construir",
+      "titulo": "Un índice nuevo al lado",
+      "objetivo": "<code>construir.py</code>: el índice de e5 en su propia carpeta, sin tocar el del piloto que está sirviendo, con BM25, vectores, la ACL de cada chunk y un manifiesto; y <code>revisar()</code>, que dice si un índice está sano.",
+      "conceptos": [
+        "al-lado",
+        "manifiesto-indice",
+        "dimension"
+      ],
+      "explica": "Primero se comprueba que la <b>dimensión</b> del modelo sea la de <code>config.yaml</code>, antes de escribir nada. Después se crea <code>indices/c11-e5-2026-11-22/</code> y lo primero que se escribe es el <b>manifiesto</b> con «estado»: «construyendo». Siguen <code>chunks.jsonl</code> (cada chunk con su documento, título, ACL y huella), <code>bm25.json</code>, <code>vectores.npy</code> y <code>vectores.json</code>. Al final, el manifiesto completo (corpus, firma del modelo, dimensión, similitud, cuántos chunks y el sha256 de cada archivo) y «listo». <code>revisar()</code> comprueba todo eso: estado, cada archivo con su sha256, los mismos chunks en las dos mitades, un solo modelo, la forma de la matriz y el largo 1 de cada vector.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "pipeline/construir.py",
+          "code": "\"\"\"Paso 5: construir un índice nuevo al lado del que está sirviendo: BM25 y vectores sobre los mismos chunks, con la\nACL de cada chunk, y un manifiesto que dice qué es. El índice vigente no se toca.\n\nContrato:\n- nombre_nuevo(clave, corpus_version) → \"c11-<clave>-<fecha del corpus>\", y si ya existe, con -2, -3…\n- construir(clave=None, nombre=None) → el nombre del índice. clave = config embeddings.modelo si no se da.\n  1. Si la dimensión del modelo no es la de config indice.dimension, se detiene ANTES de escribir nada (SystemExit).\n  2. Crea indices/<nombre>/ (si ya existe, SystemExit) y escribe primero manifiesto.json con \"estado\": \"construyendo\".\n  3. chunks.jsonl: una fila por chunk (sorted): {\"chunk_id\", \"doc_id\", \"titulo\", \"acl\", \"sha\": sha_texto(texto)}.\n  4. bm25.json: bm25.construir con k1 y b de config.\n  5. vectores.npy (la matriz) y vectores.json: {\"ids\", \"filas\"} de vectores.construir.\n  6. Al final, el manifiesto completo y \"estado\": \"listo\": {\"nombre\", \"estado\", \"creado\": ahora(), \"corpus\" (versión),\n     \"modelo\": la firma, \"dimension\", \"similitud\", \"n\" (chunks), \"bm25\": {\"k1\", \"b\"}, \"archivos\": {archivo: sha256}}.\n- revisar(nombre) → lista de problemas (vacía = sano): estado listo; cada archivo existe y su sha256 es el del manifiesto;\n  los mismos chunk_ids en chunks.jsonl, en bm25.json y en vectores.json; cada fila de vectores hecha por el modelo del\n  manifiesto; la matriz de forma (n, dimension); cada vector de largo 1 (± 0.001). Antes de mover un alias, se revisa.\n\"\"\"\nfrom __future__ import annotations\n\nimport shutil\nimport sys\nfrom pathlib import Path\n\nimport numpy as np\n\nsys.path.insert(0, str(Path(__file__).resolve().parent))\nimport bm25  # noqa: E402\nimport vectores  # noqa: E402\nfrom _comun import INDICES, ahora, config, corpus, escribir_json, escribir_jsonl, leer_json, leer_jsonl, sha256_archivo, sha_texto  # noqa: E402\nfrom embeber import Modelo  # noqa: E402\n\nARCHIVOS = (\"chunks.jsonl\", \"bm25.json\", \"vectores.npy\", \"vectores.json\")\n\n\ndef nombre_nuevo(clave: str, corpus_version: str) -> str:\n    base = f\"c11-{clave}-{corpus_version.removeprefix('corpus-')}\"\n    nombre, n = base, 1\n    while (INDICES / nombre).exists():\n        n += 1\n        nombre = f\"{base}-{n}\"\n    return nombre\n\n\ndef construir(clave: str | None = None, nombre: str | None = None) -> str:\n    cfg = config()\n    clave = clave or cfg[\"embeddings\"][\"modelo\"]\n    modelo = Modelo(clave)\n    if modelo.dim != cfg[\"indice\"][\"dimension\"]:\n        raise SystemExit(f\"✗ {clave} da vectores de {modelo.dim} dimensiones y config.yaml dice indice.dimension: \"\n                         f\"{cfg['indice']['dimension']}: no construyo nada\")\n    c = corpus()\n    chunks = c[\"chunks\"]\n    nombre = nombre or nombre_nuevo(clave, c[\"version\"])\n    carpeta = INDICES / nombre\n    if carpeta.exists():\n        raise SystemExit(f\"✗ indices/{nombre}/ ya existe: un índice se construye una vez\")\n    man = {\"nombre\": nombre, \"estado\": \"construyendo\", \"creado\": ahora(), \"corpus\": c[\"version\"], \"modelo\": modelo.firma(),\n           \"dimension\": cfg[\"indice\"][\"dimension\"], \"similitud\": cfg[\"indice\"][\"similitud\"]}\n    escribir_json(carpeta / \"manifiesto.json\", man)\n    escribir_jsonl(carpeta / \"chunks.jsonl\", [{\"chunk_id\": k, \"doc_id\": chunks[k][\"doc_id\"], \"titulo\": chunks[k][\"titulo\"],\n                                               \"acl\": chunks[k][\"acl\"], \"sha\": sha_texto(chunks[k][\"texto\"])} for k in sorted(chunks)])\n    escribir_json(carpeta / \"bm25.json\", bm25.construir(chunks, cfg[\"bm25\"][\"k1\"], cfg[\"bm25\"][\"b\"]))\n    ids, matriz, filas = vectores.construir(chunks, modelo)\n    np.save(carpeta / \"vectores.npy\", matriz)\n    escribir_json(carpeta / \"vectores.json\", {\"ids\": ids, \"filas\": filas})\n    man |= {\"estado\": \"listo\", \"n\": len(ids), \"bm25\": {\"k1\": cfg[\"bm25\"][\"k1\"], \"b\": cfg[\"bm25\"][\"b\"]},\n            \"archivos\": {a: sha256_archivo(carpeta / a) for a in ARCHIVOS}}\n    problemas = revisar(nombre, man)\n    if problemas:\n        shutil.rmtree(carpeta)\n        raise SystemExit(f\"✗ el índice salió mal y lo borré: {problemas[0]}\")\n    escribir_json(carpeta / \"manifiesto.json\", man)\n    return nombre\n\n\ndef revisar(nombre: str, man: dict | None = None) -> list[str]:\n    carpeta = INDICES / nombre\n    man = man or leer_json(carpeta / \"manifiesto.json\")\n    if not man:\n        return [f\"indices/{nombre}/ no tiene manifiesto.json\"]\n    if man.get(\"estado\") != \"listo\":\n        return [f\"{nombre} está «{man.get('estado')}», no «listo»\"]\n    for a in ARCHIVOS:\n        if not (carpeta / a).exists():\n            return [f\"a {nombre} le falta {a}\"]\n        if sha256_archivo(carpeta / a) != man[\"archivos\"].get(a):\n            return [f\"{nombre}/{a} no es el que se construyó (sha256 distinto al del manifiesto)\"]\n    p = []\n    ids_c = [x[\"chunk_id\"] for x in leer_jsonl(carpeta / \"chunks.jsonl\")]\n    ids_b = sorted(leer_json(carpeta / \"bm25.json\")[\"docs\"])\n    vj = leer_json(carpeta / \"vectores.json\")\n    for nom, ids in ((\"bm25.json\", ids_b), (\"vectores.json\", vj[\"ids\"])):\n        if set(ids) != set(ids_c):\n            falta, sobra = sorted(set(ids_c) - set(ids)), sorted(set(ids) - set(ids_c))\n            p.append(f\"{nombre}: {nom} no trae los mismos chunks que chunks.jsonl (faltan {len(falta)}, sobran {len(sobra)})\")\n    etiqueta = f\"{man['modelo']['clave']}@{man['modelo']['revision'][:12]}\"\n    otros = sorted({f[\"modelo\"] for f in vj[\"filas\"]} - {etiqueta})\n    if otros:\n        p.append(f\"{nombre}: hay filas hechas con {', '.join(otros)} y el índice es de {etiqueta}\")\n    m = np.load(carpeta / \"vectores.npy\")\n    if m.shape != (len(vj[\"ids\"]), man[\"dimension\"]):\n        p.append(f\"{nombre}: la matriz es {m.shape} y debería ser ({len(vj['ids'])}, {man['dimension']})\")\n    elif len(m):\n        normas = np.linalg.norm(m, axis=1)\n        malas = int((np.abs(normas - 1) > 1e-3).sum())\n        if malas:\n            p.append(f\"{nombre}: {malas} vectores no tienen largo 1 (de {normas.min():.2f} a {normas.max():.2f}) y la similitud es coseno\")\n    return p\n\n\nif __name__ == \"__main__\":\n    import argparse\n    import time\n\n    ap = argparse.ArgumentParser()\n    ap.add_argument(\"--modelo\", default=None)\n    ap.add_argument(\"--revisar\", metavar=\"NOMBRE\")\n    a = ap.parse_args()\n    if a.revisar:\n        p = revisar(a.revisar)\n        print(\"\\n\".join(f\"✗ {x}\" for x in p) or f\"✓ {a.revisar}: sano\")\n        sys.exit(1 if p else 0)\n    t = time.perf_counter()\n    n = construir(a.modelo)\n    man = leer_json(INDICES / n / \"manifiesto.json\")\n    print(f\"✓ indices/{n}/ listo en {time.perf_counter() - t:.1f} s: {man['n']} chunks de {man['corpus']} · BM25 y vectores de \"\n          f\"{man['dimension']} dimensiones ({man['modelo']['repo']} @ {man['modelo']['revision'][:12]}) · cada chunk con su ACL\")",
+          "nota": ""
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python pipeline/construir.py",
+          "nota": "Menos de un segundo: los 151 embeddings ya estaban en el cache del paso 2.",
+          "donde": "mac",
+          "salida": "✓ indices/c11-e5-2026-11-22/ listo en 0.7 s: 151 chunks de corpus-2026-11-22 · BM25 y vectores de 384 dimensiones (intfloat/multilingual-e5-small @ 614241f622f5) · cada chunk con su ACL"
+        },
+        {
+          "code": "ls -l indices/c11-e5-2026-11-22/\ndu -sh indices/*",
+          "nota": "vectores.npy pesa 232,064 bytes: 151 × 384 × 4 = 231,936, más 128 de encabezado. Los dos índices viven al mismo tiempo.",
+          "donde": "mac",
+          "salida": "73269 bm25.json\n33495 chunks.jsonl\n805 manifiesto.json\n14216 vectores.json\n232064 vectores.npy\n4.0K indices/alias.json\n356K indices/c11-e5-2026-11-22\n356K indices/c11-minilm-2026-11-22"
+        },
+        {
+          "code": "python -c \"\nimport json; m = json.load(open('indices/c11-e5-2026-11-22/manifiesto.json'))\nprint(json.dumps({k: m[k] for k in ('nombre', 'estado', 'corpus', 'modelo', 'dimension', 'similitud', 'n')}, ensure_ascii=False, indent=1))\"",
+          "nota": "",
+          "donde": "mac",
+          "salida": "{\n \"nombre\": \"c11-e5-2026-11-22\",\n \"estado\": \"listo\",\n \"corpus\": \"corpus-2026-11-22\",\n \"modelo\": {\n  \"clave\": \"e5\",\n  \"dim\": 384,\n  \"repo\": \"intfloat/multilingual-e5-small\",\n  \"revision\": \"614241f622f53c4eeff9890bdc4f31cfecc418b3\",\n  \"sha256\": \"ca456c06b3a9505ddfd9131408916dd79290368331e7d76bb621f1cba6bc8665\"\n },\n \"dimension\": 384,\n \"similitud\": \"coseno\",\n \"n\": 151\n}"
+        },
+        {
+          "code": "python pipeline/construir.py --revisar c11-e5-2026-11-22",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ c11-e5-2026-11-22: sano"
+        },
+        {
+          "code": "python pipeline/alias.py listar",
+          "nota": "El alias sigue en el piloto: construir no lo mueve.",
+          "donde": "mac",
+          "salida": "c11 → c11-minilm-2026-11-22   (anterior: None · 1 cambio(s))"
+        },
+        {
+          "code": "python verificar.py construir completo",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ construir  c11-e5-2026-11-22: «listo», con la firma de e5 (614241f622f5), 384 dimensiones como el modelo y la config, un solo modelo en todas sus filas (re-embebidas: iguales) · tu revisar() ve uno a medio construir y uno cambiado\n✓ completo   c11-e5-2026-11-22: los 151 chunks de corpus-2026-11-22 están en chunks.jsonl, en BM25 y en vectores, cada uno con la ACL del corpus\n\n2/2 en verde"
+        }
+      ],
+      "verifica": "<code>verificar.py construir</code> y <code>completo</code> en verde: «listo», la firma de e5, 384 dimensiones como el modelo y la config, un solo modelo, los 151 chunks en las dos mitades con la ACL del corpus, y tu <code>revisar()</code> ve un índice a medio construir y uno cambiado.",
+      "ojo": "«estado» va primero en «construyendo» y al final en «listo», y el manifiesto se escribe de un jalón (<code>escribir_json</code>). Si la construcción muere a la mitad, el índice se queda en «construyendo» y nadie lo puede usar por error.",
+      "en_pagina": {
+        "conceptos": [
+          "al-lado",
+          "manifiesto-indice",
+          "dimension"
+        ],
+        "precalculos": [
+          "tamano"
+        ]
+      }
+    },
+    {
+      "n": 6,
+      "id": "prueba",
+      "titulo": "La búsqueda de prueba",
+      "objetivo": "<code>buscar.py</code> y <code>prueba.py</code>: abrir un índice, buscar en BM25 y en vectores por separado con los permisos de quien pregunta, y medir cada mitad con el golden set de la estación 4.",
+      "conceptos": [
+        "hibrido",
+        "prefiltro",
+        "espacios"
+      ],
+      "explica": "<code>Buscador</code> abre un índice solo si <code>revisar()</code> no le encuentra nada, y solo si la pregunta se va a embeber con el mismo modelo que hizo el índice (si no, <code>ModeloDistinto</code>). <code>visibles()</code> usa <code>principals()</code> y <code>puede_ver()</code> de la estación 3 con la ACL guardada en <code>chunks.jsonl</code>. <code>bm25()</code> y <code>vectores()</code> dan cada uno su top-8 entre lo que la persona ve. <code>prueba.py</code> corre las preguntas de test del golden set: el <b>recall@8</b> de cada mitad (de las fuentes de cada pregunta directa o con varias fuentes, qué fracción llega al top-8; luego el promedio, con su margen al 95 %) y las fugas en las prohibidas.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "pipeline/buscar.py",
+          "code": "\"\"\"Paso 6 y 7: abrir un índice y buscar en él, por BM25 y por vectores, cada uno por separado, con los permisos de\nquien pregunta como filtro. Es lo que usa la API de búsqueda (mundo/servicio.py) y lo que la estación 6 va a fusionar.\n\nContrato:\n- class ModeloDistinto(Exception): la pregunta se embebería con un modelo distinto del que hizo el índice.\n- Buscador(nombre, modelo_consulta, exigir_mismo_modelo=True): abre indices/<nombre>/. Si revisar(nombre) encuentra\n  problemas, ValueError. Si modelo_consulta (una clave del catálogo) no es el modelo del manifiesto (clave y revisión),\n  ModeloDistinto, salvo que exigir_mismo_modelo=False (solo para ver qué pasaría). Carga chunks.jsonl, bm25.json,\n  vectores.npy/.json y el Modelo de la consulta (uno por clave, guardado entre Buscadores: cargar cuesta).\n  - .nombre, .manifiesto\n  - .visibles(persona) → arreglo de booleanos (en el orden de los ids de vectores.json): qué chunks puede leer, con\n    principals y puede_ver de la estación 3 y el directorio de almacen/.\n  - .bm25(pregunta, persona, k=8) → [(chunk_id, puntaje)]: el top-k de BM25 entre los que ve, de mayor a menor (empates\n    por chunk_id); solo chunks con puntaje > 0.\n  - .vectores(pregunta, persona, k=8) → [(chunk_id, similitud)]: la pregunta embebida como «consulta» y vectores.top.\n- modelo_de_consulta(nombre) → la clave con la que se embebe la pregunta: config servicio.modelo_consulta, y si dice\n  \"del-indice\", la del manifiesto del índice (lo correcto: el índice dice qué modelo lo hizo).\n- abrir(alias=None) → Buscador del índice al que apunta el alias (config servicio.alias si no se da), con\n  modelo_de_consulta(). Si el alias no apunta a nada, ValueError.\n\"\"\"\nfrom __future__ import annotations\n\nimport sys\nfrom pathlib import Path\n\nimport numpy as np\n\nsys.path.insert(0, str(Path(__file__).resolve().parent))\nimport bm25 as bm25_  # noqa: E402\nimport vectores as vectores_  # noqa: E402\nfrom _comun import INDICES, config, directorio, leer_json, leer_jsonl, modelos, principals, puede_ver  # noqa: E402\nfrom alias import resolver  # noqa: E402\nfrom construir import revisar  # noqa: E402\nfrom embeber import Modelo  # noqa: E402\n\n_MODELOS: dict[str, Modelo] = {}\n\n\nclass ModeloDistinto(Exception):\n    pass\n\n\nclass Buscador:\n    def __init__(self, nombre: str, modelo_consulta: str, exigir_mismo_modelo: bool = True):\n        p = revisar(nombre)\n        if p:\n            raise ValueError(p[0])\n        carpeta = INDICES / nombre\n        self.nombre = nombre\n        self.manifiesto = leer_json(carpeta / \"manifiesto.json\")\n        firma = self.manifiesto[\"modelo\"]\n        cat = modelos().get(modelo_consulta, {})\n        if (modelo_consulta, cat.get(\"revision\")) != (firma[\"clave\"], firma[\"revision\"]) and exigir_mismo_modelo:\n            raise ModeloDistinto(f\"{nombre} se hizo con {firma['clave']} @ {firma['revision'][:12]} y la consulta se \"\n                                 f\"embebería con {modelo_consulta} @ {str(cat.get('revision'))[:12]}: sus vectores no se comparan\")\n        meta = {x[\"chunk_id\"]: x for x in leer_jsonl(carpeta / \"chunks.jsonl\")}\n        vj = leer_json(carpeta / \"vectores.json\")\n        self.ids = vj[\"ids\"]\n        self.acl = [meta[k][\"acl\"] for k in self.ids]\n        self.matriz = np.load(carpeta / \"vectores.npy\")\n        self.ix_bm25 = leer_json(carpeta / \"bm25.json\")\n        if modelo_consulta not in _MODELOS:\n            _MODELOS[modelo_consulta] = Modelo(modelo_consulta)\n        self.modelo = _MODELOS[modelo_consulta]\n        self._dir = directorio()\n\n    def visibles(self, persona: str) -> np.ndarray:\n        ps = principals(persona, self._dir)\n        return np.array([puede_ver(a, ps) for a in self.acl], dtype=bool)\n\n    def bm25(self, pregunta: str, persona: str, k: int = 8) -> list[tuple[str, float]]:\n        ok = dict(zip(self.ids, self.visibles(persona)))\n        s = [(k_, v) for k_, v in bm25_.puntajes(self.ix_bm25, pregunta).items() if ok.get(k_)]\n        return sorted(s, key=lambda x: (-x[1], x[0]))[:k]\n\n    def vectores(self, pregunta: str, persona: str, k: int = 8) -> list[tuple[str, float]]:\n        v = self.modelo.embeber([pregunta], \"consulta\")[0]\n        return vectores_.top(self.matriz, self.ids, v, self.visibles(persona), k)\n\n\ndef modelo_de_consulta(nombre: str) -> str:\n    m = config()[\"servicio\"][\"modelo_consulta\"]\n    if m != \"del-indice\":\n        return m\n    man = leer_json(INDICES / nombre / \"manifiesto.json\")\n    if not man:\n        raise ValueError(f\"indices/{nombre}/ no tiene manifiesto.json\")\n    return man[\"modelo\"][\"clave\"]\n\n\ndef abrir(alias: str | None = None) -> Buscador:\n    alias = alias or config()[\"servicio\"][\"alias\"]\n    nombre = resolver(alias)\n    if not nombre:\n        raise ValueError(f\"el alias {alias} no apunta a ningún índice (indices/alias.json)\")\n    return Buscador(nombre, modelo_de_consulta(nombre))\n\n\nif __name__ == \"__main__\":\n    # python pipeline/buscar.py --persona elena.cruz@marketplace.test \"una pregunta\"  → lo que encuentra cada índice\n    import argparse\n\n    ap = argparse.ArgumentParser()\n    ap.add_argument(\"--persona\", required=True)\n    ap.add_argument(\"--indice\", help=\"un índice por nombre, en vez del alias\")\n    ap.add_argument(\"-k\", type=int, default=8)\n    ap.add_argument(\"pregunta\", nargs=\"+\")\n    a = ap.parse_args()\n    q = \" \".join(a.pregunta)\n    try:\n        b = Buscador(a.indice, modelo_de_consulta(a.indice)) if a.indice else abrir()\n    except (ValueError, ModeloDistinto) as e:\n        sys.exit(f\"✗ {e}\")\n    print(f\"{b.nombre} · {a.persona} ve {int(b.visibles(a.persona).sum())} de {len(b.ids)} chunks\")\n    xb, xv = b.bm25(q, a.persona, a.k), b.vectores(q, a.persona, a.k)\n    print(f\"  {'BM25':<34}{'vectores':<34}\")\n    for i in range(max(len(xb), len(xv))):\n        cb = f\"{xb[i][1]:6.2f}  {xb[i][0]}\" if i < len(xb) else \"\"\n        cv = f\"{xv[i][1]:6.3f}  {xv[i][0]}\" if i < len(xv) else \"\"\n        print(f\"  {cb:<34}{cv:<34}\")",
+          "nota": ""
+        },
+        {
+          "lang": "python",
+          "path": "pipeline/prueba.py",
+          "code": "\"\"\"Paso 6: la búsqueda de prueba. Las preguntas del golden set de la estación 4 contra un índice, y qué encuentra cada\nmitad por separado: BM25 y vectores. Es la línea base que la estación 6 va a mejorar con la fusión y el reranker.\n\nContrato:\n- medir(buscador, preguntas, k=8) → {\"bm25\": r, \"vectores\": r, \"por_pregunta\": [...]}, con r = {\"recall\", \"margen\", \"n\",\n  \"fugas\", \"prohibidas\"}. recall@k: de las fuentes de cada directa o con varias fuentes, la fracción que llega al top-k;\n  luego el promedio, y margen = 1.96 × desviación estándar / √n (como en la estación 4). fugas: prohibidas que\n  recibieron una de sus fuentes. por_pregunta: {\"id\", \"tipo\", \"bm25\": recall o None, \"vectores\": recall o None}.\n- Al correrlo, guarda el resultado de test en indices/<nombre>/prueba.json: {\"indice\", \"golden\", \"split\", \"k\", \"bm25\",\n  \"vectores\", \"por_pregunta\"}.\n\"\"\"\nfrom __future__ import annotations\n\nimport math\nimport sys\nfrom pathlib import Path\n\nsys.path.insert(0, str(Path(__file__).resolve().parent))\nfrom _comun import INDICES, config, escribir_json, golden  # noqa: E402\nfrom alias import resolver  # noqa: E402\nfrom buscar import Buscador, modelo_de_consulta  # noqa: E402\n\n\ndef _resumen(xs: list[float], fugas: int, prohibidas: int) -> dict:\n    n = len(xs)\n    m = sum(xs) / n if n else 0.0\n    sd = math.sqrt(sum((x - m) ** 2 for x in xs) / (n - 1)) if n > 1 else 0.0\n    return {\"recall\": m, \"margen\": 1.96 * sd / math.sqrt(n) if n else 0.0, \"n\": n, \"fugas\": fugas, \"prohibidas\": prohibidas}\n\n\ndef medir(buscador, preguntas: list[dict], k: int = 8) -> dict:\n    rec = {\"bm25\": [], \"vectores\": []}\n    fugas = {\"bm25\": 0, \"vectores\": 0}\n    por = []\n    for x in preguntas:\n        fs = {f[\"chunk_id\"] for f in x[\"fuentes\"]}\n        fila = {\"id\": x[\"id\"], \"tipo\": x[\"tipo\"], \"bm25\": None, \"vectores\": None}\n        for lado in (\"bm25\", \"vectores\"):\n            top = {c for c, _ in getattr(buscador, lado)(x[\"pregunta\"], x[\"persona\"], k)}\n            if x[\"tipo\"] in (\"directa\", \"varias\"):\n                fila[lado] = len(fs & top) / len(fs)\n                rec[lado].append(fila[lado])\n            elif x[\"tipo\"] == \"prohibida\" and fs & top:\n                fugas[lado] += 1\n        por.append(fila)\n    pro = sum(x[\"tipo\"] == \"prohibida\" for x in preguntas)\n    return {lado: _resumen(rec[lado], fugas[lado], pro) for lado in rec} | {\"por_pregunta\": por}\n\n\nif __name__ == \"__main__\":\n    # python pipeline/prueba.py [--indice NOMBRE] [--split dev] [--consulta CLAVE]\n    import argparse\n\n    ap = argparse.ArgumentParser()\n    ap.add_argument(\"--indice\", help=\"un índice por nombre (si no, el del alias)\")\n    ap.add_argument(\"--split\", default=\"test\", choices=[\"test\", \"dev\"])\n    ap.add_argument(\"--consulta\", help=\"embeber las preguntas con otro modelo, para ver qué pasaría (no guarda nada)\")\n    a = ap.parse_args()\n    nombre = a.indice or resolver(config()[\"servicio\"][\"alias\"])\n    if a.consulta:\n        b = Buscador(nombre, a.consulta, exigir_mismo_modelo=False)\n    else:\n        b = Buscador(nombre, modelo_de_consulta(nombre))\n    v, items = golden()\n    items = [x for x in items if x[\"split\"] == a.split]\n    r = medir(b, items)\n    m = b.manifiesto[\"modelo\"]\n    print(f\"{b.nombre} ({m['clave']}) · {v} · {a.split}: {len(items)} preguntas, {r['bm25']['n']} con fuentes que buscar\" +\n          (f\" · preguntas embebidas con {a.consulta}\" if a.consulta else \"\"))\n    for lado in (\"bm25\", \"vectores\"):\n        x = r[lado]\n        print(f\"  {lado:<9} recall@8 = {x['recall']:.1%} ± {x['margen']:.1%}   · {x['prohibidas'] - x['fugas']} de {x['prohibidas']} prohibidas sin fuga\")\n    solo_b = [p[\"id\"] for p in r[\"por_pregunta\"] if p[\"bm25\"] is not None and p[\"bm25\"] > p[\"vectores\"]]\n    solo_v = [p[\"id\"] for p in r[\"por_pregunta\"] if p[\"bm25\"] is not None and p[\"vectores\"] > p[\"bm25\"]]\n    print(f\"  BM25 encuentra más en {len(solo_b)}: {', '.join(solo_b) or '—'}\")\n    print(f\"  vectores encuentran más en {len(solo_v)}: {', '.join(solo_v) or '—'}\")\n    if a.split == \"test\" and not a.consulta:\n        escribir_json(INDICES / b.nombre / \"prueba.json\", {\"indice\": b.nombre, \"golden\": v, \"split\": a.split, \"k\": 8, **r})\n        print(f\"  guardado en indices/{b.nombre}/prueba.json\")",
+          "nota": ""
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python pipeline/buscar.py --indice c11-e5-2026-11-22 --persona elena.cruz@marketplace.test \"¿En cuánto tiempo me regresan el dinero si pagué con tarjeta?\"",
+          "nota": "La misma pregunta del paso 3: BM25 se va con «tarjeta» y «tiempo» a los tickets; los vectores ponen arriba wiki:1004, la página de reembolsos. Elena ve 88 de los 151 chunks.",
+          "donde": "mac",
+          "salida": "c11-e5-2026-11-22 · elena.cruz@marketplace.test ve 88 de 151 chunks\n  BM25                              vectores                          \n    4.49  jira:SOP-41#000            0.864  wiki:1004#001             \n    3.84  jira:SOP-10#000            0.863  wiki:1015#000             \n    3.84  jira:SOP-18#000            0.861  wiki:1004#000             \n    3.84  jira:SOP-2#000             0.853  jira:SOP-41#000           \n    3.84  jira:SOP-26#000            0.851  wiki:1007#000             \n    3.84  jira:SOP-34#000            0.851  drive:d20#008             \n    3.45  drive:d20#009              0.850  drive:d20#005             \n    3.39  wiki:1004#001              0.845  drive:d20#006"
+        },
+        {
+          "code": "python pipeline/prueba.py --indice c11-minilm-2026-11-22",
+          "nota": "El índice que está sirviendo: sus vectores (MiniLM) sacan menos que BM25.",
+          "donde": "mac",
+          "salida": "c11-minilm-2026-11-22 (minilm) · golden-v2 · test: 51 preguntas, 37 con fuentes que buscar\n  bm25      recall@8 = 93.2% ± 6.8%   · 6 de 6 prohibidas sin fuga\n  vectores  recall@8 = 85.1% ± 9.9%   · 6 de 6 prohibidas sin fuga\n  BM25 encuentra más en 7: G-023, G-036, G-041, G-042, G-044, G-051, G-052\n  vectores encuentran más en 3: G-045, G-047, G-048\n  guardado en indices/c11-minilm-2026-11-22/prueba.json"
+        },
+        {
+          "code": "python pipeline/prueba.py --indice c11-e5-2026-11-22",
+          "nota": "Los mismos chunks y el mismo BM25; los vectores de e5 pasan de 85.1 % a 98.6 %. Y BM25 sigue ganando en G-043.",
+          "donde": "mac",
+          "salida": "c11-e5-2026-11-22 (e5) · golden-v2 · test: 51 preguntas, 37 con fuentes que buscar\n  bm25      recall@8 = 93.2% ± 6.8%   · 6 de 6 prohibidas sin fuga\n  vectores  recall@8 = 98.6% ± 2.6%   · 6 de 6 prohibidas sin fuga\n  BM25 encuentra más en 1: G-043\n  vectores encuentran más en 4: G-024, G-045, G-047, G-048\n  guardado en indices/c11-e5-2026-11-22/prueba.json"
+        },
+        {
+          "code": "python pipeline/prueba.py --indice c11-e5-2026-11-22 --consulta minilm",
+          "nota": "Lo que pasaría si la API embebiera las preguntas con MiniLM contra el índice de e5: los vectores bajan a 21.6 %. Nada truena: los dos dan 384 números. Por eso <code>Buscador</code> se niega.",
+          "donde": "mac",
+          "salida": "c11-e5-2026-11-22 (e5) · golden-v2 · test: 51 preguntas, 37 con fuentes que buscar · preguntas embebidas con minilm\n  bm25      recall@8 = 93.2% ± 6.8%   · 6 de 6 prohibidas sin fuga\n  vectores  recall@8 = 21.6% ± 12.9%   · 6 de 6 prohibidas sin fuga\n  BM25 encuentra más en 29: G-001, G-004, G-005, G-006, G-007, G-008, G-010, G-012, G-013, G-017, G-018, G-019, G-020, G-021, G-022, G-023, G-033, G-035, G-040, G-041, G-042, G-043, G-044, G-045, G-047, G-048, G-050, G-051, G-052\n  vectores encuentran más en 0: —"
+        },
+        {
+          "code": "python pipeline/prueba.py --indice c11-e5-2026-11-22 --split dev",
+          "nota": "",
+          "donde": "mac",
+          "salida": "c11-e5-2026-11-22 (e5) · golden-v2 · dev: 14 preguntas, 9 con fuentes que buscar\n  bm25      recall@8 = 100.0% ± 0.0%   · 4 de 4 prohibidas sin fuga\n  vectores  recall@8 = 100.0% ± 0.0%   · 4 de 4 prohibidas sin fuga\n  BM25 encuentra más en 0: —\n  vectores encuentran más en 0: —"
+        },
+        {
+          "code": "python verificar.py permisos prueba",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ permisos   14 personas: cada una recibe solo lo que puede leer, y siempre 8 si ve 8 o más (carmen.nava ve 4 de 151; luis.campos, ninguno) · las 10 prohibidas sin fuga · el mismo top-8 que la verdad\n✓ prueba     golden-v2 · test, recall@8 · piloto: BM25 93.2%, vectores 85.1% · c11-e5-2026-11-22: BM25 93.2%, vectores 98.6% · 0 fugas\n\n2/2 en verde"
+        }
+      ],
+      "verifica": "<code>verificar.py permisos</code> y <code>prueba</code> en verde: las 14 personas reciben solo lo que pueden leer y siempre 8 si ven 8 o más, sin fugas en las prohibidas, y <code>prueba.json</code> de los dos índices con el recall de la verdad.",
+      "ojo": "Con 37 preguntas, el margen de los vectores del piloto es ± 9.9 puntos: la diferencia contra e5 (13.5) sí se distingue, pero una de 2 o 3 no se distinguiría. Y en dev todo da 100 %: 9 preguntas no sirven para decidir.",
+      "en_pagina": {
+        "conceptos": [
+          "hibrido"
+        ],
+        "precalculos": []
+      }
+    },
+    {
+      "n": 7,
+      "id": "alias",
+      "titulo": "Cambiar de índice sin cortar",
+      "objetivo": "<code>alias.py</code>: mover c11 de un jalón al índice de e5 mientras la API contesta, volver atrás y otra vez adelante; y que la API embeba cada pregunta con el modelo que dice el manifiesto del índice.",
+      "conceptos": [
+        "alias",
+        "rollback",
+        "firma-modelo"
+      ],
+      "explica": "<code>apuntar()</code> revisa el índice antes de moverse (a uno «construyendo» no va), guarda el que estaba como «anterior» y anota el cambio en el historial, todo en <code>indices/alias.json</code> escrito de un jalón: <code>escribir_json</code> escribe un temporal en la misma carpeta y lo pone en su lugar con <code>os.replace</code>, que en macOS y Linux es atómico; quien lo lea a la mitad ve el viejo o el nuevo. <code>volver()</code> regresa al anterior. La API (<code>mundo/servicio.py</code>) lee el alias en cada petición; cuando cambia, abre el índice nuevo mientras sigue contestando con el viejo. <code>modelo_de_consulta()</code> saca de <code>config.yaml</code> con qué modelo embeber la pregunta: «del-indice» quiere decir el del manifiesto.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "pipeline/alias.py",
+          "code": "\"\"\"Paso 7: el alias. La API de búsqueda nunca nombra un índice: nombra el alias, y el alias apunta al vigente.\nCambiar de índice es cambiar a dónde apunta, de un jalón, con forma de volver atrás.\n\nContrato (indices/alias.json = {alias: {\"actual\", \"anterior\", \"historial\": [{\"fecha\", \"de\", \"a\"}]}}):\n- resolver(alias) → el nombre del índice al que apunta, o None.\n- apuntar(alias, nombre): solo si revisar(nombre) no encuentra problemas (si no, ValueError con el primero). El que\n  estaba pasa a \"anterior\" (para volver), y se anota en el historial con la fecha real (UTC). Se escribe con\n  escribir_json: quien lo lea a la mitad ve el viejo o el nuevo, nunca uno a medias.\n- volver(alias): apunta otra vez al \"anterior\" (que también se revisa) y el que estaba queda como anterior.\n\"\"\"\nfrom __future__ import annotations\n\nimport sys\nfrom datetime import datetime, timezone\nfrom pathlib import Path\n\nsys.path.insert(0, str(Path(__file__).resolve().parent))\nfrom _comun import ALIAS, escribir_json, leer_json  # noqa: E402\nfrom construir import revisar  # noqa: E402\n\n\ndef leer() -> dict:\n    return leer_json(ALIAS, {})\n\n\ndef resolver(alias: str) -> str | None:\n    return leer().get(alias, {}).get(\"actual\")\n\n\ndef apuntar(alias: str, nombre: str) -> None:\n    p = revisar(nombre)\n    if p:\n        raise ValueError(f\"no muevo {alias} a {nombre}: {p[0]}\")\n    a = leer()\n    x = a.get(alias, {})\n    if x.get(\"actual\") == nombre:\n        return\n    a[alias] = {\"actual\": nombre, \"anterior\": x.get(\"actual\"),\n                \"historial\": x.get(\"historial\", []) + [{\"fecha\": datetime.now(timezone.utc).isoformat(timespec=\"milliseconds\"), \"de\": x.get(\"actual\"), \"a\": nombre}]}\n    escribir_json(ALIAS, a)\n\n\ndef volver(alias: str) -> str:\n    x = leer().get(alias, {})\n    if not x.get(\"anterior\"):\n        raise ValueError(f\"{alias} no tiene a dónde volver\")\n    destino = x[\"anterior\"]\n    apuntar(alias, destino)\n    return destino\n\n\nif __name__ == \"__main__\":\n    # python pipeline/alias.py listar | cambiar <alias> <índice> | volver <alias>\n    import argparse\n\n    ap = argparse.ArgumentParser()\n    ap.add_argument(\"accion\", choices=[\"listar\", \"cambiar\", \"volver\"])\n    ap.add_argument(\"args\", nargs=\"*\")\n    a = ap.parse_args()\n    try:\n        if a.accion == \"cambiar\":\n            antes = resolver(a.args[0])\n            apuntar(*a.args)\n            print(f\"✓ {a.args[0]}: {antes} → {a.args[1]}\")\n        elif a.accion == \"volver\":\n            antes = resolver(a.args[0])\n            print(f\"✓ {a.args[0]}: {antes} → {volver(a.args[0])} (de vuelta)\")\n    except ValueError as e:\n        sys.exit(f\"✗ {e}\")\n    for al, x in leer().items():\n        print(f\"{al} → {x['actual']}   (anterior: {x['anterior']} · {len(x['historial'])} cambio(s))\")",
+          "nota": ""
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python mundo/servicio.py     # en otra terminal: se queda corriendo\ncurl -s http://localhost:8150/salud",
+          "nota": "",
+          "donde": "mac",
+          "salida": "{\"indice\": \"c11-minilm-2026-11-22\", \"error\": null}"
+        },
+        {
+          "code": "curl -s 'http://localhost:8150/buscar?persona=elena.cruz@marketplace.test&indice=vectores&k=3&q=plazo+para+devolver+electr%C3%B3nica'",
+          "nota": "Cada respuesta dice qué índice contestó.",
+          "donde": "mac",
+          "salida": "{\"indice\": \"c11-minilm-2026-11-22\", \"lado\": \"vectores\", \"ms\": 5.3, \"resultados\": [{\"chunk_id\": \"wiki:1003#000\", \"puntaje\": 0.663}, {\"chunk_id\": \"wiki:1002#004\", \"puntaje\": 0.5567}, {\"chunk_id\": \"wiki:1002#000\", \"puntaje\": 0.5446}]}"
+        },
+        {
+          "code": "python mundo/trafico.py --segundos 15     # en una tercera terminal\npython pipeline/alias.py cambiar c11 c11-e5-2026-11-22   # mientras corre el tráfico",
+          "nota": "Ninguna petición falló: unas las contestó el piloto y las demás el índice nuevo. La API abrió el nuevo mientras seguía contestando con el viejo.",
+          "donde": "mac",
+          "salida": "✓ c11: c11-minilm-2026-11-22 → c11-e5-2026-11-22\nc11 → c11-e5-2026-11-22   (anterior: c11-minilm-2026-11-22 · 2 cambio(s))\n\n— en la terminal del tráfico, al terminar:\n1792 peticiones en 15 s · 1792 contestadas · 0 con error\n    737 contestó c11-minilm-2026-11-22\n   1055 contestó c11-e5-2026-11-22\n  en orden: c11-minilm-2026-11-22 (desde 22:30:27) → c11-e5-2026-11-22 (desde 22:30:33)\n\n— en la terminal de la API:\n[servicio] 22:30:24 ahora contesta c11-minilm-2026-11-22\n[servicio] escuchando en http://localhost:8150 · alias c11 → c11-minilm-2026-11-22\n[servicio] 22:30:33 ahora contesta c11-e5-2026-11-22"
+        },
+        {
+          "code": "python mundo/trafico.py --segundos 8     # en la tercera terminal\npython pipeline/alias.py volver c11",
+          "nota": "Volver tampoco corta.",
+          "donde": "mac",
+          "salida": "✓ c11: c11-e5-2026-11-22 → c11-minilm-2026-11-22 (de vuelta)\nc11 → c11-minilm-2026-11-22   (anterior: c11-e5-2026-11-22 · 3 cambio(s))\n\n— en la terminal del tráfico:\n986 peticiones en 8 s · 986 contestadas · 0 con error\n    358 contestó c11-e5-2026-11-22\n    628 contestó c11-minilm-2026-11-22\n  en orden: c11-e5-2026-11-22 (desde 22:30:42) → c11-minilm-2026-11-22 (desde 22:30:45)"
+        },
+        {
+          "code": "python pipeline/alias.py cambiar c11 c11-e5-2026-11-22\ncurl -s http://localhost:8150/salud",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ c11: c11-minilm-2026-11-22 → c11-e5-2026-11-22\nc11 → c11-e5-2026-11-22   (anterior: c11-minilm-2026-11-22 · 4 cambio(s))\n{\"indice\": \"c11-e5-2026-11-22\", \"error\": null}"
+        },
+        {
+          "code": "python -c \"\nimport sys, os, json; sys.path.insert(0, 'pipeline')\nfrom alias import apuntar\nos.makedirs('indices/c11-e5-prueba', exist_ok=True); json.dump({'nombre': 'c11-e5-prueba', 'estado': 'construyendo'}, open('indices/c11-e5-prueba/manifiesto.json', 'w'))\ntry: apuntar('c11', 'c11-e5-prueba')\nexcept ValueError as e: print('ValueError:', e)\nimport shutil; shutil.rmtree('indices/c11-e5-prueba')\"",
+          "nota": "A un índice «construyendo» el alias no se mueve.",
+          "donde": "mac",
+          "salida": "ValueError: no muevo c11 a c11-e5-prueba: c11-e5-prueba está «construyendo», no «listo»"
+        },
+        {
+          "code": "python verificar.py consulta alias",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ consulta   c11-e5-2026-11-22 es de e5 y la API embebe cada pregunta con e5 (del manifiesto) · con minilm, Buscador se niega\n✓ alias      c11 → c11-e5-2026-11-22 (sano) · anterior: c11-minilm-2026-11-22 (sano: se puede volver) · 4 cambio(s) anotados · a un índice a medio construir no se mueve\n\n2/2 en verde"
+        },
+        {
+          "code": "python mundo/noche.py",
+          "nota": "El job de cada noche hace lo mismo que hiciste a mano: construir al lado, probar con el golden set y mover el alias. Este índice ya no necesitó embeber nada.",
+          "donde": "mac",
+          "salida": "✓ indices/c11-e5-2026-11-22-2/ listo en 1.0 s: 151 chunks de corpus-2026-11-22 · BM25 y vectores de 384 dimensiones (intfloat/multilingual-e5-small @ 614241f622f5) · cada chunk con su ACL\n  bm25      recall@8 = 93.2% ± 6.8%   · 6 de 6 prohibidas sin fuga\n  vectores  recall@8 = 98.6% ± 2.6%   · 6 de 6 prohibidas sin fuga\n✓ c11: c11-e5-2026-11-22 → c11-e5-2026-11-22-2\nc11 → c11-e5-2026-11-22-2   (anterior: c11-e5-2026-11-22 · 5 cambio(s))"
+        }
+      ],
+      "verifica": "<code>verificar.py consulta</code> y <code>alias</code> en verde: la API embebe con el modelo del índice y Buscador se niega con otro; c11 en un índice sano, el anterior sano para volver, el historial, y a uno a medio construir no se mueve.",
+      "ojo": "Al terminar, para la API (Ctrl+C en su terminal). Y el índice anterior no se borra en cuanto el nuevo «ya funcionó»: es a dónde vuelves si mañana algo sale mal.",
+      "en_pagina": {
+        "conceptos": [
+          "alias",
+          "rollback"
+        ],
+        "precalculos": [
+          "doble"
+        ]
+      }
+    }
+  ],
+  "solo": {
+    "reglas": [
+      "Empieza con <code>python mundo/reiniciar.py</code>: deja el esqueleto, borra <code>indices/</code> y <code>cache/</code> y vuelve al 22 a las 11:00 (los modelos se quedan).",
+      "Sin GUION.md ni <code>mundo/referencia.py</code>: solo los contratos de arriba de cada archivo y estos objetivos.",
+      "Claude corre <code>verificar.py</code> y te dice qué falla; no te da código."
+    ],
+    "objetivos": [
+      {
+        "n": 1,
+        "objetivo": "El almacén del 22, los dos modelos con su sha256 y el índice del piloto detrás de c11.",
+        "check": "mundo"
+      },
+      {
+        "n": 2,
+        "objetivo": "Un Modelo que solo carga archivos con el sha256 del catálogo y da vectores de largo 1 iguales a los del modelo, con su prefijo, y su firma.",
+        "check": "embeddings",
+        "pista": "¿Qué tokens cuentan en el promedio, y qué hace el tokenizer con un texto más corto que los demás del lote?"
+      },
+      {
+        "n": 3,
+        "objetivo": "Un cache que no vuelve a embeber lo que ya está, y nunca da vectores de un modelo a otro.",
+        "check": "cache"
+      },
+      {
+        "n": 4,
+        "objetivo": "BM25 con df, tf, el largo de cada chunk, el IDF y el puntaje de la fórmula.",
+        "check": "bm25",
+        "pista": "¿Cada palabra de la pregunta cuenta tantas veces como aparece, o una?"
+      },
+      {
+        "n": 5,
+        "objetivo": "La matriz con qué modelo hizo cada fila, y un top-k que filtra antes de elegir.",
+        "check": "vectores"
+      },
+      {
+        "n": 6,
+        "objetivo": "Un índice nuevo al lado, «listo» al final, con la firma del modelo, la dimensión de la config y del modelo, y un revisar() que ve uno a medio construir.",
+        "check": "construir"
+      },
+      {
+        "n": 7,
+        "objetivo": "Los mismos chunks del corpus en las dos mitades, con su ACL.",
+        "check": "completo"
+      },
+      {
+        "n": 8,
+        "objetivo": "Cada persona recibe solo lo que puede leer, y siempre 8 si ve 8 o más.",
+        "check": "permisos",
+        "pista": "¿Qué pasa con alguien que ve 4 chunks si filtras después de elegir el top-8?"
+      },
+      {
+        "n": 9,
+        "objetivo": "El recall@8 de BM25 y de vectores, por separado, del piloto y del tuyo, guardado en prueba.json.",
+        "check": "prueba"
+      },
+      {
+        "n": 10,
+        "objetivo": "La API embebe cada pregunta con el modelo del índice, y con otro se niega.",
+        "check": "consulta"
+      },
+      {
+        "n": 11,
+        "objetivo": "c11 en tu índice, el anterior sano para volver, cada cambio anotado, y a uno a medio construir no se mueve.",
+        "check": "alias",
+        "pista": "¿Qué ve quien lee indices/alias.json justo mientras lo escribes?"
+      }
+    ]
+  },
+  "fallas": [
+    {
+      "id": "modelos-mezclados",
+      "titulo": "El monitor dice que los vectores bajaron 40 puntos y la API no levanta",
+      "tipo": "infra",
+      "historia": "Para no esperar a que se re-embebiera todo, alguien copió al índice vigente los vectores de 40 chunks de la wiki «que no cambiaron» desde el índice del piloto, y recalculó el manifiesto para que cuadrara.",
+      "sintoma": "<code>verificar.py construir</code> falla: el índice vigente tiene vectores de dos modelos (111 de e5 y 40 de MiniLM). La API contesta 503 porque tu <code>revisar()</code> no lo deja abrir.",
+      "hipotesis": [
+        "Cambió el corpus.",
+        "El índice tiene vectores de otro modelo.",
+        "La pregunta se embebe con otro modelo."
+      ],
+      "confirma": {
+        "code": "python mundo/evaluar.py",
+        "nota": "BM25 igual; los vectores, de 98.6 % a 58.1 %: casi todas las fuentes del golden son de la wiki.",
+        "donde": "mac",
+        "salida": "monitor · c11-e5-2026-11-22 (e5) · preguntas embebidas con e5 · golden test\n  bm25      recall@8 hoy 93.2% · cuando se construyó 93.2%\n  vectores  recall@8 hoy 58.1% · cuando se construyó 98.6%"
+      },
+      "arreglo": "Primero se mitiga: <code>python pipeline/alias.py volver c11</code> regresa la API al índice anterior (el del piloto: peor recall, pero sano) en segundos. Después se arregla hacia adelante: <code>python mundo/noche.py</code> construye un índice nuevo al lado, desde el cache (los embeddings buenos siguen ahí), lo prueba y mueve el alias. Un índice tiene un solo modelo: cambiar de modelo es re-embeber todo, en otro índice. Las dimensiones cuadraban (384 y 384): por eso cada fila lleva su modelo y la revisión re-embebe una muestra.",
+      "concepto": "espacios",
+      "check": "construir"
+    },
+    {
+      "id": "sin-normalizar",
+      "titulo": "Después de migrar a la base vectorial nueva, la API no levanta",
+      "tipo": "infra",
+      "historia": "El equipo de plataforma migró el índice vigente a «la base vectorial nueva» con su script de exportación y lo volvió a poner en su lugar, con el manifiesto recalculado.",
+      "sintoma": "<code>verificar.py vectores</code> falla: los 151 vectores del índice vigente tienen largo de 4.54 a 4.97, y la similitud es coseno.",
+      "hipotesis": [
+        "El script cambió el modelo.",
+        "El script no normalizó los vectores.",
+        "Faltan chunks."
+      ],
+      "confirma": {
+        "code": "python -c \"\nimport json, numpy as np; v = json.load(open('indices/alias.json'))['c11']['actual']; n = np.linalg.norm(np.load(f'indices/{v}/vectores.npy'), axis=1)\nprint(f'{v}: largo de los vectores de {n.min():.2f} a {n.max():.2f} (tendría que ser 1.00)')\"",
+        "nota": "El producto punto ya no es el coseno: un vector más largo gana puntos sin parecerse más.",
+        "donde": "mac",
+        "salida": "c11-e5-2026-11-22: largo de los vectores de 4.54 a 4.97 (tendría que ser 1.00)\n\n$ python mundo/evaluar.py\nmonitor · c11-e5-2026-11-22 (e5) · preguntas embebidas con e5 · golden test\n  bm25      recall@8 hoy 93.2% · cuando se construyó 93.2%\n  vectores  recall@8 hoy 91.9% · cuando se construyó 98.6%"
+      },
+      "arreglo": "Primero se mitiga: <code>python pipeline/alias.py volver c11</code> regresa la API al índice anterior (el del piloto: peor recall, pero sano) en segundos. Después se arregla hacia adelante: <code>python mundo/noche.py</code> construye un índice nuevo al lado, desde el cache (los embeddings buenos siguen ahí), lo prueba y mueve el alias. Si la similitud es coseno y se calcula con el producto punto, cada vector se normaliza al escribirlo, la pregunta también, y se revisa antes de servir.",
+      "concepto": "normalizar",
+      "check": "vectores"
+    },
+    {
+      "id": "chunks-faltantes",
+      "titulo": "Los vectores ya no encuentran la política de devoluciones; BM25 sí",
+      "tipo": "infra",
+      "historia": "El job de embeddings de anoche se cortó por tiempo a la mitad de un lote y el paso siguiente publicó el índice igual, con el manifiesto al día.",
+      "sintoma": "<code>verificar.py completo</code> falla: a <code>vectores.json</code> del índice vigente le faltan 15 chunks que sí están en BM25 y en <code>chunks.jsonl</code>.",
+      "hipotesis": [
+        "Esos documentos se borraron del corpus.",
+        "El índice de vectores se quedó a medias.",
+        "La ACL cambió."
+      ],
+      "confirma": {
+        "code": "python pipeline/construir.py --revisar $(python -c \"import json; print(json.load(open('indices/alias.json'))['c11']['actual'])\")\npython mundo/evaluar.py",
+        "nota": "BM25 sigue en 93.2 %; los vectores bajan a 83.8 %. El híbrido disimula: la mitad del índice ya no ve esos documentos.",
+        "donde": "mac",
+        "salida": "✗ c11-e5-2026-11-22: vectores.json no trae los mismos chunks que chunks.jsonl (faltan 15, sobran 0)\n[código 1]\nmonitor · c11-e5-2026-11-22 (e5) · preguntas embebidas con e5 · golden test\n  bm25      recall@8 hoy 93.2% · cuando se construyó 93.2%\n  vectores  recall@8 hoy 83.8% · cuando se construyó 98.6%"
+      },
+      "arreglo": "Primero se mitiga: <code>python pipeline/alias.py volver c11</code> regresa la API al índice anterior (el del piloto: peor recall, pero sano) en segundos. Después se arregla hacia adelante: <code>python mundo/noche.py</code> construye un índice nuevo al lado, desde el cache (los embeddings buenos siguen ahí), lo prueba y mueve el alias. Las dos mitades del índice traen exactamente los mismos chunks, y se revisa antes de mover el alias: un job que «terminó» no es un índice completo.",
+      "concepto": "hibrido",
+      "check": "completo"
+    },
+    {
+      "id": "dimension-equivocada",
+      "titulo": "El índice de anoche no se construyó",
+      "tipo": "config",
+      "historia": "Para ir preparando el cambio a un modelo más grande, alguien copió a config.yaml la dimensión del ejemplo de multilingual-e5-base. El job de la noche corrió después.",
+      "sintoma": "<code>verificar.py construir</code> falla: <code>config.yaml</code> dice <code>indice.dimension: 768</code> y e5-small da 384. La API sigue bien, con el índice de ayer.",
+      "hipotesis": [
+        "El modelo cambió.",
+        "La config del índice no es la del modelo.",
+        "Se llenó el disco."
+      ],
+      "confirma": {
+        "code": "python mundo/noche.py\ngrep -n dimension config.yaml",
+        "nota": "construir.py se detuvo antes de escribir nada, y el alias no se movió.",
+        "donde": "mac",
+        "salida": "✗ e5 da vectores de 384 dimensiones y config.yaml dice indice.dimension: 768: no construyo nada\n✗ la construcción de esta noche falló: el alias se queda donde estaba\n[código 1]\n8:  dimension: 768       # cuántos números trae cada vector: lo declaras al crear el índice, como en una base vectorial"
+      },
+      "arreglo": "<code>indice.dimension</code> vuelve a 384 y <code>python mundo/noche.py</code> construye el índice de esta noche. La dimensión la dicta el modelo: si se cambia de modelo, se cambian los dos juntos y se re-embebe todo en un índice nuevo. Fallar antes de escribir nada es lo que mantuvo a la API sana.",
+      "concepto": "dimension",
+      "check": "construir"
+    },
+    {
+      "id": "consulta-otro-modelo",
+      "titulo": "La API de búsqueda contesta 503 a todo",
+      "tipo": "config",
+      "historia": "Después de una prueba con el índice del piloto, alguien dejó fijo en la configuración de la API el modelo con el que se embeben las preguntas.",
+      "sintoma": "<code>verificar.py consulta</code> falla: la API embebería las preguntas con MiniLM y el índice detrás de c11 es de e5.",
+      "hipotesis": [
+        "El índice se dañó.",
+        "La API usa otro modelo para las preguntas.",
+        "El alias cambió."
+      ],
+      "confirma": {
+        "code": "curl -s http://localhost:8150/salud\npython mundo/evaluar.py",
+        "nota": "Si la API no se negara, los vectores contestarían con 21.6 % de recall, sin un solo error.",
+        "donde": "mac",
+        "salida": "{\"indice\": null, \"error\": \"ModeloDistinto: c11-e5-2026-11-22 se hizo con e5 @ 614241f622f5 y la consulta se embebería con minilm @ 1110a243fdf4: sus vectores no se comparan\"}\nmonitor · c11-e5-2026-11-22 (e5) · preguntas embebidas con minilm · golden test\n  bm25      recall@8 hoy 93.2% · cuando se construyó 93.2%\n  vectores  recall@8 hoy 21.6% · cuando se construyó 98.6%"
+      },
+      "arreglo": "En <code>config.yaml</code>, <code>servicio.modelo_consulta</code> vuelve a <code>del-indice</code>: el modelo de la pregunta sale del manifiesto del índice, no de una configuración aparte que se queda atrás cuando cambia el índice. Un 503 claro es mejor que resultados de otro espacio.",
+      "concepto": "firma-modelo",
+      "check": "consulta"
+    },
+    {
+      "id": "alias-a-medio",
+      "titulo": "La API dejó de contestar justo cuando empezó el job de la noche",
+      "tipo": "infra",
+      "historia": "Para «ganar tiempo», el job nuevo de la noche mueve el alias al índice nuevo en cuanto empieza a construirlo, no al final.",
+      "sintoma": "<code>verificar.py alias</code> falla: c11 apunta a un índice «construyendo», que todavía no tiene <code>vectores.npy</code>.",
+      "hipotesis": [
+        "El índice nuevo está a medio construir.",
+        "La API se cayó.",
+        "Cambió el modelo."
+      ],
+      "confirma": {
+        "code": "python pipeline/alias.py listar\ncurl -s http://localhost:8150/salud",
+        "nota": "",
+        "donde": "mac",
+        "salida": "c11 → c11-e5-2026-11-22-2   (anterior: c11-e5-2026-11-22 · 3 cambio(s))\n{\"indice\": null, \"error\": \"ValueError: c11-e5-2026-11-22-2 está «construyendo», no «listo»\"}"
+      },
+      "arreglo": "<code>python pipeline/alias.py volver c11</code> (el anterior está sano), se borra el índice a medias (<code>rm -rf indices/c11-e5-2026-11-22-2</code>) y <code>python mundo/noche.py</code> lo construye completo, lo prueba y mueve el alias al final. El alias se mueve después de construir y revisar, nunca antes.",
+      "concepto": "alias",
+      "check": "alias"
+    }
+  ],
+  "listo": [
+    "Cada chunk tiene su embedding de un modelo local fijado por revisión y sha256, con su prefijo, promediado sin el relleno y de largo 1, y la firma del modelo va en el índice y en cada fila.",
+    "Lo ya embebido sale del cache, con una llave que incluye el modelo y la huella del texto.",
+    "BM25 y vectores sobre exactamente los mismos chunks, con la ACL de cada uno, y el filtro de permisos antes de elegir el top-8.",
+    "Cada índice se construye al lado del vigente, con un manifiesto, y se revisa antes de usarse.",
+    "La búsqueda de prueba con el golden set dice el recall@8 de cada mitad, del índice viejo y del nuevo.",
+    "La API nombra un alias que cambia de un jalón sin cortar, con el anterior sano para volver, y embebe cada pregunta con el modelo del índice."
+  ],
+  "repaso": {
+    "memo": "<b>Dos índices sobre los mismos chunks: BM25 por palabras y vectores por significado, cada chunk con su ACL y cada vector con la firma del modelo que lo hizo; un cache por modelo y texto; cada índice nuevo se construye al lado, se revisa, se mide con el golden set y se pone detrás de un alias que cambia de un jalón y puede volver.</b> En el dojo: BM25 93.2 %, vectores de MiniLM 85.1 % y de e5 98.6 % de recall@8; cada uno gana en preguntas distintas, y la estación 6 los junta.",
+    "trampa": "Vectores que «funcionan» porque nada truena. Dos modelos con 384 dimensiones se mezclan sin un error (58.1 %); una pregunta embebida con otro modelo da 21.6 %; vectores sin normalizar dan 91.9 %; a la mitad de vectores le faltan chunks y el híbrido lo disimula. Lo que los atrapa es la firma del modelo, el manifiesto y una revisión antes de mover el alias.",
+    "entrevista": [
+      {
+        "q": "¿Por qué BM25 y vectores, y no solo vectores?",
+        "a": "Porque fallan en preguntas distintas. Los vectores encuentran lo que se dice con otras palabras («me regresan el dinero» y la página de reembolsos); BM25 encuentra lo exacto: códigos de ticket, nombres, cifras. En mi caso, con el mismo golden set, BM25 sacó 93.2 % de recall@8 y los vectores de e5 98.6 %, y aun así BM25 ganó en una pregunta que los vectores no. Por eso se buscan los dos sobre los mismos chunks y se fusionan las listas, con RRF por ejemplo."
+      },
+      {
+        "q": "¿Cómo eliges el modelo de embeddings?",
+        "a": "Con el golden set de mi corpus, no con un ranking general. El piloto usaba all-MiniLM-L6-v2, el del tutorial, que se entrenó en inglés: con documentos en español sacó 85.1 % contra 98.6 % de multilingual-e5-small, con los mismos chunks. Después miro el tope de tokens contra el tamaño de mis chunks, la dimensión (cuánto pesa el índice), la licencia y la velocidad. Y lo fijo por revisión y sha256."
+      },
+      {
+        "q": "Quieres cambiar de modelo de embeddings. ¿Cómo lo haces sin tumbar el asistente?",
+        "a": "Re-embebo todo en un índice nuevo, al lado del que sirve: los vectores de dos modelos no se comparan aunque tengan la misma dimensión. Lo reviso (completo, un solo modelo, largo 1), lo mido con el golden set contra el vigente, y muevo el alias de un jalón. La API embebe la pregunta con el modelo que dice el manifiesto del índice, así que índice y consulta cambian juntos. El viejo se queda para volver atrás hasta que ya no haga falta."
+      },
+      {
+        "q": "¿Dónde aplicas los permisos en la búsqueda?",
+        "a": "Dentro del índice: cada chunk guarda su ACL y el filtro va antes de elegir el top-k. Si filtro después, alguien que ve una parte chica del corpus recibe 1 o 0 chunks en vez de 8, y si me olvido de filtrar, recibe chunks ajenos. Lo pruebo con cada persona del golden set y con las preguntas prohibidas."
+      },
+      {
+        "q": "¿Qué guardas junto a cada vector?",
+        "a": "El chunk_id, su ACL, la huella del texto y qué modelo lo hizo (repositorio, revisión y sha256). El modelo va en el manifiesto del índice y en cada fila: es lo que deja ver que alguien mezcló vectores de dos modelos, lo que dice con qué embeber la pregunta, y la llave del cache para no re-embeber lo que no cambió."
+      },
+      {
+        "q": "Con 7.5 M de chunks, ¿comparas la pregunta contra todos?",
+        "a": "No. Son ≈ 11.5 GB de vectores con 384 dimensiones; en mi Mac, solo la multiplicación tomaría ≈ 164 ms por pregunta. Uso un índice aproximado, como HNSW, que revisa una parte y casi siempre encuentra lo mismo, y mido con el golden set cuánto recall pierdo contra la búsqueda exacta. Con 151 chunks, como en el dojo, la exacta es lo más simple."
+      }
+    ]
+  },
+  "prompts": {
+    "claude_md": "kits/rag-indice/CLAUDE.md",
+    "guiado": "content/estaciones/rag-indice/prompts/guiado.md",
+    "solo": "content/estaciones/rag-indice/prompts/solo.md",
+    "romper_ayuda": "content/estaciones/rag-indice/prompts/romper-ayuda.md",
+    "romper_solo": "content/estaciones/rag-indice/prompts/romper-solo.md"
+  }
+}

@@ -146,8 +146,8 @@
           "id": "indice",
           "titulo": "Embeddings e índice híbrido",
           "etapa": "modelo",
-          "lista": false,
-          "url": null
+          "lista": true,
+          "url": "https://dojo.trueml.app/rag/indice/"
         },
         {
           "num": 6,

@@ -1,0 +1,18 @@
+# Configuración del índice. Los pasos de GUION.md dicen cuándo tocar cada línea.
+
+embeddings:
+  modelo: e5           # la clave en mundo/modelos.json del modelo que embebe los chunks (e5 = multilingual-e5-small)
+  lote: 16             # cuántos textos pasan juntos por el modelo
+
+indice:
+  dimension: 384       # cuántos números trae cada vector: lo declaras al crear el índice, como en una base vectorial
+  similitud: coseno    # con vectores de largo 1, el coseno es el producto punto
+
+bm25:
+  k1: 1.2              # cuánto premia repetir una palabra antes de saturarse
+  b: 0.75              # cuánto castiga un chunk largo (0 = nada, 1 = todo)
+
+servicio:              # la API de búsqueda: se despliega aparte del job que construye el índice
+  alias: c11           # el nombre que usa la API; detrás está el índice vigente
+  modelo_consulta: del-indice   # con qué modelo embebe la API cada pregunta: «del-indice» = el que dice el manifiesto
+  puerto: 8150
