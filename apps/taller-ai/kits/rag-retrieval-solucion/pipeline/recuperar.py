@@ -87,7 +87,7 @@ if __name__ == "__main__":
     a = ap.parse_args()
     q = " ".join(a.pregunta)
     try:
-        r = abrir()
+        r = abrir(con_reranker=a.modo in (None, "completo"))
     except ValueError as e:
         sys.exit(f"✗ {e}")
     cfg = config()["retrieval"]

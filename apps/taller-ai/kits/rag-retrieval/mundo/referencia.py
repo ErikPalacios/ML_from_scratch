@@ -97,7 +97,8 @@ def golden() -> tuple[str, list[dict]]:
     return v, leer_jsonl(ALMACEN / "golden" / v / "preguntas.jsonl")
 
 
-def top(ix_dir: str, pregunta: str, persona: str | None, lado: str, k: int = 8, consulta: str | None = None, cache: dict = {}) -> list[str]:  # noqa: B006
+def top(ix_dir: str, pregunta: str, persona: str | None, lado: str, k: int = 8, consulta: str | None = None, cache: dict = {},  # noqa: B006
+        puntaje: bool = False) -> list:
     """El top-k de un índice, con el filtro de permisos antes de elegir (persona=None: sin filtro)."""
     llave = (ix_dir, (INDICES / ix_dir / "manifiesto.json").stat().st_mtime_ns)
     if llave not in cache:
@@ -109,11 +110,13 @@ def top(ix_dir: str, pregunta: str, persona: str | None, lado: str, k: int = 8, 
     man, ids, meta, m, bm = cache[llave]
     ps = principals(persona, directorio()) if persona else None
     if lado == "bm25":
-        return [x for x, _ in sorted(((k_, s) for k_, s in puntajes(bm, pregunta).items() if ref_ve(meta.get(k_), ps)), key=lambda x: (-x[1], x[0]))[:k]]
+        r = sorted(((k_, s) for k_, s in puntajes(bm, pregunta).items() if ref_ve(meta.get(k_), ps)), key=lambda x: (-x[1], x[0]))[:k]
+        return r if puntaje else [x for x, _ in r]
     ok = np.array([ref_ve(meta.get(x), ps) for x in ids], dtype=bool)
     q = embeber(consulta or man["modelo"]["clave"], [pregunta], "consulta")[0]
     s = np.where(ok, m @ q, -np.inf)
-    return [ids[i] for i in np.argsort(-s, kind="stable")[:k] if ok[i]]
+    r = [(ids[i], float(s[i])) for i in np.argsort(-s, kind="stable")[:k] if ok[i]]
+    return r if puntaje else [x for x, _ in r]
 
 
 def ref_ve(acl, ps) -> bool:
@@ -168,17 +171,23 @@ def recuperar(pregunta: str, persona: str, modo: str, cfg: dict, ix_dir: str = V
     """El top-k de cada modo con una configuración dada (la verdad para comparar tu Recuperador)."""
     n = cfg["candidatos"]
     if cfg.get("filtro", "antes") == "antes":
-        bm, ve = top(ix_dir, pregunta, persona, "bm25", n), top(ix_dir, pregunta, persona, "vectores", n)
+        bm, ve = top(ix_dir, pregunta, persona, "bm25", n, puntaje=True), top(ix_dir, pregunta, persona, "vectores", n, puntaje=True)
     else:
         ok = visibles(persona, ix_dir)
-        bm = [c for c in top(ix_dir, pregunta, None, "bm25", n) if c in ok]
-        ve = [c for c in top(ix_dir, pregunta, None, "vectores", n) if c in ok]
+        bm = [c for c in top(ix_dir, pregunta, None, "bm25", n, puntaje=True) if c[0] in ok]
+        ve = [c for c in top(ix_dir, pregunta, None, "vectores", n, puntaje=True) if c[0] in ok]
     k = cfg["k"]
     if modo == "bm25":
-        return bm[:k]
+        return [c for c, _ in bm[:k]]
     if modo == "vectores":
-        return ve[:k]
-    fus = rrf([bm, ve], cfg["rrf_k"])
+        return [c for c, _ in ve[:k]]
+    if cfg["fusion"] == "rrf":
+        fus = rrf([[c for c, _ in bm], [c for c, _ in ve]], cfg["rrf_k"])
+    else:                                         # suma de los puntajes crudos (solo para comparar)
+        sm: dict = {}
+        for c, p in bm + ve:
+            sm[c] = sm.get(c, 0.0) + p
+        fus = sorted(sm, key=lambda c: (-sm[c], c))
     if modo == "fusion":
         return fus[:k]
     pool = fus[:cfg["rerank_n"]]

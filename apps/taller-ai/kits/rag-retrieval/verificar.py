@@ -170,9 +170,10 @@ def check_candidatos() -> str:
     # z está 10.º en las dos listas; los demás aparecen en una sola. Por RRF, z va primero: 2/(60+10) > 1/(60+1)
     lbm = [f"b{i:02d}" for i in range(9)] + ["z"] + [f"b{i:02d}" for i in range(9, 29)]
     lve = [f"v{i:02d}" for i in range(9)] + ["z"] + [f"v{i:02d}" for i in range(9, 29)]
+    c = cfg()["retrieval"]
+    exige(c["fusion"] == "rrf", lambda: f"esta prueba supone retrieval.fusion: rrf y dice {c['fusion']} (mira el check fusion)")
     bf = BuscadorFalso(lbm, lve)
     r = llamar(recuperador(bf).recuperar, "q", "ana", "fusion")
-    c = cfg()["retrieval"]
     exige(set(bf.pedidos) == {c["candidatos"]}, lambda: f"recuperar() le pidió {sorted(set(bf.pedidos))} a cada índice y config dice retrieval.candidatos: {c['candidatos']}")
     exige("z" in ids_(r)[:1], lambda: f"z está en el lugar 10 de BM25 y de vectores: por RRF le toca el 1.º (2/70 = 0.0286 contra "
           f"1/61 = 0.0164 de quien es 1.º en una sola), y tu top-8 fue {', '.join(ids_(r))}. Con retrieval.candidatos: "
@@ -208,13 +209,15 @@ def check_rerank() -> str:
     lbm = [f"b{i:02d}" for i in range(30)]
     lve = [f"v{i:02d}" for i in range(30)]
     c = cfg()["retrieval"]
+    exige(c["fusion"] == "rrf", lambda: f"esta prueba supone retrieval.fusion: rrf y dice {c['fusion']} (mira el check fusion)")
     fus = ref.rrf([lbm, lve], c["rrf_k"])
     elegido = fus[15]                    # el reranker sabe que el 16.º de la fusión es el bueno
     textos = {k: f"texto de {k}" for k in lbm + lve}
     rf = RerankerFalso(textos[elegido])
     r = llamar(recuperador(BuscadorFalso(lbm, lve), rf, textos).recuperar, "q", "ana", "completo")
     exige(rf.recibio, "recuperar(modo completo) no llamó al reranker")
-    exige(rf.recibio == [c["rerank_n"]], lambda: f"el reranker recibió {rf.recibio} textos y config dice retrieval.rerank_n: {c['rerank_n']}")
+    exige(rf.recibio == [c["rerank_n"]], lambda: f"el reranker recibió {rf.recibio[0]} textos y config dice retrieval.rerank_n: {c['rerank_n']}" +
+          (f": la fusión solo juntó {rf.recibio[0]}, con {c['candidatos']} candidatos por índice" if rf.recibio[0] < c["rerank_n"] else ""))
     exige(len(r["top"]) == c["k"], lambda: f"el modo completo dio {len(r['top'])} chunks y retrieval.k es {c['k']}")
     exige(ids_(r)[:1] == [elegido], lambda: f"el reranker le da el puntaje más alto a {elegido}, el 16.º de la fusión, y tu top-8 fue "
           f"{', '.join(ids_(r))}. Con retrieval.rerank_n: {c['rerank_n']} nunca lo lee: si el reranker solo ve los primeros "
