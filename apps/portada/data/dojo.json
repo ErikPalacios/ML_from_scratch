@@ -162,23 +162,22 @@
           "id": "llm-local",
           "titulo": "Un LLM local por API",
           "etapa": "api",
-          "lista": false,
-          "url": null
+          "lista": true,
+          "url": "https://dojo.trueml.app/ia-privada/modelo-local/"
         },
         {
           "num": 8,
           "id": "rag-api",
           "titulo": "La API con citas",
           "etapa": "api",
-          "lista": false,
-          "url": null
+          "lista": true,
+          "url": "https://dojo.trueml.app/rag/rag-api/"
         },
         {
           "num": 9,
           "id": "gate",
           "titulo": "Gate de evals",
           "etapa": "modelo",
-          "lista": false,
           "url": null
         },
         {
@@ -186,7 +185,6 @@
           "id": "empaquetado",
           "titulo": "Empaquetado (Docker)",
           "etapa": "contenedor",
-          "lista": false,
           "url": null
         },
         {
@@ -194,7 +192,6 @@
           "id": "indice-nuevo",
           "titulo": "Índice nuevo sin cortes",
           "etapa": "orquestacion",
-          "lista": false,
           "url": null
         },
         {
@@ -202,7 +199,6 @@
           "id": "monitoreo",
           "titulo": "Monitoreo y probe de permisos",
           "etapa": "monitoreo",
-          "lista": false,
           "url": null
         }
       ]
@@ -235,7 +231,6 @@
           "id": "vllm",
           "titulo": "Servir con vLLM bajo carga",
           "etapa": "api",
-          "lista": false,
           "url": null
         },
         {
@@ -243,7 +238,6 @@
           "id": "gateway",
           "titulo": "Gateway de modelos",
           "etapa": "orquestacion",
-          "lista": false,
           "url": null
         },
         {
@@ -251,7 +245,6 @@
           "id": "rag",
           "titulo": "Tu RAG, al despacho",
           "etapa": "datos",
-          "lista": false,
           "url": null
         },
         {
@@ -259,7 +252,6 @@
           "id": "evals",
           "titulo": "El gate, con el modelo propio",
           "etapa": "modelo",
-          "lista": false,
           "url": null
         },
         {
@@ -267,7 +259,6 @@
           "id": "observabilidad",
           "titulo": "Observabilidad y fallas",
           "etapa": "monitoreo",
-          "lista": false,
           "url": null
         },
         {
@@ -275,7 +266,6 @@
           "id": "entrega",
           "titulo": "Entrega sin internet",
           "etapa": "contenedor",
-          "lista": false,
           "url": null
         }
       ]

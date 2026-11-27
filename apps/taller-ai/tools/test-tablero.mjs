@@ -27,7 +27,9 @@ const PR = plantillaTablero([...est, deRama].map(enSuLinea), LINEAS);
 // las estaciones con taller, en el orden del tronco; los casos de prueba las buscan por id, no por posición
 // Las estaciones con taller, en el orden de la plantilla: el tronco y después cada rama, cada una por número.
 const CON_TALLER = [...LINEAS.values()].flatMap((l) => l.estaciones.filter((s) => est.some((e) => (e.rama || e.caso) === l.id && e.id === s.id)).map((s) => `${l.id}-${s.id}`));
-const PROXIMAS = [...LINEAS.values()].reduce((n, l) => n + l.total, 0) - CON_TALLER.length;
+// las que son la misma que otra («misma» en ramas.json: la 7 del RAG es la 1 de IA Privada) no salen como próximas
+const MISMAS = [...LINEAS.values()].reduce((n, l) => n + l.estaciones.filter((s) => s.misma).length, 0);
+const PROXIMAS = [...LINEAS.values()].reduce((n, l) => n + l.total, 0) - CON_TALLER.length - MISMAS;
 const de = (doc, id) => doc.estaciones.find((x) => x.id === id);
 
 const memoria = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };

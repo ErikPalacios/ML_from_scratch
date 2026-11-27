@@ -105,6 +105,7 @@ e["mapa"] = {
         "<code>servidor.env</code> y <code>servir.sh</code>: el modelo servido en <code>http://127.0.0.1:9931/v1</code>, con clave, 8,192 tokens de contexto, la plantilla de Qwen3 y sin razonamiento",
         "<code>pipeline/llm.py</code>: un cliente con chat, streaming (con su TTFT), conteo de tokens, errores con nombre y JSON con un schema; es el que usa la estación 8 del entrenamiento RAG",
         "las cuentas de tu Mac, medidas: tokens por segundo al generar, segundos de prefill de un prompt del despacho y memoria del KV cache",
+        "la estación 7 del entrenamiento RAG: es esta misma, así que si haces las dos, la haces una vez (la estación 8 del RAG, «La API con citas», trae este servidor y este cliente ya hechos)",
     ],
     "escala": [
         {"que": "El modelo", "ref": "Qwen3 32B en INT4 de AWQ: 19.32 GB de pesos", "taller": "Qwen3-0.6B en Q8_0: 0.80 GB"},

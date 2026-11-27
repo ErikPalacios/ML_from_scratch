@@ -72,7 +72,7 @@ def cache_sin_persona(_e: dict) -> None:
 
 
 def limite_corto(_e: dict) -> None:
-    editar_config("limite_s", "0.5")
+    editar_config("limite_s", "0.2")
 
 
 def ventana_repartida(_e: dict) -> None:
@@ -102,10 +102,10 @@ FALLAS = {
         explica="config.yaml quedó con api.cache.clave: [pregunta]. El top-8 depende de quién pregunta (el filtro de permisos va dentro del retrieval), así que con la llave sin la persona, Carmen recibe el top que se armó para Elena. Tu API lo nota porque revisa cada chunk contra la ACL de quien pregunta antes del prompt (descartados > 0) y no se los da, pero Carmen se queda con un contexto que no es el suyo. Se ve con python verificar.py permisos. " + ARREGLO + " (api.cache.clave: [pregunta, persona]): todo lo que se guarda en una cache de un sistema con permisos lleva la identidad (y, en C11, la versión de la ACL) en la llave."),
     "limite-corto": dict(
         tipo="config", titulo="Las respuestas se cortan a la mitad", aplicar=limite_corto,
-        historia="Para alinear la API con «el timeout de todas las APIs de la empresa», alguien puso 500 ms como límite de la respuesta.",
-        explica="config.yaml quedó con llm.limite_s: 0.5. Una API REST normal contesta en milisegundos, pero una respuesta de un LLM son cientos de tokens que salen uno por uno: solo el primero ya tarda ≈ 0.3–0.9 s aquí. Tu API cierra bien el flujo (un evento error con motivo limite), pero casi ninguna respuesta se completa. Se ve con python verificar.py stream. " + ARREGLO + " (llm.limite_s: 30): el límite de una respuesta en streaming se calcula con el TTFT más max_tokens entre la velocidad del modelo, y se mide."),
+        historia="Para alinear la API con «el timeout de todas las APIs de la empresa», alguien puso 200 ms como límite de la respuesta.",
+        explica="config.yaml quedó con llm.limite_s: 0.2. Una API REST normal contesta en milisegundos, pero una respuesta de un LLM son decenas o cientos de tokens que salen uno por uno, a ≈ 100 por segundo aquí: 50 tokens ya son medio segundo. Tu API cierra bien el flujo (un evento error con motivo limite), pero casi ninguna respuesta se completa. Se ve con python verificar.py stream. " + ARREGLO + " (llm.limite_s: 30): el límite de una respuesta en streaming se calcula con el TTFT más max_tokens entre la velocidad del modelo, y se mide."),
     "ventana-repartida": dict(
-        tipo="servidor", titulo="Las respuestas llegan con menos documentos de los que trae el retrieval", aplicar=ventana_repartida,
+        tipo="infra", titulo="Las respuestas llegan con menos documentos de los que trae el retrieval", aplicar=ventana_repartida,
         historia="Para atender a ocho personas a la vez, alguien subió PARALELO a 8 en servidor.env y volvió a arrancar el LLM.",
         explica="servidor.env quedó con PARALELO=8. llama-server reparte su contexto (CONTEXTO=8192) entre sus slots: cada petición tiene 8192 ÷ 8 = 1024 tokens para prompt y respuesta. Con 256 de respuesta y 64 de reserva quedan 704 para las reglas, la pregunta y los documentos: tu API recorta los de abajo (bien: así no hay error de contexto excedido), pero el modelo contesta con 4 o 5 documentos en vez de 8. Se ve con python verificar.py contexto (y en el evento fuentes: recortados). Arreglo: PARALELO=1 en servidor.env y python mundo/servidor.py arrancar. Para más concurrencia, se sube CONTEXTO junto con PARALELO (cuesta memoria del KV cache: estación 7)."),
     "drive-sin-revisar": dict(

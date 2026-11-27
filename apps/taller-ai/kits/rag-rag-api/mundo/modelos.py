@@ -1,16 +1,17 @@
-"""Baja los dos modelos del dojo a modelo/<clave>/, cada archivo de un commit fijo de Hugging Face.
+"""Baja los tres modelos del dojo a modelo/<clave>/, cada archivo de un commit fijo de Hugging Face.
 
-    python mundo/modelos.py            # una vez, con internet (≈ 623 MB); después todo corre sin red
+    python mundo/modelos.py            # una vez, con internet (≈ 1.4 GB); después todo corre sin red
     python mundo/modelos.py --listar   # qué hay en el catálogo y si ya está en tu Mac
 
 - e5 = intfloat/multilingual-e5-small (MIT), el modelo de embeddings de la estación 5: el del índice vigente.
 - reranker = cross-encoder/mmarco-mMiniLMv2-L12-H384-v1 (Apache-2.0), un cross-encoder multilingüe que lee la pregunta
   y el pasaje juntos y da un puntaje. Se baja su versión cuantizada a int8 (onnx/model_qint8_arm64.onnx, 119 MB).
+- llm = ggml-org/Qwen3-0.6B-GGUF (Apache-2.0), el LLM de la estación 7: Qwen3 0.6B en Q8_0 (805 MB), para llama-server.
 
 Los baja de la revisión anotada en mundo/modelos.json (no de «main», que puede cambiar mañana) y compara el sha256 de
 cada archivo con el del catálogo: si no coincide, lo borra y se detiene. Es lo que haces en producción con un modelo:
 fijar la revisión y comprobar la huella antes de usarlo. Si un archivo ya está y su huella coincide, no lo vuelve a bajar.
-Si tienes otra copia del dojo con los modelos, DOJO_MODELOS=/ruta/a/su/modelo los copia de ahí en vez de bajarlos.
+Si tienes otra copia del dojo con los modelos, DOJO_MODELOS=/ruta/a/su/modelo los enlaza (o copia) de ahí en vez de bajarlos.
 """
 from __future__ import annotations
 
@@ -63,8 +64,14 @@ if __name__ == "__main__":
                 print(f"✓ modelo/{clave}/{nombre} ya está ({a['sha256'][:12]}…)")
                 continue
             if otra and (Path(otra) / clave / nombre).exists():
-                shutil.copy(Path(otra) / clave / nombre, p)
-                print(f"  modelo/{clave}/{nombre}: copiado de {otra}")
+                try:                                   # en el mismo disco, un enlace: no ocupa espacio de nuevo
+                    p.unlink(missing_ok=True)
+                    os.link(Path(otra) / clave / nombre, p)
+                    como = "enlazado"
+                except OSError:
+                    shutil.copy(Path(otra) / clave / nombre, p)
+                    como = "copiado"
+                print(f"  modelo/{clave}/{nombre}: {como} de {otra}")
             else:
                 print(f"  bajando {m['repo']}/{a['ruta']} @ {m['revision'][:12]}…")
                 bajar(f"https://huggingface.co/{m['repo']}/resolve/{m['revision']}/{a['ruta']}", p, a["sha256"], a["bytes"])

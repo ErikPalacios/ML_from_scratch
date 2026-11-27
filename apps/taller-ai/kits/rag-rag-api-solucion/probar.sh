@@ -45,7 +45,7 @@ import llm
 r = llm.Cliente().chat([{'role': 'user', 'content': 'Cuenta del 1 al 60, separados por comas.'}], max_tokens=120)
 v = r.tiempos['predicted_per_second']
 print(f'dojo: el LLM escribe a {v:.0f} tokens/s · una respuesta de 256 tokens: 2.5 s de primer token + 256 ÷ {v:.0f} = {2.5 + 256 / v:.1f} s · llm.limite_s = 30 deja margen')
-print(f'      con limite_s = 0.5 no alcanza ni el primer token del p95')
+print(f'      con limite_s = 0.2, una respuesta de 50 tokens ya no alcanza: 50 ÷ {v:.0f} = {50 / v:.2f} s')
 for tps in (20, 40):
     print(f'C11:  a {tps} tokens/s por persona (supuesto: la plataforma reparte su GPU entre muchas), 512 tokens: 2.5 + 512 ÷ {tps} = {2.5 + 512 / tps:.0f} s')"
 

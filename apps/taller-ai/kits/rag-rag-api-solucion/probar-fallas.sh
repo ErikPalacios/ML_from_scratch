@@ -35,11 +35,11 @@ paso "cache verificar" python verificar.py permisos
 paso "cache arreglo" sh -c "$(declare -f cfg); cfg clave '[pregunta]' '[pregunta, persona]'"
 paso "cache cerrar" python romper.py --verificar
 
-# 3 · el límite de 500 ms
+# 3 · el límite de 200 ms
 paso "lim romper" python romper.py --mostrar --falla limite-corto
-paso "lim ver" python pipeline/preguntar.py --persona paula.vega@marketplace.test "¿Qué casos se escalan a líderes de soporte?"
+paso "lim ver" python pipeline/preguntar.py --persona marco.diaz@marketplace.test "Un cliente quiere cancelar un pedido que ya salió: ¿qué le digo y cuándo le regresan el dinero?"
 paso "lim verificar" python verificar.py stream
-paso "lim arreglo" sh -c "$(declare -f cfg); cfg limite_s 0.5 30"
+paso "lim arreglo" sh -c "$(declare -f cfg); cfg limite_s 0.2 30"
 paso "lim cerrar" python romper.py --verificar
 
 # 4 · la ventana repartida entre 8 slots

@@ -39,8 +39,10 @@ const listas = listasDe(tronco.caso);
 const { etapaDeEstacion } = await import('./lib.mjs');
 const estacionesDe = (linea, ests, etapa) => {
   const ls = listasDe(linea);
-  return ests.map((s) => ({ num: s.num, id: s.id, titulo: s.titulo, etapa: etapa(s),
-    lista: ls.has(s.id), url: ls.has(s.id) ? `${DOJO.url}/${linea}/${s.id}/` : null }));
+  // «misma»: la estación es la de otra línea (la 7 del RAG es la 1 de IA Privada) y abre su página
+  const otra = (s) => s.misma && listasDe(s.misma.split('/')[0]).has(s.misma.split('/')[1]);
+  return ests.map((s) => ({ num: s.num, id: s.id, titulo: s.titulo, etapa: etapa(s), lista: ls.has(s.id) || otra(s),
+    url: ls.has(s.id) ? `${DOJO.url}/${linea}/${s.id}/` : otra(s) ? `${DOJO.url}/${s.misma}/` : null }));
 };
 const dojo = {
   nota: `Generado por apps/trueml/sync.mjs desde apps/${DOJO.carpeta}/content. No se edita a mano.`,
