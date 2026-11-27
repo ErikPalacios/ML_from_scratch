@@ -902,7 +902,7 @@
     },
     {
       "id": "retrieval-de-mas",
-      "titulo": "El primer token pasó de ≈ 1 s a más de 3 s",
+      "titulo": "El primer token pasó de menos de 1 s a más de 3 s",
       "tipo": "config",
       "historia": "Para que «no se escape nada», alguien subió el retrieval: 150 candidatos por índice, que el reranker lea todos y 24 documentos al prompt.",
       "sintoma": "El p95 del primer token sube a 3092 ms. <code>verificar.py ttft</code> falla, y sus medianas dicen dónde se fue el tiempo.",

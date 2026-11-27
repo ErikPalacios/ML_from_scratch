@@ -426,7 +426,7 @@ e["fallas"] = [
           cmd(f'python pipeline/preguntar.py --persona tomas.rey@marketplace.test "{VEN}"', F("drv ver"), "drive:d40#000 entró como documento [1] y el modelo de 0.6B obedeció su instrucción. Ni siquiera lo cita."),
           "<code>seguridad.revisar_fuentes</code> vuelve a incluir <code>drive</code>. Se revisan todas las fuentes: el documento lo subió un vendedor, no «nuestra gente». Y la revisión es una capa de varias.",
           "inyeccion", "inyeccion"),
-    falla("retrieval-de-mas", f"El primer token pasó de ≈ 1 s a más de {int(P95_MAS) // 1000} s", "config",
+    falla("retrieval-de-mas", f"El primer token pasó de menos de 1 s a más de {int(P95_MAS) // 1000} s", "config",
           "Para que «no se escape nada», alguien subió el retrieval: 150 candidatos por índice, que el reranker lea todos y 24 documentos al prompt.",
           f"El p95 del primer token sube a {P95_MAS} ms. <code>verificar.py ttft</code> falla, y sus medianas dicen dónde se fue el tiempo.",
           ["El LLM se volvió más lento.", "El retrieval y el prompt crecieron.", "La cache dejó de funcionar."],
